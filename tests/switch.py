@@ -15,7 +15,9 @@ class TestSwitch(unittest.TestCase):
     self.switch.add_connection(conn2[0])
     
     self.a = conn1[1]
+    self.a.ignore_internal = True
     self.b = conn2[1]
+    self.b.ignore_internal = True
 
   def send_message_process(self, connection: TopicConnection, message: Message):
     connection.send(message)
@@ -23,6 +25,7 @@ class TestSwitch(unittest.TestCase):
 
   def test_standard_workflow(self):
     self.send_message_process(self.a, ProvidesMessage(set([ 1 ]), set()))
+    self.b.recv() # receive and ignore provides message
     
     self.assertIn(1, self.switch.connections[0].out_topics)
 
@@ -45,18 +48,21 @@ class TestSwitch(unittest.TestCase):
 
     received = self.b.recv()
     self.assertIsNone(received)
+  
   def test_provider_added(self):
     self.send_message_process(self.b, SubscribeMessage(1))
     self.send_message_process(self.a, ProvidesMessage(set([ 1 ]), set()))
+    self.b.recv() # receive and ignore provides message
 
     a_received = self.a.recv()
     self.assertIsInstance(a_received, SubscribeMessage)
     self.assertEqual(a_received.topic, 1)
 
     self.send_message_process(self.a, StreamMessage(1, "Hello"))
-
+    
     b_received = self.b.recv()
     self.assertEqual(b_received.data, "Hello")
+
   def test_double_unsubscribe(self):
     self.send_message_process(self.b, SubscribeMessage(1))
     self.send_message_process(self.b, UnsubscribeMessage(1))

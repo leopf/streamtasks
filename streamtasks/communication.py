@@ -29,10 +29,12 @@ class TopicConnection(ABC):
   in_topics: set[int]
   out_topics: set[int]
   __deleted__: bool
+  ignore_provides: bool
 
   def __init__(self):
     self.in_topics, self.out_topics = set(), set()
     self.__deleted__ = False
+    self.ignore_internal = False
 
   def __del__(self):
     self.close()
@@ -59,6 +61,8 @@ class TopicConnection(ABC):
       self.in_topics.remove(message.topic)
     elif isinstance(message, ProvidesMessage):
       self.out_topics = self.out_topics.union(message.add_topics).difference(message.remove_topics)
+      if self.ignore_internal:
+        return None
 
     return message
 
@@ -140,6 +144,7 @@ class TopicSwitch:
   def __init__(self):
     self.subscription_counter = {}
     self.connections = []
+    self.provides = {}
 
   def add_connection(self, connection: TopicConnection):
     assert len(connection.out_topics) == 0, "Connection must not provide topics, before adding it to the switch"
