@@ -1,5 +1,5 @@
 import unittest
-from streamtasks.communication import *
+from streamtasks.comm import *
 
 class TestSwitch(unittest.TestCase):
   a: TopicConnection
