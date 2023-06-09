@@ -47,6 +47,14 @@ class PricedTopic:
   def __hash__(self):
     return self.cost | self.topic << 32
 
+def merge_priced_topics(topics: Iterable[PricedTopic]) -> set[PricedTopic]:
+  topic_map = {}
+  for topic in topics:
+    current = topic_map.get(topic.topic, float("inf"))
+    topic_map[topic.topic] = min(current, topic.cost)
+
+  return set(PricedTopic(topic, cost) for topic, cost in topic_map.items())
+
 @dataclass
 class ProvidesMessage(Message):
   add_topics: set[PricedTopic]
@@ -71,6 +79,12 @@ class Connection(ABC):
 
   def close(self):
     self.__deleted__ = True
+
+  def get_priced_topics(self, topics: set[int] = None) -> set[PricedTopic]:
+    if topics is None:
+      return set(PricedTopic(topic, cost) for topic, cost in self.out_topics.items())
+    else:
+      return set(PricedTopic(topic, self.out_topics[topic]) for topic in topics if topic in self.out_topics)
 
   def send(self, message: Message):
     if isinstance(message, SubscribeMessage):
@@ -213,26 +227,24 @@ class Switch:
 
   def add_connection(self, connection: Connection):
     new_provides = set(PricedTopic(topic, data.cost) for topic, data in self.provides.items() if data.count > 0)
-    if len(new_provides) > 0:
-      connection.send(ProvidesMessage(new_provides, set()))
+    if len(new_provides) > 0: connection.send(ProvidesMessage(new_provides, set()))
   
     added_topics = self.add_topics(connection.out_topics)
-    if len(added_topics) > 0:
-      self.broadcast(ProvidesMessage(added_topics, set()))
+    if len(added_topics) > 0: self.broadcast(ProvidesMessage(added_topics, set()))
+    
     self.connections.append(connection)
   
   def remove_connection(self, connection: Connection):
     self.connections.remove(connection)
- 
     subscribed_topics = connection.subscribed_topics
-    removed_topics = self.remove_topics(connection.out_topics)
+    removed_topics, updated_topics = self.remove_topics(connection.get_priced_topics())
     resub_topics = subscribed_topics - removed_topics
 
     for topic in resub_topics:
       self.subscribe(topic)
     
-    if len(removed_topics) > 0:
-      self.broadcast(ProvidesMessage(set(), removed_topics))
+    if len(removed_topics) > 0 or len(updated_topics) > 0:
+      self.broadcast(ProvidesMessage(updated_topics, removed_topics))
 
   def process(self):
     removing_connections = []
@@ -252,29 +264,32 @@ class Switch:
     for connection in connections: connection.send(message)
   def broadcast(self, message: Message): self.send_to(message, self.connections)
 
-  def remove_topics(self, topics: Iterable[int]):
-    final = set()
-    for topic in topics:
-      current_data = self.provides.get(topic, None)
-      if current_data is None: final.add(topic)
+  def remove_topics(self, topics: Iterable[PricedTopic]):
+    final_removed, updated = set(), set()
+    for pt in topics:
+      current_data: Optional[SwitchTopicInfo] = self.provides.get(pt.topic, None)
+      if current_data is None: continue # NOTE: this should not happen
       elif current_data.count == 1: 
-        final.add(topic)
-        self.provides.pop(topic, None)
+        final_removed.add(pt.topic)
+        self.provides.pop(pt.topic, None)
       else:
         current_data.count = max(current_data.count - 1, 0)
-        assert False, "Not implemented, you need to check if the unregistered provider is the best provider for the topic. If so, you need to update the cost of the topic."
-    return final
+        if current_data.cost == pt.cost:
+          new_cost = min([ conn.out_topics.get(pt.topic, float("inf")) for conn in self.connections ], default=float('inf'))
+          assert new_cost != float('inf'), "There should be at least one provider for the topic, but there is none."
+          current_data.cost = new_cost
+          updated.add(PricedTopic(pt.topic, new_cost))
+    return final_removed, updated
   
   def add_topics(self, topics: Iterable[PricedTopic]):
     final = set()
     for wt in topics:
-      current_data = self.provides.get(wt.topic, None)
-      if current_data is None or current_data.count == 0:
+      current_data = self.provides.get(wt.topic, SwitchTopicInfo(wt.cost, 0))
+      if current_data.count == 0: final.add(wt)
+      elif current_data.cost > wt.cost:
         final.add(wt)
-        current_data = SwitchTopicInfo(wt.cost, 1)
-      else:
-        current_data.count += 1
-        current_data.cost = min(current_data.cost, wt.cost)
+        current_data.cost = wt.cost
+      current_data.count += 1
       self.provides[wt.topic] = current_data
     return final
 
@@ -302,7 +317,8 @@ class Switch:
     self.send_to(message, [ connection for connection in self.connections if connection != origin and message.topic in connection.in_topics])
 
   def on_provides(self, message: ProvidesMessage, origin: Connection):
-    provides_added, provides_removed = self.add_topics(message.add_topics), self.remove_topics(message.remove_topics)
+    provides_removed, provides_updated = self.remove_topics(message.remove_topics)
+    provides_added = merge_priced_topics(list(self.add_topics(message.add_topics)) + list(provides_updated))
 
     if len(provides_added) > 0 or len(provides_removed) > 0:
       # NOTE: This might cause problems
