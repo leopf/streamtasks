@@ -166,11 +166,14 @@ class TopicSwitch:
     self.provides = {}
 
   def add_connection(self, connection: TopicConnection):
-    assert len(connection.out_topics) == 0, "Connection must not provide topics, before adding it to the switch"
+    added_topics = self.add_topics(connection.out_topics)
+    self.broadcast(ProvidesMessage(added_topics, set()))
     self.connections.append(connection)
   
   def remove_connection(self, connection: TopicConnection):
+    removed_topics = self.remove_topics(connection.out_topics)
     self.connections.remove(connection)
+    self.broadcast(ProvidesMessage(set(), removed_topics))
 
   def process(self):
     removing_connections = []
@@ -186,59 +189,53 @@ class TopicSwitch:
 
     for connection in removing_connections: self.remove_connection(connection)
 
-  def send_to_many(self, message: Message, connections: list[TopicConnection]): 
+  def send_to(self, message: Message, connections: list[TopicConnection]): 
     for connection in connections: connection.send(message)
+  def broadcast(self, message: Message): self.send_to(message, self.connections)
 
-  def subscribe(self, message: SubscribeMessage, origin: TopicConnection):
+  def remove_topics(self, topics: set[int]):
+    final = set()
+    for topic in topics:
+      current_count = self.provides.get(topic, 0)
+      if current_count == 1:
+        final.add(topic)
+      self.provides[topic] = max(current_count - 1, 0)
+    return final
+  
+  def add_topics(self, topics: set[int]):
+    final = set()
+    for topic in topics:
+      current_count = self.provides.get(topic, 0)
+      if current_count == 0:
+        final.add(topic)
+      self.provides[topic] = current_count + 1
+    return final
+
+  def on_subscribe(self, message: SubscribeMessage, origin: TopicConnection):
     if message.topic not in self.subscription_counter: self.subscription_counter[message.topic] = 0
     self.subscription_counter[message.topic] += 1
     if self.subscription_counter[message.topic] != 1:
       return
 
-    self.send_to_many(message, [ connection for connection in self.connections if connection != origin and message.topic in connection.out_topics ])
+    self.send_to(message, [ connection for connection in self.connections if connection != origin and message.topic in connection.out_topics ])
 
-  def unsubscribe(self, message: UnsubscribeMessage, origin: TopicConnection):
+  def on_unsubscribe(self, message: UnsubscribeMessage, origin: TopicConnection):
     assert message.topic in self.subscription_counter and self.subscription_counter[message.topic], "Topic not subscribed"
     self.subscription_counter[message.topic] -= 1
     if self.subscription_counter[message.topic] != 0:
       return
 
-    self.send_to_many(message, [ connection for connection in self.connections if connection != origin and message.topic in connection.out_topics ])
+    self.send_to(message, [ connection for connection in self.connections if connection != origin and message.topic in connection.out_topics ])
 
-  def distribute(self, message: StreamMessage, origin: TopicConnection):
-    self.send_to_many(message, [ connection for connection in self.connections if connection != origin and message.topic in connection.in_topics])
-
-  def broadcast(self, message: Message):
-    self.send_to_many(message, self.connections)
-
-  def remove_connection(self, connection: TopicConnection):
-    removed_topics = set()
-    for topic in connection.out_topics:
-      current_count = self.provides.get(topic, 0)
-      if current_count == 1:
-        removed_topics.add(topic)
-      self.provides[topic] = max(current_count - 1, 0)
-    
-    self.connections.remove(connection)
-    self.broadcast(ProvidesMessage(set(), removed_topics))
+  def on_distribute(self, message: StreamMessage, origin: TopicConnection):
+    self.send_to(message, [ connection for connection in self.connections if connection != origin and message.topic in connection.in_topics])
 
   def on_provides(self, message: ProvidesMessage, origin: TopicConnection):
-    provides_added, provides_removed = set(), set()
-    for topic in message.add_topics:
-      current_count = self.provides.get(topic, 0)
-      if current_count == 0:
-        provides_added.add(topic)
-      self.provides[topic] = current_count + 1
-
-    for topic in message.remove_topics:
-      current_count = self.provides.get(topic, 0)
-      if current_count == 1:
-        provides_removed.add(topic)
-      self.provides[topic] = max(current_count - 1, 0) 
+    provides_added, provides_removed = self.add_topics(message.add_topics), self.remove_topics(message.remove_topics)
 
     if len(provides_added) > 0 or len(provides_removed) > 0:
       # NOTE: This might cause problems
-      self.send_to_many(ProvidesMessage(provides_added, provides_removed), [ connection for connection in self.connections if connection != origin ])
+      self.send_to(ProvidesMessage(provides_added, provides_removed), [ connection for connection in self.connections if connection != origin ])
 
     for topic in message.add_topics:
       if self.subscription_counter.get(topic, 0) > 0:
@@ -246,11 +243,11 @@ class TopicSwitch:
 
   def handle_message(self, message: Message, origin: TopicConnection):
     if isinstance(message, SubscribeMessage):
-      self.subscribe(message, origin)
+      self.on_subscribe(message, origin)
     elif isinstance(message, UnsubscribeMessage):
-      self.unsubscribe(message, origin)
+      self.on_unsubscribe(message, origin)
     elif isinstance(message, StreamMessage):
-      self.distribute(message, origin)
+      self.on_distribute(message, origin)
     elif isinstance(message, ProvidesMessage):
       self.on_provides(message, origin)
     else:
