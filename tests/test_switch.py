@@ -2,15 +2,15 @@ import unittest
 from streamtasks.comm import *
 
 class TestSwitch(unittest.TestCase):
-  a: TopicConnection
-  b: TopicConnection
-  switch: TopicSwitch
+  a: Connection
+  b: Connection
+  switch: Switch
 
   def setUp(self):
     conn1 = create_local_cross_connector()
     conn2 = create_local_cross_connector()
 
-    self.switch = TopicSwitch()
+    self.switch = Switch()
     self.switch.add_connection(conn1[0])
     self.switch.add_connection(conn2[0])
     
@@ -19,7 +19,7 @@ class TestSwitch(unittest.TestCase):
     self.b = conn2[1]
     self.b.ignore_internal = True
 
-  def send_message_process(self, connection: TopicConnection, message: Message):
+  def send_message_process(self, connection: Connection, message: Message):
     connection.send(message)
     self.switch.process()
 

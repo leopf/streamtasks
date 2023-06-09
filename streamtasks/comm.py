@@ -1,5 +1,5 @@
 from typing import Union, Optional, Any, Iterable
-from multiprocessing.connection import Connection, Client, Listener
+import multiprocessing.connection as mpconn
 from abc import ABC, abstractmethod, abstractstaticmethod
 from dataclasses import dataclass
 from typing_extensions import Self
@@ -23,7 +23,7 @@ class StreamControlMessage(StreamMessage):
   topic: int
   paused: bool
 
-  def to_data(self) -> StreamControlData: return StreamControlData(self.paused)
+  def to_data(self) -> 'StreamControlData': return StreamControlData(self.paused)
 
 @dataclass
 class StreamControlData:
@@ -52,7 +52,7 @@ class ProvidesMessage(Message):
   add_topics: set[PricedTopic]
   remove_topics: set[int]
 
-class TopicConnection(ABC):
+class Connection(ABC):
   in_topics: set[int]
   out_topics: dict[int, int]
   subscribed_topics: set[int]
@@ -112,10 +112,10 @@ class TopicConnection(ABC):
   def _recv(self) -> Optional[Message]:
     pass
 
-class IPCTopicConnection(TopicConnection):
-  connection: Connection
+class IPCConnection(Connection):
+  connection: mpconn.Connection
 
-  def __init__(self, connection: Connection):
+  def __init__(self, connection: mpconn.Connection):
     super().__init__()
     self.connection = connection
 
@@ -141,7 +141,7 @@ class IPCTopicConnection(TopicConnection):
       self.close()
     return self.connection.closed
 
-class PushTopicConnection(TopicConnection):
+class ListConnection(Connection):
   out_messages: list[Message]
   in_messages: list[Message]
   close_ref: list[bool]
@@ -173,15 +173,15 @@ class PushTopicConnection(TopicConnection):
     else:
       return self.in_messages.pop(0)
 
-def create_local_cross_connector() -> tuple[TopicConnection, TopicConnection]:
+def create_local_cross_connector() -> tuple[Connection, Connection]:
   close_ref = [False]
   messages_a, messages_b = [], []
-  return PushTopicConnection(close_ref, messages_a, messages_b), PushTopicConnection(close_ref, messages_b, messages_a)
+  return ListConnection(close_ref, messages_a, messages_b), ListConnection(close_ref, messages_b, messages_a)
 
-def connect_to_listener(address: RemoteAddress) -> Optional[IPCTopicConnection]:
+def connect_to_listener(address: RemoteAddress) -> Optional[IPCConnection]:
   logging.info(f"Connecting to {address}")
   try:
-    conn = IPCTopicConnection(Client(address))
+    conn = IPCConnection(mpconn.Client(address))
     logging.info(f"Connected to {address}")
     return conn
   except ConnectionRefusedError:
@@ -195,15 +195,15 @@ def get_node_socket_path(id: int) -> str:
       return f'/run/streamtasks-{id}.sock'
 
 @dataclass
-class SwitchProviderData:
+class SwitchTopicInfo:
   cost: int
   count: int
 
-class TopicSwitch:
+class Switch:
   subscription_counter: dict[int, int]
   stream_controls: dict[int, StreamControlData]
-  provides: dict[int, SwitchProviderData]
-  connections: list[TopicConnection]
+  provides: dict[int, SwitchTopicInfo]
+  connections: list[Connection]
 
   def __init__(self):
     self.subscription_counter = {}
@@ -211,22 +211,24 @@ class TopicSwitch:
     self.provides = {}
     self.stream_controls = {}
 
-  def add_connection(self, connection: TopicConnection):
-    connection.send(ProvidesMessage(set(PricedTopic(topic, data.cost) for topic, data in self.provides), set()))
+  def add_connection(self, connection: Connection):
+    new_provides = set(PricedTopic(topic, data.cost) for topic, data in self.provides.items() if data.count > 0)
+    if len(new_provides) > 0:
+      connection.send(ProvidesMessage(new_provides, set()))
   
     added_topics = self.add_topics(connection.out_topics)
     if len(added_topics) > 0:
       self.broadcast(ProvidesMessage(added_topics, set()))
     self.connections.append(connection)
   
-  def remove_connection(self, connection: TopicConnection):
+  def remove_connection(self, connection: Connection):
     self.connections.remove(connection)
  
     subscribed_topics = connection.subscribed_topics
     removed_topics = self.remove_topics(connection.out_topics)
-    compensate_topics = subscribed_topics - removed_topics
+    resub_topics = subscribed_topics - removed_topics
 
-    for topic in compensate_topics:
+    for topic in resub_topics:
       self.subscribe(topic)
     
     if len(removed_topics) > 0:
@@ -246,7 +248,7 @@ class TopicSwitch:
 
     for connection in removing_connections: self.remove_connection(connection)
 
-  def send_to(self, message: Message, connections: list[TopicConnection]): 
+  def send_to(self, message: Message, connections: list[Connection]): 
     for connection in connections: connection.send(message)
   def broadcast(self, message: Message): self.send_to(message, self.connections)
 
@@ -269,7 +271,7 @@ class TopicSwitch:
       current_data = self.provides.get(wt.topic, None)
       if current_data is None or current_data.count == 0:
         final.add(wt)
-        current_data = SwitchProviderData(wt.cost, 1)
+        current_data = SwitchTopicInfo(wt.cost, 1)
       else:
         current_data.count += 1
         current_data.cost = min(current_data.cost, wt.cost)
@@ -284,22 +286,22 @@ class TopicSwitch:
   def unsubscribe(self, topic: int):
     self.send_to(UnsubscribeMessage(topic), [ conn for conn in self.connections if topic in conn.subscribed_topics ])
 
-  def on_subscribe(self, message: SubscribeMessage, origin: TopicConnection):
+  def on_subscribe(self, message: SubscribeMessage, origin: Connection):
     new_count = self.subscription_counter.get(message.topic, 0) + 1
     self.subscription_counter[message.topic] = new_count
     if new_count == 1: self.subscribe(message.topic)
     if message.topic in self.stream_controls: origin.send(self.stream_controls[message.topic].to_message(message.topic))
 
-  def on_unsubscribe(self, message: UnsubscribeMessage, origin: TopicConnection):
+  def on_unsubscribe(self, message: UnsubscribeMessage, origin: Connection):
     new_count = self.subscription_counter.get(message.topic, 0) - 1
     assert new_count >= 0, "Topic not subscribed"
     self.subscription_counter[message.topic] = new_count
     if new_count == 0: self.unsubscribe(message.topic)
 
-  def on_distribute(self, message: StreamMessage, origin: TopicConnection):
+  def on_distribute(self, message: StreamMessage, origin: Connection):
     self.send_to(message, [ connection for connection in self.connections if connection != origin and message.topic in connection.in_topics])
 
-  def on_provides(self, message: ProvidesMessage, origin: TopicConnection):
+  def on_provides(self, message: ProvidesMessage, origin: Connection):
     provides_added, provides_removed = self.add_topics(message.add_topics), self.remove_topics(message.remove_topics)
 
     if len(provides_added) > 0 or len(provides_removed) > 0:
@@ -313,7 +315,7 @@ class TopicSwitch:
           self.unsubscribe(wt.topic)
           self.subscribe(wt.topic)
 
-  def handle_message(self, message: Message, origin: TopicConnection):
+  def handle_message(self, message: Message, origin: Connection):
     if isinstance(message, SubscribeMessage):
       self.on_subscribe(message, origin)
     elif isinstance(message, UnsubscribeMessage):
@@ -327,7 +329,7 @@ class TopicSwitch:
     else:
       self.broadcast(message)
 
-class IPCTopicSwitch(TopicSwitch):
+class IPCSwitch(Switch):
   bind_address: RemoteAddress
   listening: bool
 
@@ -343,8 +345,8 @@ class IPCTopicSwitch(TopicSwitch):
     self.listening = True
 
     loop = asyncio.get_event_loop()
-    listener = Listener(self.bind_address)
+    listener = mpconn.Listener(self.bind_address)
     while self.listening:
       conn = await loop.run_in_executor(None, listener.accept)
       logging.info(f"Accepted connection!")
-      self.add_connection(IPCTopicConnection(conn))
+      self.add_connection(IPCConnection(conn))

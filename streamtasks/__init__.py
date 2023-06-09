@@ -1,5 +1,5 @@
 from typing import Union, Optional, Any
-from multiprocessing.connection import Listener, Client, Connection
+import multiprocessing.connection as mpconn
 from abc import ABC, abstractmethod, abstractstaticmethod
 from dataclasses import dataclass
 from typing_extensions import Self
@@ -10,12 +10,12 @@ import logging
 
 class Node:
   id: int
-  switch: IPCTopicSwitch
+  switch: IPCSwitch
   running: bool
 
   def __init__(self, id: int):
     self.id = id
-    self.switch = IPCTopicSwitch(get_node_socket_path(self.id))
+    self.switch = IPCSwitch(get_node_socket_path(self.id))
     self.running = False
 
   def start(self):
@@ -39,11 +39,11 @@ class Node:
       await asyncio.sleep(0)
       
 class Task:
-  _connection: TopicConnection
+  _connection: Connection
   _provides_topics: set[int]
   _subscribed_topics: set[int]
 
-  def __init__(self, connection: TopicConnection):
+  def __init__(self, connection: Connection):
     self._connection = connection
     self._provides_topics = set()
     self._subscribed_topics = set()
@@ -73,3 +73,4 @@ class Task:
       
   
   
+
