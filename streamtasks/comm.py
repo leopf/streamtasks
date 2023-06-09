@@ -1,8 +1,11 @@
 from typing import Union, Optional, Any
-from multiprocessing.connection import Connection
+from multiprocessing.connection import Connection, Client
 from abc import ABC, abstractmethod, abstractstaticmethod
 from dataclasses import dataclass
 from typing_extensions import Self
+import logging
+
+RemoteAddress = Union[str, tuple[str, int]]
 
 class Message(ABC):
   pass
@@ -135,6 +138,16 @@ def create_local_cross_connector() -> tuple[TopicConnection, TopicConnection]:
   close_ref = [False]
   messages_a, messages_b = [], []
   return PushTopicConnection(close_ref, messages_a, messages_b), PushTopicConnection(close_ref, messages_b, messages_a)
+
+def connect_to_listener(address: RemoteAddress) -> Optional[IPCTopicConnection]:
+  logging.info(f"Connecting to {address}")
+  try:
+    conn = IPCTopicConnection(Client(address))
+    logging.info(f"Connected to {address}")
+    return conn
+  except ConnectionRefusedError:
+    logging.error(f"Connection to {address} refused")
+    return None
 
 class TopicSwitch:
   subscription_counter: dict[int, int]

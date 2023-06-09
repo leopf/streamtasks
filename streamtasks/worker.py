@@ -1,8 +1,9 @@
 from streamtasks.comm import *
-from multiprocessing.connection import Client
+from multiprocessing.connection import Client, Listener
 from typing import Union, Optional
 import asyncio
 import logging
+
 
 class Worker:
   node_id: int
@@ -40,20 +41,32 @@ class Worker:
 
   async def connect_to_node(self):
     while self.node_conn is None or self.node_conn.connection.closed:
-      logging.info(f"Connecting to node {self.node_id}")
-
-      try:
-        self.node_conn = IPCTopicConnection(Client(get_node_socket_path(self.node_id)))
-        self.switch.add_connection(self.node_conn)
-        logging.info(f"Connected to node {self.node_id}")
-      except ConnectionRefusedError:
-        logging.info(f"Connection to node {self.node_id} refused")
+      self.node_conn = connect_to_listener(get_node_socket_path(self.node_id))
+      if self.node_conn is None:
         await asyncio.sleep(1)
 
-    
-RemoteAddress = Union[str, tuple[str, int]]
+class RemoteServerWorker(Worker):
+  bind_address: RemoteAddress
 
-class RemoteConnectionWorker(Worker):
+  def __init__(self, node_id: int, bind_address: RemoteAddress):
+    super().__init__(node_id)
+    self.bind_address = bind_address
+
+  async def start_listening(self):
+    loop = asyncio.get_event_loop()
+    listener = Listener(self.bind_address)
+    while self.running:
+      conn = await loop.run_in_executor(None, listener.accept)
+      logging.info(f"Accepted connection!")
+      self.switch.add_connection(IPCTopicConnection(conn))
+
+  async def async_start(self):
+    await asyncio.gather(
+      await self.start_listening(),
+      await super().async_start()
+    )
+
+class RemoteClientWorker(Worker):
   remote_address: RemoteAddress
   remote_conn: Optional[IPCTopicConnection]
 
@@ -71,11 +84,6 @@ class RemoteConnectionWorker(Worker):
 
   async def connect_to_remote(self):
     while self.remote_conn is None or self.remote_conn.connection.closed:
-      logging.info(f"Connecting to remote {self.remote_address}")
-      try:
-        self.remote_conn = IPCTopicConnection(Client(self.remote_address))
-        self.switch.add_connection(self.remote_conn)
-        logging.info(f"Connected to remote {self.remote_address}")
-      except ConnectionRefusedError:
-        logging.info(f"Connection to remote {self.remote_address} refused")
+      self.remote_conn = connect_to_listener(self.remote_address)
+      if self.remote_conn is None:
         await asyncio.sleep(1)
