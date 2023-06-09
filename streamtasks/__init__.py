@@ -8,22 +8,14 @@ from streamtasks.comm import *
 import os 
 import logging
 
-
-def get_node_socket_path(id: int) -> str:
-  if os.name == 'nt':
-      return f'\\\\.\\pipe\\streamtasks-{id}'
-  else:
-      return f'/run/streamtasks-{id}.sock'
-
-
 class Node:
   id: int
-  switch: TopicSwitch
+  switch: IPCTopicSwitch
   running: bool
 
   def __init__(self, id: int):
     self.id = id
-    self.switch = TopicSwitch()
+    self.switch = IPCTopicSwitch(get_node_socket_path(self.id))
     self.running = False
 
   def start(self):
@@ -31,12 +23,13 @@ class Node:
     loop.run_until_complete(self.async_start())
 
   def signal_stop(self):
+    self.switch.signal_stop()
     self.running = False
 
   async def async_start(self):
     self.running = True
     await asyncio.gather(
-      self._start_listening(),
+      self.switch.start_listening(),
       self._start_switching()
     )
 
@@ -44,15 +37,6 @@ class Node:
     while self.running:
       self.switch.process()
       await asyncio.sleep(0)
-
-  async def _start_listening(self):
-    loop = asyncio.get_event_loop()
-    listerner = Listener(get_node_socket_path(self.id))
-    while self.running:
-      conn = await loop.run_in_executor(None, listerner.accept)
-      self.switch.add_connection(IPCTopicConnection(conn))
       
-
-    
 class Task:
   pass

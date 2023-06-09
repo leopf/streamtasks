@@ -1,5 +1,5 @@
 from typing import Union, Optional, Any
-from multiprocessing.connection import Connection, Client
+from multiprocessing.connection import Connection, Client, Listener
 from abc import ABC, abstractmethod, abstractstaticmethod
 from dataclasses import dataclass
 from typing_extensions import Self
@@ -149,6 +149,12 @@ def connect_to_listener(address: RemoteAddress) -> Optional[IPCTopicConnection]:
     logging.error(f"Connection to {address} refused")
     return None
 
+def get_node_socket_path(id: int) -> str:
+  if os.name == 'nt':
+      return f'\\\\.\\pipe\\streamtasks-{id}'
+  else:
+      return f'/run/streamtasks-{id}.sock'
+
 class TopicSwitch:
   subscription_counter: dict[int, int]
   provides: dict[int, int]
@@ -249,3 +255,25 @@ class TopicSwitch:
       self.on_provides(message, origin)
     else:
       self.broadcast(message)
+
+class IPCTopicSwitch(TopicSwitch):
+  bind_address: RemoteAddress
+  listening: bool
+
+  def __init__(self, bind_address: RemoteAddress):
+    super().__init__()
+    self.bind_address = bind_address
+    self.listening = False
+
+  def signal_stop(self):
+    self.listening = False
+
+  async def start_listening(self):
+    self.listening = True
+
+    loop = asyncio.get_event_loop()
+    listener = Listener(self.bind_address)
+    while self.listening:
+      conn = await loop.run_in_executor(None, listener.accept)
+      logging.info(f"Accepted connection!")
+      self.add_connection(IPCTopicConnection(conn))
