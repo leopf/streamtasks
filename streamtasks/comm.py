@@ -1,4 +1,4 @@
-from typing import Union, Optional, Any
+from typing import Union, Optional, Any, Iterable
 from multiprocessing.connection import Connection, Client, Listener
 from abc import ABC, abstractmethod, abstractstaticmethod
 from dataclasses import dataclass
@@ -10,10 +10,19 @@ RemoteAddress = Union[str, tuple[str, int]]
 class Message(ABC):
   pass
 
+
+class StreamMessage(Message, ABC):
+  topic: int
+
 @dataclass
-class StreamMessage(Message):
+class StreamDataMessage(StreamMessage):
   topic: int
   data: Any
+
+@dataclass
+class StreamPauseMessage(StreamMessage):
+  topic: int
+  paused: bool
 
 @dataclass
 class SubscribeMessage(Message):
@@ -24,20 +33,31 @@ class UnsubscribeMessage(Message):
   topic: int
 
 @dataclass
+class PricedTopic:
+  topic: int
+  cost: int
+
+  def __hash__(self):
+    return self.cost | self.topic << 32
+
+@dataclass
 class ProvidesMessage(Message):
-  add_topics: set[int]
+  add_topics: set[PricedTopic]
   remove_topics: set[int]
 
 class TopicConnection(ABC):
   in_topics: set[int]
-  out_topics: set[int]
+  out_topics: dict[int, int]
+  subscribed_topics: set[int]
+
   __deleted__: bool
-  ignore_provides: bool
+  ignore_internal: bool
 
   def __init__(self):
-    self.in_topics, self.out_topics = set(), set()
+    self.in_topics, self.out_topics = set(), dict()
     self.__deleted__ = False
     self.ignore_internal = False
+    self.subscribed_topics = set()
 
   def __del__(self):
     self.close()
@@ -45,9 +65,15 @@ class TopicConnection(ABC):
   def close(self):
     self.__deleted__ = True
 
-  @abstractmethod
   def send(self, message: Message):
-    pass
+    if isinstance(message, SubscribeMessage):
+      self.subscribed_topics.add(message.topic)
+    elif isinstance(message, UnsubscribeMessage):
+      if message.topic in self.subscribed_topics:
+        self.subscribed_topics.remove(message.topic)
+      else:
+        return
+    self._send(message)
 
   def recv(self) -> Optional[Message]:
     message = self._recv()
@@ -63,11 +89,17 @@ class TopicConnection(ABC):
         return None
       self.in_topics.remove(message.topic)
     elif isinstance(message, ProvidesMessage):
-      self.out_topics = self.out_topics.union(message.add_topics).difference(message.remove_topics)
+      for topic in message.remove_topics: self.out_topics.pop(wt.topic, None)
+      for wt in message.add_topics: self.out_topics[wt.topic] = wt.cost
+
       if self.ignore_internal:
         return None
 
     return message
+
+  @abstractmethod
+  def _send(self, message: Message):
+    pass
 
   @abstractmethod
   def _recv(self) -> Optional[Message]:
@@ -84,7 +116,7 @@ class IPCTopicConnection(TopicConnection):
     super().close()
     self.connection.close()
 
-  def send(self, message: Message):
+  def _send(self, message: Message):
     if not self.check_closed():
       self.connection.send(message)
 
@@ -117,7 +149,7 @@ class PushTopicConnection(TopicConnection):
     super().close()
     self.close_ref[0] = True
 
-  def send(self, message: Message):
+  def _send(self, message: Message):
     if self.close_ref[0]:
       self.close()
       return
@@ -167,13 +199,22 @@ class TopicSwitch:
 
   def add_connection(self, connection: TopicConnection):
     added_topics = self.add_topics(connection.out_topics)
-    self.broadcast(ProvidesMessage(added_topics, set()))
+    if len(added_topics) > 0:
+      self.broadcast(ProvidesMessage(added_topics, set()))
     self.connections.append(connection)
   
   def remove_connection(self, connection: TopicConnection):
-    removed_topics = self.remove_topics(connection.out_topics)
     self.connections.remove(connection)
-    self.broadcast(ProvidesMessage(set(), removed_topics))
+ 
+    subscribed_topics = connection.subscribed_topics
+    removed_topics = self.remove_topics(connection.out_topics)
+    compensate_topics = subscribed_topics - removed_topics
+
+    for topic in compensate_topics:
+      self.subscribe(topic)
+    
+    if len(removed_topics) > 0:
+      self.broadcast(ProvidesMessage(set(), removed_topics))
 
   def process(self):
     removing_connections = []
@@ -193,7 +234,7 @@ class TopicSwitch:
     for connection in connections: connection.send(message)
   def broadcast(self, message: Message): self.send_to(message, self.connections)
 
-  def remove_topics(self, topics: set[int]):
+  def remove_topics(self, topics: Iterable[int]):
     final = set()
     for topic in topics:
       current_count = self.provides.get(topic, 0)
@@ -202,30 +243,33 @@ class TopicSwitch:
       self.provides[topic] = max(current_count - 1, 0)
     return final
   
-  def add_topics(self, topics: set[int]):
+  def add_topics(self, topics: Iterable[PricedTopic]):
     final = set()
-    for topic in topics:
-      current_count = self.provides.get(topic, 0)
+    for wt in topics:
+      current_count = self.provides.get(wt.topic, 0)
       if current_count == 0:
-        final.add(topic)
-      self.provides[topic] = current_count + 1
+        final.add(wt)
+      self.provides[wt.topic] = current_count + 1
     return final
 
-  def on_subscribe(self, message: SubscribeMessage, origin: TopicConnection):
-    if message.topic not in self.subscription_counter: self.subscription_counter[message.topic] = 0
-    self.subscription_counter[message.topic] += 1
-    if self.subscription_counter[message.topic] != 1:
-      return
+  def subscribe(self, topic: int):
+    best_connection = min(self.connections, key=lambda connection: connection.out_topics.get(topic, float('inf')))
+    if topic in best_connection.out_topics:
+      best_connection.send(SubscribeMessage(topic))
 
-    self.send_to(message, [ connection for connection in self.connections if connection != origin and message.topic in connection.out_topics ])
+  def unsubscribe(self, topic: int):
+    self.send_to(UnsubscribeMessage(topic), [ conn for conn in self.connections if topic in conn.subscribed_topics ])
+
+  def on_subscribe(self, message: SubscribeMessage, origin: TopicConnection):
+    new_count = self.subscription_counter.get(message.topic, 0) + 1
+    self.subscription_counter[message.topic] = new_count
+    if new_count == 1: self.subscribe(message.topic)
 
   def on_unsubscribe(self, message: UnsubscribeMessage, origin: TopicConnection):
-    assert message.topic in self.subscription_counter and self.subscription_counter[message.topic], "Topic not subscribed"
-    self.subscription_counter[message.topic] -= 1
-    if self.subscription_counter[message.topic] != 0:
-      return
-
-    self.send_to(message, [ connection for connection in self.connections if connection != origin and message.topic in connection.out_topics ])
+    new_count = self.subscription_counter.get(message.topic, 0) - 1
+    assert new_count >= 0, "Topic not subscribed"
+    self.subscription_counter[message.topic] = new_count
+    if new_count == 0: self.unsubscribe(message.topic)
 
   def on_distribute(self, message: StreamMessage, origin: TopicConnection):
     self.send_to(message, [ connection for connection in self.connections if connection != origin and message.topic in connection.in_topics])
@@ -235,11 +279,14 @@ class TopicSwitch:
 
     if len(provides_added) > 0 or len(provides_removed) > 0:
       # NOTE: This might cause problems
-      self.send_to(ProvidesMessage(provides_added, provides_removed), [ connection for connection in self.connections if connection != origin ])
+      self.send_to(ProvidesMessage(provides_added, provides_removed), [ conn for conn in self.connections if conn != origin ])
 
-    for topic in message.add_topics:
-      if self.subscription_counter.get(topic, 0) > 0:
-        origin.send(SubscribeMessage(topic))
+    for wt in message.add_topics:
+      if self.subscription_counter.get(wt.topic, 0) > 0:
+        topic_provider = next((conn for conn in self.connections if wt.topic in conn.subscribed_topics), None)
+        if topic_provider is None or topic_provider.out_topics[wt.topic] > wt.cost: # resub to the better provider
+          self.unsubscribe(wt.topic)
+          self.subscribe(wt.topic)
 
   def handle_message(self, message: Message, origin: TopicConnection):
     if isinstance(message, SubscribeMessage):

@@ -39,4 +39,37 @@ class Node:
       await asyncio.sleep(0)
       
 class Task:
-  pass
+  _connection: TopicConnection
+  _provides_topics: set[int]
+  _subscribed_topics: set[int]
+
+  def __init__(self, connection: TopicConnection):
+    self._connection = connection
+    self._provides_topics = set()
+    self._subscribed_topics = set()
+
+  def subscribe(self, topics: Iterable[int]):
+    new_subscribed = set(topics)
+    remove_subscribed = self._subscribed_topics - new_subscribed
+    add_subscribed = new_subscribed - self._subscribed_topics
+    for topic in remove_subscribed: self._connection.send(UnsubscribeMessage(topic))
+    for topic in add_subscribed: self._connection.send(SubscribeMessage(topic))
+    self._subscribed_topics = new_subscribed
+
+  def provide(self, topics: Iterable[int]):
+    new_provides = set(topics)
+    remove_provided = self._provides_topics - new_provides
+    add_provided = new_provides - self._provides_topics
+    self._connection.send(ProvidesMessage(set([ PricedTopic(topic, 0) for topic in add_provided ]), remove_provided))
+    self._provides_topics = new_provides
+
+  def pause(self):
+    for topic in self._provides_topics: self._connection.send(StreamPauseMessage(topic, True))
+    for topic in self._subscribed_topics: self._connection.send(UnsubscribeMessage(topic))
+
+  def resume(self):
+    for topic in self._provides_topics: self._connection.send(StreamPauseMessage(topic, False))
+    for topic in self._subscribed_topics: self._connection.send(SubscribeMessage(topic))
+      
+  
+  
