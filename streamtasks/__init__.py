@@ -64,11 +64,11 @@ class Task:
     self._provides_topics = new_provides
 
   def pause(self):
-    for topic in self._provides_topics: self._connection.send(StreamPauseMessage(topic, True))
+    for topic in self._provides_topics: self._connection.send(StreamControlMessage(topic, True))
     for topic in self._subscribed_topics: self._connection.send(UnsubscribeMessage(topic))
 
   def resume(self):
-    for topic in self._provides_topics: self._connection.send(StreamPauseMessage(topic, False))
+    for topic in self._provides_topics: self._connection.send(StreamControlMessage(topic, False))
     for topic in self._subscribed_topics: self._connection.send(SubscribeMessage(topic))
       
   

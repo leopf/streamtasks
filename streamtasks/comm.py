@@ -10,7 +10,6 @@ RemoteAddress = Union[str, tuple[str, int]]
 class Message(ABC):
   pass
 
-
 class StreamMessage(Message, ABC):
   topic: int
 
@@ -20,9 +19,17 @@ class StreamDataMessage(StreamMessage):
   data: Any
 
 @dataclass
-class StreamPauseMessage(StreamMessage):
+class StreamControlMessage(StreamMessage):
   topic: int
   paused: bool
+
+  def to_data(self) -> StreamControlData: return StreamControlData(self.paused)
+
+@dataclass
+class StreamControlData:
+  paused: bool
+
+  def to_message(self, topic: int) -> StreamControlMessage: return StreamControlMessage(topic, self.paused)
 
 @dataclass
 class SubscribeMessage(Message):
@@ -187,17 +194,26 @@ def get_node_socket_path(id: int) -> str:
   else:
       return f'/run/streamtasks-{id}.sock'
 
+@dataclass
+class SwitchProviderData:
+  cost: int
+  count: int
+
 class TopicSwitch:
   subscription_counter: dict[int, int]
-  provides: dict[int, int]
+  stream_controls: dict[int, StreamControlData]
+  provides: dict[int, SwitchProviderData]
   connections: list[TopicConnection]
 
   def __init__(self):
     self.subscription_counter = {}
     self.connections = []
     self.provides = {}
+    self.stream_controls = {}
 
   def add_connection(self, connection: TopicConnection):
+    connection.send(ProvidesMessage(set(PricedTopic(topic, data.cost) for topic, data in self.provides), set()))
+  
     added_topics = self.add_topics(connection.out_topics)
     if len(added_topics) > 0:
       self.broadcast(ProvidesMessage(added_topics, set()))
@@ -237,19 +253,27 @@ class TopicSwitch:
   def remove_topics(self, topics: Iterable[int]):
     final = set()
     for topic in topics:
-      current_count = self.provides.get(topic, 0)
-      if current_count == 1:
+      current_data = self.provides.get(topic, None)
+      if current_data is None: final.add(topic)
+      elif current_data.count == 1: 
         final.add(topic)
-      self.provides[topic] = max(current_count - 1, 0)
+        self.provides.pop(topic, None)
+      else:
+        current_data.count = max(current_data.count - 1, 0)
+        assert False, "Not implemented, you need to check if the unregistered provider is the best provider for the topic. If so, you need to update the cost of the topic."
     return final
   
   def add_topics(self, topics: Iterable[PricedTopic]):
     final = set()
     for wt in topics:
-      current_count = self.provides.get(wt.topic, 0)
-      if current_count == 0:
+      current_data = self.provides.get(wt.topic, None)
+      if current_data is None or current_data.count == 0:
         final.add(wt)
-      self.provides[wt.topic] = current_count + 1
+        current_data = SwitchProviderData(wt.cost, 1)
+      else:
+        current_data.count += 1
+        current_data.cost = min(current_data.cost, wt.cost)
+      self.provides[wt.topic] = current_data
     return final
 
   def subscribe(self, topic: int):
@@ -264,6 +288,7 @@ class TopicSwitch:
     new_count = self.subscription_counter.get(message.topic, 0) + 1
     self.subscription_counter[message.topic] = new_count
     if new_count == 1: self.subscribe(message.topic)
+    if message.topic in self.stream_controls: origin.send(self.stream_controls[message.topic].to_message(message.topic))
 
   def on_unsubscribe(self, message: UnsubscribeMessage, origin: TopicConnection):
     new_count = self.subscription_counter.get(message.topic, 0) - 1
@@ -294,6 +319,8 @@ class TopicSwitch:
     elif isinstance(message, UnsubscribeMessage):
       self.on_unsubscribe(message, origin)
     elif isinstance(message, StreamMessage):
+      if isinstance(message, StreamControlMessage):
+        self.stream_controls[message.topic] = message.to_data()
       self.on_distribute(message, origin)
     elif isinstance(message, ProvidesMessage):
       self.on_provides(message, origin)
