@@ -64,21 +64,23 @@ class Connection(ABC):
   in_topics: set[int]
   out_topics: dict[int, int]
   subscribed_topics: set[int]
+  cost: int
 
-  __deleted__: bool
+  deleted: bool
   ignore_internal: bool
 
-  def __init__(self):
+  def __init__(self, cost: int = 1):
     self.in_topics, self.out_topics = set(), dict()
-    self.__deleted__ = False
+    self.deleted = False
     self.ignore_internal = False
     self.subscribed_topics = set()
+    self.cost = cost
 
   def __del__(self):
     self.close()
 
   def close(self):
-    self.__deleted__ = True
+    self.deleted = True
 
   def get_priced_topics(self, topics: set[int] = None) -> set[PricedTopic]:
     if topics is None:
@@ -94,6 +96,8 @@ class Connection(ABC):
         self.subscribed_topics.remove(message.topic)
       else:
         return
+    elif isinstance(message, ProvidesMessage):
+      message = ProvidesMessage(set(PricedTopic(pt.topic, pt.cost + self.cost) for pt in message.add_topics), message.remove_topics)
     self._send(message)
 
   def recv(self) -> Optional[Message]:
@@ -110,6 +114,7 @@ class Connection(ABC):
         return None
       self.in_topics.remove(message.topic)
     elif isinstance(message, ProvidesMessage):
+      message = ProvidesMessage(set(PricedTopic(pt.topic, pt.cost + self.cost) for pt in message.add_topics), message.remove_topics)
       for topic in message.remove_topics: self.out_topics.pop(wt.topic, None)
       for wt in message.add_topics: self.out_topics[wt.topic] = wt.cost
 
@@ -129,8 +134,8 @@ class Connection(ABC):
 class IPCConnection(Connection):
   connection: mpconn.Connection
 
-  def __init__(self, connection: mpconn.Connection):
-    super().__init__()
+  def __init__(self, connection: mpconn.Connection, cost: Optional[int] = None):
+    super().__init__(cost)
     self.connection = connection
 
   def close(self):
@@ -251,7 +256,7 @@ class Switch:
 
     for connection in self.connections:
       message = connection.recv()
-      if connection.__deleted__:
+      if connection.deleted:
         removing_connections.append(connection)
       elif message is None:
         continue

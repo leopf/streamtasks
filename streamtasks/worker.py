@@ -62,10 +62,12 @@ class RemoteServerWorker(Worker):
 class RemoteClientWorker(Worker):
   remote_address: RemoteAddress
   remote_conn: Optional[IPCConnection]
+  connection_cost: int
 
-  def __init__(self, node_id: int, remote_address: RemoteAddress):
+  def __init__(self, node_id: int, remote_address: RemoteAddress, connection_cost: int = 10):
     super().__init__(node_id)
     self.remote_address = remote_address
+    self.connection_cost = connection_cost
 
   async def async_start(self):
     await self.connect_to_remote()
@@ -79,3 +81,4 @@ class RemoteClientWorker(Worker):
     while self.remote_conn is None or self.remote_conn.connection.closed:
       self.remote_conn = connect_to_listener(self.remote_address)
       if self.remote_conn is None: await asyncio.sleep(1)
+      else: self.remote_conn.cost = self.connection_cost
