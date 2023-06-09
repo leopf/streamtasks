@@ -18,10 +18,6 @@ class Node:
     self.switch = IPCSwitch(get_node_socket_path(self.id))
     self.running = False
 
-  def start(self):
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(self.async_start())
-
   def signal_stop(self):
     self.switch.signal_stop()
     self.running = False
@@ -36,7 +32,7 @@ class Node:
   async def _start_switching(self):
     while self.running:
       self.switch.process()
-      await asyncio.sleep(0)
+      await asyncio.sleep(0.001)
       
 class Task:
   _connection: Connection

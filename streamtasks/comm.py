@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod, abstractstaticmethod
 from dataclasses import dataclass
 from typing_extensions import Self
 import logging
+import os
+import asyncio
 
 RemoteAddress = Union[str, tuple[str, int]]
 
@@ -203,7 +205,7 @@ def connect_to_listener(address: RemoteAddress) -> Optional[IPCConnection]:
     conn = IPCConnection(mpconn.Client(address))
     logging.info(f"Connected to {address}")
     return conn
-  except ConnectionRefusedError:
+  except Exception:
     logging.error(f"Connection to {address} refused")
     return None
 
@@ -211,7 +213,7 @@ def get_node_socket_path(id: int) -> str:
   if os.name == 'nt':
       return f'\\\\.\\pipe\\streamtasks-{id}'
   else:
-      return f'/run/streamtasks-{id}.sock'
+      return f'/tmp/streamtasks-{id}.sock'
 
 @dataclass
 class SwitchTopicInfo:
@@ -367,6 +369,8 @@ class IPCSwitch(Switch):
 
     loop = asyncio.get_event_loop()
     listener = mpconn.Listener(self.bind_address)
+    logging.info(f"Listening on {self.bind_address}")
+
     while self.listening:
       conn = await loop.run_in_executor(None, listener.accept)
       logging.info(f"Accepted connection!")
