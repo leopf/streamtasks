@@ -1,6 +1,6 @@
 import unittest
 from streamtasks.comm import *
-from streamtasks.messages import *
+from streamtasks.types import *
 
 class TestSwitch(unittest.TestCase):
   a: Connection
@@ -33,7 +33,7 @@ class TestSwitch(unittest.TestCase):
     self.send_message_process(self.b, InTopicsChangedMessage(set([1]), set()))
 
     self.assertIn(1, self.switch.connections[1].in_topics)
-    self.assertEqual(self.switch.in_topics.get(1), 1)
+    self.assertIn(1, self.switch.in_topics)
 
     self.send_message_process(self.a, StreamDataMessage(1, "Hello"))
 
@@ -42,7 +42,7 @@ class TestSwitch(unittest.TestCase):
 
     self.send_message_process(self.b, InTopicsChangedMessage(set(), set([1])))
 
-    self.assertEqual(self.switch.in_topics.get(1), 0)
+    self.assertNotIn(1, self.switch.in_topics)
     self.assertNotIn(1, self.switch.connections[1].in_topics)
 
     self.send_message_process(self.a, StreamDataMessage(1, "Hello"))

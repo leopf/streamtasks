@@ -34,6 +34,11 @@ class AddressesChangedMessage(Message):
   remove: set[int]
 
 @dataclass
+class AddressesChangedRecvMessage(Message):
+  add: set[PricedId]
+  remove: set[PricedId]
+
+@dataclass
 class InTopicsChangedMessage(Message):
   add: set[int]
   remove: set[int]
@@ -42,6 +47,11 @@ class InTopicsChangedMessage(Message):
 class OutTopicsChangedMessage(Message):
   add: set[PricedId]
   remove: set[int]
+
+@dataclass
+class OutTopicsChangedRecvMessage(Message):
+  add: set[PricedId]
+  remove: set[PricedId]
 
 @dataclass
 class StreamControlData:
