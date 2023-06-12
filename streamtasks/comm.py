@@ -186,7 +186,7 @@ class Switch:
   
     added_topics = self.add_out_topics(connection.out_topics)
     if len(added_topics) > 0: self.broadcast(OutTopicsChangedMessage(added_topics, set()))
-    
+    # TODO: respect in topics
     self.connections.append(connection)
   
   def remove_connection(self, connection: Connection):
@@ -195,6 +195,7 @@ class Switch:
     removed_topics, updated_topics = self.remove_out_topics(connection.get_priced_topics())
     updated_in_topics = recv_topics - removed_topics
 
+    # TODO: better way to do this
     for topic in updated_in_topics:
       self.send_add_in_topic(topic)
     
