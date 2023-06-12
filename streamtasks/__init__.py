@@ -56,7 +56,7 @@ class Task:
     new_provides = set(topics)
     remove_provided = self._provides_topics - new_provides
     add_provided = new_provides - self._provides_topics
-    self._connection.send(ProvidesMessage(set([ PricedTopic(topic, 0) for topic in add_provided ]), remove_provided))
+    self._connection.send(OutTopicsChangedMessage(set([ PricedTopic(topic, 0) for topic in add_provided ]), remove_provided))
     self._provides_topics = new_provides
 
   def pause(self):
@@ -69,4 +69,5 @@ class Task:
       
   
   
+
 

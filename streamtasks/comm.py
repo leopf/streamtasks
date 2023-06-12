@@ -1,3 +1,5 @@
+from streamtasks.messages import *
+
 from typing import Union, Optional, Any, Iterable
 import multiprocessing.connection as mpconn
 from abc import ABC, abstractmethod, abstractstaticmethod
@@ -8,59 +10,6 @@ import os
 import asyncio
 
 RemoteAddress = Union[str, tuple[str, int]]
-
-class Message(ABC):
-  pass
-
-class StreamMessage(Message, ABC):
-  topic: int
-
-@dataclass
-class StreamDataMessage(StreamMessage):
-  topic: int
-  data: Any
-
-@dataclass
-class StreamControlMessage(StreamMessage):
-  topic: int
-  paused: bool
-
-  def to_data(self) -> 'StreamControlData': return StreamControlData(self.paused)
-
-@dataclass
-class StreamControlData:
-  paused: bool
-
-  def to_message(self, topic: int) -> StreamControlMessage: return StreamControlMessage(topic, self.paused)
-
-@dataclass
-class SubscribeMessage(Message):
-  topic: int
-
-@dataclass
-class UnsubscribeMessage(Message):
-  topic: int
-
-@dataclass
-class PricedTopic:
-  topic: int
-  cost: int
-
-  def __hash__(self):
-    return self.cost | self.topic << 32
-
-def merge_priced_topics(topics: Iterable[PricedTopic]) -> set[PricedTopic]:
-  topic_map = {}
-  for topic in topics:
-    current = topic_map.get(topic.topic, float("inf"))
-    topic_map[topic.topic] = min(current, topic.cost)
-
-  return set(PricedTopic(topic, cost) for topic, cost in topic_map.items())
-
-@dataclass
-class ProvidesMessage(Message):
-  add_topics: set[PricedTopic]
-  remove_topics: set[int]
 
 class Connection(ABC):
   in_topics: set[int]
@@ -98,8 +47,9 @@ class Connection(ABC):
         self.subscribed_topics.remove(message.topic)
       else:
         return
-    elif isinstance(message, ProvidesMessage):
-      message = ProvidesMessage(set(PricedTopic(pt.topic, pt.cost + self.cost) for pt in message.add_topics), message.remove_topics)
+    elif isinstance(message, OutTopicsChangedMessage):
+      otc_message: OutTopicsChangedMessage = message
+      message = OutTopicsChangedMessage(set(PricedTopic(pt.topic, pt.cost + self.cost) for pt in otc_message.add), otc_message.remove)
     self._send(message)
 
   def recv(self) -> Optional[Message]:
@@ -115,10 +65,11 @@ class Connection(ABC):
       if message.topic not in self.in_topics:
         return None
       self.in_topics.remove(message.topic)
-    elif isinstance(message, ProvidesMessage):
-      message = ProvidesMessage(set(PricedTopic(pt.topic, pt.cost + self.cost) for pt in message.add_topics), message.remove_topics)
-      for topic in message.remove_topics: self.out_topics.pop(wt.topic, None)
-      for wt in message.add_topics: self.out_topics[wt.topic] = wt.cost
+    elif isinstance(message, OutTopicsChangedMessage):
+      otc_message: OutTopicsChangedMessage = message
+      message = OutTopicsChangedMessage(set(PricedTopic(pt.topic, pt.cost + self.cost) for pt in otc_message.add), otc_message.remove)
+      for topic in message.remove: self.out_topics.pop(wt.topic, None)
+      for wt in message.add: self.out_topics[wt.topic] = wt.cost
 
       if self.ignore_internal:
         return None
@@ -223,35 +174,35 @@ class SwitchTopicInfo:
 class Switch:
   subscription_counter: dict[int, int]
   stream_controls: dict[int, StreamControlData]
-  provides: dict[int, SwitchTopicInfo]
+  out_topics: dict[int, SwitchTopicInfo]
   connections: list[Connection]
 
   def __init__(self):
     self.subscription_counter = {}
     self.connections = []
-    self.provides = {}
+    self.out_topics = {}
     self.stream_controls = {}
 
   def add_connection(self, connection: Connection):
-    new_provides = set(PricedTopic(topic, data.cost) for topic, data in self.provides.items() if data.count > 0)
-    if len(new_provides) > 0: connection.send(ProvidesMessage(new_provides, set()))
+    new_provides = set(PricedTopic(topic, data.cost) for topic, data in self.out_topics.items() if data.count > 0)
+    if len(new_provides) > 0: connection.send(OutTopicsChangedMessage(new_provides, set()))
   
-    added_topics = self.add_topics(connection.out_topics)
-    if len(added_topics) > 0: self.broadcast(ProvidesMessage(added_topics, set()))
+    added_topics = self.add_out_topics(connection.out_topics)
+    if len(added_topics) > 0: self.broadcast(OutTopicsChangedMessage(added_topics, set()))
     
     self.connections.append(connection)
   
   def remove_connection(self, connection: Connection):
     self.connections.remove(connection)
     subscribed_topics = connection.subscribed_topics
-    removed_topics, updated_topics = self.remove_topics(connection.get_priced_topics())
+    removed_topics, updated_topics = self.remove_out_topics(connection.get_priced_topics())
     resub_topics = subscribed_topics - removed_topics
 
     for topic in resub_topics:
       self.subscribe(topic)
     
     if len(removed_topics) > 0 or len(updated_topics) > 0:
-      self.broadcast(ProvidesMessage(updated_topics, removed_topics))
+      self.broadcast(OutTopicsChangedMessage(updated_topics, removed_topics))
 
   def process(self):
     removing_connections = []
@@ -271,14 +222,14 @@ class Switch:
     for connection in connections: connection.send(message)
   def broadcast(self, message: Message): self.send_to(message, self.connections)
 
-  def remove_topics(self, topics: Iterable[PricedTopic]):
+  def remove_out_topics(self, topics: Iterable[PricedTopic]):
     final_removed, updated = set(), set()
     for pt in topics:
-      current_data: Optional[SwitchTopicInfo] = self.provides.get(pt.topic, None)
+      current_data: Optional[SwitchTopicInfo] = self.out_topics.get(pt.topic, None)
       if current_data is None: continue # NOTE: this should not happen
       elif current_data.count == 1: 
         final_removed.add(pt.topic)
-        self.provides.pop(pt.topic, None)
+        self.out_topics.pop(pt.topic, None)
       else:
         current_data.count = max(current_data.count - 1, 0)
         if current_data.cost == pt.cost:
@@ -288,16 +239,16 @@ class Switch:
           updated.add(PricedTopic(pt.topic, new_cost))
     return final_removed, updated
   
-  def add_topics(self, topics: Iterable[PricedTopic]):
+  def add_out_topics(self, topics: Iterable[PricedTopic]):
     final = set()
     for wt in topics:
-      current_data = self.provides.get(wt.topic, SwitchTopicInfo(wt.cost, 0))
+      current_data = self.out_topics.get(wt.topic, SwitchTopicInfo(wt.cost, 0))
       if current_data.count == 0: final.add(wt)
       elif current_data.cost > wt.cost:
         final.add(wt)
         current_data.cost = wt.cost
       current_data.count += 1
-      self.provides[wt.topic] = current_data
+      self.out_topics[wt.topic] = current_data
     return final
 
   def subscribe(self, topic: int):
@@ -323,15 +274,15 @@ class Switch:
   def on_distribute(self, message: StreamMessage, origin: Connection):
     self.send_to(message, [ connection for connection in self.connections if connection != origin and message.topic in connection.in_topics])
 
-  def on_provides(self, message: ProvidesMessage, origin: Connection):
-    provides_removed, provides_updated = self.remove_topics(message.remove_topics)
-    provides_added = merge_priced_topics(list(self.add_topics(message.add_topics)) + list(provides_updated))
+  def on_provides(self, message: OutTopicsChangedMessage, origin: Connection):
+    provides_removed, provides_updated = self.remove_out_topics(message.remove)
+    provides_added = merge_priced_topics(list(self.add_out_topics(message.add)) + list(provides_updated))
 
     if len(provides_added) > 0 or len(provides_removed) > 0:
       # NOTE: This might cause problems
-      self.send_to(ProvidesMessage(provides_added, provides_removed), [ conn for conn in self.connections if conn != origin ])
+      self.send_to(OutTopicsChangedMessage(provides_added, provides_removed), [ conn for conn in self.connections if conn != origin ])
 
-    for wt in message.add_topics:
+    for wt in message.add:
       if self.subscription_counter.get(wt.topic, 0) > 0:
         topic_provider = next((conn for conn in self.connections if wt.topic in conn.subscribed_topics), None)
         if topic_provider is None or topic_provider.out_topics[wt.topic] > wt.cost: # resub to the better provider
@@ -347,7 +298,7 @@ class Switch:
       if isinstance(message, StreamControlMessage):
         self.stream_controls[message.topic] = message.to_data()
       self.on_distribute(message, origin)
-    elif isinstance(message, ProvidesMessage):
+    elif isinstance(message, OutTopicsChangedMessage):
       self.on_provides(message, origin)
     else:
       self.broadcast(message)
