@@ -29,6 +29,11 @@ class PricedId:
     return self.cost | self.id << 32
 
 @dataclass
+class AddressesChangedMessage(Message):
+  add: set[PricedId]
+  remove: set[int]
+
+@dataclass
 class InTopicsChangedMessage(Message):
   add: set[int]
   remove: set[int]

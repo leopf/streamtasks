@@ -13,6 +13,7 @@ RemoteAddress = Union[str, tuple[str, int]]
 
 class Connection(ABC):
   in_topics: set[int]
+  addresses: dict[int, int]
   out_topics: dict[int, int]
   recv_topics: set[int]
   cost: int
@@ -21,10 +22,15 @@ class Connection(ABC):
   ignore_internal: bool
 
   def __init__(self, cost: int = 1):
-    self.in_topics, self.out_topics = set(), dict()
+    self.in_topics = set()
+    self.out_topics = dict()
+    self.addresses = dict()
     self.recv_topics = set()
+
     self.deleted = False
     self.ignore_internal = False
+
+    assert cost > 0, "Cost must be greater than 0"
     self.cost = cost
 
   def __del__(self):
@@ -46,6 +52,9 @@ class Connection(ABC):
     elif isinstance(message, OutTopicsChangedMessage):
       otc_message: OutTopicsChangedMessage = message
       message = OutTopicsChangedMessage(set(PricedId(pt.id, pt.cost + self.cost) for pt in otc_message.add), otc_message.remove)
+    elif isinstance(message, AddressesChangedMessage):
+      ac_message: AddressesChangedMessage = message
+      message = AddressesChangedMessage(set(PricedId(pa.id, pa.cost + self.cost) for pa in ac_message.add), ac_message.remove)
     self._send(message)
 
   def recv(self) -> Optional[Message]:
@@ -64,8 +73,17 @@ class Connection(ABC):
     elif isinstance(message, OutTopicsChangedMessage):
       otc_message: OutTopicsChangedMessage = message
       message = OutTopicsChangedMessage(set(PricedId(pt.id, pt.cost + self.cost) for pt in otc_message.add), otc_message.remove)
-      for topic in otc_message.remove: self.out_topics.pop(topic, None)
+      for address in otc_message.remove: self.out_topics.pop(address, None)
       for pt in message.add: self.out_topics[pt.id] = pt.cost
+
+      if self.ignore_internal:
+        return None
+
+    elif isinstance(message, AddressesChangedMessage):
+      ac_message: AddressesChangedMessage = message
+      message = AddressesChangedMessage(set(PricedId(pa.id, pa.cost + self.cost) for pa in ac_message.add), ac_message.remove)
+      for address in ac_message.remove: self.addresses.pop(address, None)
+      for pa in message.add: self.addresses[pa.id] = pa.cost
 
       if self.ignore_internal:
         return None
