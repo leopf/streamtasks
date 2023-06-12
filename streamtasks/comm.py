@@ -33,11 +33,11 @@ class Connection(ABC):
   def close(self):
     self.deleted = True
 
-  def get_priced_topics(self, topics: set[int] = None) -> set[PricedTopic]:
+  def get_priced_topics(self, topics: set[int] = None) -> set[PricedId]:
     if topics is None:
-      return set(PricedTopic(topic, cost) for topic, cost in self.out_topics.items())
+      return set(PricedId(topic, cost) for topic, cost in self.out_topics.items())
     else:
-      return set(PricedTopic(topic, self.out_topics[topic]) for topic in topics if topic in self.out_topics)
+      return set(PricedId(topic, self.out_topics[topic]) for topic in topics if topic in self.out_topics)
 
   def send(self, message: Message):
     if isinstance(message, InTopicsChangedMessage):
@@ -45,7 +45,7 @@ class Connection(ABC):
       self.recv_topics = self.recv_topics.union(itc_message.add).difference(itc_message.remove)
     elif isinstance(message, OutTopicsChangedMessage):
       otc_message: OutTopicsChangedMessage = message
-      message = OutTopicsChangedMessage(set(PricedTopic(pt.topic, pt.cost + self.cost) for pt in otc_message.add), otc_message.remove)
+      message = OutTopicsChangedMessage(set(PricedId(pt.id, pt.cost + self.cost) for pt in otc_message.add), otc_message.remove)
     self._send(message)
 
   def recv(self) -> Optional[Message]:
@@ -63,9 +63,9 @@ class Connection(ABC):
 
     elif isinstance(message, OutTopicsChangedMessage):
       otc_message: OutTopicsChangedMessage = message
-      message = OutTopicsChangedMessage(set(PricedTopic(pt.topic, pt.cost + self.cost) for pt in otc_message.add), otc_message.remove)
-      for topic in message.remove: self.out_topics.pop(wt.topic, None)
-      for wt in message.add: self.out_topics[wt.topic] = wt.cost
+      message = OutTopicsChangedMessage(set(PricedId(pt.id, pt.cost + self.cost) for pt in otc_message.add), otc_message.remove)
+      for topic in otc_message.remove: self.out_topics.pop(topic, None)
+      for pt in message.add: self.out_topics[pt.id] = pt.cost
 
       if self.ignore_internal:
         return None
@@ -181,7 +181,7 @@ class Switch:
     self.stream_controls = {}
 
   def add_connection(self, connection: Connection):
-    new_provides = set(PricedTopic(topic, data.cost) for topic, data in self.out_topics.items() if data.count > 0)
+    new_provides = set(PricedId(topic, data.cost) for topic, data in self.out_topics.items() if data.count > 0)
     if len(new_provides) > 0: connection.send(OutTopicsChangedMessage(new_provides, set()))
   
     added_topics = self.add_out_topics(connection.out_topics)
@@ -220,33 +220,33 @@ class Switch:
     for connection in connections: connection.send(message)
   def broadcast(self, message: Message): self.send_to(message, self.connections)
 
-  def remove_out_topics(self, topics: Iterable[PricedTopic]):
+  def remove_out_topics(self, topics: Iterable[PricedId]):
     final_removed, updated = set(), set()
     for pt in topics:
-      current_data: Optional[SwitchTopicInfo] = self.out_topics.get(pt.topic, None)
+      current_data: Optional[SwitchTopicInfo] = self.out_topics.get(pt.id, None)
       if current_data is None: continue # NOTE: this should not happen
       elif current_data.count == 1: 
-        final_removed.add(pt.topic)
-        self.out_topics.pop(pt.topic, None)
+        final_removed.add(pt.id)
+        self.out_topics.pop(pt.id, None)
       else:
         current_data.count = max(current_data.count - 1, 0)
         if current_data.cost == pt.cost:
-          new_cost = min([ conn.out_topics.get(pt.topic, float("inf")) for conn in self.connections ], default=float('inf'))
+          new_cost = min([ conn.out_topics.get(pt.id, float("inf")) for conn in self.connections ], default=float('inf'))
           assert new_cost != float('inf'), "There should be at least one provider for the topic, but there is none."
           current_data.cost = new_cost
-          updated.add(PricedTopic(pt.topic, new_cost))
+          updated.add(PricedId(pt.id, new_cost))
     return final_removed, updated
   
-  def add_out_topics(self, topics: Iterable[PricedTopic]):
+  def add_out_topics(self, topics: Iterable[PricedId]):
     final = set()
-    for wt in topics:
-      current_data = self.out_topics.get(wt.topic, SwitchTopicInfo(wt.cost, 0))
-      if current_data.count == 0: final.add(wt)
-      elif current_data.cost > wt.cost:
-        final.add(wt)
-        current_data.cost = wt.cost
+    for pt in topics:
+      current_data = self.out_topics.get(pt.id, SwitchTopicInfo(pt.cost, 0))
+      if current_data.count == 0: final.add(pt)
+      elif current_data.cost > pt.cost:
+        final.add(pt)
+        current_data.cost = pt.cost
       current_data.count += 1
-      self.out_topics[wt.topic] = current_data
+      self.out_topics[pt.id] = current_data
     return final
 
   def add_in_topics(self, topics: Iterable[int]):
@@ -294,12 +294,12 @@ class Switch:
       # NOTE: This might cause problems
       self.send_to(OutTopicsChangedMessage(provides_added, provides_removed), [ conn for conn in self.connections if conn != origin ])
 
-    for wt in message.add:
-      if self.in_topics.get(wt.topic, 0) > 0:
-        topic_provider = next((conn for conn in self.connections if wt.topic in conn.recv_topics), None)
-        if topic_provider is None or topic_provider.out_topics[wt.topic] > wt.cost: # resub to the better provider
-          self.send_remove_in_topic(wt.topic)
-          self.send_add_in_topic(wt.topic)
+    for pt in message.add:
+      if self.in_topics.get(pt.id, 0) > 0:
+        topic_provider = next((conn for conn in self.connections if pt.id in conn.recv_topics), None)
+        if topic_provider is None or topic_provider.out_topics[pt.id] > pt.cost: # resub to the better provider
+          self.send_remove_in_topic(pt.id)
+          self.send_add_in_topic(pt.id)
 
   def handle_message(self, message: Message, origin: Connection):
     if isinstance(message, InTopicsChangedMessage):

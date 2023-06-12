@@ -21,12 +21,12 @@ class StreamControlMessage(StreamMessage):
   def to_data(self) -> 'StreamControlData': return StreamControlData(self.paused)
 
 @dataclass
-class PricedTopic:
-  topic: int
+class PricedId:
+  id: int
   cost: int
 
   def __hash__(self):
-    return self.cost | self.topic << 32
+    return self.cost | self.id << 32
 
 @dataclass
 class InTopicsChangedMessage(Message):
@@ -35,7 +35,7 @@ class InTopicsChangedMessage(Message):
 
 @dataclass
 class OutTopicsChangedMessage(Message):
-  add: set[PricedTopic]
+  add: set[PricedId]
   remove: set[int]
 
 @dataclass
@@ -44,10 +44,10 @@ class StreamControlData:
 
   def to_message(self, topic: int) -> StreamControlMessage: return StreamControlMessage(topic, self.paused)
 
-def merge_priced_topics(topics: Iterable[PricedTopic]) -> set[PricedTopic]:
+def merge_priced_topics(topics: Iterable[PricedId]) -> set[PricedId]:
   topic_map = {}
   for topic in topics:
-    current = topic_map.get(topic.topic, float("inf"))
-    topic_map[topic.topic] = min(current, topic.cost)
+    current = topic_map.get(topic.id, float("inf"))
+    topic_map[topic.id] = min(current, topic.cost)
 
-  return set(PricedTopic(topic, cost) for topic, cost in topic_map.items())
+  return set(PricedId(topic, cost) for topic, cost in topic_map.items())

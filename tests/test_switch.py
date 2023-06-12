@@ -25,7 +25,7 @@ class TestSwitch(unittest.TestCase):
     self.switch.process()
 
   def test_standard_workflow(self):
-    self.send_message_process(self.a, OutTopicsChangedMessage(set([ PricedTopic(1, 0) ]), set()))
+    self.send_message_process(self.a, OutTopicsChangedMessage(set([ PricedId(1, 0) ]), set()))
     self.b.recv() # receive and ignore provides message
     
     self.assertIn(1, self.switch.connections[0].out_topics)
@@ -52,7 +52,7 @@ class TestSwitch(unittest.TestCase):
   
   def test_provider_added(self):
     self.send_message_process(self.b, InTopicsChangedMessage(set([1]), set()))
-    self.send_message_process(self.a, OutTopicsChangedMessage(set([ PricedTopic(1, 0) ]), set()))
+    self.send_message_process(self.a, OutTopicsChangedMessage(set([ PricedId(1, 0) ]), set()))
     self.b.recv() # receive and ignore provides message
 
     a_received = self.a.recv()
@@ -70,7 +70,7 @@ class TestSwitch(unittest.TestCase):
     self.send_message_process(self.b, InTopicsChangedMessage(set(), set([1])))
   
   def test_subscribe_flow(self):
-    self.send_message_process(self.a, OutTopicsChangedMessage(set([ PricedTopic(1, 0) ]), set()))
+    self.send_message_process(self.a, OutTopicsChangedMessage(set([ PricedId(1, 0) ]), set()))
     self.send_message_process(self.b, InTopicsChangedMessage(set([1]), set()))
     
     received = self.a.recv()
