@@ -21,20 +21,17 @@ class StreamControlMessage(StreamMessage):
   def to_data(self) -> 'StreamControlData': return StreamControlData(self.paused)
 
 @dataclass
-class SubscribeMessage(Message):
-  topic: int
-
-@dataclass
-class UnsubscribeMessage(Message):
-  topic: int
-
-@dataclass
 class PricedTopic:
   topic: int
   cost: int
 
   def __hash__(self):
     return self.cost | self.topic << 32
+
+@dataclass
+class InTopicsChangedMessage(Message):
+  add: set[int]
+  remove: set[int]
 
 @dataclass
 class OutTopicsChangedMessage(Message):

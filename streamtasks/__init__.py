@@ -34,38 +34,38 @@ class Node:
       self.switch.process()
       await asyncio.sleep(0.001)
       
-class Task:
-  _connection: Connection
-  _provides_topics: set[int]
-  _subscribed_topics: set[int]
+# class Task:
+#   _connection: Connection
+#   _out_topics: set[int]
+#   _recv_topics: set[int]
 
-  def __init__(self, connection: Connection):
-    self._connection = connection
-    self._provides_topics = set()
-    self._subscribed_topics = set()
+#   def __init__(self, connection: Connection):
+#     self._connection = connection
+#     self._provides_topics = set()
+#     self._subscribed_topics = set()
 
-  def subscribe(self, topics: Iterable[int]):
-    new_subscribed = set(topics)
-    remove_subscribed = self._subscribed_topics - new_subscribed
-    add_subscribed = new_subscribed - self._subscribed_topics
-    for topic in remove_subscribed: self._connection.send(UnsubscribeMessage(topic))
-    for topic in add_subscribed: self._connection.send(SubscribeMessage(topic))
-    self._subscribed_topics = new_subscribed
+#   def subscribe(self, topics: Iterable[int]):
+#     new_subscribed = set(topics)
+#     remove_subscribed = self._subscribed_topics - new_subscribed
+#     add_subscribed = new_subscribed - self._subscribed_topics
+#     for topic in remove_subscribed: self._connection.send(UnsubscribeMessage(topic))
+#     for topic in add_subscribed: self._connection.send(SubscribeMessage(topic))
+#     self._subscribed_topics = new_subscribed
 
-  def provide(self, topics: Iterable[int]):
-    new_provides = set(topics)
-    remove_provided = self._provides_topics - new_provides
-    add_provided = new_provides - self._provides_topics
-    self._connection.send(OutTopicsChangedMessage(set([ PricedTopic(topic, 0) for topic in add_provided ]), remove_provided))
-    self._provides_topics = new_provides
+#   def provide(self, topics: Iterable[int]):
+#     new_provides = set(topics)
+#     remove_provided = self._provides_topics - new_provides
+#     add_provided = new_provides - self._provides_topics
+#     self._connection.send(OutTopicsChangedMessage(set([ PricedTopic(topic, 0) for topic in add_provided ]), remove_provided))
+#     self._provides_topics = new_provides
 
-  def pause(self):
-    for topic in self._provides_topics: self._connection.send(StreamControlMessage(topic, True))
-    for topic in self._subscribed_topics: self._connection.send(UnsubscribeMessage(topic))
+#   def pause(self):
+#     for topic in self._provides_topics: self._connection.send(StreamControlMessage(topic, True))
+#     for topic in self._subscribed_topics: self._connection.send(UnsubscribeMessage(topic))
 
-  def resume(self):
-    for topic in self._provides_topics: self._connection.send(StreamControlMessage(topic, False))
-    for topic in self._subscribed_topics: self._connection.send(SubscribeMessage(topic))
+#   def resume(self):
+#     for topic in self._provides_topics: self._connection.send(StreamControlMessage(topic, False))
+#     for topic in self._subscribed_topics: self._connection.send(SubscribeMessage(topic))
       
   
   

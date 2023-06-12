@@ -1,5 +1,6 @@
 import unittest
 from streamtasks.comm import *
+from streamtasks.messages import *
 
 class TestSwitch(unittest.TestCase):
   a: Connection
@@ -29,19 +30,19 @@ class TestSwitch(unittest.TestCase):
     
     self.assertIn(1, self.switch.connections[0].out_topics)
 
-    self.send_message_process(self.b, SubscribeMessage(1))
+    self.send_message_process(self.b, InTopicsChangedMessage(set([1]), set()))
 
     self.assertIn(1, self.switch.connections[1].in_topics)
-    self.assertEqual(self.switch.subscription_counter.get(1), 1)
+    self.assertEqual(self.switch.in_topics.get(1), 1)
 
     self.send_message_process(self.a, StreamDataMessage(1, "Hello"))
 
     received = self.b.recv()
     self.assertEqual(received.data, "Hello")
 
-    self.send_message_process(self.b, UnsubscribeMessage(1))
+    self.send_message_process(self.b, InTopicsChangedMessage(set(), set([1])))
 
-    self.assertEqual(self.switch.subscription_counter.get(1), 0)
+    self.assertEqual(self.switch.in_topics.get(1), 0)
     self.assertNotIn(1, self.switch.connections[1].in_topics)
 
     self.send_message_process(self.a, StreamDataMessage(1, "Hello"))
@@ -50,13 +51,13 @@ class TestSwitch(unittest.TestCase):
     self.assertIsNone(received)
   
   def test_provider_added(self):
-    self.send_message_process(self.b, SubscribeMessage(1))
+    self.send_message_process(self.b, InTopicsChangedMessage(set([1]), set()))
     self.send_message_process(self.a, OutTopicsChangedMessage(set([ PricedTopic(1, 0) ]), set()))
     self.b.recv() # receive and ignore provides message
 
     a_received = self.a.recv()
-    self.assertIsInstance(a_received, SubscribeMessage)
-    self.assertEqual(a_received.topic, 1)
+    self.assertIsInstance(a_received, InTopicsChangedMessage)
+    self.assertIn(1, a_received.add)
 
     self.send_message_process(self.a, StreamDataMessage(1, "Hello"))
     
@@ -64,28 +65,28 @@ class TestSwitch(unittest.TestCase):
     self.assertEqual(b_received.data, "Hello")
 
   def test_double_unsubscribe(self):
-    self.send_message_process(self.b, SubscribeMessage(1))
-    self.send_message_process(self.b, UnsubscribeMessage(1))
-    self.send_message_process(self.b, UnsubscribeMessage(1))
+    self.send_message_process(self.b, InTopicsChangedMessage(set([1]), set()))
+    self.send_message_process(self.b, InTopicsChangedMessage(set(), set([1])))
+    self.send_message_process(self.b, InTopicsChangedMessage(set(), set([1])))
   
   def test_subscribe_flow(self):
     self.send_message_process(self.a, OutTopicsChangedMessage(set([ PricedTopic(1, 0) ]), set()))
-    self.send_message_process(self.b, SubscribeMessage(1))
+    self.send_message_process(self.b, InTopicsChangedMessage(set([1]), set()))
     
     received = self.a.recv()
-    self.assertIsInstance(received, SubscribeMessage)
-    self.assertEqual(received.topic, 1)
+    self.assertIsInstance(received, InTopicsChangedMessage)
+    self.assertIn(1, received.add)
 
-    self.send_message_process(self.b, SubscribeMessage(1))
+    self.send_message_process(self.b, InTopicsChangedMessage(set([1]), set()))
     
     received = self.a.recv()
     self.assertIsNone(received)
 
-    self.send_message_process(self.b, UnsubscribeMessage(1))
+    self.send_message_process(self.b, InTopicsChangedMessage(set(), set([1])))
 
     received = self.a.recv()
-    self.assertIsInstance(received, UnsubscribeMessage)
-    self.assertEqual(received.topic, 1)
+    self.assertIsInstance(received, InTopicsChangedMessage)
+    self.assertIn(1, received.remove)
     
   def test_close(self):
     self.a.close()
