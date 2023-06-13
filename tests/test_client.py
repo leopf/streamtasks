@@ -1,11 +1,12 @@
 import unittest
 from streamtasks.comm import *
-from streamtasks import Client
+from streamtasks.client import *
 
 class TestClient(unittest.IsolatedAsyncioTestCase):
   a: Client
   b: Client
   stop_switch_event: asyncio.Event
+  switch_process_task: asyncio.Task
   
   async def asyncSetUp(self):
     conn1 = create_local_cross_connector()
@@ -17,12 +18,14 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
     switch_process_task, switch_process_stop_event = create_switch_processing_task(switch)
     self.stop_switch_event = switch_process_stop_event
+    self.switch_process_task = switch_process_task
     
     self.a = Client(conn1[1])
     self.b = Client(conn2[1])
 
   async def asyncTearDown(self):
     self.stop_switch_event.set()
+    await self.switch_process_task
 
   async def test_provide_subscribe(self):
     self.a.provide([ 1, 2 ])
@@ -47,10 +50,44 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     self.a.change_addresses([1])
     a_recv = self.a.get_address_receiver([1])
 
-    yield # allow switch to process address change
+    await asyncio.sleep(0.001)
 
     self.b.send_to(1, "Hello 1")
 
     self.assertEqual(await a_recv.recv(), (1, "Hello 1"))
+
+    assert self.a
+    assert self.a._connection
+
+    return True
+
+
+  async def test_fetch(self):
+    self.a.change_addresses([1])
+    self.b.change_addresses([2])
+
+    await asyncio.sleep(0.001)
+
+    b_result = None
+
+    async def b_fetch():
+      nonlocal b_result
+      b_result = await self.b.fetch(1, "test", "Hello 1")
+
+    b_fetch_task = asyncio.create_task(b_fetch())
+
+    await asyncio.sleep(0.001)
+
+    a_recv = self.a.get_fetch_request_receiver("test")
+    req: FetchRequest  = await a_recv.recv()
+    self.assertEqual(req.data, "Hello 1")
+    self.assertEqual(req._return_address, 2)
+    req.respond("Hello 2")
+    
+    await b_fetch_task
+    self.assertEqual(b_result, "Hello 2")
+
+    return True
+
 if __name__ == '__main__':
   unittest.main()

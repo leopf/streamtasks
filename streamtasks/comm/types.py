@@ -63,15 +63,3 @@ class StreamControlData:
   paused: bool
 
   def to_message(self, topic: int) -> StreamControlMessage: return StreamControlMessage(topic, self.paused)
-
-@dataclass
-class FetchRequestMessage(Message):
-  return_address: int
-  request_id: int
-  descriptor: str
-  data: Any
-
-@dataclass
-class FetchResponseMessage(Message):
-  request_id: int
-  data: Any

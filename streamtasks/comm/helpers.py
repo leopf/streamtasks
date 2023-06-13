@@ -37,6 +37,7 @@ class PricedIdTracker:
     self._map = {}
     self._computed_map = {}
 
+  def __contains__(self, id: int): return id in self._computed_map
   def items(self) -> Iterable[PricedId]: return (PricedId(id, cost) for id, cost in self._computed_map.items())
   def get(self, id: int) -> int: return self._computed_map.get(id, float("inf"))
 

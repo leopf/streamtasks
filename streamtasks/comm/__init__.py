@@ -86,7 +86,7 @@ class Connection(ABC):
 
     elif isinstance(message, AddressesChangedMessage):
       ac_message: AddressesChangedMessage = message
-      message = AddressesChangedMessage(
+      message = AddressesChangedRecvMessage(
         set(PricedId(pa.id, pa.cost + self.cost) for pa in ac_message.add), 
         set(PricedId(a, self.addresses[a]) for a in ac_message.remove if t in self.addresses))
       for address in ac_message.remove: self.addresses.pop(address, None)
@@ -288,7 +288,7 @@ class Switch:
   def on_addressed_message(self, message: AddressedMessage, origin: Connection):
     if message.address not in self.addresses: return
     address_cost = self.addresses.get(message.address)
-    found_conn = next(( conn for conn in self.connections if conn.addresses[message.address] == address_cost ), None)
+    found_conn = next(( conn for conn in self.connections if conn.addresses.get(message.address, -1) == address_cost ), None)
     if found_conn is not None: found_conn.send(message)
 
   def on_stream_message(self, message: StreamMessage, origin: Connection):
