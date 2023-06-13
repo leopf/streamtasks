@@ -1,8 +1,11 @@
 from streamtasks.comm import *
 from multiprocessing.connection import Client, Listener
 from typing import Union, Optional
+from enum import Enum
 import asyncio
 import logging
+from streamtasks.client import Client
+from streamtasks.protocols import *
 
 class Worker:
   node_id: int
@@ -39,6 +42,40 @@ class Worker:
       self.node_conn = connect_to_listener(get_node_socket_path(self.node_id))
       if self.node_conn is None: await asyncio.sleep(1)
 
+class DiscoveryWorker(Worker):
+  _address_counter: int
+
+  def __init__(self, node_id: int):
+    super().__init__(node_id)
+    self._address_counter = WorkerAddresses.COUNTER_INIT
+
+  async def async_start(self):
+    await asyncio.gather(
+      self._run_discorvery(),
+      super().async_start()
+    )
+
+  async def _run_discorvery(self):
+    client = Client(self.create_connection())
+    client.change_addresses([WorkerAddresses.ID_DISCOVERY])
+
+    with client.get_address_receiver([WorkerAddresses.ID_DISCOVERY]) as receiver:
+      while self.running:
+        if not receiver.empty():
+          message = await receiver.recv()
+          if not isinstance(message.data, RequestAddressesMessage): continue
+          request: RequestAddressesMessage = message.data
+          logging.info(f"discovering {request.count} addresses")
+          addresses = self.generate_addresses(request.count)
+          client.send_stream_data(WorkerTopics.ADDRESSES_CREATED, ResolveAddressesMessage(request.request_id, addresses))
+        else:
+          await asyncio.sleep(0.001)
+  
+  def generate_addresses(self, count: int) -> set[int]:
+    res = set(self._address_counter + i for i in range(count))
+    self._address_counter += count
+    return res
+
 class RemoteServerWorker(Worker):
   bind_address: RemoteAddress
   switch: IPCSwitch
@@ -52,8 +89,8 @@ class RemoteServerWorker(Worker):
 
   async def async_start(self):
     await asyncio.gather(
-      await self.switch.start_listening(),
-      await super().async_start()
+      self.switch.start_listening(),
+      super().async_start()
     )
 
 class RemoteClientWorker(Worker):
@@ -79,4 +116,6 @@ class RemoteClientWorker(Worker):
     while self.remote_conn is None or self.remote_conn.connection.closed:
       self.remote_conn = connect_to_listener(self.remote_address)
       if self.remote_conn is None: await asyncio.sleep(1)
-      else: self.remote_conn.cost = self.connection_cost
+      else: 
+        self.remote_conn.cost = self.connection_cost
+        self.switch.add_connection(self.remote_conn)

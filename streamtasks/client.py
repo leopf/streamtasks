@@ -3,7 +3,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import asyncio
 from streamtasks.comm import *
+from streamtasks.protocols import *
 import weakref
+import secrets
 
 class Receiver(ABC):
   _client: 'Client'
@@ -34,6 +36,8 @@ class Receiver(ABC):
   @abstractmethod
   def on_message(self, message: Message):
     pass
+
+  def empty(self): return self._recv_queue.empty()
 
   async def recv(self) -> Any:
     with self:
@@ -161,6 +165,20 @@ class Client:
   def send_to(self, address: int, data: Any): self._connection.send(AddressedMessage(address, data))
   def send_stream_control(self, topic: int, control_data: StreamControlData): self._connection.send(control_data.to_message(topic))
   def send_stream_data(self, topic: int, data: Any): self._connection.send(StreamDataMessage(topic, data))
+
+  async def request_address(self) -> set[int]:
+    self.subscribe(self._subscribed_topics | {WorkerTopics.ADDRESSES_CREATED})
+    with self.get_topics_receiver({WorkerTopics.ADDRESSES_CREATED}) as receiver:
+      request_id = secrets.randbelow(1<<64)
+      self.send_to(WorkerAddresses.ID_DISCOVERY, RequestAddressesMessage(request_id, 1))
+      while True:
+        topic, data, = await receiver.recv()
+        if topic == WorkerTopics.ADDRESSES_CREATED or isinstance(data, ResolveAddressesMessage) and data.request_id == request_id:
+          addresses = data.addresses
+    if len(addresses) != 1: raise Exception("Invalid number of addresses")
+    new_address = next(iter(addresses))
+    self.change_addresses(self._addresses | addresses)
+    return new_address
 
   def change_addresses(self, addresses: Iterable[int]):
     new_addresses = set(addresses)
