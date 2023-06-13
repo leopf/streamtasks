@@ -176,6 +176,7 @@ class Client:
         topic, data, = await receiver.recv()
         if topic == WorkerTopics.ADDRESSES_CREATED or isinstance(data, ResolveAddressesMessage) and data.request_id == request_id:
           addresses = data.addresses
+          break
     if len(addresses) != 1: raise Exception("Invalid number of addresses")
     new_address = next(iter(addresses))
     self.change_addresses(self._addresses | addresses)
