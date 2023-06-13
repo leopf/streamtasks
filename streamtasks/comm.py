@@ -45,6 +45,12 @@ class Connection(ABC):
     else:
       return set(PricedId(topic, self.out_topics[topic]) for topic in topics if topic in self.out_topics)
 
+  def get_priced_addresses(self, addresses: set[int] = None) -> set[PricedId]:
+    if addresses is None:
+      return set(PricedId(address, cost) for address, cost in self.addresses.items())
+    else:
+      return set(PricedId(address, self.addresses[address]) for address in addresses if address in self.addresses)
+
   def send(self, message: Message):
     if isinstance(message, InTopicsChangedMessage):
       itc_message: InTopicsChangedMessage = message
@@ -186,6 +192,7 @@ class SwitchTopicInfo:
 class Switch:
   in_topics: IdTracker
   out_topics: PricedIdTracker
+  addresses: PricedIdTracker
 
   stream_controls: dict[int, StreamControlData]
   connections: list[Connection]
@@ -194,15 +201,22 @@ class Switch:
     self.connections = []
     self.in_topics = IdTracker()
     self.out_topics = PricedIdTracker()
+    self.addresses = PricedIdTracker()
     self.stream_controls = {}
 
   def add_connection(self, connection: Connection):
-    new_provides = set(self.out_topics.items())
-    if len(new_provides) > 0: connection.send(OutTopicsChangedMessage(new_provides, set()))
+    switch_out_topics = set(self.out_topics.items())
+    if len(switch_out_topics) > 0: connection.send(OutTopicsChangedMessage(switch_out_topics, set()))
   
-    added_topics = self.out_topics.add_many(connection.get_priced_out_topics())
-    if len(added_topics) > 0: self.broadcast(OutTopicsChangedMessage(added_topics, set()))
-    # TODO: respect in topics
+    added_out_topics = self.out_topics.add_many(connection.get_priced_out_topics())
+    if len(added_out_topics) > 0: self.broadcast(OutTopicsChangedMessage(added_out_topics, set()))
+
+    added_addresses = self.addresses.add_many(connection.get_priced_addresses())
+    if len(added_addresses) > 0: self.broadcast(AddressesChangedMessage(added_addresses, set()))
+
+    added_in_topics = self.in_topics.add_many(connection.in_topics)
+    if len(added_in_topics) > 0: self.request_in_topics_change(added_in_topics, set())
+
     self.connections.append(connection)
   
   def remove_connection(self, connection: Connection):
@@ -216,6 +230,10 @@ class Switch:
     
     if len(removed_topics) > 0 or len(updated_topics) > 0:
       self.broadcast(OutTopicsChangedMessage(updated_topics, removed_topics))
+
+    removed_addresses, updated_addresses = self.addresses.remove_many(connection.get_priced_addresses())
+    if len(removed_addresses) > 0 or len(updated_addresses) > 0:
+      self.broadcast(AddressesChangedMessage(updated_addresses, removed_addresses))
 
   def process(self):
     removing_connections = []
@@ -271,30 +289,34 @@ class Switch:
     self.send_to(message, [ connection for connection in self.connections if connection != origin and message.topic in connection.in_topics])
 
   def on_out_topics_changed(self, message: OutTopicsChangedRecvMessage, origin: Connection):
-    provides_removed, provides_updated = self.out_topics.remove_many(message.remove)
-    provides_added = merge_priced_topics(list(self.out_topics.add_many(message.add)) + list(provides_updated))
-
-    if len(provides_added) > 0 or len(provides_removed) > 0:
-      # NOTE: This might cause problems
-      self.send_to(OutTopicsChangedMessage(provides_added, provides_removed), [ conn for conn in self.connections if conn != origin ])
+    out_topics_added, out_topics_removed = self.out_topics.change_many(message.add, message.remove)
+    if len(out_topics_added) > 0 or len(out_topics_removed) > 0:
+      self.send_to(OutTopicsChangedMessage(out_topics_added, out_topics_removed), [ conn for conn in self.connections if conn != origin ])
 
     resub_topics = set()
     for pt in message.add:
       if pt.id in self.in_topics:
         topic_provider = next((conn for conn in self.connections if pt.id in conn.recv_topics), None)
-        if topic_provider is None or topic_provider.out_topics[pt.id] > pt.cost: # resub to the better provider
+        if topic_provider is None or topic_provider.out_topics[pt.id] > pt.cost: 
           resub_topics.add(pt.id)
-    self.request_in_topics_change(resub_topics, resub_topics)
+    self.request_in_topics_change(resub_topics, resub_topics) # resub to the better providers
+
+  def on_addresses_changed(self, message: AddressesChangedRecvMessage, origin: Connection):
+    addresses_added, addresses_removed = self.addresses.change_many(message.add, message.remove)
+    if len(addresses_added) > 0 or len(addresses_removed) > 0:
+      self.send_to(AddressesChangedMessage(addresses_added, addresses_removed), [ conn for conn in self.connections if conn != origin ])
 
   def handle_message(self, message: Message, origin: Connection):
-    if isinstance(message, InTopicsChangedMessage):
-      self.on_in_topics_changed(message, origin)
-    elif isinstance(message, StreamMessage):
+    if isinstance(message, StreamMessage):
       if isinstance(message, StreamControlMessage):
         self.stream_controls[message.topic] = message.to_data()
       self.on_distribute(message, origin)
+    elif isinstance(message, InTopicsChangedMessage):
+      self.on_in_topics_changed(message, origin)
     elif isinstance(message, OutTopicsChangedRecvMessage):
       self.on_out_topics_changed(message, origin)
+    elif isinstance(message, AddressesChangedRecvMessage):
+      self.on_addresses_changed(message, origin)
     else:
       assert type(message) not in [ OutTopicsChangedMessage, AddressesChangedMessage ], "Message type should never be received (sender only)!"
       logging.warning(f"Unhandled message {message}")

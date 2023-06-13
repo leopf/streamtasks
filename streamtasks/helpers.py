@@ -1,5 +1,6 @@
 from typing import Iterable
 from streamtasks.types import PricedId
+from itertools import chain
 
 class IdTracker:
   _map: dict[int, int]
@@ -75,3 +76,14 @@ class PricedIdTracker:
 
     return final_removed, final_updated
   
+  def change_many(self, add: Iterable[PricedId], remove: Iterable[PricedId]) -> tuple[set[PricedId], set[int]]:
+    removed, updated = self.remove_many(remove)
+    return merge_priced_topics(chain(iter(self.add_many(add)), iter(updated))), removed
+
+def merge_priced_topics(topics: Iterable[PricedId]) -> set[PricedId]:
+  topic_map = {}
+  for topic in topics:
+    current = topic_map.get(topic.id, float("inf"))
+    topic_map[topic.id] = min(current, topic.cost)
+
+  return set(PricedId(topic, cost) for topic, cost in topic_map.items())

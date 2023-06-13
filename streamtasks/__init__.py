@@ -101,7 +101,8 @@ class Client:
   _receivers:  list[Receiver]
   _receive_task: Optional[asyncio.Task]
   _subscribed_topics: set[int]
-  _provided_topics: set[PricedId]
+  _provided_topics: set[int]
+  _addresses: set[int]
 
   def __init__(self, connection: Connection):
     self._connection = connection
@@ -115,7 +116,14 @@ class Client:
   def send_stream_control(self, topic: int, control_data: StreamControlData): self._connection.send(control_data.to_message(topic))
   def send_stream_data(self, topic: int, data: Any): self._connection.send(StreamDataMessage(topic, data))
 
-  def provide(self, topics: Iterable[PricedId]):
+  def change_addresses(self, addresses: Iterable[PricedId]):
+    new_addresses = set(addresses)
+    add = new_addresses - self._addresses
+    remove = self._addresses - new_addresses
+    self._connection.send(AddressesChangedMessage(add, remove))
+    self._addresses = new_addresses
+
+  def provide(self, topics: Iterable[int]):
     new_provided = set(topics)
     add = new_provided - self._provided_topics
     remove = self._provided_topics - new_provided

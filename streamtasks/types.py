@@ -58,11 +58,3 @@ class StreamControlData:
   paused: bool
 
   def to_message(self, topic: int) -> StreamControlMessage: return StreamControlMessage(topic, self.paused)
-
-def merge_priced_topics(topics: Iterable[PricedId]) -> set[PricedId]:
-  topic_map = {}
-  for topic in topics:
-    current = topic_map.get(topic.id, float("inf"))
-    topic_map[topic.id] = min(current, topic.cost)
-
-  return set(PricedId(topic, cost) for topic, cost in topic_map.items())
