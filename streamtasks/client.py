@@ -92,22 +92,22 @@ class FetchReponseReceiver(Receiver):
       if isinstance(a_message.data, FetchResponseMessage):
         fr_message: FetchResponseMessage = a_message.data
         if fr_message.request_id == self._fetch_id:
-          self._recv_queue.put_nowait(fr_message.data)
+          self._recv_queue.put_nowait(fr_message.body)
 
 class FetchRequest:
-  data: Any
+  body: Any
   _client: 'Client'
   _return_address: int
   _request_id: int
 
-  def __init__(self, client: 'Client', return_address: int, request_id: int, data: Any):
+  def __init__(self, client: 'Client', return_address: int, request_id: int, body: Any):
     self._client = client
     self._return_address = return_address
     self._request_id = request_id
-    self.data = data
+    self.body = body
 
-  def respond(self, data: Any):
-    self._client.send_to(self._return_address, FetchResponseMessage(self._request_id, data))
+  def respond(self, body: Any):
+    self._client.send_to(self._return_address, FetchResponseMessage(self._request_id, body))
 
 class FetchRequestReceiver(Receiver):
   _descriptor: str
@@ -123,19 +123,19 @@ class FetchRequestReceiver(Receiver):
       if isinstance(a_message.data, FetchRequestMessage):
         fr_message: FetchRequestMessage = a_message.data
         if fr_message.descriptor == self._descriptor:
-          self._recv_queue.put_nowait(FetchRequest(self._client, fr_message.return_address, fr_message.request_id, fr_message.data))
+          self._recv_queue.put_nowait(FetchRequest(self._client, fr_message.return_address, fr_message.request_id, fr_message.body))
 
 @dataclass
 class FetchRequestMessage(Message):
   return_address: int
   request_id: int
   descriptor: str
-  data: Any
+  body: Any
 
 @dataclass
 class FetchResponseMessage(Message):
   request_id: int
-  data: Any
+  body: Any
 
 class Client:
   _connection: Connection
@@ -193,11 +193,11 @@ class Client:
     remove = self._provided_topics - new_provided
     self._connection.send(OutTopicsChangedMessage(ids_to_priced_ids(add), remove))
 
-  async def fetch(self, address, descriptor, data):
+  async def fetch(self, address, descriptor, body):
     self._fetch_id_counter = fetch_id = self._fetch_id_counter + 1
     local_address = next(iter(self._addresses), None)
     if local_address is None: raise Exception("No local address")
-    self.send_to(address, FetchRequestMessage(local_address, fetch_id, descriptor, data))
+    self.send_to(address, FetchRequestMessage(local_address, fetch_id, descriptor, body))
     receiver = FetchReponseReceiver(self, fetch_id)
     response_data = await receiver.recv()
     return response_data
