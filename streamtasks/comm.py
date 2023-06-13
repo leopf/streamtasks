@@ -285,7 +285,13 @@ class Switch:
 
     self.request_in_topics_change(final_add, final_remove)
 
-  def on_distribute(self, message: StreamMessage, origin: Connection):
+  def on_addressed_message(self, message: AddressedMessage, origin: Connection):
+    if message.address not in self.addresses: return
+    address_cost = self.addresses.get(message.address)
+    found_conn = next(( conn for conn in self.connections if conn.addresses[message.address] == address_cost ), None)
+    if found_conn is not None: found_conn.send(message)
+
+  def on_stream_message(self, message: StreamMessage, origin: Connection):
     self.send_to(message, [ connection for connection in self.connections if connection != origin and message.topic in connection.in_topics])
 
   def on_out_topics_changed(self, message: OutTopicsChangedRecvMessage, origin: Connection):
@@ -310,7 +316,9 @@ class Switch:
     if isinstance(message, StreamMessage):
       if isinstance(message, StreamControlMessage):
         self.stream_controls[message.topic] = message.to_data()
-      self.on_distribute(message, origin)
+      self.on_stream_message(message, origin)
+    elif isinstance(message, AddressedMessage):
+      self.on_addressed_message(message, origin)
     elif isinstance(message, InTopicsChangedMessage):
       self.on_in_topics_changed(message, origin)
     elif isinstance(message, OutTopicsChangedRecvMessage):
