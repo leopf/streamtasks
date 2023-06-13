@@ -207,6 +207,9 @@ class Switch:
   def add_connection(self, connection: Connection):
     switch_out_topics = set(self.out_topics.items())
     if len(switch_out_topics) > 0: connection.send(OutTopicsChangedMessage(switch_out_topics, set()))
+
+    switch_addresses = set(self.addresses.items())
+    if len(switch_addresses) > 0: connection.send(AddressesChangedMessage(switch_addresses, set()))
   
     added_out_topics = self.out_topics.add_many(connection.get_priced_out_topics())
     if len(added_out_topics) > 0: self.broadcast(OutTopicsChangedMessage(added_out_topics, set()))
