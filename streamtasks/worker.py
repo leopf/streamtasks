@@ -4,7 +4,7 @@ from typing import Union, Optional
 from enum import Enum
 import asyncio
 import logging
-from streamtasks.client import Client
+from streamtasks.client import Client, FetchRequest
 from streamtasks.protocols import *
 
 class Worker:
@@ -44,21 +44,37 @@ class Worker:
 
 class DiscoveryWorker(Worker):
   _address_counter: int
+  _topics_counter: int
 
   def __init__(self, node_id: int):
     super().__init__(node_id)
     self._address_counter = WorkerAddresses.COUNTER_INIT
+    self._topics_counter = WorkerTopics.COUNTER_INIT
 
   async def async_start(self):
-    await asyncio.gather(
-      self._run_discorvery(),
-      super().async_start()
-    )
-
-  async def _run_discorvery(self):
     client = Client(self.create_connection())
     client.change_addresses([WorkerAddresses.ID_DISCOVERY])
 
+    await asyncio.gather(
+      self._run_address_discorvery(client),
+      super().async_start()
+    )
+
+
+  async def _run_topic_discovery(self, client: Client):
+    with client.get_fetch_request_receiver("request_topics") as receiver:
+      while self.running:
+        if not receiver.empty():
+          req: FetchRequest = await receiver.recv()
+          if not isinstance(req.body, RequestTopicsBody): continue
+          request: RequestTopicsBody = req.body
+          logging.info(f"discovering {request.count} topics")
+          topics = self.generate_topics(request.count)
+          req.respond(ResolveTopicBody(topics))
+        else:
+          await asyncio.sleep(0.001)
+
+  async def _run_address_discorvery(self, client: Client):
     with client.get_address_receiver([WorkerAddresses.ID_DISCOVERY]) as receiver:
       while self.running:
         if not receiver.empty():
@@ -71,6 +87,11 @@ class DiscoveryWorker(Worker):
         else:
           await asyncio.sleep(0.001)
   
+  def generate_topics(self, count: int) -> set[int]:
+    res = set(self._topics_counter + i for i in range(count))
+    self._topics_counter += count
+    return res
+
   def generate_addresses(self, count: int) -> set[int]:
     res = set(self._address_counter + i for i in range(count))
     self._address_counter += count

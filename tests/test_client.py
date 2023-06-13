@@ -80,7 +80,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
     a_recv = self.a.get_fetch_request_receiver("test")
     req: FetchRequest  = await a_recv.recv()
-    self.assertEqual(req.data, "Hello 1")
+    self.assertEqual(req.body, "Hello 1")
     self.assertEqual(req._return_address, 2)
     req.respond("Hello 2")
     

@@ -166,6 +166,7 @@ class Client:
   def send_stream_control(self, topic: int, control_data: StreamControlData): self._connection.send(control_data.to_message(topic))
   def send_stream_data(self, topic: int, data: Any): self._connection.send(StreamDataMessage(topic, data))
 
+  # NOTE: not sure if i want to assign them directly
   async def request_address(self) -> set[int]:
     self.subscribe(self._subscribed_topics | {WorkerTopics.ADDRESSES_CREATED})
     with self.get_topics_receiver({WorkerTopics.ADDRESSES_CREATED}) as receiver:
@@ -179,6 +180,12 @@ class Client:
     new_address = next(iter(addresses))
     self.change_addresses(self._addresses | addresses)
     return new_address
+
+  # NOTE: not sure if i dont want to assign them directly
+  async def request_new_topics_ids(self, count: int) -> set[int]:
+    res: ResolveTopicBody = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.REQUEST_TOPICS, RequestTopicsBody(count))
+    assert isinstance(res, ResolveTopicBody), "The fetch request returned an invalid response"
+    return res.topics
 
   def change_addresses(self, addresses: Iterable[int]):
     new_addresses = set(addresses)
