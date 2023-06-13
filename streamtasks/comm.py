@@ -250,7 +250,7 @@ class Switch:
     
     if len(remove_topics_set) > 0:
       for conn in self.connections:
-        remove_sub = conn.in_topics.intersection(remove_topics_set)
+        remove_sub = conn.recv_topics.intersection(remove_topics_set)
         if len(remove_sub) > 0:
           if conn not in change_map: change_map[conn] = InTopicsChangedMessage(set(), set())
           for topic in remove_sub: change_map[conn].remove.add(topic)
@@ -322,3 +322,11 @@ class IPCSwitch(Switch):
       conn = await loop.run_in_executor(None, listener.accept)
       logging.info(f"Accepted connection!")
       self.add_connection(IPCConnection(conn))
+
+def create_switch_processing_task(switch: Switch) -> tuple[asyncio.Task, asyncio.Event]:
+  stop_event = asyncio.Event()
+  async def process_switch():
+    while not stop_event.is_set():
+      switch.process()
+      await asyncio.sleep(0.001)
+  return asyncio.create_task(process_switch()), stop_event

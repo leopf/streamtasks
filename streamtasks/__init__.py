@@ -65,7 +65,7 @@ class Receiver(ABC):
   def on_message(self, message: Message):
     pass
 
-  async def recv(self, timeout: Optional[float] = None) -> Any:
+  async def recv(self) -> Any:
     with self:
       return await self._recv_queue.get()
 
@@ -112,16 +112,20 @@ class Client:
 
   def get_topics_receiver(self, topics: Iterable[int]): return TopicsReceiver(self, set(topics))
 
+  def send_stream_control(self, topic: int, control_data: StreamControlData): self._connection.send(control_data.to_message(topic))
+  def send_stream_data(self, topic: int, data: Any): self._connection.send(StreamDataMessage(topic, data))
+
   def provide(self, topics: Iterable[PricedId]):
     new_provided = set(topics)
     add = new_provided - self._provided_topics
     remove = self._provided_topics - new_provided
-    self._connection.send(OutTopicsChangedMessage(add, remove))
-    
+    self._connection.send(OutTopicsChangedMessage([ PricedId(topic, 0) for topic in add], remove))
+
   def subscribe(self, topics: Iterable[int]):
     new_sub = set(topics)
     add = new_sub - self._subscribed_topics
     remove = self._subscribed_topics - new_sub
+    self._subscribed_topics = new_sub
     self._connection.send(InTopicsChangedMessage(add, remove))
 
   def enable_receiver(self, receiver: Receiver):
@@ -131,8 +135,10 @@ class Client:
 
   async def _task_receive(self):
     while len(self._receivers) > 0:
-      message = await self._connection.recv()
+      message = self._connection.recv()
       if message:
+        if isinstance(message, StreamMessage) and message.topic not in self._subscribed_topics: continue
         for receiver in self._receivers:
           receiver.on_message(message)
       await asyncio.sleep(0.001)
+    self._receive_task = None
