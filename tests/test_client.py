@@ -44,5 +44,14 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     rv = await b_recv.recv()
     self.assertEqual(rv, (2, "Hello 2", None))
 
+  async def test_address(self):
+    self.a.change_addresses([1])
+    a_recv = self.a.get_address_receiver([1])
+
+    yield # allow switch to process address change
+
+    self.b.send_to(1, "Hello 1")
+
+    self.assertEqual(await a_recv.recv(), (1, "Hello 1"))
 if __name__ == '__main__':
   unittest.main()

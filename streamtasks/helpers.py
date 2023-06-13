@@ -80,6 +80,9 @@ class PricedIdTracker:
     removed, updated = self.remove_many(remove)
     return merge_priced_topics(chain(iter(self.add_many(add)), iter(updated))), removed
 
+def ids_to_priced_ids(ids: set[int], cost: int=0):
+  return set(PricedId(id, cost) for id in ids)
+
 def merge_priced_topics(topics: Iterable[PricedId]) -> set[PricedId]:
   topic_map = {}
   for topic in topics:

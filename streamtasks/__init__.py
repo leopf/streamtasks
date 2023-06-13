@@ -74,6 +74,18 @@ class Receiver(ABC):
     if not c: raise Exception('Client is dead')
     return c
 
+class AddressReceiver(Receiver):
+  _addresses: set[int]
+
+  def __init__(self, client: 'Client', addresses: set[int]):
+    super().__init__(client)
+    self._addresses = addresses
+
+  def on_message(self, message: Message):
+    if isinstance(message, AddressedMessage) and message.address in self._addresses:
+      a_message: AddressedMessage = message
+      self._recv_queue.put_nowait((a_message.address, a_message.data))
+
 class TopicsReceiver(Receiver):
   _topics: set[int]
   _control_data: dict[int, StreamControlData]
@@ -110,24 +122,27 @@ class Client:
     self._receive_task = None
     self._subscribed_topics = set()
     self._provided_topics = set()
+    self._addresses = set()
 
   def get_topics_receiver(self, topics: Iterable[int]): return TopicsReceiver(self, set(topics))
+  def get_address_receiver(self, addresses: Iterable[int]): return AddressReceiver(self, set(addresses))
 
+  def send_to(self, address: int, data: Any): self._connection.send(AddressedMessage(address, data))
   def send_stream_control(self, topic: int, control_data: StreamControlData): self._connection.send(control_data.to_message(topic))
   def send_stream_data(self, topic: int, data: Any): self._connection.send(StreamDataMessage(topic, data))
 
-  def change_addresses(self, addresses: Iterable[PricedId]):
+  def change_addresses(self, addresses: Iterable[int]):
     new_addresses = set(addresses)
     add = new_addresses - self._addresses
     remove = self._addresses - new_addresses
-    self._connection.send(AddressesChangedMessage(add, remove))
+    self._connection.send(AddressesChangedMessage(ids_to_priced_ids(add), remove))
     self._addresses = new_addresses
 
   def provide(self, topics: Iterable[int]):
     new_provided = set(topics)
     add = new_provided - self._provided_topics
     remove = self._provided_topics - new_provided
-    self._connection.send(OutTopicsChangedMessage([ PricedId(topic, 0) for topic in add], remove))
+    self._connection.send(OutTopicsChangedMessage(ids_to_priced_ids(add), remove))
 
   def subscribe(self, topics: Iterable[int]):
     new_sub = set(topics)

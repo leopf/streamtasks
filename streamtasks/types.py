@@ -20,6 +20,7 @@ class StreamControlMessage(StreamMessage):
 
   def to_data(self) -> 'StreamControlData': return StreamControlData(self.paused)
 
+@dataclass
 class AddressedMessage(Message):
   address: int
   data: Any
