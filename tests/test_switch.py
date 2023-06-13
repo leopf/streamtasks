@@ -1,6 +1,5 @@
 import unittest
 from streamtasks.comm import *
-from streamtasks.types import *
 
 class TestSwitch(unittest.TestCase):
   a: Connection

@@ -1,5 +1,5 @@
 from typing import Iterable
-from streamtasks.types import PricedId
+from streamtasks.comm.types import PricedId
 from itertools import chain
 
 class IdTracker:

@@ -1,5 +1,5 @@
-from streamtasks.types import *
-from streamtasks.helpers import *
+from streamtasks.comm.types import *
+from streamtasks.comm.helpers import *
 
 from typing import Union, Optional, Any, Iterable
 import multiprocessing.connection as mpconn
