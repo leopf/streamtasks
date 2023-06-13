@@ -29,7 +29,6 @@ class Connection(ABC):
     self.recv_topics = set()
 
     self.deleted = False
-    self.ignore_internal = False
 
     assert cost > 0, "Cost must be greater than 0"
     self.cost = cost
@@ -79,9 +78,6 @@ class Connection(ABC):
       for address in otc_message.remove: self.out_topics.pop(address, None)
       for pt in message.add: self.out_topics[pt.id] = pt.cost
 
-      if self.ignore_internal:
-        return None
-
     elif isinstance(message, AddressesChangedMessage):
       ac_message: AddressesChangedMessage = message
       message = AddressesChangedMessage(
@@ -89,9 +85,6 @@ class Connection(ABC):
         set(PricedId(a, self.addresses[a]) for a in ac_message.remove if t in self.addresses))
       for address in ac_message.remove: self.addresses.pop(address, None)
       for pa in message.add: self.addresses[pa.id] = pa.cost
-
-      if self.ignore_internal:
-        return None
 
     return message
 
@@ -218,9 +211,8 @@ class Switch:
     removed_topics, updated_topics = self.out_topics.remove_many(connection.get_priced_out_topics())
     updated_in_topics = recv_topics - removed_topics
 
-    # TODO: better way to do this
-    for topic in updated_in_topics:
-      self.send_add_in_topic(topic)
+    if len(updated_in_topics) > 0:
+      self.request_in_topics_change(set(updated_in_topics), set())
     
     if len(removed_topics) > 0 or len(updated_topics) > 0:
       self.broadcast(OutTopicsChangedMessage(updated_topics, removed_topics))
@@ -246,10 +238,24 @@ class Switch:
   def send_remove_in_topic(self, topic: int):
     self.send_to(InTopicsChangedMessage(set(), set([topic])), [ conn for conn in self.connections if topic in conn.recv_topics ])
 
-  def send_add_in_topic(self, topic: int):
-    best_connection = min(self.connections, key=lambda connection: connection.out_topics.get(topic, float('inf')))
-    if topic in best_connection.out_topics:
-      best_connection.send(InTopicsChangedMessage(set([topic]), set()))
+  def request_in_topics_change(self, add_topics: set[int], remove_topics: set[int]):
+    remove_topics_set = set(remove_topics)
+    change_map: dict[Connection, InTopicsChangedMessage] = {}
+
+    for topic in add_topics:
+      best_connection = min(self.connections, key=lambda connection: connection.out_topics.get(topic, float('inf')))
+      if topic not in best_connection.out_topics: continue
+      if best_connection not in change_map: change_map[best_connection] = InTopicsChangedMessage(set(), set())
+      change_map[best_connection].add.add(topic)
+    
+    if len(remove_topics_set) > 0:
+      for conn in self.connections:
+        remove_sub = conn.in_topics.intersection(remove_topics_set)
+        if len(remove_sub) > 0:
+          if conn not in change_map: change_map[conn] = InTopicsChangedMessage(set(), set())
+          for topic in remove_sub: change_map[conn].remove.add(topic)
+    
+    for conn, message in change_map.items(): conn.send(message)
 
   def on_in_topics_changed(self, message: InTopicsChangedMessage, origin: Connection):
     # todo: control stream
@@ -258,8 +264,8 @@ class Switch:
 
     for control_message in [ self.stream_controls[topic].to_message(topic) for topic in message.add if topic in self.stream_controls ]: 
       origin.send(control_message) 
-    for topic in final_remove: self.send_remove_in_topic(topic)
-    for topic in final_add: self.send_add_in_topic(topic)
+
+    self.request_in_topics_change(final_add, final_remove)
 
   def on_distribute(self, message: StreamMessage, origin: Connection):
     self.send_to(message, [ connection for connection in self.connections if connection != origin and message.topic in connection.in_topics])
@@ -272,12 +278,13 @@ class Switch:
       # NOTE: This might cause problems
       self.send_to(OutTopicsChangedMessage(provides_added, provides_removed), [ conn for conn in self.connections if conn != origin ])
 
+    resub_topics = set()
     for pt in message.add:
-      if self.in_topics.get(pt.id) > 0:
+      if pt.id in self.in_topics:
         topic_provider = next((conn for conn in self.connections if pt.id in conn.recv_topics), None)
         if topic_provider is None or topic_provider.out_topics[pt.id] > pt.cost: # resub to the better provider
-          self.send_remove_in_topic(pt.id)
-          self.send_add_in_topic(pt.id)
+          resub_topics.add(pt.id)
+    self.request_in_topics_change(resub_topics, resub_topics)
 
   def handle_message(self, message: Message, origin: Connection):
     if isinstance(message, InTopicsChangedMessage):

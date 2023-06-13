@@ -7,6 +7,7 @@ import asyncio
 from streamtasks.comm import *
 import os 
 import logging
+import weakref
 
 class Node:
   id: int
@@ -33,41 +34,105 @@ class Node:
     while self.running:
       self.switch.process()
       await asyncio.sleep(0.001)
-      
-# class Task:
-#   _connection: Connection
-#   _out_topics: set[int]
-#   _recv_topics: set[int]
 
-#   def __init__(self, connection: Connection):
-#     self._connection = connection
-#     self._provides_topics = set()
-#     self._subscribed_topics = set()
+class Receiver(ABC):
+  _client: weakref.ref['Client']
+  _receiving: bool
 
-#   def subscribe(self, topics: Iterable[int]):
-#     new_subscribed = set(topics)
-#     remove_subscribed = self._subscribed_topics - new_subscribed
-#     add_subscribed = new_subscribed - self._subscribed_topics
-#     for topic in remove_subscribed: self._connection.send(UnsubscribeMessage(topic))
-#     for topic in add_subscribed: self._connection.send(SubscribeMessage(topic))
-#     self._subscribed_topics = new_subscribed
-
-#   def provide(self, topics: Iterable[int]):
-#     new_provides = set(topics)
-#     remove_provided = self._provides_topics - new_provides
-#     add_provided = new_provides - self._provides_topics
-#     self._connection.send(OutTopicsChangedMessage(set([ PricedTopic(topic, 0) for topic in add_provided ]), remove_provided))
-#     self._provides_topics = new_provides
-
-#   def pause(self):
-#     for topic in self._provides_topics: self._connection.send(StreamControlMessage(topic, True))
-#     for topic in self._subscribed_topics: self._connection.send(UnsubscribeMessage(topic))
-
-#   def resume(self):
-#     for topic in self._provides_topics: self._connection.send(StreamControlMessage(topic, False))
-#     for topic in self._subscribed_topics: self._connection.send(SubscribeMessage(topic))
-      
+  def __init__(self, client: 'Client'):
+    self._recv_queue = asyncio.Queue()
+    self._client = weakref.ref(client)
+    self._receiving = False
   
-  
+  def start_recv(self): 
+    if self._receiving: return
+    self._receiving = True
+    self._get_client().enable_receiver(self)
+
+  def stop_recv(self): 
+    if not self._receiving: return
+    self._receiving = False
+    self._get_client().disable_receiver(self)
+
+  def __enter__(self):
+    self.start_recv()
+    return self
+  def __exit__(self, *args):
+    self.stop_recv()
+    return False
+
+  @abstractmethod
+  def on_message(self, message: Message):
+    pass
+
+  async def recv(self, timeout: Optional[float] = None) -> Any:
+    with self:
+      return await self._recv_queue.get()
+
+  def _get_client(self) -> 'Client':
+    c = self._client()
+    if not c: raise Exception('Client is dead')
+    return c
+
+class TopicsReceiver(Receiver):
+  _topics: set[int]
+  _control_data: dict[int, StreamControlData]
+  _recv_queue: asyncio.Queue[tuple[int, Optional[Any], Optional[StreamControlData]]]
+
+  def __init__(self, client: 'Client', topics: set[int]):
+    super().__init__(client)
+    self._topics = topics
+    self._control_data = None
+
+  def on_message(self, message: Message):
+    if isinstance(message, StreamDataMessage) and message.topic in self._topics:
+      sd_message: StreamDataMessage = message
+      if sd_message.topic in self._topics:
+        self._recv_queue.put_nowait((sd_message.topic, sd_message.data, None))
+    elif isinstance(message, StreamControlMessage):
+      sc_message: StreamControlMessage = message
+      if sc_message.topic in self._topics:
+        self._control_data[sc_message.topic] = control_data = sc_message.to_data()
+        self._recv_queue.put_nowait((sc_message.topic, None, control_data))
 
 
+class Client:
+  _connection: Connection
+  _receivers:  list[Receiver]
+  _receive_task: Optional[asyncio.Task]
+  _subscribed_topics: set[int]
+  _provided_topics: set[PricedId]
+
+  def __init__(self, connection: Connection):
+    self._connection = connection
+    self._receivers = []
+    self._receive_task = None
+    self._subscribed_topics = set()
+    self._provided_topics = set()
+
+  def get_topics_receiver(self, topics: Iterable[int]): return TopicsReceiver(self, set(topics))
+
+  def provide(self, topics: Iterable[PricedId]):
+    new_provided = set(topics)
+    add = new_provided - self._provided_topics
+    remove = self._provided_topics - new_provided
+    self._connection.send(OutTopicsChangedMessage(add, remove))
+    
+  def subscribe(self, topics: Iterable[int]):
+    new_sub = set(topics)
+    add = new_sub - self._subscribed_topics
+    remove = self._subscribed_topics - new_sub
+    self._connection.send(InTopicsChangedMessage(add, remove))
+
+  def enable_receiver(self, receiver: Receiver):
+    self._receivers.append(receiver)
+    self._receive_task = self._receive_task or asyncio.create_task(self._task_receive())
+  def disable_receiver(self, receiver: Receiver): self._receivers.remove(receiver)
+
+  async def _task_receive(self):
+    while len(self._receivers) > 0:
+      message = await self._connection.recv()
+      if message:
+        for receiver in self._receivers:
+          receiver.on_message(message)
+      await asyncio.sleep(0.001)

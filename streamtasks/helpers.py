@@ -8,7 +8,6 @@ class IdTracker:
     self._map = {}
 
   def __contains__(self, id: int): return id in self._map
-  def get(self, id: int, default: int = 0): return self._map.get(id, default)
 
   def add_many(self, ids: Iterable[int]):
     final = set()

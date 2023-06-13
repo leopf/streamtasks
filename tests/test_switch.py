@@ -16,9 +16,7 @@ class TestSwitch(unittest.TestCase):
     self.switch.add_connection(conn2[0])
     
     self.a = conn1[1]
-    self.a.ignore_internal = True
     self.b = conn2[1]
-    self.b.ignore_internal = True
 
   def send_message_process(self, connection: Connection, message: Message):
     connection.send(message)
