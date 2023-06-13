@@ -2,7 +2,7 @@ import argparse
 import ipaddress
 import logging
 from streamtasks.worker import RemoteClientWorker, RemoteServerWorker
-from streamtasks import Node
+from streamtasks.node import Node
 import asyncio
 
 def validate_args(args):
