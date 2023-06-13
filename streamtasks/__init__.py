@@ -1,4 +1,4 @@
-from typing import Union, Optional, Any
+from typing import Union, Optional, Any, Callable, Awaitable
 import multiprocessing.connection as mpconn
 from abc import ABC, abstractmethod, abstractstaticmethod
 from dataclasses import dataclass
@@ -107,6 +107,52 @@ class TopicsReceiver(Receiver):
         self._control_data[sc_message.topic] = control_data = sc_message.to_data()
         self._recv_queue.put_nowait((sc_message.topic, None, control_data))
 
+class FetchReponseReceiver(Receiver):
+  _fetch_id: int
+  _recv_queue: asyncio.Queue[Any]
+
+  def __init__(self, client: 'Client', fetch_id: int):
+    super().__init__(client)
+    self._fetch_id = fetch_id
+
+  def on_message(self, message: Message):
+    if isinstance(message, AddressedMessage):
+      a_message: AddressedMessage = message
+      if isinstance(a_message.data, FetchResponseMessage):
+        fr_message: FetchResponseMessage = a_message.data
+        if fr_message.request_id == self._fetch_id:
+          self._recv_queue.put_nowait(message.data)
+
+class FetchRequest:
+  data: Any
+  _client: 'Client'
+  _return_address: int
+  _request_id: int
+
+  def __init__(self, client: 'Client', return_address: int, request_id: int, data: Any):
+    self._client = client
+    self._return_address = return_address
+    self._request_id = request_id
+    self.data = data
+
+  def respond(self, data: Any):
+    self._client.send_to(self._return_address, FetchResponseMessage(self._request_id, data))
+
+class FetchRequestReceiver(Receiver):
+  _descriptor: str
+  _recv_queue: asyncio.Queue[FetchRequest]
+
+  def __init__(self, client: 'Client', descriptor: str):
+    super().__init__(client)
+    self._descriptor = descriptor
+
+  def on_message(self, message: Message):
+    if isinstance(message, AddressedMessage):
+      a_message: AddressedMessage = message
+      if isinstance(a_message.data, FetchRequestMessage):
+        fr_message: FetchRequestMessage = a_message.data
+        if fr_message.descriptor == self._descriptor:
+          self._recv_queue.put_nowait(FetchRequest(self._get_client(), fr_message.return_address, fr_message.request_id, fr_message.data))
 
 class Client:
   _connection: Connection
@@ -115,6 +161,7 @@ class Client:
   _subscribed_topics: set[int]
   _provided_topics: set[int]
   _addresses: set[int]
+  _fetch_id_counter: int
 
   def __init__(self, connection: Connection):
     self._connection = connection
@@ -123,9 +170,11 @@ class Client:
     self._subscribed_topics = set()
     self._provided_topics = set()
     self._addresses = set()
+    self._fetch_id_counter = 0
 
   def get_topics_receiver(self, topics: Iterable[int]): return TopicsReceiver(self, set(topics))
   def get_address_receiver(self, addresses: Iterable[int]): return AddressReceiver(self, set(addresses))
+  def get_fetch_request_receiver(self, descriptor: str): return FetchRequestReceiver(self, descriptor)
 
   def send_to(self, address: int, data: Any): self._connection.send(AddressedMessage(address, data))
   def send_stream_control(self, topic: int, control_data: StreamControlData): self._connection.send(control_data.to_message(topic))
@@ -143,6 +192,13 @@ class Client:
     add = new_provided - self._provided_topics
     remove = self._provided_topics - new_provided
     self._connection.send(OutTopicsChangedMessage(ids_to_priced_ids(add), remove))
+
+  async def fetch(self, address, descriptor, data):
+    self._fetch_id_counter += 1
+    self.send_to(address, FetchRequestMessage(self._addresses[0], self._fetch_id_counter, descriptor, data))
+    receiver = FetchReponseReceiver(self, self._fetch_id_counter)
+    response_data = await receiver.recv()
+    return response_data
 
   def subscribe(self, topics: Iterable[int]):
     new_sub = set(topics)
