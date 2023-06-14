@@ -85,9 +85,9 @@ class DiscoveryWorker(Worker):
     with client.get_address_receiver([WorkerAddresses.ID_DISCOVERY]) as receiver:
       while not stop_signal.is_set():
         if not receiver.empty():
-          message = await receiver.recv()
-          if not isinstance(message.data, RequestAddressesMessage): continue
-          request: RequestAddressesMessage = message.data
+          address, message = await receiver.recv()
+          if not isinstance(message, RequestAddressesMessage): continue
+          request: RequestAddressesMessage = message
           logging.info(f"discovering {request.count} addresses")
           addresses = self.generate_addresses(request.count)
           client.send_stream_data(WorkerTopics.ADDRESSES_CREATED, ResolveAddressesMessage(request.request_id, addresses))
