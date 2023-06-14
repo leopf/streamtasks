@@ -72,7 +72,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
     async def b_fetch():
       nonlocal b_result
-      b_result = await self.b.fetch(1, "test", "Hello 1")
+      b_result = await self.b.fetch(1, "test", "Hello 1", timeout=1)
 
     b_fetch_task = asyncio.create_task(b_fetch())
 

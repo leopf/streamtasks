@@ -126,6 +126,21 @@ class FetchRequestReceiver(Receiver):
         if fr_message.descriptor == self._descriptor:
           self._recv_queue.put_nowait(FetchRequest(self._client, fr_message.return_address, fr_message.request_id, fr_message.body))
 
+class ResolveAddressesReceiver(Receiver):
+  _recv_queue: asyncio.Queue[ResolveAddressesMessage]
+  _request_id: int
+
+  def __init__(self, client: 'Client', request_id: int):
+    super().__init__(client)
+    self._request_id = request_id
+
+  def on_message(self, message: Message):
+    if isinstance(message, StreamDataMessage) and message.topic == WorkerTopics.ADDRESSES_CREATED:
+      sd_message: StreamDataMessage = message
+      if isinstance(sd_message.data, ResolveAddressesMessage) and sd_message.data.request_id == self._request_id:
+        self._recv_queue.put_nowait(sd_message.data)
+
+
 @dataclass
 class FetchRequestMessage(Message):
   return_address: int
@@ -168,16 +183,13 @@ class Client:
   def send_stream_data(self, topic: int, data: Any): self._connection.send(StreamDataMessage(topic, data))
 
   # NOTE: not sure if i want to assign them directly
-  async def request_address(self) -> set[int]:
+  async def request_address(self, timeout: int=0) -> set[int]:
     self.subscribe(self._subscribed_topics | {WorkerTopics.ADDRESSES_CREATED})
-    with self.get_topics_receiver({WorkerTopics.ADDRESSES_CREATED}) as receiver:
-      request_id = secrets.randbelow(1<<64)
+    request_id = secrets.randbelow(1<<64)
+    with ResolveAddressesReceiver(self, request_id) as receiver:
       self.send_to(WorkerAddresses.ID_DISCOVERY, RequestAddressesMessage(request_id, 1))
-      while True:
-        topic, data, = await receiver.recv()
-        if topic == WorkerTopics.ADDRESSES_CREATED or isinstance(data, ResolveAddressesMessage) and data.request_id == request_id:
-          addresses = data.addresses
-          break
+      data: ResolveAddressesMessage = await receiver.recv(timeout)
+      addresses = data.addresses
     if len(addresses) != 1: raise Exception("Invalid number of addresses")
     new_address = next(iter(addresses))
     self.change_addresses(self._addresses | addresses)

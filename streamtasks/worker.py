@@ -59,7 +59,7 @@ class DiscoveryWorker(Worker):
   async def async_start(self, stop_signal: asyncio.Event):
     client = Client(self.create_connection())
     client.change_addresses([WorkerAddresses.ID_DISCOVERY])
-    client.provide([WorkerTopics.ID_DISCOVERY])
+    client.provide([WorkerTopics.ADDRESSES_CREATED])
 
     await asyncio.gather(
       self._run_address_discorvery(stop_signal, client),
