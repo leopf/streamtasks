@@ -10,7 +10,7 @@ from streamtasks.protocols import *
 class Worker:
   node_id: int
   switch: Switch
-  node_conn: Optional[IPCConnection]
+  node_conn: Optional[Connection]
   running: bool
 
   def __init__(self, node_id: int, switch: Optional[Switch] = None):
@@ -19,7 +19,10 @@ class Worker:
     self.running = False
     self.node_conn = None
 
-  def signal_stop(self): self.running = False
+  def set_node_connection(self, conn: Connection):
+    if self.node_conn is not None: self.switch.remove_connection(self.node_conn)
+    self.node_conn = conn
+    self.switch.add_connection(conn)
 
   def create_connection(self) -> Connection:
     connector = create_local_cross_connector()
@@ -30,18 +33,19 @@ class Worker:
     await self.connect_to_node()
     self.switch.process()
 
-  async def async_start(self):
+  async def async_start(self, stop_signal: asyncio.Event):
     await self.connect_to_node()
     self.running = True
-    while self.running:
+    while not stop_signal.is_set():
       await self.process()
       await asyncio.sleep(0.001)
+    self.running = False
 
   async def connect_to_node(self):
     while self.node_conn is None or self.node_conn.closed:
-      self.node_conn = connect_to_listener(get_node_socket_path(self.node_id))
-      if self.node_conn is None: await asyncio.sleep(1)
-      else: self.switch.add_connection(self.node_conn)
+      conn = connect_to_listener(get_node_socket_path(self.node_id))
+      if conn is None: await asyncio.sleep(1)
+      else: self.set_node_connection(conn)
 
 class DiscoveryWorker(Worker):
   _address_counter: int
@@ -52,19 +56,20 @@ class DiscoveryWorker(Worker):
     self._address_counter = WorkerAddresses.COUNTER_INIT
     self._topics_counter = WorkerTopics.COUNTER_INIT
 
-  async def async_start(self):
+  async def async_start(self, stop_signal: asyncio.Event):
     client = Client(self.create_connection())
     client.change_addresses([WorkerAddresses.ID_DISCOVERY])
 
     await asyncio.gather(
-      self._run_address_discorvery(client),
-      super().async_start()
+      self._run_address_discorvery(stop_signal, client),
+      self._run_topic_discovery(stop_signal, client),
+      super().async_start(stop_signal)
     )
 
 
-  async def _run_topic_discovery(self, client: Client):
+  async def _run_topic_discovery(self, stop_signal: asyncio.Event, client: Client):
     with client.get_fetch_request_receiver("request_topics") as receiver:
-      while self.running:
+      while not stop_signal.is_set():
         if not receiver.empty():
           req: FetchRequest = await receiver.recv()
           if not isinstance(req.body, RequestTopicsBody): continue
@@ -75,9 +80,9 @@ class DiscoveryWorker(Worker):
         else:
           await asyncio.sleep(0.001)
 
-  async def _run_address_discorvery(self, client: Client):
+  async def _run_address_discorvery(self, stop_signal: asyncio.Event, client: Client):
     with client.get_address_receiver([WorkerAddresses.ID_DISCOVERY]) as receiver:
-      while self.running:
+      while not stop_signal.is_set():
         if not receiver.empty():
           message = await receiver.recv()
           if not isinstance(message.data, RequestAddressesMessage): continue
@@ -105,14 +110,10 @@ class RemoteServerWorker(Worker):
   def __init__(self, node_id: int, bind_address: RemoteAddress):
     super().__init__(node_id, IPCSwitch(bind_address))
 
-  def signal_stop(self):
-    self.switch.signal_stop()
-    super().signal_stop()
-
-  async def async_start(self):
+  async def async_start(self, stop_signal: asyncio.Event):
     await asyncio.gather(
-      self.switch.start_listening(),
-      super().async_start()
+      self.switch.start_listening(stop_signal),
+      super().async_start(stop_signal)
     )
 
 class RemoteClientWorker(Worker):
@@ -126,16 +127,16 @@ class RemoteClientWorker(Worker):
     self.connection_cost = connection_cost
     self.remote_conn = None
 
-  async def async_start(self):
+  async def async_start(self, stop_signal: asyncio.Event):
     await self.connect_to_remote()
-    await super().async_start()
+    await super().async_start(stop_signal)
 
   async def process(self):
-    await self.connect_to_remote()
+    await self.connect_to_remote(stop_signal)
     await super().process()
 
   async def connect_to_remote(self):
-    while self.remote_conn is None or self.remote_conn.connection.closed:
+    while self.remote_conn is None or self.remote_conn.closed:
       self.remote_conn = connect_to_listener(self.remote_address)
       if self.remote_conn is None: await asyncio.sleep(1)
       else: 

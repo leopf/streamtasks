@@ -341,20 +341,20 @@ class IPCSwitch(Switch):
     self.bind_address = bind_address
     self.listening = False
 
-  def signal_stop(self):
-    self.listening = False
-
-  async def start_listening(self):
+  async def start_listening(self, stop_signal: asyncio.Event):
     self.listening = True
 
     loop = asyncio.get_event_loop()
     listener = mpconn.Listener(self.bind_address)
     logging.info(f"Listening on {self.bind_address}")
 
-    while self.listening:
+    while not stop_signal.is_set():
       conn = await loop.run_in_executor(None, listener.accept)
       logging.info(f"Accepted connection!")
       self.add_connection(IPCConnection(conn))
+
+    listener.close()
+    self.listening = False
 
 def create_switch_processing_task(switch: Switch) -> tuple[asyncio.Task, asyncio.Event]:
   stop_event = asyncio.Event()
