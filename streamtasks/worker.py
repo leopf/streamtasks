@@ -41,6 +41,7 @@ class Worker:
     while self.node_conn is None or self.node_conn.closed:
       self.node_conn = connect_to_listener(get_node_socket_path(self.node_id))
       if self.node_conn is None: await asyncio.sleep(1)
+      else: self.switch.add_connection(self.node_conn)
 
 class DiscoveryWorker(Worker):
   _address_counter: int

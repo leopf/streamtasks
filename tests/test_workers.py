@@ -9,31 +9,39 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
   node: LocalNode
   stop_signal: asyncio.Event
   tasks: list[asyncio.Task]
+  disposer_task: asyncio.Task
+  workers: list[Worker]
+  worker: Worker
 
   async def asyncSetUp(self):
+    self.tasks = []
+    self.workers = []
     self.node = LocalNode()
     self.worker = Worker(1)
-    self.worker.node_conn = self.node.create_connection() # hack to prevent remote connections
+    self.setup_worker(self.worker)
 
-    tasks = [ asyncio.create_task(a) for a in [
-      self.node.async_start(),
-      self.worker.async_start(),
-    ]]
+    self.tasks.append(asyncio.create_task(self.node.async_start()))
+    self.tasks.append(asyncio.create_task(self.worker.async_start()))
 
     async def disposer():
       await self.stop_signal.wait()
       self.node.signal_stop()
-      self.worker.signal_stop()
-      for task in tasks: await task
+      for w in self.workers: w.signal_stop()
+      for task in self.tasks: await task
 
-    self.tasks = [asyncio.create_task(disposer())]
+    self.disposer_task = asyncio.create_task(disposer())
     self.stop_signal = asyncio.Event()
 
     await asyncio.sleep(0.001)
 
   async def asyncTearDown(self):
     self.stop_signal.set()
-    for task in self.tasks: await task
+    await self.disposer_task
+
+  def setup_worker(self, worker: Worker):
+    worker.node_conn = self.node.create_connection()
+    worker.switch.add_connection(worker.node_conn)
+    self.workers.append(worker)
 
   async def test_basic(self):
     
