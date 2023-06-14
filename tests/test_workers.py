@@ -34,14 +34,35 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     worker.set_node_connection(self.node.create_connection())
     self.tasks.append(asyncio.create_task(worker.async_start(self.stop_signal)))
 
-  async def test_basic(self):
+  async def test_address_discovery(self):
     discovery_worker = DiscoveryWorker(1)
     self.setup_worker(discovery_worker)
 
     client = Client(self.worker.create_connection())
-    address = await client.request_address(1)
-    
-    self.assertEqual(WorkerAddresses.COUNTER_INIT, address)
+    own_address = await client.request_address(timeout=1)
+    self.assertEqual(WorkerAddresses.COUNTER_INIT, own_address)
+
+    expected_addresses = list(range(WorkerAddresses.COUNTER_INIT + 1, WorkerAddresses.COUNTER_INIT + 6))
+    addresses = await client.request_addresses(1, timeout=0)
+    # addresses = list(addresses)
+
+    # self.assertEqual(5, len(addresses))
+    # self.assertEqual(expected_addresses, list(addresses))
+
+  async def test_topic_discovery(self):
+    discovery_worker = DiscoveryWorker(1)
+    self.setup_worker(discovery_worker)
+
+    client = Client(self.worker.create_connection())
+    await client.request_address(timeout=1) # make sure we have an address
+    topics = await client.request_topic_ids(5, timeout=1, apply=True)
+    topics = list(topics)
+
+    self.assertEqual(5, len(topics))
+
+    expected_topics = list(range(WorkerTopics.COUNTER_INIT, WorkerTopics.COUNTER_INIT + 5))
+    self.assertEqual(expected_topics, topics)
+    self.assertEqual(set(expected_topics), client._provided_topics)
 
 if __name__ == '__main__':
   unittest.main()

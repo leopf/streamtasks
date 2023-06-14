@@ -161,6 +161,7 @@ class Client:
   _provided_topics: set[int]
   _addresses: set[int]
   _fetch_id_counter: int
+  _address_request_lock: asyncio.Lock
 
   def __init__(self, connection: Connection):
     self._connection = connection
@@ -170,6 +171,7 @@ class Client:
     self._provided_topics = set()
     self._addresses = set()
     self._fetch_id_counter = 0
+    self._address_request_lock = asyncio.Lock()
 
   def __del__(self):
     assert True
@@ -182,23 +184,27 @@ class Client:
   def send_stream_control(self, topic: int, control_data: StreamControlData): self._connection.send(control_data.to_message(topic))
   def send_stream_data(self, topic: int, data: Any): self._connection.send(StreamDataMessage(topic, data))
 
-  # NOTE: not sure if i want to assign them directly
-  async def request_address(self, timeout: int=0) -> set[int]:
-    self.subscribe(self._subscribed_topics | {WorkerTopics.ADDRESSES_CREATED})
-    request_id = secrets.randbelow(1<<64)
-    with ResolveAddressesReceiver(self, request_id) as receiver:
-      self.send_to(WorkerAddresses.ID_DISCOVERY, RequestAddressesMessage(request_id, 1))
-      data: ResolveAddressesMessage = await receiver.recv(timeout)
-      addresses = data.addresses
-    if len(addresses) != 1: raise Exception("Invalid number of addresses")
-    new_address = next(iter(addresses))
-    self.change_addresses(self._addresses | addresses)
-    return new_address
+  async def request_address(self, timeout: int=0): return next(iter(await self.request_addresses(1, timeout=timeout, apply=True)))
+  async def request_addresses(self, count: int, timeout: int=0, apply: bool=False) -> set[int]:
+    async with self._address_request_lock:
+      try:
+        self.subscribe(self._subscribed_topics | {WorkerTopics.ADDRESSES_CREATED})
+        request_id = secrets.randbelow(1<<64)
+        with ResolveAddressesReceiver(self, request_id) as receiver:
+          self.send_to(WorkerAddresses.ID_DISCOVERY, RequestAddressesMessage(request_id, count))
+          data: ResolveAddressesMessage = await receiver.recv(timeout=timeout)
+          addresses = data.addresses
+        assert len(addresses) == count, "The response returned an invalid number of addresses"
+        if apply: self.change_addresses(self._addresses | addresses)
+      finally:
+        self.subscribe(self._subscribed_topics - {WorkerTopics.ADDRESSES_CREATED})
+      return addresses
 
-  # NOTE: not sure if i dont want to assign them directly
-  async def request_new_topics_ids(self, count: int) -> set[int]:
-    res: ResolveTopicBody = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.REQUEST_TOPICS, RequestTopicsBody(count))
+  async def request_topic_ids(self, count: int, timeout: int=0, apply: bool=False) -> set[int]:
+    res: ResolveTopicBody = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.REQUEST_TOPICS, RequestTopicsBody(count), timeout=timeout)
     assert isinstance(res, ResolveTopicBody), "The fetch request returned an invalid response"
+    assert len(res.topics) == count, "The fetch request returned an invalid number of topics"
+    if apply: self.provide(self._provided_topics | res.topics)
     return res.topics
 
   def change_addresses(self, addresses: Iterable[int]):
@@ -213,6 +219,7 @@ class Client:
     add = new_provided - self._provided_topics
     remove = self._provided_topics - new_provided
     self._connection.send(OutTopicsChangedMessage(ids_to_priced_ids(add), remove))
+    self._provided_topics = new_provided
 
   async def fetch(self, address, descriptor, body, timeout: int = 0):
     self._fetch_id_counter = fetch_id = self._fetch_id_counter + 1
