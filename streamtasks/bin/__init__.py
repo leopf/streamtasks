@@ -2,7 +2,7 @@ import argparse
 import ipaddress
 import logging
 from streamtasks.worker import RemoteClientWorker, RemoteServerWorker
-from streamtasks.node import Node
+from streamtasks.node import IPCNode
 import asyncio
 
 def validate_args(args):
@@ -22,7 +22,7 @@ def start_remote_listen(args):
   asyncio.run(worker.async_start())
 
 def start_node(args):
-  node = Node(args["node_id"])
+  node = IPCNode(args["node_id"])
   asyncio.run(node.async_start())
 
 def main():

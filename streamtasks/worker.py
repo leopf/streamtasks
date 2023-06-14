@@ -38,7 +38,7 @@ class Worker:
       await asyncio.sleep(0.001)
 
   async def connect_to_node(self):
-    while self.node_conn is None or self.node_conn.connection.closed:
+    while self.node_conn is None or self.node_conn.closed:
       self.node_conn = connect_to_listener(get_node_socket_path(self.node_id))
       if self.node_conn is None: await asyncio.sleep(1)
 

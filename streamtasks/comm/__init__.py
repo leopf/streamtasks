@@ -19,7 +19,7 @@ class Connection(ABC):
   recv_topics: set[int]
   cost: int
 
-  deleted: bool
+  closed: bool
   ignore_internal: bool
 
   def __init__(self, cost: int = 1):
@@ -28,7 +28,7 @@ class Connection(ABC):
     self.addresses = dict()
     self.recv_topics = set()
 
-    self.deleted = False
+    self.closed = False
 
     assert cost > 0, "Cost must be greater than 0"
     self.cost = cost
@@ -37,7 +37,7 @@ class Connection(ABC):
     self.close()
 
   def close(self):
-    self.deleted = True
+    self.closed = True
 
   def get_priced_out_topics(self, topics: set[int] = None) -> set[PricedId]:
     if topics is None:
@@ -243,7 +243,7 @@ class Switch:
 
     for connection in self.connections:
       message = connection.recv()
-      if connection.deleted:
+      if connection.closed:
         removing_connections.append(connection)
       elif message is None:
         continue
