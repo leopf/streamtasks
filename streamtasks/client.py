@@ -39,9 +39,10 @@ class Receiver(ABC):
 
   def empty(self): return self._recv_queue.empty()
 
-  async def recv(self) -> Any:
+  async def recv(self, timeout: int = 0) -> Any:
     with self:
-      return await self._recv_queue.get()
+      if timeout == 0: return await self._recv_queue.get()
+      else: return await asyncio.wait_for(self._recv_queue.get(), timeout)
 
 class AddressReceiver(Receiver):
   _addresses: set[int]
@@ -201,13 +202,13 @@ class Client:
     remove = self._provided_topics - new_provided
     self._connection.send(OutTopicsChangedMessage(ids_to_priced_ids(add), remove))
 
-  async def fetch(self, address, descriptor, body):
+  async def fetch(self, address, descriptor, body, timeout: int = 0):
     self._fetch_id_counter = fetch_id = self._fetch_id_counter + 1
     local_address = next(iter(self._addresses), None)
     if local_address is None: raise Exception("No local address")
     self.send_to(address, FetchRequestMessage(local_address, fetch_id, descriptor, body))
     receiver = FetchReponseReceiver(self, fetch_id)
-    response_data = await receiver.recv()
+    response_data = await receiver.recv(timeout)
     return response_data
 
   def subscribe(self, topics: Iterable[int]):
