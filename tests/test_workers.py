@@ -3,6 +3,7 @@ from streamtasks.comm import *
 from streamtasks.client import *
 from streamtasks.worker import *
 from streamtasks.node import *
+import asyncio
 
 
 class TestWorkers(unittest.IsolatedAsyncioTestCase):
@@ -39,23 +40,28 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     self.setup_worker(discovery_worker)
 
     client = Client(self.worker.create_connection())
-    own_address = await client.request_address(timeout=1)
+
+    await asyncio.sleep(0.001)
+
+    own_address = await asyncio.wait_for(client.request_address(), 1) 
     self.assertEqual(WorkerAddresses.COUNTER_INIT, own_address)
 
     expected_addresses = list(range(WorkerAddresses.COUNTER_INIT + 1, WorkerAddresses.COUNTER_INIT + 6))
-    addresses = await client.request_addresses(1, timeout=0)
-    # addresses = list(addresses)
+    addresses = await asyncio.wait_for(client.request_addresses(5), 1)
+    addresses = list(addresses)
 
-    # self.assertEqual(5, len(addresses))
-    # self.assertEqual(expected_addresses, list(addresses))
+    self.assertEqual(5, len(addresses))
+    self.assertEqual(expected_addresses, list(addresses))
 
   async def test_topic_discovery(self):
     discovery_worker = DiscoveryWorker(1)
     self.setup_worker(discovery_worker)
 
     client = Client(self.worker.create_connection())
-    await client.request_address(timeout=1) # make sure we have an address
-    topics = await client.request_topic_ids(5, timeout=1, apply=True)
+    await asyncio.sleep(0.001)
+
+    await asyncio.wait_for(client.request_address(), 1) # make sure we have an address
+    topics = await asyncio.wait_for(client.request_topic_ids(5, apply=True), 1)
     topics = list(topics)
 
     self.assertEqual(5, len(topics))

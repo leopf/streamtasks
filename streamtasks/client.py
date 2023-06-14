@@ -9,21 +9,21 @@ import secrets
 
 class Receiver(ABC):
   _client: 'Client'
-  _receiving: bool
+  _receiving_count: int
 
   def __init__(self, client: 'Client'):
     self._recv_queue = asyncio.Queue()
     self._client = client
-    self._receiving = False
+    self._receiving_count = 0
   
-  def start_recv(self): 
-    if self._receiving: return
-    self._receiving = True
+  def start_recv(self):
+    self._receiving_count += 1 
+    if self._receiving_count > 1: return
     self._client.enable_receiver(self)
 
   def stop_recv(self): 
-    if not self._receiving: return
-    self._receiving = False
+    self._receiving_count = max(0, self._receiving_count - 1)
+    if self._receiving_count > 0: return
     self._client.disable_receiver(self)
 
   def __enter__(self):
@@ -39,10 +39,9 @@ class Receiver(ABC):
 
   def empty(self): return self._recv_queue.empty()
 
-  async def recv(self, timeout: int = 0) -> Any:
+  async def recv(self) -> Any:
     with self:
-      if timeout == 0: return await self._recv_queue.get()
-      else: return await asyncio.wait_for(self._recv_queue.get(), timeout)
+      return await self._recv_queue.get()
 
 class AddressReceiver(Receiver):
   _addresses: set[int]
@@ -184,15 +183,15 @@ class Client:
   def send_stream_control(self, topic: int, control_data: StreamControlData): self._connection.send(control_data.to_message(topic))
   def send_stream_data(self, topic: int, data: Any): self._connection.send(StreamDataMessage(topic, data))
 
-  async def request_address(self, timeout: int=0): return next(iter(await self.request_addresses(1, timeout=timeout, apply=True)))
-  async def request_addresses(self, count: int, timeout: int=0, apply: bool=False) -> set[int]:
+  async def request_address(self): return next(iter(await self.request_addresses(1, apply=True)))
+  async def request_addresses(self, count: int, apply: bool=False) -> set[int]:
     async with self._address_request_lock:
       try:
         self.subscribe(self._subscribed_topics | {WorkerTopics.ADDRESSES_CREATED})
         request_id = secrets.randbelow(1<<64)
         with ResolveAddressesReceiver(self, request_id) as receiver:
           self.send_to(WorkerAddresses.ID_DISCOVERY, RequestAddressesMessage(request_id, count))
-          data: ResolveAddressesMessage = await receiver.recv(timeout=timeout)
+          data: ResolveAddressesMessage = await receiver.recv()
           addresses = data.addresses
         assert len(addresses) == count, "The response returned an invalid number of addresses"
         if apply: self.change_addresses(self._addresses | addresses)
@@ -200,8 +199,8 @@ class Client:
         self.subscribe(self._subscribed_topics - {WorkerTopics.ADDRESSES_CREATED})
       return addresses
 
-  async def request_topic_ids(self, count: int, timeout: int=0, apply: bool=False) -> set[int]:
-    res: ResolveTopicBody = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.REQUEST_TOPICS, RequestTopicsBody(count), timeout=timeout)
+  async def request_topic_ids(self, count: int, apply: bool=False) -> set[int]:
+    res: ResolveTopicBody = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.REQUEST_TOPICS, RequestTopicsBody(count))
     assert isinstance(res, ResolveTopicBody), "The fetch request returned an invalid response"
     assert len(res.topics) == count, "The fetch request returned an invalid number of topics"
     if apply: self.provide(self._provided_topics | res.topics)
@@ -221,13 +220,13 @@ class Client:
     self._connection.send(OutTopicsChangedMessage(ids_to_priced_ids(add), remove))
     self._provided_topics = new_provided
 
-  async def fetch(self, address, descriptor, body, timeout: int = 0):
+  async def fetch(self, address, descriptor, body):
     self._fetch_id_counter = fetch_id = self._fetch_id_counter + 1
     local_address = next(iter(self._addresses), None)
     if local_address is None: raise Exception("No local address")
     self.send_to(address, FetchRequestMessage(local_address, fetch_id, descriptor, body))
     receiver = FetchReponseReceiver(self, fetch_id)
-    response_data = await receiver.recv(timeout)
+    response_data = await receiver.recv()
     return response_data
 
   def subscribe(self, topics: Iterable[int]):
