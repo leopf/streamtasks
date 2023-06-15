@@ -51,7 +51,7 @@ class Connection(ABC):
     else:
       return set(PricedId(address, self.addresses[address]) for address in addresses if address in self.addresses)
 
-  def send(self, message: Message):
+  async def send(self, message: Message):
     if isinstance(message, InTopicsChangedMessage):
       itc_message: InTopicsChangedMessage = message
       self.recv_topics = self.recv_topics.union(itc_message.add).difference(itc_message.remove)
@@ -61,10 +61,10 @@ class Connection(ABC):
     elif isinstance(message, AddressesChangedMessage):
       ac_message: AddressesChangedMessage = message
       message = AddressesChangedMessage(set(PricedId(pa.id, pa.cost + self.cost) for pa in ac_message.add), ac_message.remove)
-    self._send(message)
+    await self._send(message)
 
-  def recv(self) -> Optional[Message]:
-    message = self._recv()
+  async def recv(self) -> Optional[Message]:
+    message = await self._recv()
     if message is None:
       return None
 
@@ -95,11 +95,11 @@ class Connection(ABC):
     return message
 
   @abstractmethod
-  def _send(self, message: Message):
+  async def _send(self, message: Message):
     pass
 
   @abstractmethod
-  def _recv(self) -> Optional[Message]:
+  async def _recv(self) -> Optional[Message]:
     pass
 
 class IPCConnection(Connection):
@@ -113,60 +113,62 @@ class IPCConnection(Connection):
     super().close()
     self.connection.close()
 
-  def _send(self, message: Message):
+  async def _send(self, message: Message):
     if not self.check_closed():
+      await asyncio.sleep(0)
       self.connection.send(message)
 
-  def _recv(self) -> Optional[Message]:
+  async def _recv(self) -> Optional[Message]:
     if self.check_closed():
       return None
 
     if self.connection.poll():
+      await asyncio.sleep(0)
       return self.connection.recv()
     else:
       return None
 
   def check_closed(self):
     if self.connection.closed:
-      self.close()
+      if not self.closed: self.close()
     return self.connection.closed
 
-class ListConnection(Connection):
-  out_messages: list[Message]
-  in_messages: list[Message]
-  close_ref: list[bool]
+class QueueConnection(Connection):
+  out_messages: asyncio.Queue[Message]
+  in_messages: asyncio.Queue[Message]
+  close_signal: asyncio.Event
 
-  def __init__(self, close_ref: list[bool], out_messages: list[Message], in_messages: list[Message]):
+  def __init__(self, close_signal: asyncio.Event, out_messages: asyncio.Queue, in_messages: asyncio.Queue):
     super().__init__()
     self.out_messages = out_messages
     self.in_messages = in_messages
-    self.close_ref = close_ref
+    self.close_signal = close_signal
 
   def close(self):
     super().close()
-    self.close_ref[0] = True
+    if not self.close_signal.is_set(): self.close_signal.set()
 
-  def _send(self, message: Message):
-    if self.close_ref[0]:
-      self.close()
-      return
+  async def _send(self, message: Message):
+    if self.check_closed(): return
+    await self.out_messages.put(message)
 
-    self.out_messages.append(message)
+  async def _recv(self) -> Optional[Message]:
+    if self.check_closed(): return None
 
-  def _recv(self) -> Optional[Message]:
-    if self.close_ref[0]:
-      self.close()
-      return None
-
-    if len(self.in_messages) == 0:
+    if self.in_messages.empty():
       return None
     else:
-      return self.in_messages.pop(0)
+      return await self.in_messages.get()
+
+  def check_closed(self):
+    if self.close_signal.is_set():
+      if not self.closed: self.close()
+    return self.close_signal.is_set()
 
 def create_local_cross_connector() -> tuple[Connection, Connection]:
-  close_ref = [False]
-  messages_a, messages_b = [], []
-  return ListConnection(close_ref, messages_a, messages_b), ListConnection(close_ref, messages_b, messages_a)
+  close_signal = asyncio.Event()
+  messages_a, messages_b = asyncio.Queue(), asyncio.Queue()
+  return QueueConnection(close_signal, messages_a, messages_b), QueueConnection(close_signal, messages_b, messages_a)
 
 def connect_to_listener(address: RemoteAddress) -> Optional[IPCConnection]:
   logging.info(f"Connecting to {address}")
@@ -174,8 +176,8 @@ def connect_to_listener(address: RemoteAddress) -> Optional[IPCConnection]:
     conn = IPCConnection(mpconn.Client(address))
     logging.info(f"Connected to {address}")
     return conn
-  except Exception:
-    logging.error(f"Connection to {address} refused")
+  except BaseException:
+    logging.error(f"Connection to {address} refused, Error: {traceback.format_exc()}")
     return None
 
 def get_node_socket_path(id: int) -> str:
@@ -183,11 +185,6 @@ def get_node_socket_path(id: int) -> str:
       return f'\\\\.\\pipe\\streamtasks-{id}'
   else:
       return f'/tmp/streamtasks-{id}.sock'
-
-@dataclass
-class SwitchTopicInfo:
-  cost: int
-  count: int
 
 class Switch:
   in_topics: IdTracker
@@ -204,62 +201,62 @@ class Switch:
     self.addresses = PricedIdTracker()
     self.stream_controls = {}
 
-  def add_connection(self, connection: Connection):
+  async def add_connection(self, connection: Connection):
     switch_out_topics = set(self.out_topics.items())
-    if len(switch_out_topics) > 0: connection.send(OutTopicsChangedMessage(switch_out_topics, set()))
+    if len(switch_out_topics) > 0: await connection.send(OutTopicsChangedMessage(switch_out_topics, set()))
 
     switch_addresses = set(self.addresses.items())
-    if len(switch_addresses) > 0: connection.send(AddressesChangedMessage(switch_addresses, set()))
+    if len(switch_addresses) > 0: await connection.send(AddressesChangedMessage(switch_addresses, set()))
   
     added_out_topics = self.out_topics.add_many(connection.get_priced_out_topics())
-    if len(added_out_topics) > 0: self.broadcast(OutTopicsChangedMessage(added_out_topics, set()))
+    if len(added_out_topics) > 0: await self.broadcast(OutTopicsChangedMessage(added_out_topics, set()))
 
     added_addresses = self.addresses.add_many(connection.get_priced_addresses())
-    if len(added_addresses) > 0: self.broadcast(AddressesChangedMessage(added_addresses, set()))
+    if len(added_addresses) > 0: await self.broadcast(AddressesChangedMessage(added_addresses, set()))
 
     added_in_topics = self.in_topics.add_many(connection.in_topics)
-    if len(added_in_topics) > 0: self.request_in_topics_change(added_in_topics, set())
+    if len(added_in_topics) > 0: await self.request_in_topics_change(added_in_topics, set())
 
     self.connections.append(connection)
   
-  def remove_connection(self, connection: Connection):
+  async def remove_connection(self, connection: Connection):
     self.connections.remove(connection)
     recv_topics = connection.recv_topics
     removed_topics, updated_topics = self.out_topics.remove_many(connection.get_priced_out_topics())
     updated_in_topics = recv_topics - removed_topics
 
     if len(updated_in_topics) > 0:
-      self.request_in_topics_change(set(updated_in_topics), set())
+      await self.request_in_topics_change(set(updated_in_topics), set())
     
     if len(removed_topics) > 0 or len(updated_topics) > 0:
-      self.broadcast(OutTopicsChangedMessage(updated_topics, removed_topics))
+      await self.broadcast(OutTopicsChangedMessage(updated_topics, removed_topics))
 
     removed_addresses, updated_addresses = self.addresses.remove_many(connection.get_priced_addresses())
     if len(removed_addresses) > 0 or len(updated_addresses) > 0:
-      self.broadcast(AddressesChangedMessage(updated_addresses, removed_addresses))
+      await self.broadcast(AddressesChangedMessage(updated_addresses, removed_addresses))
 
-  def process(self):
+  async def process(self):
     removing_connections = []
 
     for connection in self.connections:
-      message = connection.recv()
+      message = await connection.recv()
       if connection.closed:
         removing_connections.append(connection)
       elif message is None:
         continue
       else:
-        self.handle_message(message, connection)
+        await self.handle_message(message, connection)
 
-    for connection in removing_connections: self.remove_connection(connection)
+    for connection in removing_connections: await self.remove_connection(connection)
 
-  def send_to(self, message: Message, connections: list[Connection]): 
-    for connection in connections: connection.send(message)
-  def broadcast(self, message: Message): self.send_to(message, self.connections)
+  async def send_to(self, message: Message, connections: list[Connection]): 
+    for connection in connections: await connection.send(message)
+  async def broadcast(self, message: Message): await self.send_to(message, self.connections)
   
-  def send_remove_in_topic(self, topic: int):
-    self.send_to(InTopicsChangedMessage(set(), set([topic])), [ conn for conn in self.connections if topic in conn.recv_topics ])
+  async def send_remove_in_topic(self, topic: int):
+    await self.send_to(InTopicsChangedMessage(set(), set([topic])), [ conn for conn in self.connections if topic in conn.recv_topics ])
 
-  def request_in_topics_change(self, add_topics: set[int], remove_topics: set[int]):
+  async def request_in_topics_change(self, add_topics: set[int], remove_topics: set[int]):
     remove_topics_set = set(remove_topics)
     change_map: dict[Connection, InTopicsChangedMessage] = {}
 
@@ -276,31 +273,31 @@ class Switch:
           if conn not in change_map: change_map[conn] = InTopicsChangedMessage(set(), set())
           for topic in remove_sub: change_map[conn].remove.add(topic)
     
-    for conn, message in change_map.items(): conn.send(message)
+    for conn, message in change_map.items(): await conn.send(message)
 
-  def on_in_topics_changed(self, message: InTopicsChangedMessage, origin: Connection):
+  async def on_in_topics_changed(self, message: InTopicsChangedMessage, origin: Connection):
     # todo: control stream
     final_add = self.in_topics.add_many(message.add)
     final_remove = self.in_topics.remove_many(message.remove)
 
     for control_message in [ self.stream_controls[topic].to_message(topic) for topic in message.add if topic in self.stream_controls ]: 
-      origin.send(control_message) 
+      await origin.send(control_message) 
 
-    self.request_in_topics_change(final_add, final_remove)
+    await self.request_in_topics_change(final_add, final_remove)
 
-  def on_addressed_message(self, message: AddressedMessage, origin: Connection):
+  async def on_addressed_message(self, message: AddressedMessage, origin: Connection):
     if message.address not in self.addresses: return
     address_cost = self.addresses.get(message.address)
     found_conn = next(( conn for conn in self.connections if conn.addresses.get(message.address, -1) == address_cost ), None)
-    if found_conn is not None: found_conn.send(message)
+    if found_conn is not None: await found_conn.send(message)
 
-  def on_stream_message(self, message: StreamMessage, origin: Connection):
-    self.send_to(message, [ connection for connection in self.connections if connection != origin and message.topic in connection.in_topics])
+  async def on_stream_message(self, message: StreamMessage, origin: Connection):
+    await self.send_to(message, [ connection for connection in self.connections if connection != origin and message.topic in connection.in_topics])
 
-  def on_out_topics_changed(self, message: OutTopicsChangedRecvMessage, origin: Connection):
+  async def on_out_topics_changed(self, message: OutTopicsChangedRecvMessage, origin: Connection):
     out_topics_added, out_topics_removed = self.out_topics.change_many(message.add, message.remove)
     if len(out_topics_added) > 0 or len(out_topics_removed) > 0:
-      self.send_to(OutTopicsChangedMessage(out_topics_added, out_topics_removed), [ conn for conn in self.connections if conn != origin ])
+      await self.send_to(OutTopicsChangedMessage(out_topics_added, out_topics_removed), [ conn for conn in self.connections if conn != origin ])
 
     resub_topics = set()
     for pt in message.add:
@@ -308,26 +305,26 @@ class Switch:
         topic_provider = next((conn for conn in self.connections if pt.id in conn.recv_topics), None)
         if topic_provider is None or topic_provider.out_topics[pt.id] > pt.cost: 
           resub_topics.add(pt.id)
-    self.request_in_topics_change(resub_topics, resub_topics) # resub to the better providers
+    await self.request_in_topics_change(resub_topics, resub_topics) # resub to the better providers
 
-  def on_addresses_changed(self, message: AddressesChangedRecvMessage, origin: Connection):
+  async def on_addresses_changed(self, message: AddressesChangedRecvMessage, origin: Connection):
     addresses_added, addresses_removed = self.addresses.change_many(message.add, message.remove)
     if len(addresses_added) > 0 or len(addresses_removed) > 0:
-      self.send_to(AddressesChangedMessage(addresses_added, addresses_removed), [ conn for conn in self.connections if conn != origin ])
+      await self.send_to(AddressesChangedMessage(addresses_added, addresses_removed), [ conn for conn in self.connections if conn != origin ])
 
-  def handle_message(self, message: Message, origin: Connection):
+  async def handle_message(self, message: Message, origin: Connection):
     if isinstance(message, StreamMessage):
       if isinstance(message, StreamControlMessage):
         self.stream_controls[message.topic] = message.to_data()
-      self.on_stream_message(message, origin)
+      await self.on_stream_message(message, origin)
     elif isinstance(message, AddressedMessage):
-      self.on_addressed_message(message, origin)
+      await self.on_addressed_message(message, origin)
     elif isinstance(message, InTopicsChangedMessage):
-      self.on_in_topics_changed(message, origin)
+      await self.on_in_topics_changed(message, origin)
     elif isinstance(message, OutTopicsChangedRecvMessage):
-      self.on_out_topics_changed(message, origin)
+      await self.on_out_topics_changed(message, origin)
     elif isinstance(message, AddressesChangedRecvMessage):
-      self.on_addresses_changed(message, origin)
+      await self.on_addresses_changed(message, origin)
     else:
       assert type(message) not in [ OutTopicsChangedMessage, AddressesChangedMessage ], "Message type should never be received (sender only)!"
       logging.warning(f"Unhandled message {message}")
@@ -359,6 +356,6 @@ class IPCSwitch(Switch):
 def create_switch_processing_task(switch: Switch, stop_signal: asyncio.Event) -> tuple[asyncio.Task, asyncio.Event]:
   async def process_switch():
     while not stop_signal.is_set():
-      switch.process()
+      await switch.process()
       await asyncio.sleep(0.001)
   return asyncio.create_task(process_switch())
