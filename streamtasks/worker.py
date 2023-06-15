@@ -19,19 +19,19 @@ class Worker:
     self.running = False
     self.node_conn = None
 
-  def set_node_connection(self, conn: Connection):
-    if self.node_conn is not None: self.switch.remove_connection(self.node_conn)
+  async def set_node_connection(self, conn: Connection):
+    if self.node_conn is not None: await self.switch.remove_connection(self.node_conn)
     self.node_conn = conn
-    self.switch.add_connection(conn)
+    await self.switch.add_connection(conn)
 
-  def create_connection(self) -> Connection:
+  async def create_connection(self) -> Connection:
     connector = create_local_cross_connector()
-    self.switch.add_connection(connector[0])
+    await self.switch.add_connection(connector[0])
     return connector[1]
 
   async def process(self):
     await self.connect_to_node()
-    self.switch.process()
+    await self.switch.process()
 
   async def async_start(self, stop_signal: asyncio.Event):
     await self.connect_to_node()
@@ -45,7 +45,7 @@ class Worker:
     while self.node_conn is None or self.node_conn.closed:
       conn = connect_to_listener(get_node_socket_path(self.node_id))
       if conn is None: await asyncio.sleep(1)
-      else: self.set_node_connection(conn)
+      else: await self.set_node_connection(conn)
 
 class DiscoveryWorker(Worker):
   _address_counter: int
@@ -57,9 +57,9 @@ class DiscoveryWorker(Worker):
     self._topics_counter = WorkerTopics.COUNTER_INIT
 
   async def async_start(self, stop_signal: asyncio.Event):
-    client = Client(self.create_connection())
-    client.change_addresses([WorkerAddresses.ID_DISCOVERY])
-    client.provide([WorkerTopics.ADDRESSES_CREATED])
+    client = Client(await self.create_connection())
+    await client.change_addresses([WorkerAddresses.ID_DISCOVERY])
+    await client.provide([WorkerTopics.ADDRESSES_CREATED])
 
     await asyncio.gather(
       self._run_address_discorvery(stop_signal, client),
@@ -77,7 +77,7 @@ class DiscoveryWorker(Worker):
           request: RequestTopicsBody = req.body
           logging.info(f"discovering {request.count} topics")
           topics = self.generate_topics(request.count)
-          req.respond(ResolveTopicBody(topics))
+          await req.respond(ResolveTopicBody(topics))
         else:
           await asyncio.sleep(0.001)
 
@@ -90,7 +90,7 @@ class DiscoveryWorker(Worker):
           request: RequestAddressesMessage = message
           logging.info(f"discovering {request.count} addresses")
           addresses = self.generate_addresses(request.count)
-          client.send_stream_data(WorkerTopics.ADDRESSES_CREATED, ResolveAddressesMessage(request.request_id, addresses))
+          await client.send_stream_data(WorkerTopics.ADDRESSES_CREATED, ResolveAddressesMessage(request.request_id, addresses))
         else:
           await asyncio.sleep(0.001)
   
@@ -142,4 +142,4 @@ class RemoteClientWorker(Worker):
       if self.remote_conn is None: await asyncio.sleep(1)
       else: 
         self.remote_conn.cost = self.connection_cost
-        self.switch.add_connection(self.remote_conn)
+        await self.switch.add_connection(self.remote_conn)

@@ -13,8 +13,8 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     conn2 = create_local_cross_connector()
 
     switch = Switch()
-    switch.add_connection(conn1[0])
-    switch.add_connection(conn2[0])
+    await switch.add_connection(conn1[0])
+    await switch.add_connection(conn2[0])
 
     self.tasks = []
     self.stop_signal = asyncio.Event()
@@ -28,45 +28,34 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     for task in self.tasks: await task
 
   async def test_provide_subscribe(self):
-    self.a.provide([ 1, 2 ])
-    self.b.subscribe([ 1, 2 ])
+    await self.a.provide([ 1, 2 ])
+    await self.b.subscribe([ 1, 2 ])
+
+    await self.a.send_stream_data(1, "Hello 1")
+    await self.a.send_stream_data(2, "Hello 2")
 
     b_recv = self.b.get_topics_receiver([ 1, 2 ])
-    self.a.send_stream_data(1, "Hello 1")
-    self.a.send_stream_data(2, "Hello 2")
-
     self.assertEqual(await b_recv.recv(), (1, "Hello 1", None))
     self.assertEqual(await b_recv.recv(), (2, "Hello 2", None))
 
-    self.b.subscribe([ 2 ])
+    await self.b.subscribe([ 2 ])
 
-    self.a.send_stream_data(1, "Hello 1")
-    self.a.send_stream_data(2, "Hello 2")
+    await self.a.send_stream_data(1, "Hello 1")
+    await self.a.send_stream_data(2, "Hello 2")
 
     rv = await b_recv.recv()
     self.assertEqual(rv, (2, "Hello 2", None))
 
   async def test_address(self):
-    self.a.change_addresses([1])
+    await self.a.change_addresses([1])
+    await self.b.send_to(1, "Hello 1")
+
     a_recv = self.a.get_address_receiver([1])
-
-    await asyncio.sleep(0.001)
-
-    self.b.send_to(1, "Hello 1")
-
     self.assertEqual(await a_recv.recv(), (1, "Hello 1"))
 
-    assert self.a
-    assert self.a._connection
-
-    return True
-
-
   async def test_fetch(self):
-    self.a.change_addresses([1])
-    self.b.change_addresses([2])
-
-    await asyncio.sleep(0.001)
+    await self.a.change_addresses([1])
+    await self.b.change_addresses([2])
 
     b_result = None
 
@@ -76,18 +65,16 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
     b_fetch_task = asyncio.create_task(b_fetch())
 
-    await asyncio.sleep(0.001)
+    await asyncio.sleep(0.001) # NOTE: needed?
 
     a_recv = self.a.get_fetch_request_receiver("test")
     req: FetchRequest  = await asyncio.wait_for(a_recv.recv(), 1)
     self.assertEqual(req.body, "Hello 1")
     self.assertEqual(req._return_address, 2)
-    req.respond("Hello 2")
+    await req.respond("Hello 2")
     
     await b_fetch_task
     self.assertEqual(b_result, "Hello 2")
-
-    return True
 
 if __name__ == '__main__':
   unittest.main()

@@ -236,6 +236,7 @@ class Switch:
       await self.broadcast(AddressesChangedMessage(updated_addresses, removed_addresses))
 
   async def process(self):
+    print("process!")
     removing_connections = []
 
     for connection in self.connections:

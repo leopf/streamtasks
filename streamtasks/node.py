@@ -17,16 +17,16 @@ class NodeBase(ABC):
     
   async def _start_switching(self, stop_signal: asyncio.Event):
     while not stop_signal.is_set():
-      self.switch.process()
+      await self.switch.process()
       await asyncio.sleep(0.001)
 
 class LocalNode(NodeBase):
   def __init__(self):
     super().__init__(Switch())
 
-  def create_connection(self):
+  async def create_connection(self):
     connector = create_local_cross_connector()
-    self.switch.add_connection(connector[0])
+    await self.switch.add_connection(connector[0])
     return connector[1]
 
 class IPCNode(NodeBase):

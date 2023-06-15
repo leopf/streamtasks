@@ -106,8 +106,8 @@ class FetchRequest:
     self._request_id = request_id
     self.body = body
 
-  def respond(self, body: Any):
-    self._client.send_to(self._return_address, FetchResponseMessage(self._request_id, body))
+  async def respond(self, body: Any):
+    await self._client.send_to(self._return_address, FetchResponseMessage(self._request_id, body))
 
 class FetchRequestReceiver(Receiver):
   _descriptor: str
@@ -172,69 +172,66 @@ class Client:
     self._fetch_id_counter = 0
     self._address_request_lock = asyncio.Lock()
 
-  def __del__(self):
-    assert True
-
   def get_topics_receiver(self, topics: Iterable[int]): return TopicsReceiver(self, set(topics))
   def get_address_receiver(self, addresses: Iterable[int]): return AddressReceiver(self, set(addresses))
   def get_fetch_request_receiver(self, descriptor: str): return FetchRequestReceiver(self, descriptor)
 
-  def send_to(self, address: int, data: Any): self._connection.send(AddressedMessage(address, data))
-  def send_stream_control(self, topic: int, control_data: StreamControlData): self._connection.send(control_data.to_message(topic))
-  def send_stream_data(self, topic: int, data: Any): self._connection.send(StreamDataMessage(topic, data))
+  async def send_to(self, address: int, data: Any): await self._connection.send(AddressedMessage(address, data))
+  async def send_stream_control(self, topic: int, control_data: StreamControlData): await self._connection.send(control_data.to_message(topic))
+  async def send_stream_data(self, topic: int, data: Any): await self._connection.send(StreamDataMessage(topic, data))
 
   async def request_address(self): return next(iter(await self.request_addresses(1, apply=True)))
   async def request_addresses(self, count: int, apply: bool=False) -> set[int]:
     async with self._address_request_lock:
       try:
-        self.subscribe(self._subscribed_topics | {WorkerTopics.ADDRESSES_CREATED})
+        await self.subscribe(self._subscribed_topics | {WorkerTopics.ADDRESSES_CREATED})
         request_id = secrets.randbelow(1<<64)
         with ResolveAddressesReceiver(self, request_id) as receiver:
-          self.send_to(WorkerAddresses.ID_DISCOVERY, RequestAddressesMessage(request_id, count))
+          await self.send_to(WorkerAddresses.ID_DISCOVERY, RequestAddressesMessage(request_id, count))
           data: ResolveAddressesMessage = await receiver.recv()
           addresses = data.addresses
         assert len(addresses) == count, "The response returned an invalid number of addresses"
-        if apply: self.change_addresses(self._addresses | addresses)
+        if apply: await self.change_addresses(self._addresses | addresses)
       finally:
-        self.subscribe(self._subscribed_topics - {WorkerTopics.ADDRESSES_CREATED})
+        await self.subscribe(self._subscribed_topics - {WorkerTopics.ADDRESSES_CREATED})
       return addresses
 
   async def request_topic_ids(self, count: int, apply: bool=False) -> set[int]:
     res: ResolveTopicBody = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.REQUEST_TOPICS, RequestTopicsBody(count))
     assert isinstance(res, ResolveTopicBody), "The fetch request returned an invalid response"
     assert len(res.topics) == count, "The fetch request returned an invalid number of topics"
-    if apply: self.provide(self._provided_topics | res.topics)
+    if apply: await self.provide(self._provided_topics | res.topics)
     return res.topics
 
-  def change_addresses(self, addresses: Iterable[int]):
+  async def change_addresses(self, addresses: Iterable[int]):
     new_addresses = set(addresses)
     add = new_addresses - self._addresses
     remove = self._addresses - new_addresses
-    self._connection.send(AddressesChangedMessage(ids_to_priced_ids(add), remove))
+    await self._connection.send(AddressesChangedMessage(ids_to_priced_ids(add), remove))
     self._addresses = new_addresses
 
-  def provide(self, topics: Iterable[int]):
+  async def provide(self, topics: Iterable[int]):
     new_provided = set(topics)
     add = new_provided - self._provided_topics
     remove = self._provided_topics - new_provided
-    self._connection.send(OutTopicsChangedMessage(ids_to_priced_ids(add), remove))
+    await self._connection.send(OutTopicsChangedMessage(ids_to_priced_ids(add), remove))
     self._provided_topics = new_provided
+
+  async def subscribe(self, topics: Iterable[int]):
+    new_sub = set(topics)
+    add = new_sub - self._subscribed_topics
+    remove = self._subscribed_topics - new_sub
+    self._subscribed_topics = new_sub
+    await self._connection.send(InTopicsChangedMessage(add, remove))
 
   async def fetch(self, address, descriptor, body):
     self._fetch_id_counter = fetch_id = self._fetch_id_counter + 1
     local_address = next(iter(self._addresses), None)
     if local_address is None: raise Exception("No local address")
-    self.send_to(address, FetchRequestMessage(local_address, fetch_id, descriptor, body))
+    await self.send_to(address, FetchRequestMessage(local_address, fetch_id, descriptor, body))
     receiver = FetchReponseReceiver(self, fetch_id)
     response_data = await receiver.recv()
     return response_data
-
-  def subscribe(self, topics: Iterable[int]):
-    new_sub = set(topics)
-    add = new_sub - self._subscribed_topics
-    remove = self._subscribed_topics - new_sub
-    self._subscribed_topics = new_sub
-    self._connection.send(InTopicsChangedMessage(add, remove))
 
   def enable_receiver(self, receiver: Receiver):
     self._receivers.append(receiver)
@@ -243,10 +240,11 @@ class Client:
 
   async def _task_receive(self):
     while len(self._receivers) > 0:
-      message = self._connection.recv()
+      message = await self._connection.recv()
       if message:
         if isinstance(message, StreamMessage) and message.topic not in self._subscribed_topics: continue
         for receiver in self._receivers:
           receiver.on_message(message)
-      await asyncio.sleep(0.001)
+      else:
+        await asyncio.sleep(0.001)
     self._receive_task = None
