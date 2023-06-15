@@ -356,10 +356,9 @@ class IPCSwitch(Switch):
     listener.close()
     self.listening = False
 
-def create_switch_processing_task(switch: Switch) -> tuple[asyncio.Task, asyncio.Event]:
-  stop_event = asyncio.Event()
+def create_switch_processing_task(switch: Switch, stop_signal: asyncio.Event) -> tuple[asyncio.Task, asyncio.Event]:
   async def process_switch():
-    while not stop_event.is_set():
+    while not stop_signal.is_set():
       switch.process()
       await asyncio.sleep(0.001)
-  return asyncio.create_task(process_switch()), stop_event
+  return asyncio.create_task(process_switch())
