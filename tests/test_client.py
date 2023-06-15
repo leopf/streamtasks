@@ -65,8 +65,6 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
     b_fetch_task = asyncio.create_task(b_fetch())
 
-    await asyncio.sleep(0.001) # NOTE: needed?
-
     a_recv = self.a.get_fetch_request_receiver("test")
     req: FetchRequest  = await asyncio.wait_for(a_recv.recv(), 1)
     self.assertEqual(req.body, "Hello 1")
