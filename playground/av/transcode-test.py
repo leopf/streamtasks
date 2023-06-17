@@ -3,7 +3,7 @@ import numpy as np
 import time 
 import asyncio
 from matplotlib import pyplot as plt
-from streamtasks.media import *
+from streamtasks.media.video import *
 from fractions import Fraction
 import logging
 
