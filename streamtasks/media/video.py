@@ -34,9 +34,9 @@ class VideoCodecInfo:
   def _get_av_codec_context(self, mode: str):
     assert mode in ('r', 'w'), f'Invalid mode: {mode}. Must be "r" or "w".' 
     ctx = av.codec.CodecContext.create(self.encoding, mode)
+    configure_codec_context(ctx)
     ctx.format = self.to_av_format()
     ctx.framerate = self.framerate
-    ctx.thread_type = 'AUTO'
 
     if mode == 'w':
       ctx.time_base = DEFAULT_TIME_BASE

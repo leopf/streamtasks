@@ -15,7 +15,7 @@ class SubtitleCodecInfo:
   def _get_av_codec_context(self, mode: str):
     assert mode in ('r', 'w'), f'Invalid mode: {mode}. Must be "r" or "w".'
     ctx = av.codec.CodecContext.create(self.codec, mode)
-    ctx.thread_type = 'AUTO'
+    configure_codec_context(ctx)
     return ctx
 
   @staticmethod

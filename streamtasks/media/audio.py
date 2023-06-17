@@ -33,11 +33,10 @@ class AudioCodecInfo:
   def _get_av_codec_context(self, mode: str):
     assert mode in ('r', 'w'), f'Invalid mode: {mode}. Must be "r" or "w".'
     ctx = av.codec.CodecContext.create(self.codec, mode)
+    configure_codec_context(ctx)
     ctx.format = self.to_av_format()
     ctx.layout = self.to_av_layout()
     ctx.sample_rate = self.sample_rate
-
-    ctx.thread_type = 'AUTO'
 
     if mode == 'w':
       ctx.time_base = DEFAULT_TIME_BASE
