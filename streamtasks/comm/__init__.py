@@ -191,7 +191,7 @@ class Switch:
   out_topics: PricedIdTracker
   addresses: PricedIdTracker
 
-  stream_controls: dict[int, StreamControlData]
+  stream_controls: dict[int, TopicControlData]
   connections: list[Connection]
 
   def __init__(self):
@@ -292,7 +292,7 @@ class Switch:
     found_conn = next(( conn for conn in self.connections if conn.addresses.get(message.address, -1) == address_cost ), None)
     if found_conn is not None: await found_conn.send(message)
 
-  async def on_stream_message(self, message: StreamMessage, origin: Connection):
+  async def on_stream_message(self, message: TopicMessage, origin: Connection):
     await self.send_to(message, [ connection for connection in self.connections if connection != origin and message.topic in connection.in_topics])
 
   async def on_out_topics_changed(self, message: OutTopicsChangedRecvMessage, origin: Connection):
@@ -314,8 +314,8 @@ class Switch:
       await self.send_to(AddressesChangedMessage(addresses_added, addresses_removed), [ conn for conn in self.connections if conn != origin ])
 
   async def handle_message(self, message: Message, origin: Connection):
-    if isinstance(message, StreamMessage):
-      if isinstance(message, StreamControlMessage):
+    if isinstance(message, TopicMessage):
+      if isinstance(message, TopicControlMessage):
         self.stream_controls[message.topic] = message.to_data()
       await self.on_stream_message(message, origin)
     elif isinstance(message, AddressedMessage):

@@ -5,20 +5,20 @@ from abc import ABC
 class Message(ABC):
   pass
 
-class StreamMessage(Message, ABC):
+class TopicMessage(Message, ABC):
   topic: int
 
 @dataclass
-class StreamDataMessage(StreamMessage):
+class TopicDataMessage(TopicMessage):
   topic: int
   data: Any
 
 @dataclass
-class StreamControlMessage(StreamMessage):
+class TopicControlMessage(TopicMessage):
   topic: int
   paused: bool
 
-  def to_data(self) -> 'StreamControlData': return StreamControlData(self.paused)
+  def to_data(self) -> 'StreamControlData': return TopicControlData(self.paused)
 
 @dataclass
 class AddressedMessage(Message):
@@ -59,7 +59,7 @@ class OutTopicsChangedRecvMessage(Message):
   remove: set[PricedId]
 
 @dataclass
-class StreamControlData:
+class TopicControlData:
   paused: bool
 
-  def to_message(self, topic: int) -> StreamControlMessage: return StreamControlMessage(topic, self.paused)
+  def to_message(self, topic: int) -> TopicControlMessage: return TopicControlMessage(topic, self.paused)

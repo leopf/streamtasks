@@ -57,8 +57,8 @@ class AddressReceiver(Receiver):
 
 class TopicsReceiver(Receiver):
   _topics: set[int]
-  _control_data: dict[int, StreamControlData]
-  _recv_queue: asyncio.Queue[tuple[int, Optional[Any], Optional[StreamControlData]]]
+  _control_data: dict[int, TopicControlData]
+  _recv_queue: asyncio.Queue[tuple[int, Optional[Any], Optional[TopicControlData]]]
 
   def __init__(self, client: 'Client', topics: set[int]):
     super().__init__(client)
@@ -68,12 +68,12 @@ class TopicsReceiver(Receiver):
   def get_control_data(self, topic: int): return self._control_data.get(topic, None)
 
   def on_message(self, message: Message):
-    if isinstance(message, StreamDataMessage) and message.topic in self._topics:
-      sd_message: StreamDataMessage = message
+    if isinstance(message, TopicDataMessage) and message.topic in self._topics:
+      sd_message: TopicDataMessage = message
       if sd_message.topic in self._topics:
         self._recv_queue.put_nowait((sd_message.topic, sd_message.data, None))
-    elif isinstance(message, StreamControlMessage):
-      sc_message: StreamControlMessage = message
+    elif isinstance(message, TopicControlMessage):
+      sc_message: TopicControlMessage = message
       if sc_message.topic in self._topics:
         self._control_data[sc_message.topic] = control_data = sc_message.to_data()
         self._recv_queue.put_nowait((sc_message.topic, None, control_data))
@@ -134,8 +134,8 @@ class ResolveAddressesReceiver(Receiver):
     self._request_id = request_id
 
   def on_message(self, message: Message):
-    if isinstance(message, StreamDataMessage) and message.topic == WorkerTopics.ADDRESSES_CREATED:
-      sd_message: StreamDataMessage = message
+    if isinstance(message, TopicDataMessage) and message.topic == WorkerTopics.ADDRESSES_CREATED:
+      sd_message: TopicDataMessage = message
       if isinstance(sd_message.data, ResolveAddressesMessage) and sd_message.data.request_id == self._request_id:
         self._recv_queue.put_nowait(sd_message.data)
 
@@ -177,8 +177,8 @@ class Client:
   def get_fetch_request_receiver(self, descriptor: str): return FetchRequestReceiver(self, descriptor)
 
   async def send_to(self, address: int, data: Any): await self._connection.send(AddressedMessage(address, data))
-  async def send_stream_control(self, topic: int, control_data: StreamControlData): await self._connection.send(control_data.to_message(topic))
-  async def send_stream_data(self, topic: int, data: Any): await self._connection.send(StreamDataMessage(topic, data))
+  async def send_stream_control(self, topic: int, control_data: TopicControlData): await self._connection.send(control_data.to_message(topic))
+  async def send_stream_data(self, topic: int, data: Any): await self._connection.send(TopicDataMessage(topic, data))
 
   async def request_address(self): return next(iter(await self.request_addresses(1, apply=True)))
   async def request_addresses(self, count: int, apply: bool=False) -> set[int]:
@@ -242,7 +242,7 @@ class Client:
     while len(self._receivers) > 0:
       message = await self._connection.recv()
       if message:
-        if isinstance(message, StreamMessage) and message.topic not in self._subscribed_topics: continue
+        if isinstance(message, TopicMessage) and message.topic not in self._subscribed_topics: continue
         for receiver in self._receivers:
           receiver.on_message(message)
       else:

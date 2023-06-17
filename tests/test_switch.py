@@ -32,7 +32,7 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     self.assertIn(1, self.switch.connections[1].in_topics)
     self.assertIn(1, self.switch.in_topics)
 
-    await self.a.send(StreamDataMessage(1, "Hello"))
+    await self.a.send(TopicDataMessage(1, "Hello"))
     await self.switch.process()
 
     received = await self.b.recv()
@@ -44,7 +44,7 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     self.assertNotIn(1, self.switch.in_topics)
     self.assertNotIn(1, self.switch.connections[1].in_topics)
 
-    await self.a.send(StreamDataMessage(1, "Hello"))
+    await self.a.send(TopicDataMessage(1, "Hello"))
     await self.switch.process()
 
     received = await self.b.recv()
@@ -60,7 +60,7 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     self.assertIsInstance(a_received, InTopicsChangedMessage)
     self.assertIn(1, a_received.add)
 
-    await self.a.send(StreamDataMessage(1, "Hello"))
+    await self.a.send(TopicDataMessage(1, "Hello"))
     await self.switch.process()
     
     b_received = await self.b.recv()
