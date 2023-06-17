@@ -4,10 +4,11 @@ import asyncio
 import numpy as np
 import time
 import av
+from fractions import Fraction
 
 
-DEFAULT_TIME_BASE = (1, 1000000)
-DEFAULT_TIME_BASE_TO_MS = 0.001 / (DEFAULT_TIME_BASE[0] / DEFAULT_TIME_BASE[1])
+DEFAULT_TIME_BASE = Fraction(1, 1000000)
+DEFAULT_TIME_BASE_TO_MS = 0.001 / DEFAULT_TIME_BASE
 
 class VideoCodecInfo:
   width: int
@@ -36,14 +37,16 @@ class VideoCodecInfo:
   def _get_av_codec_context(self, mode: str):
     assert mode in ('r', 'w'), f'Invalid mode: {mode}. Must be "r" or "w".' 
     ctx = av.codec.CodecContext.create(self.encoding, mode)
-    ctx.time_base = DEFAULT_TIME_BASE
     ctx.format = self.to_av_format()
     ctx.framerate = self.framerate
-    if self.crf is not None and mode == 'w':
-      ctx.options['crf'] = str(self.crf)
+    ctx.thread_type = 'AUTO'
 
-    if self.bitrate is not None:
-      ctx.bit_rate = self.bitrate
+    if mode == 'w':
+      ctx.time_base = DEFAULT_TIME_BASE
+      if self.crf is not None:
+        ctx.options['crf'] = str(self.crf)
+      if self.bitrate is not None:
+        ctx.bit_rate = self.bitrate
 
     return ctx
 
@@ -64,6 +67,9 @@ class VideoFrame:
   def to_image(self):
     return self.frame.to_image()
 
+  def to_rgb(self):
+    return VideoFrame(self.frame.to_rgb())
+
   def to_ndarray(self):
     return self.frame.to_ndarray()
 
@@ -78,7 +84,7 @@ class MediaPacket:
   rel_dts: int # 3 byte cause time base...
   timestamp_ms: int # 6 bytes
   is_keyframe: bool # 1 byte
-  data: bytes # variable length
+  data: bytes # variable length + 4
 
   def __init__(self, data: bytes, timestamp_ms: int, pts: int, is_keyframe: bool, rel_dts: int=0):
     self.pts = pts
@@ -89,6 +95,9 @@ class MediaPacket:
 
   @property
   def dts(self): return self.pts - self.rel_dts
+
+  @property
+  def size(self): return len(self.data) + 20
 
   def to_av_packet(self):
     packet = av.Packet(self.data)
@@ -109,7 +118,8 @@ class VideoDecoder:
   async def decode(self, packet: MediaPacket) -> Optional[VideoFrame]:
     loop = asyncio.get_running_loop()
     av_packet = packet.to_av_packet()
-    frame = await loop.run_in_executor(None, self._decode, av_packet)
+    frames = await loop.run_in_executor(None, self._decode, av_packet)
+    return [ VideoFrame(frame) for frame in frames]
 
   def _decode(self, packet: av.Packet):
     return self.codec_context.decode(packet)
