@@ -79,17 +79,29 @@ class VideoFrame:
   @staticmethod
   def from_ndarray(array: np.ndarray, format: str): return VideoFrame(av.video.frame.VideoFrame.from_ndarray(array))
 
-class MediaPacket:
+class StreamPacket:
+  timestamp_ms: int # 6 bytes
+
+  def __init__(self, timestamp_ms: int):
+    self.timestamp_ms = timestamp_ms
+
+class NumberPacket(StreamPacket):
+  value: float() # 4 bytes
+
+  def __init__(self, value: float, timestamp_ms: int):
+    super().__init__(timestamp_ms)
+    self.value = value
+
+class MediaPacket(StreamPacket):
   pts: int # 6 bytes, not sure 
   rel_dts: int # 3 byte cause time base...
-  timestamp_ms: int # 6 bytes
   is_keyframe: bool # 1 byte
   data: bytes # variable length + 4
 
   def __init__(self, data: bytes, timestamp_ms: int, pts: int, is_keyframe: bool, rel_dts: int=0):
+    super().__init__(timestamp_ms)
     self.pts = pts
     self.rel_dts = rel_dts
-    self.timestamp_ms = timestamp_ms
     self.is_keyframe = is_keyframe
     self.data = data  
 
