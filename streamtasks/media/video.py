@@ -7,23 +7,28 @@ from fractions import Fraction
 from streamtasks.media.config import *
 from streamtasks.media.types import MediaPacket
 
-class VideoCodecInfo:
+class VideoCodecInfoMinimal:
+  codec: str
+  framerate: float
+
+  def __init__(self, codec: str, framerate: float):
+    self.codec = codec
+    self.framerate = framerate
+
+class VideoCodecInfo(VideoCodecInfoMinimal):
   width: int
   height: int
-  framerate: float
   bitrate: Optional[int] = None
   pixel_format: str
-  encoding: str
   crf: Optional[int] = None
 
   def __init__(self, width: int, height: int, framerate: int, pixel_format: str = 'yuv420p', 
-                encoding: str = 'h264', bitrate: Optional[int] = None, crf: Optional[int] = None):
+                codec: str = 'h264', bitrate: Optional[int] = None, crf: Optional[int] = None):
+    super().__init__(codec, framerate)
     self.width = width
     self.height = height
-    self.framerate = framerate
     self.bitrate = bitrate
     self.pixel_format = pixel_format
-    self.encoding = encoding
     self.crf = crf
 
   def to_av_format(self) -> av.video.format.VideoFormat:
@@ -33,7 +38,7 @@ class VideoCodecInfo:
   def get_av_decoder(self): return self._get_av_codec_context('r')
   def _get_av_codec_context(self, mode: str):
     assert mode in ('r', 'w'), f'Invalid mode: {mode}. Must be "r" or "w".' 
-    ctx = av.codec.CodecContext.create(self.encoding, mode)
+    ctx = av.codec.CodecContext.create(self.codec, mode)
     configure_codec_context(ctx)
     ctx.format = self.to_av_format()
     ctx.framerate = self.framerate
