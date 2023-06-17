@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Any, TypeVar
+from typing import Any, TypeVar, TypedDict, Optional, Generic
 from streamtasks.media.types import MediaPacket
 from streamtasks.media.config import *
+from dataclasses import dataclass 
 import av
 import asyncio
 
@@ -58,10 +59,25 @@ class Transcoder:
     frames = await self.decoder.decode(packet)
     return await self.encode(frames)
 
-class CodecInfo(ABC, Generic[F]):
-  @abstractmethod
-  def get_av_codec_context(self) -> av.codec.CodecContext: pass
+class CodecOptions(TypedDict):
+  thread_type: Optional[str]
 
-  def get_encoder(self) -> Encoder: return Encoder[F](self.get_av_codec_context())
-  def get_decoder(self) -> Decoder: return Decoder[F](self.get_av_codec_context())
-  def get_transcoder(self, to: CodecInfo) -> Transcoder: return Transcoder(self.get_decoder(), to.get_encoder())
+  def apply(ctx: av.codec.CodecContext, opt: CodecOptions):
+    ctx.thread_type = opt['thread_type'] if "thread_type" in opt else "AUTO"
+
+class CodecInfo(ABC, Generic[F]):
+  codec: str
+
+  def __init__(self, codec: str):
+    self.codec = codec
+
+  @abstractmethod
+  def _get_av_codec_context(self, mode: str) -> av.codec.CodecContext: pass
+  def _get_av_codec_context_with_options(self, mode: str, options: CodecOptions) -> av.codec.CodecContext:
+    ctx = self._get_av_codec_context(mode)
+    CodecOptions.apply(ctx, options)
+    return ctx
+
+  def get_encoder(self, options: CodecOptions = {}) -> Encoder: return Encoder[F](self._get_av_codec_context_with_options("w", options))
+  def get_decoder(self, options: CodecOptions = {}) -> Decoder: return Decoder[F](self._get_av_codec_context_with_options("r", options))
+  def get_transcoder(self, to: CodecInfo, options: CodecOptions = {}) -> Transcoder: return Transcoder(self.get_decoder(options), to.get_encoder(options))
