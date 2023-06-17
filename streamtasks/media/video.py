@@ -56,11 +56,6 @@ class VideoFrame:
   def __init__(self, frame: av.video.frame.VideoFrame):
     self.frame = frame
 
-  def reformat(self, codec_info: VideoCodecInfo):
-    if codec_info.pixel_format == self.frame.format.name and codec_info.width == self.frame.width and codec_info.height == self.frame.height:
-      return self
-    return VideoFrame(self.frame.reformat(codec_info.width, codec_info.height, codec_info.pixel_format))
-
   def to_image(self):
     return self.frame.to_image()
 
@@ -100,7 +95,6 @@ class VideoEncoder:
 
   async def encode(self, frame: VideoFrame) -> list[MediaPacket]:
     loop = asyncio.get_running_loop()
-    frame = frame.reformat(self.codec_info)
     av_frame = frame.frame
     packets = await loop.run_in_executor(None, self._encode, av_frame)
 
