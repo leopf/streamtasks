@@ -52,6 +52,16 @@ class VideoCodecInfo(VideoCodecInfoMinimal):
   def to_av_format(self) -> av.video.format.VideoFormat:
     return av.video.format.VideoFormat(self.pixel_format, self.width, self.height)
 
+  @property
+  def type(self): return 'video'
+
+  @property
+  def rate(self) -> Optional[int]: self.framerate
+
+  def compatible_with(self, other: 'CodecInfo') -> bool:
+    if not isinstance(other, VideoCodecInfo): return False
+    return self.codec == other.codec and self.pixel_format == other.pixel_format and self.framerate == other.framerate and self.width == other.width and self.height == other.height
+
   def _get_av_codec_context(self, mode: str):
     assert mode in ('r', 'w'), f'Invalid mode: {mode}. Must be "r" or "w".' 
     ctx = av.codec.CodecContext.create(self.codec, mode)
@@ -71,4 +81,3 @@ class VideoCodecInfo(VideoCodecInfoMinimal):
   def from_codec_context(ctx: av.codec.CodecContext):
     format = ctx.format
     return VideoCodecInfo(format.width, format.height, ctx.framerate, format.name, ctx.name, ctx.bit_rate, ctx.options.get('crf', None))
-    

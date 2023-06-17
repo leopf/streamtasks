@@ -2,6 +2,11 @@ from abc import ABC, abstractmethod
 from typing import Any, TypeVar, TypedDict, Optional, Generic
 from streamtasks.media.types import MediaPacket
 from streamtasks.media.config import *
+
+from streamtasks.media.video import VideoCodecInfo
+from streamtasks.media.audio import AudioCodecInfo
+from streamtasks.media.subtitle import SubtitleCodecInfo
+
 from dataclasses import dataclass 
 import av
 import asyncio
@@ -50,7 +55,11 @@ class Decoder(Generic[F]):
   def close(self): self.codec_context.close()
   def _decode(self, packet: av.packet.Packet) -> list[F]: return self.codec_context.decode(packet)
 
-class Transcoder:
+class Transcoder(ABC):
+  @abstractmethod
+  async def transcode(self, packet: MediaPacket) -> list[MediaPacket]: pass
+
+class AVTranscoder:
   def __init__(self, decoder: Decoder, encoder: Encoder):
     self.decoder = decoder
     self.encoder = encoder
@@ -58,6 +67,9 @@ class Transcoder:
   async def transcode(self, packet: MediaPacket) -> list[MediaPacket]:
     frames = await self.decoder.decode(packet)
     return await self.encode(frames)
+
+class EmptyTranscoder:
+  async def transcode(self, packet: MediaPacket) -> list[MediaPacket]: return [ packet ]
 
 class CodecOptions(TypedDict):
   thread_type: Optional[str]
@@ -71,6 +83,16 @@ class CodecInfo(ABC, Generic[F]):
   def __init__(self, codec: str):
     self.codec = codec
 
+  @property
+  @abstractmethod
+  def type(self) -> str: pass
+
+  @property
+  def rate(self) -> Optional[int]: return None
+
+  @abstractmethod
+  def compatible_with(self, other: 'CodecInfo') -> bool: pass
+
   @abstractmethod
   def _get_av_codec_context(self, mode: str) -> av.codec.CodecContext: pass
   def _get_av_codec_context_with_options(self, mode: str, options: CodecOptions) -> av.codec.CodecContext:
@@ -80,4 +102,15 @@ class CodecInfo(ABC, Generic[F]):
 
   def get_encoder(self, options: CodecOptions = {}) -> Encoder: return Encoder[F](self._get_av_codec_context_with_options("w", options))
   def get_decoder(self, options: CodecOptions = {}) -> Decoder: return Decoder[F](self._get_av_codec_context_with_options("r", options))
-  def get_transcoder(self, to: CodecInfo, options: CodecOptions = {}) -> Transcoder: return Transcoder(self.get_decoder(options), to.get_encoder(options))
+  def get_transcoder(self, to: CodecInfo, options: CodecOptions = {}) -> Transcoder: return AVTranscoder(self.get_decoder(options), to.get_encoder(options))
+
+  @staticmethod
+  def from_codec_context(ctx: av.codec.CodecContext) -> 'CodecInfo':
+    if ctx.type == 'video':
+      return VideoCodecInfo.from_codec_context(ctx)
+    elif ctx.type == 'audio':
+      return AudioCodecInfo.from_codec_context(ctx)
+    elif ctx.type == 'subtitle':
+      return SubtitleCodecInfo.from_codec_context(ctx)
+    else:
+      raise ValueError(f'Invalid codec type: {ctx.type}')

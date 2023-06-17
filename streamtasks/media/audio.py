@@ -36,6 +36,16 @@ class AudioCodecInfo(CodecInfo[AudioFrame]):
   def to_av_layout(self):
     return av.audio.layout.AudioLayout(self.channels)
 
+  @property
+  def type(self): return 'audio'
+
+  @property
+  def rate(self) -> Optional[int]: self.sample_rate
+
+  def compatible_with(self, other: 'CodecInfo') -> bool:
+    if not isinstance(other, AudioCodecInfo): return False
+    return self.codec == other.codec and self.channels == other.channels and self.sample_rate == other.sample_rate and self.sample_format == other.sample_format
+
   def _get_av_codec_context(self, mode: str):
     assert mode in ('r', 'w'), f'Invalid mode: {mode}. Must be "r" or "w".'
     ctx = av.codec.CodecContext.create(self.codec, mode)

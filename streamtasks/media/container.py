@@ -1,27 +1,54 @@
 from streamtasks.media.types import MediaPacket
-from streamtasks.media.video import VideoCodecInfoMinimal, VideoCodecInfo
+from streamtasks.media.codec import CodecInfo, Frame, Transcoder, EmptyTranscoder
 import av
 
 class InputContainer:
   _container: av.container.InputContainer
+  _transcoder_map: dict[int, Transcoder]
+  _stream_index_map: dict[int, int]
   
-  def __init__(url: str, topic_encodings: tuple[int, VideoCodecInfo], **kwargs):
-    _container = av.open(url, "r", **kwargs)
+  def __init__(url: str, topic_encodings: list[tuple[int, VideoCodecInfo]], **kwargs):
+    self._container = av.open(url, "r", **kwargs)
+    stream_codec_infos = [ (stream.index, CodecInfo.from_codec_context(stream.codec_context)) for stream in self._container.streams ]
+    # find compatible streams
+    self._stream_index_map = {}
+    self._transcoder_map = {}
+    # assing streams to topics and create transcoders
+
+    # for stream_index in range(len(stream_codec_infos)):
+    #   for topic, codec_info in topic_encodings:
+    #     if codec_info.compatible_with(stream_codec_infos[stream_index][1]):
+    #       self._stream_index_map[topic] = stream_index
+    #       self._transcoder_map[topic] = EmptyTranscoder()
+    #       break
+    
+    # for topic, codec_info in topic_encodings:
+    #   if topic in self._stream_index_map: continue
+
+    #   [ for stream_index, stream_codec_info in stream_codec_infos if codec_info.compatible_with(stream_codec_info) ]
+
 
   async def demux(packets: list[tuple[int, MediaPacket]]):
     loop = asyncio.get_running_loop()
     packet_iter = await loop.run_in_executor(None, self._container.demux)
     while True:
       packet = await loop.run_in_executor(None, packet_iter.__next__)
-      
-      yield packet 
- 
+      if packet is None: break
+
+      topic = self._stream_index_map[packet.stream_index]
+      transcoder = self._transcoder_map[packet.stream_index]
+
+      for packet in await transcoder.transcode(packet):
+        yield packet 
+
+  def close(self):
+    self._container.close()
 
 class OutputContainer:
   _container: av.container.OutputContainer
   _stream_index_map: dict[int, int]
 
-  def __init__(self, url_or_path: str, topic_encodings: list[tuple[int, VideoCodecInfoMinimal]], **kwargs):
+  def __init__(self, url_or_path: str, topic_encodings: list[tuple[int, CodecInfo]], **kwargs):
     self._stream_index_map = {}
     self._container = av.open(url_or_path, "w", **kwargs)
     for topic, codec_info in topic_encodings:
