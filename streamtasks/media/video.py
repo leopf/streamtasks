@@ -73,25 +73,31 @@ class VideoFrame:
 
 
 class VideoDecoder:
+  codec_info: VideoCodecInfo
+  codec_context: av.video.codeccontext.VideoCodecContext
+
   def __init__(self, codec_info: VideoCodecInfo):
     self.codec_info = codec_info
     self.codec_context = codec_info.get_av_decoder()
 
-  async def decode(self, packet: MediaPacket) -> Optional[VideoFrame]:
+  async def decode(self, packet: MediaPacket) -> list[VideoFrame]:
     loop = asyncio.get_running_loop()
     av_packet = packet.to_av_packet()
     frames = await loop.run_in_executor(None, self._decode, av_packet)
     return [ VideoFrame(frame) for frame in frames]
 
-  def _decode(self, packet: av.Packet):
-    return self.codec_context.decode(packet)
+  def _decode(self, packet: av.Packet): return self.codec_context.decode(packet)
+  def close(self): self.codec_context.close()
 
 class VideoEncoder:
   _t0: int = 0
+  codec_info: VideoCodecInfo
+  codec_context: av.video.codeccontext.VideoCodecContext
 
   def __init__(self, codec_info: VideoCodecInfo):
     self.codec_info = codec_info
     self.codec_context = codec_info.get_av_encoder()
+    self._t0 = 0
 
   async def encode(self, frame: VideoFrame) -> list[MediaPacket]:
     loop = asyncio.get_running_loop()
@@ -105,5 +111,6 @@ class VideoEncoder:
     
     return [ MediaPacket.from_av_packet(packet, self._t0) for packet in packets ]
 
-  def _encode(self, frame: av.video.frame.VideoFrame):
-    return self.codec_context.encode(frame)
+  def _encode(self, frame: av.video.frame.VideoFrame): return self.codec_context.encode(frame)
+  def close(self): self.codec_context.close()
+  
