@@ -1,5 +1,6 @@
 from streamtasks.media.types import MediaPacket
 from streamtasks.media.codec import CodecInfo, Frame, Transcoder, EmptyTranscoder
+from typing import AsyncIterable
 import av
 
 class InputContainer:
@@ -28,7 +29,7 @@ class InputContainer:
     #   [ for stream_index, stream_codec_info in stream_codec_infos if codec_info.compatible_with(stream_codec_info) ]
 
 
-  async def demux(packets: list[tuple[int, MediaPacket]]):
+  async def demux(packets: list[tuple[int, MediaPacket]]) -> AsyncIterable[tuple[int, MediaPacket]]:
     loop = asyncio.get_running_loop()
     packet_iter = await loop.run_in_executor(None, self._container.demux)
     while True:
@@ -39,7 +40,7 @@ class InputContainer:
       transcoder = self._transcoder_map[packet.stream_index]
 
       for packet in await transcoder.transcode(packet):
-        yield packet 
+        yield (topic, packet) 
 
   def close(self):
     self._container.close()

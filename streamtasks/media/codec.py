@@ -3,12 +3,9 @@ from typing import Any, TypeVar, TypedDict, Optional, Generic
 from streamtasks.media.types import MediaPacket
 from streamtasks.media.config import *
 
-from streamtasks.media.video import VideoCodecInfo
-from streamtasks.media.audio import AudioCodecInfo
-from streamtasks.media.subtitle import SubtitleCodecInfo
-
 from dataclasses import dataclass 
 import av
+import time
 import asyncio
 
 T = TypeVar('T')
@@ -17,6 +14,18 @@ class Frame(ABC, Generic[T]):
 
   def __init__(self, frame: T):
     self.frame = frame
+
+  def from_av_frame(av_frame: Any) -> 'Frame[T]': 
+    from streamtasks.media.video import VideoFrame
+    from streamtasks.media.audio import AudioFrame
+    from streamtasks.media.subtitle import SubtitleFrame
+
+    if isinstance(av_frame, av.video.frame.VideoFrame):
+      return VideoFrame(av_frame)
+    elif isinstance(av_frame, av.audio.frame.AudioFrame):
+      return AudioFrame(av_frame)
+    elif isinstance(av_frame, av.subtitles.subtitle.SubtitleSet):
+      return SubtitleFrame(av_frame)
 
 F = TypeVar('F', bound=Frame)
 class Encoder(Generic[F]):
@@ -37,7 +46,7 @@ class Encoder(Generic[F]):
 
     return [ MediaPacket.from_av_packet(packet, self._t0) for packet in packets ]
 
-  def close(self): self.codec_context.close()
+  def close(self): self.codec_context.close(strict=False)
   def _encode(self, frame: F) -> list[av.Packet]: return self.codec_context.encode(frame.frame)
 
 class Decoder(Generic[F]):
@@ -50,7 +59,7 @@ class Decoder(Generic[F]):
     loop = asyncio.get_running_loop()
     av_packet = packet.to_av_packet()
     frames = await loop.run_in_executor(None, self._decode, av_packet)
-    return [ F(frame) for frame in frames ]
+    return [ Frame.from_av_frame(frame) for frame in frames ]
 
   def close(self): self.codec_context.close()
   def _decode(self, packet: av.packet.Packet) -> list[F]: return self.codec_context.decode(packet)
@@ -66,7 +75,10 @@ class AVTranscoder:
 
   async def transcode(self, packet: MediaPacket) -> list[MediaPacket]:
     frames = await self.decoder.decode(packet)
-    return await self.encode(frames)
+    packets = []
+    for frame in frames:
+      packets += await self.encoder.encode(frame)
+    return packets
 
 class EmptyTranscoder:
   async def transcode(self, packet: MediaPacket) -> list[MediaPacket]: return [ packet ]
@@ -74,7 +86,7 @@ class EmptyTranscoder:
 class CodecOptions(TypedDict):
   thread_type: Optional[str]
 
-  def apply(ctx: av.codec.CodecContext, opt: CodecOptions):
+  def apply(ctx: av.codec.CodecContext, opt: 'CodecOptions'):
     ctx.thread_type = opt['thread_type'] if "thread_type" in opt else "AUTO"
 
 class CodecInfo(ABC, Generic[F]):
@@ -102,10 +114,14 @@ class CodecInfo(ABC, Generic[F]):
 
   def get_encoder(self, options: CodecOptions = {}) -> Encoder: return Encoder[F](self._get_av_codec_context_with_options("w", options))
   def get_decoder(self, options: CodecOptions = {}) -> Decoder: return Decoder[F](self._get_av_codec_context_with_options("r", options))
-  def get_transcoder(self, to: CodecInfo, options: CodecOptions = {}) -> Transcoder: return AVTranscoder(self.get_decoder(options), to.get_encoder(options))
+  def get_transcoder(self, to: 'CodecInfo', options: CodecOptions = {}) -> Transcoder: return AVTranscoder(self.get_decoder(options), to.get_encoder(options))
 
   @staticmethod
   def from_codec_context(ctx: av.codec.CodecContext) -> 'CodecInfo':
+    from streamtasks.media.video import VideoCodecInfo
+    from streamtasks.media.audio import AudioCodecInfo
+    from streamtasks.media.subtitle import SubtitleCodecInfo
+
     if ctx.type == 'video':
       return VideoCodecInfo.from_codec_context(ctx)
     elif ctx.type == 'audio':

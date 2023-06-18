@@ -4,6 +4,8 @@ import time
 from streamtasks.media.config import *
 from streamtasks.media.codec import CodecInfo, Frame
 from streamtasks.media.types import MediaPacket
+from av.subtitles.subtitle import SubtitleSet
+from typing import Any
 
 class SubtitleCodecInfo(CodecInfo):
   @property
@@ -22,5 +24,5 @@ class SubtitleCodecInfo(CodecInfo):
   def from_codec_context(ctx: av.codec.CodecContext):
     return SubtitleCodecInfo(ctx.name)
 
-class SubtitleFrame(Frame[av.subtitle.subtitle.SubtitleSet]):
+class SubtitleFrame(Frame[SubtitleSet]):
   pass
