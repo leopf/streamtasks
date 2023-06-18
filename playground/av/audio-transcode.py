@@ -40,9 +40,27 @@ def get_freq_similarity(a: np.ndarray, b: np.ndarray, n_freqs: int):
 
     return np.abs(a_freqs-b_freqs).sum()
 
+def analyse_samples(in_samples: np.ndarray, out_samples: np.ndarray):
+    freq_size = 1000
+    freq_reduce = 10
+    in_spectrum = get_spectum(in_samples)[:freq_size]
+    out_spectrum = get_spectum(out_samples)[:freq_size]
 
-async def main():
-    samples = create_samples(420, 1) + create_samples(69, 1) + create_samples(75, 1)
+    a = reduce_freqs(out_spectrum, freq_reduce)
+    diff_spectrum = reduce_freqs(in_spectrum, freq_reduce) - reduce_freqs(out_spectrum, freq_reduce)
+    print("diff_spectrum sum: ", diff_spectrum.sum())
+
+    print("similarity: ", get_freq_similarity(in_spectrum, out_spectrum, 2))
+
+    f, (p1, p2, p3) = plt.subplots(3, 1)
+    p1.plot(diff_spectrum)
+    p2.plot(in_spectrum)
+    p3.plot(out_spectrum)
+    plt.show()
+
+async def main1():
+    duration = 1
+    samples = create_samples(420, duration) + create_samples(69, duration) + create_samples(75, duration)
     samples = (samples * 10000).astype(np.int16)
 
     codec_info = AudioCodecInfo("aac", 1, sample_rate, "fltp", bitrate=10000)
@@ -64,25 +82,36 @@ async def main():
 
     # merge audio parts
     audio_parts = np.concatenate(audio_parts, axis=1)
+    analyse_samples(samples, audio_parts[0])
 
-    loop = asyncio.get_running_loop()
+async def main2():
+    duration = 3
+    samples = create_samples(420, duration) + create_samples(69, duration) + create_samples(75, duration)
+    samples = (samples * 10000).astype(np.int16)
 
-    freq_size = 1000
-    freq_reduce = 10
-    in_spectrum = get_spectum(samples)[:freq_size]
-    out_spectrum = get_spectum(audio_parts[0])[:freq_size]
+    codec_info1 = AudioCodecInfo("aac", 1, sample_rate, "fltp", bitrate=10000)
+    codec_info2 = AudioCodecInfo("ac3", 1, sample_rate, "fltp", bitrate=1000000)
+    transcoder = codec_info1.get_transcoder(codec_info2)
+    encoder = codec_info1.get_encoder()
+    decoder = codec_info2.get_decoder()
 
-    a = reduce_freqs(out_spectrum, freq_reduce)
-    diff_spectrum = reduce_freqs(in_spectrum, freq_reduce) - reduce_freqs(out_spectrum, freq_reduce)
-    print("diff_spectrum sum: ", diff_spectrum.sum())
+    resampler = AudioCodecInfo("pcm_s16le", 1, sample_rate, "s16").get_resampler()
+    
+    frame = AudioFrame.from_ndarray(samples[np.newaxis, :], "s16", 1, sample_rate)
+    audio_parts = []
+    for packet in await encoder.encode(frame):
+        t_packets = await transcoder.transcode(packet)
+        for t_packet in t_packets:
+            new_frames = await decoder.decode(t_packet)
+            for new_frame in new_frames:
+                for r_frame in await resampler.resample(new_frame):
+                    audio_parts.append(r_frame.to_ndarray())
 
-    print("similarity: ", get_freq_similarity(in_spectrum, out_spectrum, 2))
+    # merge audio parts
+    audio_parts = np.concatenate(audio_parts, axis=1)
+    play_samples(audio_parts[0])
+    analyse_samples(samples, audio_parts[0])
 
-    f, (p1, p2, p3) = plt.subplots(3, 1)
-    p1.plot(diff_spectrum)
-    p2.plot(in_spectrum)
-    p3.plot(out_spectrum)
-    plt.show()
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    asyncio.run(main2())

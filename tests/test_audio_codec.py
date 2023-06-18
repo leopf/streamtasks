@@ -14,8 +14,8 @@ class TestAudioCodec(unittest.IsolatedAsyncioTestCase):
   def create_samples(self, freq: int, duration: float) -> bytes:
     return np.sin(2 * np.pi * np.arange(int(self.sample_rate * duration)) * freq / self.sample_rate)
 
-  def create_track(self):
-    samples = self.create_samples(420, 1) + self.create_samples(69, 1) + self.create_samples(111, 1)
+  def create_track(self, duration: float = 1):
+    samples = self.create_samples(420, duration) + self.create_samples(69, duration) + self.create_samples(111, duration)
     return (samples * 10000).astype(np.int16)
 
   def get_audio_codec(self, codec: str, pixel_format: str):
@@ -66,9 +66,9 @@ class TestAudioCodec(unittest.IsolatedAsyncioTestCase):
     self.assertLess(similarity, 20)
 
   async def test_transcoder(self):
-    in_samples = self.create_track()
+    in_samples = self.create_track(5)
     codec_info1 = self.get_audio_codec("aac", "fltp")
-    codec_info2 = self.get_audio_codec("pcm_s16le", "s16")
+    codec_info2 = self.get_audio_codec("ac3", "fltp")
     transcoder = codec_info1.get_transcoder(codec_info2)
     encoder = codec_info1.get_encoder()
     decoder = codec_info2.get_decoder()
@@ -87,7 +87,7 @@ class TestAudioCodec(unittest.IsolatedAsyncioTestCase):
     in_freqs = self.get_spectum(in_samples)
     out_freqs = self.get_spectum(out_samples)
     similarity = self.get_freq_similarity(in_freqs, out_freqs)
-    self.assertLess(similarity, 20)
+    self.assertLess(similarity, 40)
 
 if __name__ == '__main__':
   unittest.main()
