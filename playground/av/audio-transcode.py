@@ -14,18 +14,35 @@ def play_samples(samples: np.ndarray):
     play = sa.play_buffer(samples, 1, 2, sample_rate)
     play.wait_done()
 
-def display_spectrum(samples: np.ndarray, until: int = 1000):
-    # get frequency spectrum 
+def get_spectum(samples: np.ndarray):
     freqs = scipy.fft.fft(samples)
     freqs = freqs[range(int(len(freqs)/2))] # keep only first half
     freqs = abs(freqs) # get magnitude
-    freqs = freqs / np.max(freqs) # normalize
+    freqs = freqs / freqs.sum() # normalize
+    return freqs
 
-    # display frequency spectrum
-    plt.plot(freqs[:until]) 
+def reduce_freqs(samples: np.ndarray, reduce: int):
+    if samples.shape[0] % reduce != 0:
+        samples = samples[:-(samples.shape[0] % reduce)]
+
+    res = samples.reshape(-1, reduce)
+    res = res.sum(axis=-1)
+    return res
+
+def get_freq_similarity(a: np.ndarray, b: np.ndarray, n_freqs: int):
+    a_freqs = np.argsort(a)[-n_freqs:]
+    b_freqs = np.argsort(b)[-n_freqs:]
+    a_freqs.sort()
+    b_freqs.sort()
+
+    print("a_freqs: ", a_freqs)
+    print("b_freqs: ", b_freqs)
+
+    return np.abs(a_freqs-b_freqs).sum()
+
 
 async def main():
-    samples = create_samples(420, 1) + create_samples(69, 1)
+    samples = create_samples(420, 1) + create_samples(69, 1) + create_samples(75, 1)
     samples = (samples * 10000).astype(np.int16)
 
     codec_info = AudioCodecInfo("aac", 1, sample_rate, "fltp", bitrate=10000)
@@ -49,11 +66,22 @@ async def main():
     audio_parts = np.concatenate(audio_parts, axis=1)
 
     loop = asyncio.get_running_loop()
-    loop.call_soon_threadsafe(play_samples, audio_parts[0])
-    loop.call_soon_threadsafe(play_samples, samples)
 
-    display_spectrum(samples)
-    display_spectrum(audio_parts[0])
+    freq_size = 1000
+    freq_reduce = 10
+    in_spectrum = get_spectum(samples)[:freq_size]
+    out_spectrum = get_spectum(audio_parts[0])[:freq_size]
+
+    a = reduce_freqs(out_spectrum, freq_reduce)
+    diff_spectrum = reduce_freqs(in_spectrum, freq_reduce) - reduce_freqs(out_spectrum, freq_reduce)
+    print("diff_spectrum sum: ", diff_spectrum.sum())
+
+    print("similarity: ", get_freq_similarity(in_spectrum, out_spectrum, 2))
+
+    f, (p1, p2, p3) = plt.subplots(3, 1)
+    p1.plot(diff_spectrum)
+    p2.plot(in_spectrum)
+    p3.plot(out_spectrum)
     plt.show()
 
 if __name__ == '__main__':

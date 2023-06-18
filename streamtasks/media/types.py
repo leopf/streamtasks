@@ -46,4 +46,4 @@ class MediaPacket(StreamPacket):
   def from_av_packet(packet: av.Packet, t0: int):
     timestamp_ms = 0 if t0 == 0 else t0 + int(packet.pts / DEFAULT_TIME_BASE_TO_MS)
     rel_dts = None if packet.dts is None or packet.pts is None else packet.pts - packet.dts
-    return MediaPacket(packet.to_bytes(), timestamp_ms, packet.pts, packet.is_keyframe, rel_dts)
+    return MediaPacket(bytes(packet), timestamp_ms, packet.pts, packet.is_keyframe, rel_dts)

@@ -3,7 +3,7 @@ from streamtasks.media.video import VideoCodecInfo, VideoFrame
 from streamtasks.media.types import MediaPacket
 import numpy as np
 
-class TestCodec(unittest.IsolatedAsyncioTestCase):
+class TestVideoCodec(unittest.IsolatedAsyncioTestCase):
   w = 480
   h = 360
 
