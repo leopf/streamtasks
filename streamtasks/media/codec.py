@@ -42,7 +42,7 @@ class Encoder(Generic[F]):
     packets = await loop.run_in_executor(None, self._encode, data)
 
     if len(packets) == 0: return []
-    if self._t0 == 0: self._t0 = int(time.time() * 1000 - (packets[0].pts / DEFAULT_TIME_BASE_TO_MS))
+    if self._t0 == 0 and packets[0].pts: self._t0 = int(time.time() * 1000 - (packets[0].pts / DEFAULT_TIME_BASE_TO_MS))
 
     return [ MediaPacket.from_av_packet(packet, self._t0) for packet in packets ]
 

@@ -8,12 +8,12 @@ w, h = 480, 360
 
 def generate_frames(frame_count):
     for i in range(frame_count):
-      arr = np.zeros((h, w, 3), dtype=np.uint8)
-      # draw 40x40 square at (i, i)
-      y = i % (h - 40)
-      x = i % (w - 40)
-      arr[y:y+40, x:x+40] = 255
-      yield arr
+        arr = np.zeros((h, w, 3), dtype=np.uint8)
+        # draw 40x40 square at (i, i)
+        y = i % (h - 40)
+        x = i % (w - 40)
+        arr[y:y+40, x:x+40] = 255
+        yield arr
 
 def get_video_codec(crf, codec='h264', pixel_format='yuv420p'):
     return VideoCodecInfo(w, h, 1, crf=crf, codec=codec, pixel_format=pixel_format)

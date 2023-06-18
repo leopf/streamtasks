@@ -12,8 +12,10 @@ class AudioFrame(Frame[av.audio.frame.AudioFrame]):
     return self.frame.to_ndarray()
 
   @staticmethod
-  def from_ndarray(ndarray: np.ndarray, sample_format: str, layout: str):
-    return AudioFrame(av.audio.frame.AudioFrame.from_ndarray(ndarray, sample_format, layout))
+  def from_ndarray(ndarray: np.ndarray, sample_format: str, channels: int, sample_rate: int):
+    av_frame = av.audio.frame.AudioFrame.from_ndarray(ndarray, sample_format, channels)
+    av_frame.sample_rate = sample_rate
+    return AudioFrame(av_frame)
 
 class AudioCodecInfo(CodecInfo[AudioFrame]):
   channels: int # NOTE: may be insufficient
@@ -22,7 +24,7 @@ class AudioCodecInfo(CodecInfo[AudioFrame]):
   bitrate: Optional[int]
   crf: Optional[int]
 
-  def __init__(self, codec: str, channels: int, sample_rate: int, sample_format: str, bitrate: Optional[int], crf: Optional[int] = None):
+  def __init__(self, codec: str, channels: int, sample_rate: int, sample_format: str, bitrate: Optional[int] = None, crf: Optional[int] = None):
     super().__init__(codec)
     self.bitrate = bitrate
     self.channels = channels
@@ -46,11 +48,14 @@ class AudioCodecInfo(CodecInfo[AudioFrame]):
     if not isinstance(other, AudioCodecInfo): return False
     return self.codec == other.codec and self.channels == other.channels and self.sample_rate == other.sample_rate and self.sample_format == other.sample_format
 
+  def get_resampler(self):
+    return AudioResampler(self.to_av_format(), self.to_av_layout(), self.sample_rate)
+
   def _get_av_codec_context(self, mode: str):
     assert mode in ('r', 'w'), f'Invalid mode: {mode}. Must be "r" or "w".'
     ctx = av.codec.CodecContext.create(self.codec, mode)
     ctx.format = self.to_av_format()
-    ctx.layout = self.to_av_layout()
+    ctx.channels = self.channels
     ctx.sample_rate = self.sample_rate
 
     if mode == 'w':
@@ -67,3 +72,12 @@ class AudioCodecInfo(CodecInfo[AudioFrame]):
     format = ctx.format
     layout = ctx.layout
     return AudioCodecInfo(ctx.name, ctx.channels, ctx.sample_rate, ctx.frame_size, format.name, ctx.bit_rate, ctx.options.get('crf', None))
+
+class AudioResampler:
+  def __init__(self, format: av.audio.format.AudioFormat, layout: av.audio.layout.AudioLayout, rate: int):
+    self.resampler = av.audio.resampler.AudioResampler(format, layout, rate)
+
+  async def resample(self, frame: AudioFrame) -> AudioFrame:
+    loop = asyncio.get_running_loop()
+    av_frames = await loop.run_in_executor(None, self.resampler.resample, frame.frame)
+    return [ AudioFrame(av_frame) for av_frame in av_frames ]
