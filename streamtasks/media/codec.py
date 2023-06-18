@@ -16,15 +16,14 @@ class Frame(ABC, Generic[T]):
     self.frame = frame
 
   def from_av_frame(av_frame: Any) -> 'Frame[T]': 
-    from streamtasks.media.video import VideoFrame
-    from streamtasks.media.audio import AudioFrame
-    from streamtasks.media.subtitle import SubtitleFrame
-
     if isinstance(av_frame, av.video.frame.VideoFrame):
+      from streamtasks.media.video import VideoFrame
       return VideoFrame(av_frame)
     elif isinstance(av_frame, av.audio.frame.AudioFrame):
+      from streamtasks.media.audio import AudioFrame
       return AudioFrame(av_frame)
     elif isinstance(av_frame, av.subtitles.subtitle.SubtitleSet):
+      from streamtasks.media.subtitle import SubtitleFrame
       return SubtitleFrame(av_frame)
 
 F = TypeVar('F', bound=Frame)
