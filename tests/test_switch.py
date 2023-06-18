@@ -98,11 +98,12 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     
   async def test_close(self):
     self.a.close()
-    self.b.close()
-
     await self.switch.process()
+    self.assertEqual(len(self.switch.connections), 1)
 
+    self.b.close()
+    await self.switch.process()
     self.assertEqual(len(self.switch.connections), 0)
-
+    
 if __name__ == '__main__':
   unittest.main()
