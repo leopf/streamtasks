@@ -1,5 +1,5 @@
 from streamtasks.media.types import MediaPacket
-from streamtasks.media.codec import CodecInfo, Frame, Transcoder, EmptyTranscoder, AVTranscoder, Decoder
+from streamtasks.media.codec import CodecInfo, Frame, Transcoder, EmptyTranscoder, AVTranscoder, Decoder, CodecOptions
 from streamtasks.media.config import *
 from typing import AsyncIterable
 import av
@@ -12,7 +12,7 @@ class InputContainer:
   _stream_index_map: dict[int, int]
   _t0: int
   
-  def __init__(self, url: str, topic_encodings: list[tuple[int, CodecInfo]], **kwargs):
+  def __init__(self, url: str, topic_encodings: list[tuple[int, CodecInfo]], codec_options: CodecOptions = {}, **kwargs):
     self._container = av.open(url, "r", **kwargs)
     stream_codec_infos = [ (stream.index, CodecInfo.from_codec_context(stream.codec_context)) for stream in self._container.streams if stream.codec_context is not None ]
     # find compatible streams
@@ -37,7 +37,10 @@ class InputContainer:
         if stream_index in self._stream_index_map: continue
         if codec_info.type == stream_codec_info.type:
           self._stream_index_map[stream_index] = topic
-          self._transcoder_map[topic] = AVTranscoder(Decoder(self._container.streams[stream_index].codec_context), codec_info.get_encoder())
+
+          in_codec_context = self._container.streams[stream_index].codec_context
+          CodecOptions.apply(in_codec_context, codec_options)
+          self._transcoder_map[topic] = AVTranscoder(Decoder(in_codec_context), codec_info.get_encoder())
           break
 
     # check is all topics have been assigned
@@ -70,12 +73,14 @@ class OutputContainer:
   _container: av.container.OutputContainer
   _stream_index_map: dict[int, int]
 
-  def __init__(self, url_or_path: str, topic_encodings: list[tuple[int, CodecInfo]], **kwargs):
+  def __init__(self, url_or_path: str, topic_encodings: list[tuple[int, CodecInfo]], codec_options: CodecOptions = {}, **kwargs):
     self._stream_index_map = {}
     self._container = av.open(url_or_path, "w", **kwargs)
     for topic, codec_info in topic_encodings:
-      self._stream_index_map[topic] = len(self._container.streams)
+      stream_idx = len(self._container.streams)
+      self._stream_index_map[topic] = stream_idx
       self._container.add_stream(codec_name=codec_info.codec, rate=codec_info.framerate)
+      CodecOptions.apply(self._container.streams[stream_idx].codec_context, codec_options)
 
   def __del__(self):
     self.close()

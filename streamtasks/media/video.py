@@ -80,4 +80,4 @@ class VideoCodecInfo(VideoCodecInfoMinimal):
   @staticmethod
   def from_codec_context(ctx: av.codec.CodecContext):
     format = ctx.format
-    return VideoCodecInfo(format.width, format.height, ctx.framerate, format.name, ctx.name, ctx.bit_rate, ctx.options.get('crf', None))
+    return VideoCodecInfo(ctx.width, ctx.height, ctx.framerate, format.name, ctx.name, ctx.bit_rate, ctx.options.get('crf', None))

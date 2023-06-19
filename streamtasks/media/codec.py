@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, TypeVar, TypedDict, Optional, Generic
+from typing import Any, TypeVar, TypedDict, Optional, Generic, ClassVar, Iterator
 from streamtasks.media.types import MediaPacket
 from streamtasks.media.config import *
 
@@ -7,6 +7,32 @@ from dataclasses import dataclass
 import av
 import time
 import asyncio
+
+@dataclass
+class AvailableCodec:
+  mode: str
+  codec: str
+  type: str
+  format: str
+
+  @property
+  def unique_name(self) -> str: return f'{self.codec}/{self.format}'
+
+def load_available_codecs() -> Iterator[AvailableCodec]:
+  for name in av.codecs_available:
+    for mode in ["r", "w"]:
+      try:
+        c = av.codec.Codec(name, mode)
+        item = { "mode": mode, "codec": name, "type": c.type }
+        formats = []
+        if c.type == "audio":
+          for format in c.audio_formats:
+            yield AvailableCodec(**item, format=format.name)
+        elif c.type == "video":
+          for format in c.video_formats:
+            yield AvailableCodec(**item, format=format.name)
+      except BaseException as e:
+          pass
 
 T = TypeVar('T')
 class Frame(ABC, Generic[T]):
