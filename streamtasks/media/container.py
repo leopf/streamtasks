@@ -1,5 +1,5 @@
 from streamtasks.media.types import MediaPacket
-from streamtasks.media.codec import CodecInfo, Frame, Transcoder, EmptyTranscoder
+from streamtasks.media.codec import CodecInfo, Frame, Transcoder, EmptyTranscoder, AVTranscoder, Decoder
 from streamtasks.media.config import *
 from typing import AsyncIterable
 import av
@@ -37,7 +37,7 @@ class InputContainer:
         if stream_index in self._stream_index_map: continue
         if codec_info.type == stream_codec_info.type:
           self._stream_index_map[stream_index] = topic
-          self._transcoder_map[topic] = stream_codec_info.get_transcoder(codec_info)
+          self._transcoder_map[topic] = AVTranscoder(Decoder(self._container.streams[stream_index].codec_context), codec_info.get_encoder())
           break
 
     # check is all topics have been assigned
@@ -57,7 +57,7 @@ class InputContainer:
       transcoder = self._transcoder_map[topic]
 
 
-      if self._t0 == 0 and av_packet.pts: self._t0 = int(time.time() * 1000 - (packet.pts / DEFAULT_TIME_BASE_TO_MS))
+      if self._t0 == 0 and av_packet.pts is not None: self._t0 = int(time.time() * 1000 - (av_packet.pts / DEFAULT_TIME_BASE_TO_MS))
       packet = MediaPacket.from_av_packet(av_packet, self._t0)
 
       for t_packet in await transcoder.transcode(packet):

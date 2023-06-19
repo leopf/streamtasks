@@ -20,7 +20,6 @@ async def main():
     container = InputContainer("https://www.w3schools.com/html/mov_bbb.mp4", [(0, out_codec_info)])
 
     async for topic, packet in container.demux():
-        topic, packet = (await container.decode(packet))
         assert isinstance(packet, MediaPacket) and topic == 0
         frames = await decoder.decode(packet)
         for frame in frames:
