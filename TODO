@@ -2,3 +2,4 @@ time bases
 serialization
 transcode framerate change
 use video reformatter
+check bitrate  in compatible_with

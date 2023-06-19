@@ -160,4 +160,5 @@ cython_debug/
 #.idea/
 .vscode/settings.json
 
-*.mp4
+playground/**/*.png
+playground/**/*.mp4

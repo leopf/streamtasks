@@ -70,8 +70,7 @@ class AudioCodecInfo(CodecInfo[AudioFrame]):
   @staticmethod
   def from_codec_context(ctx: av.codec.CodecContext):
     format = ctx.format
-    layout = ctx.layout
-    return AudioCodecInfo(ctx.name, ctx.channels, ctx.sample_rate, ctx.frame_size, format.name, ctx.bit_rate, ctx.options.get('crf', None))
+    return AudioCodecInfo(ctx.name, ctx.channels, ctx.sample_rate, format.name, ctx.bit_rate, ctx.options.get('crf', None))
 
 class AudioResampler:
   def __init__(self, format: av.audio.format.AudioFormat, layout: av.audio.layout.AudioLayout, rate: int):

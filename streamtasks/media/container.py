@@ -1,46 +1,67 @@
 from streamtasks.media.types import MediaPacket
 from streamtasks.media.codec import CodecInfo, Frame, Transcoder, EmptyTranscoder
+from streamtasks.media.config import *
 from typing import AsyncIterable
 import av
+import asyncio
+import time
 
 class InputContainer:
   _container: av.container.InputContainer
   _transcoder_map: dict[int, Transcoder]
   _stream_index_map: dict[int, int]
+  _t0: int
   
-  def __init__(url: str, topic_encodings: list[tuple[int, VideoCodecInfo]], **kwargs):
+  def __init__(self, url: str, topic_encodings: list[tuple[int, CodecInfo]], **kwargs):
     self._container = av.open(url, "r", **kwargs)
-    stream_codec_infos = [ (stream.index, CodecInfo.from_codec_context(stream.codec_context)) for stream in self._container.streams ]
+    stream_codec_infos = [ (stream.index, CodecInfo.from_codec_context(stream.codec_context)) for stream in self._container.streams if stream.codec_context is not None ]
     # find compatible streams
     self._stream_index_map = {}
     self._transcoder_map = {}
+    self._t0 = 0
+    
     # assing streams to topics and create transcoders
 
-    # for stream_index in range(len(stream_codec_infos)):
-    #   for topic, codec_info in topic_encodings:
-    #     if codec_info.compatible_with(stream_codec_infos[stream_index][1]):
-    #       self._stream_index_map[topic] = stream_index
-    #       self._transcoder_map[topic] = EmptyTranscoder()
-    #       break
-    
-    # for topic, codec_info in topic_encodings:
-    #   if topic in self._stream_index_map: continue
+    for topic, codec_info in topic_encodings:
+      if topic in self._transcoder_map: continue
+      for stream_index in range(len(stream_codec_infos)):
+        if stream_index in self._stream_index_map: continue
+        if codec_info.compatible_with(stream_codec_infos[stream_index][1]): 
+          self._stream_index_map[stream_index] = topic
+          self._transcoder_map[topic] = EmptyTranscoder()
+          break
 
-    #   [ for stream_index, stream_codec_info in stream_codec_infos if codec_info.compatible_with(stream_codec_info) ]
+    for topic, codec_info in topic_encodings:
+      if topic in self._transcoder_map: continue
+      for stream_index, stream_codec_info in stream_codec_infos:
+        if stream_index in self._stream_index_map: continue
+        if codec_info.type == stream_codec_info.type:
+          self._stream_index_map[stream_index] = topic
+          self._transcoder_map[topic] = stream_codec_info.get_transcoder(codec_info)
+          break
 
+    # check is all topics have been assigned
+    for topic, codec_info in topic_encodings:
+      if topic not in self._transcoder_map: raise Exception(f"Could not find a compatible stream for topic {topic} with codec {codec_info.codec}")
 
-  async def demux(packets: list[tuple[int, MediaPacket]]) -> AsyncIterable[tuple[int, MediaPacket]]:
+  async def demux(self) -> AsyncIterable[tuple[int, MediaPacket]]:
     loop = asyncio.get_running_loop()
     packet_iter = await loop.run_in_executor(None, self._container.demux)
     while True:
-      packet = await loop.run_in_executor(None, packet_iter.__next__)
-      if packet is None: break
+      av_packet = await loop.run_in_executor(None, packet_iter.__next__)
+      if av_packet is None: break
 
-      topic = self._stream_index_map[packet.stream_index]
-      transcoder = self._transcoder_map[packet.stream_index]
+      if av_packet.stream_index not in self._stream_index_map: continue
 
-      for packet in await transcoder.transcode(packet):
-        yield (topic, packet) 
+      topic = self._stream_index_map[av_packet.stream_index]
+      transcoder = self._transcoder_map[topic]
+
+
+      if self._t0 == 0 and av_packet.pts: self._t0 = int(time.time() * 1000 - (packet.pts / DEFAULT_TIME_BASE_TO_MS))
+      packet = MediaPacket.from_av_packet(av_packet, self._t0)
+
+      for t_packet in await transcoder.transcode(packet):
+        yield (topic, t_packet) 
 
   def close(self):
     self._container.close()
