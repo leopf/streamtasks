@@ -3,8 +3,20 @@ from streamtasks.media.types import MediaPacket
 import numpy as np
 import matplotlib.pyplot as plt
 import asyncio
-
+import cv2
+import time
 w, h = 480, 360
+
+async def display_frame(name: str, f: np.ndarray):
+    e = asyncio.Event()
+    def show():
+        cv2.imshow(name, f.astype(dtype=np.uint8))
+        cv2.waitKey(1)
+        e.set()
+    asyncio.get_running_loop().call_soon_threadsafe(show)
+    await e.wait()
+    # await asyncio.sleep(0.02)
+
 
 def generate_frames(frame_count):
     for i in range(frame_count):
@@ -28,7 +40,7 @@ def normalize_video_frame(frame: VideoFrame):
 
 
 async def main():
-    frame_count = 100
+    frame_count = 500
     codec1 = get_video_codec(crf=0)
     codec2 = get_video_codec(crf=0, codec='libvpx-vp9', pixel_format='yuv420p')
     transcoder = codec1.get_transcoder(codec2)
@@ -47,12 +59,13 @@ async def main():
                     decoded_frame = normalize_video_frame(d)
                     expected_frame = created_frames.pop(0)
 
-                    plt.subplot(1, 2, 1)
-                    plt.imshow(expected_frame)
-                    plt.subplot(1, 2, 2)
-                    plt.imshow(decoded_frame)
-                    plt.show()
+                    # plt.subplot(1, 2, 1)
+                    await display_frame("input", expected_frame)
+                    # plt.subplot(1, 2, 2)
+                    await display_frame("output", decoded_frame)
+                    # plt.show()
             # self.assertTrue(np.array_equal(decoded_frame, frame))
 
 if __name__ == '__main__':
     asyncio.run(main())
+    cv2.destroyAllWindows()
