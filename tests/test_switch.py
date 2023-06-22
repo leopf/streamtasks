@@ -7,8 +7,8 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
   switch: Switch
 
   async def asyncSetUp(self):
-    conn1 = create_local_cross_connector()
-    conn2 = create_local_cross_connector()
+    conn1 = create_local_cross_connector(raw=True)
+    conn2 = create_local_cross_connector(raw=True)
 
     self.switch = Switch()
     await self.switch.add_connection(conn1[0])

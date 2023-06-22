@@ -1,5 +1,6 @@
 from streamtasks.comm.types import *
 from streamtasks.comm.helpers import *
+from streamtasks.comm.serialization import serialize_message, deserialize_message
 
 from typing import Union, Optional, Any, Iterable
 import multiprocessing.connection as mpconn
@@ -165,10 +166,28 @@ class QueueConnection(Connection):
       if not self.closed: self.close()
     return self.close_signal.is_set()
 
-def create_local_cross_connector() -> tuple[Connection, Connection]:
+class RawQueueConnection(QueueConnection):
+  out_messages: asyncio.Queue[bytes]
+  in_messages: asyncio.Queue[bytes]
+
+  async def _send(self, message: Message):
+    if self.check_closed(): return
+    await self.out_messages.put(serialize_message(message))
+
+  async def _recv(self) -> Optional[Message]:
+    if self.check_closed(): return None
+    if self.in_messages.empty():
+      return None
+    else:
+      return deserialize_message(await self.in_messages.get())
+
+def create_local_cross_connector(raw: bool = False) -> tuple[Connection, Connection]:
   close_signal = asyncio.Event()
   messages_a, messages_b = asyncio.Queue(), asyncio.Queue()
-  return QueueConnection(close_signal, messages_a, messages_b), QueueConnection(close_signal, messages_b, messages_a)
+  if raw:
+    return RawQueueConnection(close_signal, messages_a, messages_b), RawQueueConnection(close_signal, messages_b, messages_a)
+  else:
+    return QueueConnection(close_signal, messages_a, messages_b), QueueConnection(close_signal, messages_b, messages_a)
 
 def connect_to_listener(address: RemoteAddress) -> Optional[IPCConnection]:
   logging.info(f"Connecting to {address}")
