@@ -14,7 +14,7 @@ PricedIdSchema = fastavro.parse_schema({
     ]
 })
 
-SCHEMA_ID_MAP = {
+MESSAGE_SCHEMA_ID_MAP = {
     TopicDataMessage: 0,
     TopicControlMessage: 1,
     AddressedMessage: 2,
@@ -22,6 +22,7 @@ SCHEMA_ID_MAP = {
     InTopicsChangedMessage: 4,
     OutTopicsChangedMessage: 5,
 }
+SCHEMA_ID_MESSAGE_MAP = {v: k for k, v in MESSAGE_SCHEMA_ID_MAP.items()}
 
 SCHEMA_MAP = {
     0: fastavro.parse_schema({
@@ -77,18 +78,20 @@ SCHEMA_MAP = {
 
 def serialize_message(message: Message) -> bytes:
     stream = BytesIO()
-    id = SCHEMA_ID_MAP[type(message)]
-    # stream.write(struct.pack("<B", id))
+    id = MESSAGE_SCHEMA_ID_MAP[type(message)]
+    stream.write(struct.pack("<B", id))
     schema = SCHEMA_MAP[id]
-    records = [message.__dict__]
-    fastavro.writer(stream, schema, records)
+    fastavro.schemaless_writer(stream, schema, message.__dict__)
     return stream.getvalue()
 
 def deserialize_message(data: bytes) -> Message:
     stream = BytesIO(data)
     id = struct.unpack("<B", stream.read(1))[0]
-    schema = SCHEMA_MAP[0]
-    return fastavro.schemaless_reader(stream, schema)
+    schema = SCHEMA_MAP[id]
+    element = fastavro.schemaless_reader(stream, schema)
+    return SCHEMA_ID_MESSAGE_MAP[id](**element)
 
-res = deserialize_message(serialize_message(TopicDataMessage(1, b'hello')))
-print(res)
+message = TopicControlMessage(133337, True)# TopicDataMessage(1, b'hello')
+serialized = serialize_message(message)
+deserialized = deserialize_message(serialized)
+print(deserialized)
