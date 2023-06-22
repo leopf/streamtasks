@@ -79,17 +79,17 @@ SCHEMA_MAP = {
 def serialize_message(message: Message) -> bytes:
     stream = BytesIO()
     id = MESSAGE_SCHEMA_ID_MAP[type(message)]
-    stream.write(struct.pack("<B", id))
+    stream.write(bytes([id]))
     schema = SCHEMA_MAP[id]
     fastavro.schemaless_writer(stream, schema, message.as_dict())
     return stream.getvalue()
 
 def deserialize_message(data: bytes) -> Message:
     stream = BytesIO(data)
-    id = struct.unpack("<B", stream.read(1))[0]
+    id = stream.read(1)[0]
     schema = SCHEMA_MAP[id]
     element = fastavro.schemaless_reader(stream, schema)
-    return SCHEMA_ID_MESSAGE_MAP[id](**element)
+    return SCHEMA_ID_MESSAGE_MAP[id].from_dict(element)
 
 message = TopicDataMessage(1, b'hello')
 serialized = serialize_message(message)
