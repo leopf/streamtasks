@@ -1,6 +1,6 @@
 from streamtasks.comm.types import *
 from streamtasks.comm.helpers import *
-from streamtasks.comm.serialization import serialize_message, deserialize_message
+from streamtasks.comm.rawmessage import serialize_message, deserialize_message
 
 from typing import Union, Optional, Any, Iterable
 import multiprocessing.connection as mpconn
