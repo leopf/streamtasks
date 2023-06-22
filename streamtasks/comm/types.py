@@ -1,9 +1,10 @@
 from dataclasses import dataclass
 from typing import Any, Iterable
-from abc import ABC
+from abc import ABC, abstractproperty
 
 class Message(ABC):
-  pass
+  def as_dict(self) -> dict[str, Any]:
+    return self.__dict__
 
 class TopicMessage(Message, ABC):
   topic: int

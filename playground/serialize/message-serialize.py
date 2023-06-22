@@ -81,7 +81,7 @@ def serialize_message(message: Message) -> bytes:
     id = MESSAGE_SCHEMA_ID_MAP[type(message)]
     stream.write(struct.pack("<B", id))
     schema = SCHEMA_MAP[id]
-    fastavro.schemaless_writer(stream, schema, message.__dict__)
+    fastavro.schemaless_writer(stream, schema, message.as_dict())
     return stream.getvalue()
 
 def deserialize_message(data: bytes) -> Message:
@@ -91,7 +91,7 @@ def deserialize_message(data: bytes) -> Message:
     element = fastavro.schemaless_reader(stream, schema)
     return SCHEMA_ID_MESSAGE_MAP[id](**element)
 
-message = TopicControlMessage(133337, True)# TopicDataMessage(1, b'hello')
+message = TopicDataMessage(1, b'hello')
 serialized = serialize_message(message)
 deserialized = deserialize_message(serialized)
 print(deserialized)
