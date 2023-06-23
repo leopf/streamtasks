@@ -11,17 +11,6 @@ class SerializationType(Enum):
   TEXT = 3
   CUSTOM = 255
 
-class Serializable:
-  @abstractproperty
-  def type(self) -> SerializationType: pass
-
-  @abstractmethod
-  def serialize(self) -> bytes: pass
-
-class Deserializable:
-  @abstractmethod
-  def deserialize(self) -> Any: pass
-
 class Serializer:
   @abstractproperty
   def content_id(self) -> int: pass
@@ -30,7 +19,7 @@ class Serializer:
   @abstractmethod
   def deserialize(self, data: bytes) -> Any: pass
 
-class SerializableData(Serializable, Deserializable, ABC):
+class SerializableData(ABC):
   _data: Any
   _raw: bytes
   def __init__(self, data: Union[Any, bytes]): self._data, self._raw = (data, None) if not isinstance(data, bytes) else (None, data)
@@ -38,24 +27,30 @@ class SerializableData(Serializable, Deserializable, ABC):
   def data(self):
     if self._data is None: self._data = self.deserialize()
     return self._data
+  def serialize(self) -> bytes: return self._raw if self._raw is not None else self._serialize()
+  def deserialize(self) -> Any: return self._data if self._data is not None else self._deserialize()
+  @abstractmethod
+  def _serialize(self) -> bytes: pass
+  @abstractmethod
+  def _deserialize(self) -> Any: pass
 
 class JsonData(SerializableData):
   @property
   def type(self) -> SerializationType: return SerializationType.JSON
-  def deserialize(self) -> Any: return self._data if self._data is not None else json.loads(self._raw.decode("utf-8"))
-  def serialize(self) -> bytes: return self._raw if self._raw is not None else json.dumps(self._data).encode("utf-8")
+  def _deserialize(self) -> Any: return json.loads(self._raw.decode("utf-8"))
+  def _serialize(self) -> bytes: return json.dumps(self._data).encode("utf-8")
 
 class PickleData(SerializableData):
   @property
   def type(self) -> SerializationType: return SerializationType.PICKLE
-  def deserialize(self) -> Any: return self._data if self._data is not None else pickle.loads(self._raw)
-  def serialize(self) -> bytes: return self._raw if self._raw is not None else pickle.dumps(self._data)
+  def _deserialize(self) -> Any: return pickle.loads(self._raw)
+  def _serialize(self) -> bytes: return pickle.dumps(self._data)
 
 class TextData(SerializableData):
   @property
   def type(self) -> SerializationType: return SerializationType.TEXT
-  def deserialize(self) -> Any: return self._data if self._data is not None else self._raw.decode("utf-8")
-  def serialize(self) -> bytes: return self._raw if self._raw is not None else self._data.encode("utf-8")
+  def _deserialize(self) -> Any: return self._raw.decode("utf-8")
+  def _serialize(self) -> bytes: return self._data.encode("utf-8")
 
 class CustomData(SerializableData):
   serializer: Optional[Serializer]
@@ -76,12 +71,10 @@ class CustomData(SerializableData):
     return self._content_id
   @property
   def type(self) -> SerializationType: return SerializationType.CUSTOM
-  def deserialize(self) -> Any:
-    if self._data: return self.data
+  def _deserialize(self) -> Any:
     assert self.serializer is not None, "CustomData serializer not set"
     return self.serializer.deserialize(self._raw)
-  def serialize(self) -> bytes: 
-    if self._raw: return self._raw
+  def _serialize(self) -> bytes: 
     assert self.serializer is not None, "CustomData serializer not set"
     return struct.pack("<H", self.content_id) + self.serializer.serialize(self.data)
 
