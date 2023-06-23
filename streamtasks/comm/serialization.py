@@ -1,140 +1,93 @@
 from abc import ABC, abstractmethod, abstractproperty
-from typing import Union, Any
+from typing import Union, Any, Optional
 import json
 import pickle
 import struct
 from enum import Enum
 
-import fastavro
-from streamtasks.comm.types import *
-from io import BytesIO
+class SerializationType(Enum):
+  JSON = 1
+  PICKLE = 2
+  TEXT = 3
+  CUSTOM = 255
 
-PRICED_ID_SCHEMA = fastavro.parse_schema({
-    "type": "record",
-    "name": "PricedId",
-    "fields": [
-        {"name": "id", "type": "int"},
-        {"name": "cost", "type": "int"}
-    ]
-})
-MESSAGE_SCHEMA_ID_MAP = {
-    TopicDataMessage: 0,
-    TopicControlMessage: 1,
-    AddressedMessage: 2,
-    AddressesChangedMessage: 3,
-    InTopicsChangedMessage: 4,
-    OutTopicsChangedMessage: 5,
-}
-SCHEMA_ID_MESSAGE_MAP = {v: k for k, v in MESSAGE_SCHEMA_ID_MAP.items()}
+class Serializable:
+  @abstractproperty
+  def type(self) -> SerializationType: pass
 
-SCHEMA_MAP = {
-    0: fastavro.parse_schema({
-        "type": "record",
-        "name": "TopicDataMessage",
-        "fields": [
-            {"name": "topic", "type": "int"},
-            {"name": "data", "type": "bytes"}
-        ]
-    }),
-    1: fastavro.parse_schema({
-        "type": "record",
-        "name": "TopicControlMessage",
-        "fields": [
-            {"name": "topic", "type": "int"},
-            {"name": "paused", "type": "boolean"}
-        ]
-    }),
-    2: fastavro.parse_schema({
-        "type": "record",
-        "name": "AddressedMessage",
-        "fields": [
-            {"name": "address", "type": "int"},
-            {"name": "data", "type": "bytes"}
-        ]
-    }),
-    3: fastavro.parse_schema({
-        "type": "record",
-        "name": "AddressesChangedMessage",
-        "fields": [
-            {"name": "add", "type": {"type": "array", "items": PRICED_ID_SCHEMA}},
-            {"name": "remove", "type": {"type": "array", "items": "int"}}
-        ]
-    }),
-    4: fastavro.parse_schema({
-        "type": "record",
-        "name": "InTopicsChangedMessage",
-        "fields": [
-            {"name": "add", "type": {"type": "array", "items": "int"}},
-            {"name": "remove", "type": {"type": "array", "items": "int"}}
-        ]
-    }),
-    5: fastavro.parse_schema({
-        "type": "record",
-        "name": "OutTopicsChangedMessage",
-        "fields": [
-            {"name": "add", "type": {"type": "array", "items": PRICED_ID_SCHEMA}},
-            {"name": "remove", "type": {"type": "array", "items": "int"}}
-        ]
-    }),
-}
+  @abstractmethod
+  def serialize(self) -> bytes: pass
 
-def serialize_message(message: Message) -> bytes:
-    stream = BytesIO()
-    id = MESSAGE_SCHEMA_ID_MAP[type(message)]
-    stream.write(bytes([id]))
-    schema = SCHEMA_MAP[id]
-    fastavro.schemaless_writer(stream, schema, message.as_dict())
-    return stream.getvalue()
+class Deserializable:
+  @abstractmethod
+  def deserialize(self) -> Any: pass
 
-def deserialize_message(data: bytes) -> Message:
-    stream = BytesIO(data)
-    id = stream.read(1)[0]
-    schema = SCHEMA_MAP[id]
-    element = fastavro.schemaless_reader(stream, schema)
-    return SCHEMA_ID_MESSAGE_MAP[id].from_dict(element)
+class Serializer:
+  @abstractproperty
+  def content_id(self) -> int: pass
+  @abstractmethod
+  def serialize(self, data: Any) -> bytes: pass
+  @abstractmethod
+  def deserialize(self, data: bytes) -> Any: pass
 
-# class SerializationType(Enum):
-#   JSON = 1
-#   PICKLE = 2
-#   CUSTOM = 3
+class SerializableData(Serializable, Deserializable, ABC):
+  _data: Any
+  _raw: bytes
+  def __init__(self, data: Union[Any, bytes]): self._data, self._raw = (data, None) if not isinstance(data, bytes) else (None, data)
+  @property
+  def data(self):
+    if self._data is None: self._data = self.deserialize()
+    return self._data
 
-# class Serializable:
-#   @abstractproperty
-#   def type(self) -> SerializationType: pass
+class JsonData(SerializableData):
+  @property
+  def type(self) -> SerializationType: return SerializationType.JSON
+  def deserialize(self) -> Any: return self._data if self._data is not None else json.loads(self._raw.decode("utf-8"))
+  def serialize(self) -> bytes: return self._raw if self._raw is not None else json.dumps(self._data).encode("utf-8")
 
-#   @abstractmethod
-#   def serialize(self) -> bytes: pass
+class PickleData(SerializableData):
+  @property
+  def type(self) -> SerializationType: return SerializationType.PICKLE
+  def deserialize(self) -> Any: return self._data if self._data is not None else pickle.loads(self._raw)
+  def serialize(self) -> bytes: return self._raw if self._raw is not None else pickle.dumps(self._data)
 
-# class Deserializer:
-#   @abstractmethod
-#   def deserialize(self) -> Any: pass
+class TextData(SerializableData):
+  @property
+  def type(self) -> SerializationType: return SerializationType.TEXT
+  def deserialize(self) -> Any: return self._data if self._data is not None else self._raw.decode("utf-8")
+  def serialize(self) -> bytes: return self._raw if self._raw is not None else self._data.encode("utf-8")
 
-# class SerializableData(Serializable, Deserializer, ABC):
-#   _data: Any
-#   _raw: bytes
-#   def __init__(self, data: Union[Any, bytes]): self._data, self._raw = (data, None) if not isinstance(data, bytes) else (None, data)
-#   @property
-#   def data(self):
-#     if self._data is None: self._data = self.deserialize()
-#     return self._data
+class CustomData(SerializableData):
+  serializer: Optional[Serializer]
+  _content_id: Optional[int]
+  
+  def __init__(self, data: Union[Any, bytes]):
+    self.serializer = None
+    if isinstance(data, bytes):
+      self._content_id = struct.unpack("<H", data[:2])
+      super().__init__(data[2:])
+    else:
+      self._content_id = None
+      super().__init__(data)
 
-# class JsonData(SerializableData):
-#   @property
-#   def type(self) -> SerializationType: return SerializationType.JSON
-#   def deserialize(self) -> Any: return json.loads(self._raw.decode("utf-8"))
-#   def serialize(self) -> (int, bytes): return SerializationType.JSON, json.dumps(self._data).encode("utf-8")
+  @property
+  def content_id(self) -> int:
+    if self._content_id is None: self._content_id = self.serializer.content_id
+    return self._content_id
+  @property
+  def type(self) -> SerializationType: return SerializationType.CUSTOM
+  def deserialize(self) -> Any:
+    if self._data: return self.data
+    assert self.serializer is not None, "CustomData serializer not set"
+    return self.serializer.deserialize(self._raw)
+  def serialize(self) -> bytes: 
+    if self._raw: return self._raw
+    assert self.serializer is not None, "CustomData serializer not set"
+    return struct.pack("<H", self.content_id) + self.serializer.serialize(self.data)
 
-# class PickleData(SerializableData):
-#   @property
-#   def type(self) -> SerializationType: return SerializationType.PICKLE
-#   def deserialize(self) -> Any: return pickle.loads(self._raw)
-#   def serialize(self) -> (int, bytes): return SerializationType.PICKLE, pickle.dumps(self._data)
-
-# class CustomData(SerializableData):
-#   def __init__(self, data: Union[Any, bytes], deserializer: Deserializer):
-#     if isinstance(data, bytes):
-#       id = struct.unpack("<H", data[:2])
-#     self._deserializer = deserializer
-#     super().__init__(data)
-#   def deserialize(self) -> Any: pass
-#   def serialize(self) -> (int, bytes): pass
+def data_from_serialization_type(data: bytes, t: SerializationType):
+  if t == SerializationType.JSON: return JsonData(data)
+  elif t == SerializationType.PICKLE: return PickleData(data)
+  elif t == SerializationType.TEXT: return TextData(data)
+  elif t == SerializationType.CUSTOM: return CustomData(data)
+  else: raise ValueError(f"Unknown serialization type {t}")

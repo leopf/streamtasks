@@ -2,20 +2,31 @@ from dataclasses import dataclass
 from typing import Any, Iterable
 from abc import ABC, abstractproperty, abstractclassmethod
 from typing_extensions import Self
+from streamtasks.comm.serialization import SerializableData, SerializationType, data_from_serialization_type
 
 class Message(ABC):
-  def as_dict(self) -> dict[str, Any]:
-    return self.__dict__
+  def as_dict(self) -> dict[str, Any]: return self.__dict__
   @classmethod
   def from_dict(cls, data: dict[str, Any]) -> Self: return cls(**data)
+
+class DataMessage(Message, ABC):
+  data: SerializableData
+  ser_type: SerializationType
+
+  def as_dict(self): return { **self.__dict__, 'data': self.data.serialize(), 'ser_type': self.data.type.value }
+  @classmethod
+  def from_dict(cls, data: dict[str, Any]) -> Self: 
+    ser_type = SerializationType(data['ser_type'])
+    data.pop('ser_type', None)
+    return cls(**{ **data, 'data': data_from_serialization_type(data['data'], ser_type) })
 
 class TopicMessage(Message, ABC):
   topic: int
 
 @dataclass
-class TopicDataMessage(TopicMessage):
+class TopicDataMessage(TopicMessage, DataMessage):
   topic: int
-  data: Any
+  data: SerializableData
 
 @dataclass
 class TopicControlMessage(TopicMessage):
@@ -25,9 +36,9 @@ class TopicControlMessage(TopicMessage):
   def to_data(self) -> 'StreamControlData': return TopicControlData(self.paused)
 
 @dataclass
-class AddressedMessage(Message):
+class AddressedMessage(DataMessage):
   address: int
-  data: Any
+  data: SerializableData
 
 @dataclass
 class PricedId:

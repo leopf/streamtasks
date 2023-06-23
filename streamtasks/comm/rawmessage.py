@@ -26,7 +26,8 @@ SCHEMA_MAP = {
     "name": "TopicDataMessage",
     "fields": [
       {"name": "topic", "type": "int"},
-      {"name": "data", "type": "bytes"}
+      {"name": "data", "type": "bytes"},
+      {"name": "ser_type", "type": "int"}
     ]
   }),
   1: fastavro.parse_schema({
@@ -42,7 +43,8 @@ SCHEMA_MAP = {
     "name": "AddressedMessage",
     "fields": [
       {"name": "address", "type": "int"},
-      {"name": "data", "type": "bytes"}
+      {"name": "data", "type": "bytes"},
+      {"name": "ser_type", "type": "int"}
     ]
   }),
   3: fastavro.parse_schema({

@@ -179,8 +179,8 @@ class RawQueueConnection(QueueConnection):
     if self.in_messages.empty():
       return None
     else:
-      return deserialize_message(await self.in_messages.get())
-
+      m = deserialize_message(await self.in_messages.get())
+      return m
 def create_local_cross_connector(raw: bool = False) -> tuple[Connection, Connection]:
   close_signal = asyncio.Event()
   messages_a, messages_b = asyncio.Queue(), asyncio.Queue()

@@ -1,5 +1,6 @@
 import unittest
 from streamtasks.comm import *
+from streamtasks.comm.serialization import *
 
 class TestSwitch(unittest.IsolatedAsyncioTestCase):
   a: Connection
@@ -18,7 +19,6 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     self.b = conn2[1]
 
   async def test_standard_workflow(self):
-    print("send")
     await self.a.send(OutTopicsChangedMessage(set([ PricedId(1, 0) ]), set()))
     await self.switch.process()
 
@@ -32,11 +32,11 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     self.assertIn(1, self.switch.connections[1].in_topics)
     self.assertIn(1, self.switch.in_topics)
 
-    await self.a.send(TopicDataMessage(1, "Hello"))
+    await self.a.send(TopicDataMessage(1, TextData("Hello")))
     await self.switch.process()
 
     received = await self.b.recv()
-    self.assertEqual(received.data, "Hello")
+    self.assertEqual(received.data.data, "Hello")
 
     await self.b.send(InTopicsChangedMessage(set(), set([1])))
     await self.switch.process()
@@ -44,7 +44,7 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     self.assertNotIn(1, self.switch.in_topics)
     self.assertNotIn(1, self.switch.connections[1].in_topics)
 
-    await self.a.send(TopicDataMessage(1, "Hello"))
+    await self.a.send(TopicDataMessage(1,  TextData("Hello")))
     await self.switch.process()
 
     received = await self.b.recv()
@@ -60,11 +60,11 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     self.assertIsInstance(a_received, InTopicsChangedMessage)
     self.assertIn(1, a_received.add)
 
-    await self.a.send(TopicDataMessage(1, "Hello"))
+    await self.a.send(TopicDataMessage(1, TextData("Hello")))
     await self.switch.process()
     
     b_received = await self.b.recv()
-    self.assertEqual(b_received.data, "Hello")
+    self.assertEqual(b_received.data.data, "Hello")
 
   async def test_double_unsubscribe(self):
     await self.b.send(InTopicsChangedMessage(set([1]), set()))
