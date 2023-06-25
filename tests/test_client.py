@@ -9,8 +9,8 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
   tasks: list[asyncio.Task]
   
   async def asyncSetUp(self):
-    conn1 = create_local_cross_connector()
-    conn2 = create_local_cross_connector()
+    conn1 = create_local_cross_connector(raw=False)
+    conn2 = create_local_cross_connector(raw=True)
 
     switch = Switch()
     await switch.add_connection(conn1[0])
@@ -31,27 +31,33 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     await self.a.provide([ 1, 2 ])
     await self.b.subscribe([ 1, 2 ])
 
-    await self.a.send_stream_data(1, "Hello 1")
-    await self.a.send_stream_data(2, "Hello 2")
+    await self.a.send_stream_data(1, TextData("Hello 1"))
+    await self.a.send_stream_data(2, TextData("Hello 2"))
 
     b_recv = self.b.get_topics_receiver([ 1, 2 ])
-    self.assertEqual(await b_recv.recv(), (1, "Hello 1", None))
-    self.assertEqual(await b_recv.recv(), (2, "Hello 2", None))
+
+    recv_data = await asyncio.wait_for(b_recv.recv(), 1)
+    self.assertEqual((recv_data[0], recv_data[1].data, recv_data[2]), (1, "Hello 1", None))
+
+    recv_data = await asyncio.wait_for(b_recv.recv(), 1)
+    self.assertEqual((recv_data[0], recv_data[1].data, recv_data[2]), (2, "Hello 2", None))
 
     await self.b.subscribe([ 2 ])
 
-    await self.a.send_stream_data(1, "Hello 1")
-    await self.a.send_stream_data(2, "Hello 2")
+    await self.a.send_stream_data(1, TextData("Hello 1"))
+    await self.a.send_stream_data(2, TextData("Hello 2"))
 
-    rv = await b_recv.recv()
-    self.assertEqual(rv, (2, "Hello 2", None))
+    recv_data = await asyncio.wait_for(b_recv.recv(), 1)
+    self.assertEqual((recv_data[0], recv_data[1].data, recv_data[2]), (2, "Hello 2", None))
 
   async def test_address(self):
     await self.a.change_addresses([1])
-    await self.b.send_to(1, "Hello 1")
+    await self.b.send_to(1, TextData("Hello 1"))
 
     a_recv = self.a.get_address_receiver([1])
-    self.assertEqual(await a_recv.recv(), (1, "Hello 1"))
+    topic, data = await a_recv.recv()
+    self.assertEqual(topic, 1)
+    self.assertEqual(data.data, "Hello 1")
 
   async def test_fetch(self):
     await self.a.change_addresses([1])
