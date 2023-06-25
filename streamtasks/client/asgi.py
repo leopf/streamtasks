@@ -49,7 +49,7 @@ class ASGIEventReceiver(Receiver):
       self._recv_queue.put_nowait(ASGIEventMessage.parse_obj(a_message.data.data))
     except: pass
 
-class ASGIHostServer:
+class ASGIAppRunner:
   _client: 'Client'
   _app: ASGIApp
   _init_receiver: Receiver
@@ -58,13 +58,15 @@ class ASGIHostServer:
   def __init__(self, client: 'Client', app: ASGIApp, init_conn_desc: str, own_address: Optional[int] = None):
     self._client = client
     self._app = app
+    
+    assert len(client._addresses) > 0, "The client must have at least one address to host an ASGI application"
     if own_address is not None: self._own_address = own_address
-    else: 
-      assert len(client._addresses) > 0, "The client must have at least one address to host an ASGI application"
-      self._own_address = next(iter(client._addresses))
+    else: self._own_address = next(iter(client._addresses))
+
     self._init_receiver = FetchRequestReceiver(client, init_conn_desc, self._own_address)
 
   async def start(self, stop_signal: asyncio.Event):
+    self._init_receiver.start_recv()
     while not stop_signal.is_set():
       if self._init_receiver.empty(): 
         await asyncio.sleep(0.001)
@@ -79,17 +81,18 @@ class ASGIHostServer:
         remote_address=init_request.return_address, 
         own_address=self._own_address)
       
-      self.start_connection(config)
+      self._start_connection(config)
       await raw_request.respond(None)
+    self._init_receiver.stop_recv()
 
-  def start_connection(self, config: ASGIConnectionConfig):
+  def _start_connection(self, config: ASGIConnectionConfig):
     receiver = ASGIEventReceiver(self._client, config.own_address)
     receiver.start_recv()
     recv_queue = asyncio.Queue()
 
     async def send(event: dict):
       await self._client.send_to(config.remote_address, JsonData(ASGIEventMessage(connection_id=config.connection_id, event=[event]).dict()))
-      
+
     async def receive() -> dict: 
       while recv_queue.empty(): 
         data = await receiver.recv()
@@ -105,15 +108,7 @@ class ASGIHostServer:
 
     return asyncio.create_task(run())
 
-  def __enter__(self):
-    self._init_receiver.start_recv()
-    return self
-
-  def __exit__(self, *args):
-    self._init_receiver.stop_recv()
-    return False
-
-class ASGIClientApp:
+class ASGIProxyApp:
   _client: 'Client'
   _remote_address: int
   _init_descriptor: str
