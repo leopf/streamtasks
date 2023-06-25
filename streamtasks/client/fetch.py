@@ -3,7 +3,7 @@ from streamtasks.comm.types import AddressedMessage, Message
 from streamtasks.comm.serialization import JsonData
 import asyncio
 from pydantic import BaseModel
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 if TYPE_CHECKING:
     from streamtasks.client import Client
 
@@ -54,17 +54,20 @@ class FetchReponseReceiver(Receiver):
 class FetchRequestReceiver(Receiver):
   _descriptor: str
   _recv_queue: asyncio.Queue[FetchRequest]
+  _receive_address: Optional[int]
 
-  def __init__(self, client: 'Client', descriptor: str):
+  def __init__(self, client: 'Client', descriptor: str, receive_address: Optional[int] = None):
     super().__init__(client)
     self._descriptor = descriptor
+    self._receive_address = receive_address
 
   def on_message(self, message: Message):
-    if isinstance(message, AddressedMessage):
-      a_message: AddressedMessage = message
-      if isinstance(a_message.data, JsonData):
-        try:
-          fr_message = FetchRequestMessage.parse_obj(a_message.data.data)
-          if fr_message.descriptor == self._descriptor:
-            self._recv_queue.put_nowait(FetchRequest(self._client, fr_message.return_address, fr_message.request_id, fr_message.body))
-        except: pass
+    if not isinstance(message, AddressedMessage): return
+    a_message: AddressedMessage = message
+    if self._receive_address is not None and a_message.address != self._receive_address: return
+    if not isinstance(a_message.data, JsonData): return
+    try:
+      fr_message = FetchRequestMessage.parse_obj(a_message.data.data)
+      if fr_message.descriptor == self._descriptor:
+        self._recv_queue.put_nowait(FetchRequest(self._client, fr_message.return_address, fr_message.request_id, fr_message.body))
+    except: pass
