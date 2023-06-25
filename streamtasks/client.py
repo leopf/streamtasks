@@ -91,10 +91,11 @@ class FetchReponseReceiver(Receiver):
     if isinstance(message, AddressedMessage):
       a_message: AddressedMessage = message
       if isinstance(a_message.data, JsonData):
-        fr_message: FetchResponseMessage = FetchResponseMessage(**a_message.data.data)
-        if fr_message.request_id == self._fetch_id:
-          self._recv_queue.put_nowait(fr_message.body)
-
+        try:
+          fr_message = FetchResponseMessage.parse_obj(a_message.data.data)
+          if fr_message.request_id == self._fetch_id:
+            self._recv_queue.put_nowait(fr_message.body)
+        except: pass
 class FetchRequest:
   body: Any
   _client: 'Client'
@@ -108,7 +109,7 @@ class FetchRequest:
     self.body = body
 
   async def respond(self, body: Any):
-    await self._client.send_to(self._return_address, JsonData(FetchResponseMessage(self._request_id, body)))
+    await self._client.send_to(self._return_address, JsonData(FetchResponseMessage(request_id=self._request_id, body=body).dict()))
 
 class FetchRequestReceiver(Receiver):
   _descriptor: str
@@ -122,10 +123,11 @@ class FetchRequestReceiver(Receiver):
     if isinstance(message, AddressedMessage):
       a_message: AddressedMessage = message
       if isinstance(a_message.data, JsonData):
-        fr_message: FetchRequestMessage = FetchRequestMessage(**a_message.data.data)
-        if fr_message.descriptor == self._descriptor:
-          self._recv_queue.put_nowait(FetchRequest(self._client, fr_message.return_address, fr_message.request_id, fr_message.body))
-
+        try:
+          fr_message = FetchRequestMessage.parse_obj(a_message.data.data)
+          if fr_message.descriptor == self._descriptor:
+            self._recv_queue.put_nowait(FetchRequest(self._client, fr_message.return_address, fr_message.request_id, fr_message.body))
+        except: pass
 class ResolveAddressesReceiver(Receiver):
   _recv_queue: asyncio.Queue[ResolveAddressesMessage]
   _request_id: int
@@ -142,7 +144,7 @@ class ResolveAddressesReceiver(Receiver):
           ra_message = ResolveAddressesMessage.parse_obj(sd_message.data.data)
           if ra_message.request_id == self._request_id:
             self._recv_queue.put_nowait(ra_message)
-        except Exception as e: logging.error(e)
+        except: pass
 class Client:
   _connection: Connection
   _receivers:  list[Receiver]
@@ -183,7 +185,7 @@ class Client:
           addresses = set(data.addresses)
         assert len(addresses) == count, "The response returned an invalid number of addresses"
         if apply: await self.change_addresses(self._addresses | addresses)
-      finally:
+      finally: 
         await self.subscribe(self._subscribed_topics - {WorkerTopics.ADDRESSES_CREATED})
       return addresses
 
@@ -191,7 +193,7 @@ class Client:
     raw_res = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.REQUEST_TOPICS, RequestTopicsBody(count=count).dict())
     res = ResolveTopicBody.parse_obj(raw_res)
     assert len(res.topics) == count, "The fetch request returned an invalid number of topics"
-    if apply: await self.provide(self._provided_topics | res.topics)
+    if apply: await self.provide(self._provided_topics | set(res.topics))
     return res.topics
 
   async def change_addresses(self, addresses: Iterable[int]):
@@ -219,7 +221,11 @@ class Client:
     self._fetch_id_counter = fetch_id = self._fetch_id_counter + 1
     local_address = next(iter(self._addresses), None)
     if local_address is None: raise Exception("No local address")
-    await self.send_to(address, JsonData(FetchRequestMessage(local_address, fetch_id, descriptor, body)))
+    await self.send_to(address, JsonData(FetchRequestMessage(
+      return_address=local_address, 
+      request_id=fetch_id, 
+      descriptor=descriptor, 
+      body=body).dict()))
     receiver = FetchReponseReceiver(self, fetch_id)
     response_data = await receiver.recv()
     return response_data

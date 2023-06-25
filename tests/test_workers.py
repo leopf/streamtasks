@@ -41,11 +41,11 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
 
     client = Client(await self.worker.create_connection(raw=True))
 
-    own_address = await asyncio.wait_for(client.request_address(), 10000) 
+    own_address = await asyncio.wait_for(client.request_address(), 1) 
     self.assertEqual(WorkerAddresses.COUNTER_INIT, own_address)
 
     expected_addresses = list(range(WorkerAddresses.COUNTER_INIT + 1, WorkerAddresses.COUNTER_INIT + 6))
-    addresses = await asyncio.wait_for(client.request_addresses(5), 1000)
+    addresses = await asyncio.wait_for(client.request_addresses(5), 1)
     addresses = list(addresses)
 
     self.assertEqual(5, len(addresses))

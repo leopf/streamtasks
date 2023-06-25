@@ -13,15 +13,13 @@ class WorkerTopics:
 class WorkerFetchDescriptors:
   REQUEST_TOPICS = "request_topics"
 
-@dataclass
-class FetchRequestMessage:
+class FetchRequestMessage(BaseModel):
   return_address: int
   request_id: int
   descriptor: str
   body: Any
 
-@dataclass
-class FetchResponseMessage:
+class FetchResponseMessage(BaseModel):
   request_id: int
   body: Any
 
