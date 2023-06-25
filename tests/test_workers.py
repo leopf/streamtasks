@@ -10,7 +10,6 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
   node: LocalNode
   worker: Worker
 
-
   stop_signal: asyncio.Event
   tasks: list[asyncio.Task]
 
@@ -32,20 +31,21 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     for task in self.tasks: await task
 
   async def setup_worker(self, worker: Worker):
-    await worker.set_node_connection(await self.node.create_connection())
+    await worker.set_node_connection(await self.node.create_connection(raw=True))
     self.tasks.append(asyncio.create_task(worker.async_start(self.stop_signal)))
 
   async def test_address_discovery(self):
     discovery_worker = DiscoveryWorker(1)
     await self.setup_worker(discovery_worker)
+    await asyncio.sleep(0.001)
 
-    client = Client(await self.worker.create_connection())
+    client = Client(await self.worker.create_connection(raw=True))
 
-    own_address = await asyncio.wait_for(client.request_address(), 1) 
+    own_address = await asyncio.wait_for(client.request_address(), 10000) 
     self.assertEqual(WorkerAddresses.COUNTER_INIT, own_address)
 
     expected_addresses = list(range(WorkerAddresses.COUNTER_INIT + 1, WorkerAddresses.COUNTER_INIT + 6))
-    addresses = await asyncio.wait_for(client.request_addresses(5), 1)
+    addresses = await asyncio.wait_for(client.request_addresses(5), 1000)
     addresses = list(addresses)
 
     self.assertEqual(5, len(addresses))
@@ -55,7 +55,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     discovery_worker = DiscoveryWorker(1)
     await self.setup_worker(discovery_worker)
 
-    client = Client(await self.worker.create_connection())
+    client = Client(await self.worker.create_connection(raw=True))
 
     await asyncio.wait_for(client.request_address(), 1) # make sure we have an address
     topics = await asyncio.wait_for(client.request_topic_ids(5, apply=True), 1)

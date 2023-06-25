@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+from typing import Any
+from pydantic import BaseModel
 
 class WorkerAddresses:
   ID_DISCOVERY = 0
@@ -12,19 +14,27 @@ class WorkerFetchDescriptors:
   REQUEST_TOPICS = "request_topics"
 
 @dataclass
-class RequestAddressesMessage:
+class FetchRequestMessage:
+  return_address: int
+  request_id: int
+  descriptor: str
+  body: Any
+
+@dataclass
+class FetchResponseMessage:
+  request_id: int
+  body: Any
+
+class RequestAddressesMessage(BaseModel):
   request_id: int
   count: int
 
-@dataclass
-class ResolveAddressesMessage:
+class ResolveAddressesMessage(BaseModel):
   request_id: int
-  addresses: set[int]
+  addresses: list[int]
 
-@dataclass
-class RequestTopicsBody:
+class RequestTopicsBody(BaseModel):
   count: int
 
-@dataclass
-class ResolveTopicBody:
-  topics: set[int]
+class ResolveTopicBody(BaseModel):
+  topics: list[int]

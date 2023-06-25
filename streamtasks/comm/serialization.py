@@ -35,10 +35,14 @@ class SerializableData(ABC):
   def _deserialize(self) -> Any: pass
 
 class JsonData(SerializableData):
+  def __init__(self, data: Union[Any, bytes]):
+    if not isinstance(data, bytes) and hasattr(data, "__dict__"):
+      super().__init__(data.__dict__)
+    else: super().__init__(data)
   @property
   def type(self) -> SerializationType: return SerializationType.JSON
   def _deserialize(self) -> Any: return json.loads(self._raw.decode("utf-8"))
-  def _serialize(self) -> bytes: return json.dumps(self._data).encode("utf-8")
+  def _serialize(self) -> bytes: return json.dumps(self._data if not hasattr(self._data, "__dict__") else self.data.__dict__).encode("utf-8")
 
 class PickleData(SerializableData):
   @property

@@ -24,8 +24,8 @@ class LocalNode(NodeBase):
   def __init__(self):
     super().__init__(Switch())
 
-  async def create_connection(self):
-    connector = create_local_cross_connector()
+  async def create_connection(self, raw: bool = False):
+    connector = create_local_cross_connector(raw)
     await self.switch.add_connection(connector[0])
     return connector[1]
 

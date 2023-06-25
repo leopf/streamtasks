@@ -6,6 +6,7 @@ import asyncio
 import logging
 from streamtasks.client import Client, FetchRequest
 from streamtasks.protocols import *
+from streamtasks.comm.serialization import *
 
 class Worker:
   node_id: int
@@ -24,8 +25,8 @@ class Worker:
     self.node_conn = conn
     await self.switch.add_connection(conn)
 
-  async def create_connection(self) -> Connection:
-    connector = create_local_cross_connector()
+  async def create_connection(self, raw: bool = False) -> Connection:
+    connector = create_local_cross_connector(raw)
     await self.switch.add_connection(connector[0])
     return connector[1]
 
@@ -71,28 +72,32 @@ class DiscoveryWorker(Worker):
   async def _run_topic_discovery(self, stop_signal: asyncio.Event, client: Client):
     with client.get_fetch_request_receiver("request_topics") as receiver:
       while not stop_signal.is_set():
-        if not receiver.empty():
-          req: FetchRequest = await receiver.recv()
-          if not isinstance(req.body, RequestTopicsBody): continue
-          request: RequestTopicsBody = req.body
-          logging.info(f"discovering {request.count} topics")
-          topics = self.generate_topics(request.count)
-          await req.respond(ResolveTopicBody(topics))
-        else:
-          await asyncio.sleep(0.001)
+        try:
+          if not receiver.empty():
+            req: FetchRequest = await receiver.recv()
+            request = RequestTopicsBody.parse_obj(req.body)
+            logging.info(f"discovering {request.count} topics")
+            topics = self.generate_topics(request.count)
+            await req.respond(ResolveTopicBody(topics=topics).dict())
+          else: await asyncio.sleep(0.001)
+        except Exception as e: logging.error(e)
 
   async def _run_address_discorvery(self, stop_signal: asyncio.Event, client: Client):
     with client.get_address_receiver([WorkerAddresses.ID_DISCOVERY]) as receiver:
       while not stop_signal.is_set():
-        if not receiver.empty():
-          address, message = await receiver.recv()
-          if not isinstance(message, RequestAddressesMessage): continue
-          request: RequestAddressesMessage = message
-          logging.info(f"discovering {request.count} addresses")
-          addresses = self.generate_addresses(request.count)
-          await client.send_stream_data(WorkerTopics.ADDRESSES_CREATED, ResolveAddressesMessage(request.request_id, addresses))
-        else:
-          await asyncio.sleep(0.001)
+        try:
+          if not receiver.empty():
+            address, message = await receiver.recv()
+            request = RequestAddressesMessage.parse_obj(message.data)
+            logging.info(f"discovering {request.count} addresses")
+            addresses = self.generate_addresses(request.count)
+            await client.send_stream_data(WorkerTopics.ADDRESSES_CREATED, JsonData(ResolveAddressesMessage(
+              request_id=request.request_id, 
+              addresses=addresses
+            ).dict()))
+          else: await asyncio.sleep(0.001)
+        except Exception as e: 
+          logging.error(e)
   
   def generate_topics(self, count: int) -> set[int]:
     res = set(self._topics_counter + i for i in range(count))
