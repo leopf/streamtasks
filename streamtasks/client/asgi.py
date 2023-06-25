@@ -101,7 +101,7 @@ class ASGIAppRunner:
 
     async def run():
       logging.info(f"ASGI instance ({config.connection_id}) starting!")
-      await self._app(config.scope, send, receive)
+      await self._app(config.scope, receive, send)
       receiver.stop_recv()
       await self._client.send_to(config.remote_address, JsonData(ASGIEventMessage(connection_id=config.connection_id, event=[], closed=True).dict()))
       logging.info(f"ASGI instance ({config.connection_id}) finished!")
@@ -123,27 +123,25 @@ class ASGIProxyApp:
       assert len(client._addresses) > 0, "The client must have at least one address to host an ASGI application"
       self._own_address = next(iter(client._addresses))
 
-  def __call__(self, scope, send: Callable[[dict],Awaitable[None]], receive: Callable[[], Awaitable[dict]]):
+  def __call__(self, scope, receive: Callable[[], Awaitable[dict]], send: Callable[[dict], Awaitable[None]]):
     connection_id = str(uuid4())
     await self._client.fetch(self._remote_address, self._init_descriptor, ASGIInitMessage(connection_id=connection_id, return_address=self._own_address, scope=scope).dict())
 
     closed_event = asyncio.Event()
-
     receiver = ASGIEventReceiver(self._client, self._own_address)
 
     async def recv_loop():
-      while True:
+      while not closed_event.is_set():
         event = await receive()
         self._client.send_to(self._remote_address, JsonData(ASGIEventMessage(connection_id=connection_id, event=[event]).dict()))
     
     async def send_loop():
-      while True:
+      while not closed_event.is_set():
         data = await receiver.recv()
-        if data.closed:
-          closed_event.set()
-          break
         for event in data.events:
           await send(event)
+        if data.closed:
+          closed_event.set()
 
     recv_task = asyncio.create_task(recv_loop())
     send_task = asyncio.create_task(send_loop())
