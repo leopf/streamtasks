@@ -13,16 +13,6 @@ class WorkerTopics:
 class WorkerFetchDescriptors:
   REQUEST_TOPICS = "request_topics"
 
-class FetchRequestMessage(BaseModel):
-  return_address: int
-  request_id: int
-  descriptor: str
-  body: Any
-
-class FetchResponseMessage(BaseModel):
-  request_id: int
-  body: Any
-
 class RequestAddressesMessage(BaseModel):
   request_id: int
   count: int

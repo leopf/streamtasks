@@ -3,7 +3,7 @@ from setuptools import setup
 setup(
     name='streamtasks',
     version='0.1.0',
-    packages=['streamtasks', 'streamtasks.bin', 'streamtasks.comm', 'streamtasks.media'],
+    packages=['streamtasks', 'streamtasks.bin', 'streamtasks.comm', 'streamtasks.media', 'streamtasks.client'],
     author='leopf',
     description='A task orchestrator for Python',
     license='MIT',
