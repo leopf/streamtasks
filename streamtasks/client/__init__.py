@@ -27,6 +27,9 @@ class Client:
     self._fetch_id_counter = 0
     self._address_request_lock = asyncio.Lock()
 
+  @property
+  def default_address(self): return next(iter(self._addresses), None)
+
   def get_topics_receiver(self, topics: Iterable[int]): return TopicsReceiver(self, set(topics))
   def get_address_receiver(self, addresses: Iterable[int]): return AddressReceiver(self, set(addresses))
   def get_fetch_request_receiver(self, descriptor: str): return FetchRequestReceiver(self, descriptor)
@@ -81,10 +84,9 @@ class Client:
 
   async def fetch(self, address, descriptor, body):
     self._fetch_id_counter = fetch_id = self._fetch_id_counter + 1
-    local_address = next(iter(self._addresses), None)
-    if local_address is None: raise Exception("No local address")
+    if self.default_address is None: raise Exception("No local address")
     await self.send_to(address, JsonData(FetchRequestMessage(
-      return_address=local_address, 
+      return_address=self.default_address, 
       request_id=fetch_id, 
       descriptor=descriptor, 
       body=body).dict()))

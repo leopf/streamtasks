@@ -61,7 +61,7 @@ class ASGIAppRunner:
     
     assert len(client._addresses) > 0, "The client must have at least one address to host an ASGI application"
     if own_address is not None: self._own_address = own_address
-    else: self._own_address = next(iter(client._addresses))
+    else: self._own_address = client.default_address
 
     self._init_receiver = FetchRequestReceiver(client, init_conn_desc, self._own_address)
 
@@ -118,11 +118,10 @@ class ASGIProxyApp:
     self._client = client
     self._remote_address = remote_address
     self._init_descriptor = init_descriptor
+    assert len(client._addresses) > 0, "The client must have at least one address to host an ASGI application"
     if own_address is not None: self._own_address = own_address
-    else: 
-      assert len(client._addresses) > 0, "The client must have at least one address to host an ASGI application"
-      self._own_address = next(iter(client._addresses))
-
+    else: self._own_address = client.default_address
+    
   def __call__(self, scope, receive: Callable[[], Awaitable[dict]], send: Callable[[dict], Awaitable[None]]):
     connection_id = str(uuid4())
     await self._client.fetch(self._remote_address, self._init_descriptor, ASGIInitMessage(connection_id=connection_id, return_address=self._own_address, scope=scope).dict())
