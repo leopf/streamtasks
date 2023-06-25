@@ -88,10 +88,8 @@ class ASGIHostServer:
     recv_queue = asyncio.Queue()
 
     async def send(event: dict):
-      await self._client.send_to(config.remote_address, JsonData(ASGIEventMessage(
-        connection_id=config.connection_id, 
-        event=[event]).dict()
-      ))
+      await self._client.send_to(config.remote_address, JsonData(ASGIEventMessage(connection_id=config.connection_id, event=[event]).dict()))
+      
     async def receive() -> dict: 
       while recv_queue.empty(): 
         data = await receiver.recv()
@@ -102,11 +100,7 @@ class ASGIHostServer:
       logging.info(f"ASGI instance ({config.connection_id}) starting!")
       await self._app(config.scope, send, receive)
       receiver.stop_recv()
-      await self._client.send_to(config.remote_address, JsonData(ASGIEventMessage(
-        connection_id=config.connection_id, 
-        event=[],
-        closed=True).dict()
-      ))
+      await self._client.send_to(config.remote_address, JsonData(ASGIEventMessage(connection_id=config.connection_id, event=[], closed=True).dict()))
       logging.info(f"ASGI instance ({config.connection_id}) finished!")
 
     return asyncio.create_task(run())
@@ -125,7 +119,7 @@ class ASGIClientApp:
   _init_descriptor: str
   _own_address: int
 
-  def __init__(self, client: 'Client', remote_address: int, init_descriptor: str = "asgi.init", own_address: Optional[int] = None):
+  def __init__(self, client: 'Client', remote_address: int, init_descriptor: str, own_address: Optional[int] = None):
     self._client = client
     self._remote_address = remote_address
     self._init_descriptor = init_descriptor
@@ -136,10 +130,7 @@ class ASGIClientApp:
 
   def __call__(self, scope, send: Callable[[dict],Awaitable[None]], receive: Callable[[], Awaitable[dict]]):
     connection_id = str(uuid4())
-    await self._client.fetch(self._remote_address, self._init_descriptor, ASGIInitMessage(
-      connection_id=connection_id,
-      return_address=self._own_address,
-      scope=scope).dict())
+    await self._client.fetch(self._remote_address, self._init_descriptor, ASGIInitMessage(connection_id=connection_id, return_address=self._own_address, scope=scope).dict())
 
     closed_event = asyncio.Event()
 
@@ -148,10 +139,7 @@ class ASGIClientApp:
     async def recv_loop():
       while True:
         event = await receive()
-        self._client.send_to(self._remote_address, JsonData(ASGIEventMessage(
-          connection_id=connection_id,
-          event=[event]).dict()
-        ))
+        self._client.send_to(self._remote_address, JsonData(ASGIEventMessage(connection_id=connection_id, event=[event]).dict()))
     
     async def send_loop():
       while True:
