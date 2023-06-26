@@ -1,14 +1,15 @@
 from streamtasks.client.receiver import Receiver
 from streamtasks.client.fetch import FetchRequestReceiver, FetchRequest
 from streamtasks.comm.types import AddressedMessage, Message
+from streamtasks.comm.serialization import MessagePackData
 from pydantic import BaseModel
 from abc import ABC
 from dataclasses import dataclass
 import asyncio
 import logging
 from uuid import uuid4
+from typing import TYPE_CHECKING, Any, Awaitable, Optional, Callable, ClassVar
 
-from typing import TYPE_CHECKING, Any, Awaitable, Optional, Callable
 if TYPE_CHECKING:
     from streamtasks.client import Client
 
@@ -32,6 +33,51 @@ class ASGIEventMessage(BaseModel):
 # type of an asgi application
 ASGIApp = Callable[[dict, Callable[[dict], Awaitable[None]], Callable[[],Awaitable[dict]]], Awaitable[None]]
 
+class ValueTransformer(ABC):
+  supported_types: ClassVar[list[type]]
+
+  @classmethod
+  def annotate_value(cls, value: Any) -> dict:
+    print("test: ",value)
+    value_type = type(value)
+    if value_type in cls.supported_types and value_type != list: return value
+
+    if isinstance(value, list): return ["list", [cls.annotate_value(v) for v in value]]
+    elif isinstance(value, dict): return ["dict", { k: cls.annotate_value(v) for k, v in value.items() }]
+    elif isinstance(value, tuple): return ["tuple", [cls.annotate_value(v) for v in value]]
+    elif isinstance(value, set): return ["set", [cls.annotate_value(v) for v in value]]
+    elif isinstance(value, bytes) or isinstance(value, bytearray): return ["bytes", value.hex()]
+    elif isinstance(value, int): return ["int", value]
+    elif isinstance(value, float): return ["float", value]
+    elif isinstance(value, bool): return ["bool", value]
+    elif isinstance(value, str): return ["str", value]
+    elif isinstance(value, type(None)): return ["none"]
+    else: return ["unknown"]
+
+  @classmethod
+  def deannotate_value(cls, value: Any):
+    if not isinstance(value, list): return value
+    if len(value) == 0: return None
+
+    if value[0] == "list": return [cls.deannotate_value(v) for v in value[1]]
+    elif value[0] == "dict": return { k: cls.deannotate_value(v) for k, v in value[1].items() }
+    elif value[0] == "tuple": return tuple([cls.deannotate_value(v) for v in value[1]])
+    elif value[0] == "set": return set([cls.deannotate_value(v) for v in value[1]])
+    elif value[0] == "bytes": return bytes.fromhex(value[1])
+    elif value[0] == "int": return int(value[1])
+    elif value[0] == "float": return float(value[1])
+    elif value[0] == "bool": return bool(value[1])
+    elif value[0] == "str": return str(value[1])
+    elif value[0] == "none": return None
+    elif value[0] == "unknown": return None
+    else: return value
+
+class JSONValueTransformer(ValueTransformer):
+  supported_types = [str, int, float, bool, list, dict]
+
+class MessagePackValueTransformer(ValueTransformer):
+  supported_types = [str, int, float, bool, list, dict, bytes, bytearray]
+
 class ASGIEventReceiver(Receiver):
   _own_address: int
   _recv_queue: asyncio.Queue[ASGIEventMessage]
@@ -44,7 +90,7 @@ class ASGIEventReceiver(Receiver):
     if not isinstance(message, AddressedMessage): return
     a_message: AddressedMessage = message
     if a_message.address != self._own_address: return
-    if not isinstance(a_message.data, JsonData): return
+    if not isinstance(a_message.data, MessagePackData): return
     try:
       self._recv_queue.put_nowait(ASGIEventMessage.parse_obj(a_message.data.data))
     except: pass
@@ -65,7 +111,7 @@ class ASGIAppRunner:
 
     self._init_receiver = FetchRequestReceiver(client, init_conn_desc, self._own_address)
 
-  async def start(self, stop_signal: asyncio.Event):
+  async def async_start(self, stop_signal: asyncio.Event):
     self._init_receiver.start_recv()
     while not stop_signal.is_set():
       if self._init_receiver.empty(): 
@@ -76,7 +122,7 @@ class ASGIAppRunner:
       init_request = ASGIInitMessage.parse_obj(raw_request.body)
 
       config = ASGIConnectionConfig(
-        scope=init_request.scope, 
+        scope=JSONValueTransformer.deannotate_value(init_request.scope), 
         connection_id=init_request.connection_id, 
         remote_address=init_request.return_address, 
         own_address=self._own_address)
@@ -91,19 +137,20 @@ class ASGIAppRunner:
     recv_queue = asyncio.Queue()
 
     async def send(event: dict):
-      await self._client.send_to(config.remote_address, JsonData(ASGIEventMessage(connection_id=config.connection_id, event=[event]).dict()))
+      event = MessagePackValueTransformer.annotate_value(event)
+      await self._client.send_to(config.remote_address, MessagePackData(ASGIEventMessage(connection_id=config.connection_id, events=[event]).dict()))
 
     async def receive() -> dict: 
       while recv_queue.empty(): 
         data = await receiver.recv()
-        for event in data.events: recv_queue.put_nowait(event)
+        for event in data.events: recv_queue.put_nowait(MessagePackValueTransformer.deannotate_value(event))
       await recv_queue.get()
 
     async def run():
       logging.info(f"ASGI instance ({config.connection_id}) starting!")
       await self._app(config.scope, receive, send)
       receiver.stop_recv()
-      await self._client.send_to(config.remote_address, JsonData(ASGIEventMessage(connection_id=config.connection_id, event=[], closed=True).dict()))
+      await self._client.send_to(config.remote_address, MessagePackData(ASGIEventMessage(connection_id=config.connection_id, events=[], closed=True).dict()))
       logging.info(f"ASGI instance ({config.connection_id}) finished!")
 
     return asyncio.create_task(run())
@@ -122,9 +169,10 @@ class ASGIProxyApp:
     if own_address is not None: self._own_address = own_address
     else: self._own_address = client.default_address
     
-  def __call__(self, scope, receive: Callable[[], Awaitable[dict]], send: Callable[[dict], Awaitable[None]]):
+  async def __call__(self, scope, receive: Callable[[], Awaitable[dict]], send: Callable[[dict], Awaitable[None]]):
     connection_id = str(uuid4())
-    await self._client.fetch(self._remote_address, self._init_descriptor, ASGIInitMessage(connection_id=connection_id, return_address=self._own_address, scope=scope).dict())
+    ser_scope = JSONValueTransformer.annotate_value(scope)
+    await self._client.fetch(self._remote_address, self._init_descriptor, ASGIInitMessage(connection_id=connection_id, return_address=self._own_address, scope=ser_scope).dict())
 
     closed_event = asyncio.Event()
     receiver = ASGIEventReceiver(self._client, self._own_address)
@@ -132,15 +180,14 @@ class ASGIProxyApp:
     async def recv_loop():
       while not closed_event.is_set():
         event = await receive()
-        self._client.send_to(self._remote_address, JsonData(ASGIEventMessage(connection_id=connection_id, event=[event]).dict()))
+        event = MessagePackValueTransformer.annotate_value(event)
+        self._client.send_to(self._remote_address, MessagePackData(ASGIEventMessage(connection_id=connection_id, events=[event]).dict()))
     
     async def send_loop():
       while not closed_event.is_set():
         data = await receiver.recv()
-        for event in data.events:
-          await send(event)
-        if data.closed:
-          closed_event.set()
+        for event in data.events: await send(MessagePackValueTransformer.deannotate_value(event))
+        if data.closed: closed_event.set()
 
     recv_task = asyncio.create_task(recv_loop())
     send_task = asyncio.create_task(send_loop())
