@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod, abstractproperty
 from typing import Union, Any, Optional
 import json
-import pickle
 import struct
 import msgpack
 from enum import Enum
@@ -43,7 +42,8 @@ class JsonData(SerializableData):
   @property
   def type(self) -> SerializationType: return SerializationType.JSON
   def _deserialize(self) -> Any: return json.loads(self._raw.decode("utf-8"))
-  def _serialize(self) -> bytes: return json.dumps(self._data if not hasattr(self._data, "__dict__") else self.data.__dict__).encode("utf-8")
+  def _serialize(self) -> bytes: 
+    return json.dumps(self._data if not hasattr(self._data, "__dict__") else self.data.__dict__).encode("utf-8")
 
 class MessagePackData(SerializableData):
   @property
@@ -85,7 +85,7 @@ class CustomData(SerializableData):
 
 def data_from_serialization_type(data: bytes, t: SerializationType):
   if t == SerializationType.JSON: return JsonData(data)
-  elif t == SerializationType.PICKLE: return MessagePackData(data)
+  elif t == SerializationType.MSGPACK: return MessagePackData(data)
   elif t == SerializationType.TEXT: return TextData(data)
   elif t == SerializationType.CUSTOM: return CustomData(data)
   else: raise ValueError(f"Unknown serialization type {t}")

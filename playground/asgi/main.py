@@ -46,10 +46,7 @@ async def start_main_server():
         return {"Hello": "World"}
 
     demo_proxy_app = ASGIProxyApp(client, 1337, "demo_app")
-    async def wrapper_app(scope, receive, send):
-        await demo_proxy_app(scope, receive, send)
-
-    app.mount("/demo", wrapper_app)
+    app.mount("/demo", demo_proxy_app)
 
     config = uvicorn.Config(app, port=8000)
     server = uvicorn.Server(config)

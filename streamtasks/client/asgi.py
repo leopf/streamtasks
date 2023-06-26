@@ -38,21 +38,26 @@ class ValueTransformer(ABC):
 
   @classmethod
   def annotate_value(cls, value: Any) -> dict:
-    print("test: ",value)
     value_type = type(value)
-    if value_type in cls.supported_types and value_type != list: return value
+    native_support = value_type in cls.supported_types and not isinstance(value, list)
 
-    if isinstance(value, list): return ["list", [cls.annotate_value(v) for v in value]]
-    elif isinstance(value, dict): return ["dict", { k: cls.annotate_value(v) for k, v in value.items() }]
-    elif isinstance(value, tuple): return ["tuple", [cls.annotate_value(v) for v in value]]
-    elif isinstance(value, set): return ["set", [cls.annotate_value(v) for v in value]]
-    elif isinstance(value, bytes) or isinstance(value, bytearray): return ["bytes", value.hex()]
-    elif isinstance(value, int): return ["int", value]
-    elif isinstance(value, float): return ["float", value]
-    elif isinstance(value, bool): return ["bool", value]
-    elif isinstance(value, str): return ["str", value]
-    elif isinstance(value, type(None)): return ["none"]
-    else: return ["unknown"]
+    if native_support:
+      if isinstance(value, dict): return { k: cls.annotate_value(v) for k, v in value.items() }
+      elif isinstance(value, tuple): return tuple(cls.annotate_value(v) for v in value)
+      elif isinstance(value, set): return set(cls.annotate_value(v) for v in value)
+      else: return value
+    else:
+      if isinstance(value, list): return ["list", [cls.annotate_value(v) for v in value]]
+      elif isinstance(value, dict): return ["dict", { k: cls.annotate_value(v) for k, v in value.items() }]
+      elif isinstance(value, tuple): return ["tuple", [cls.annotate_value(v) for v in value]]
+      elif isinstance(value, set): return ["set", [cls.annotate_value(v) for v in value]]
+      elif isinstance(value, bytes) or isinstance(value, bytearray): return ["bytes", value.hex()]
+      elif isinstance(value, int): return ["int", value]
+      elif isinstance(value, float): return ["float", value]
+      elif isinstance(value, bool): return ["bool", value]
+      elif isinstance(value, str): return ["str", value]
+      elif isinstance(value, type(None)): return ["none"]
+      else: return ["unknown"]
 
   @classmethod
   def deannotate_value(cls, value: Any):
@@ -76,7 +81,7 @@ class JSONValueTransformer(ValueTransformer):
   supported_types = [str, int, float, bool, list, dict]
 
 class MessagePackValueTransformer(ValueTransformer):
-  supported_types = [str, int, float, bool, list, dict, bytes, bytearray]
+  supported_types = [str, int, float, bool, bytes, bytearray, list, dict]
 
 class ASGIEventReceiver(Receiver):
   _own_address: int
