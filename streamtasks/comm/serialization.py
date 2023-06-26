@@ -3,12 +3,13 @@ from typing import Union, Any, Optional
 import json
 import pickle
 import struct
+import msgpack
 from enum import Enum
 
 class SerializationType(Enum):
   JSON = 1
-  PICKLE = 2
-  TEXT = 3
+  MSGPACK = 2
+  TEXT = 3,
   CUSTOM = 255
 
 class Serializer:
@@ -44,11 +45,11 @@ class JsonData(SerializableData):
   def _deserialize(self) -> Any: return json.loads(self._raw.decode("utf-8"))
   def _serialize(self) -> bytes: return json.dumps(self._data if not hasattr(self._data, "__dict__") else self.data.__dict__).encode("utf-8")
 
-class PickleData(SerializableData):
+class MessagePackData(SerializableData):
   @property
-  def type(self) -> SerializationType: return SerializationType.PICKLE
-  def _deserialize(self) -> Any: return pickle.loads(self._raw)
-  def _serialize(self) -> bytes: return pickle.dumps(self._data)
+  def type(self) -> SerializationType: return SerializationType.MSGPACK
+  def _deserialize(self) -> Any: return msgpack.unpackb(self._raw)
+  def _serialize(self) -> bytes: return msgpack.packb(self._data)
 
 class TextData(SerializableData):
   @property
@@ -84,7 +85,7 @@ class CustomData(SerializableData):
 
 def data_from_serialization_type(data: bytes, t: SerializationType):
   if t == SerializationType.JSON: return JsonData(data)
-  elif t == SerializationType.PICKLE: return PickleData(data)
+  elif t == SerializationType.PICKLE: return MessagePackData(data)
   elif t == SerializationType.TEXT: return TextData(data)
   elif t == SerializationType.CUSTOM: return CustomData(data)
   else: raise ValueError(f"Unknown serialization type {t}")
