@@ -61,20 +61,22 @@ class ValueTransformer(ABC):
 
   @classmethod
   def deannotate_value(cls, value: Any):
-    if not isinstance(value, list): return value
-    if len(value) == 0: return None
-
-    if value[0] == "list": return [cls.deannotate_value(v) for v in value[1]]
-    elif value[0] == "dict": return { k: cls.deannotate_value(v) for k, v in value[1].items() }
-    elif value[0] == "tuple": return tuple([cls.deannotate_value(v) for v in value[1]])
-    elif value[0] == "set": return set([cls.deannotate_value(v) for v in value[1]])
-    elif value[0] == "bytes": return bytes.fromhex(value[1])
-    elif value[0] == "int": return int(value[1])
-    elif value[0] == "float": return float(value[1])
-    elif value[0] == "bool": return bool(value[1])
-    elif value[0] == "str": return str(value[1])
-    elif value[0] == "none": return None
-    elif value[0] == "unknown": return None
+    if isinstance(value, list): 
+      if value[0] == "list": return [cls.deannotate_value(v) for v in value[1]]
+      elif value[0] == "dict": return { k: cls.deannotate_value(v) for k, v in value[1].items() }
+      elif value[0] == "tuple": return tuple([cls.deannotate_value(v) for v in value[1]])
+      elif value[0] == "set": return set([cls.deannotate_value(v) for v in value[1]])
+      elif value[0] == "bytes": return bytes.fromhex(value[1])
+      elif value[0] == "int": return int(value[1])
+      elif value[0] == "float": return float(value[1])
+      elif value[0] == "bool": return bool(value[1])
+      elif value[0] == "str": return str(value[1])
+      elif value[0] == "none": return None
+      elif value[0] == "unknown": return None
+      else: return value
+    elif isinstance(value, dict): return { k: cls.deannotate_value(v) for k, v in value.items() }
+    elif isinstance(value, tuple): return tuple(cls.deannotate_value(v) for v in value)
+    elif isinstance(value, set): return set(cls.deannotate_value(v) for v in value)
     else: return value
 
 class JSONValueTransformer(ValueTransformer):
@@ -99,6 +101,17 @@ class ASGIEventReceiver(Receiver):
     try:
       self._recv_queue.put_nowait(ASGIEventMessage.parse_obj(a_message.data.data))
     except: pass
+
+class ASGIEventSender:
+  def __init__(self, client: 'Client', remote_address: int, connection_id: str):
+    self._client = client
+    self._remote_address = remote_address
+    self._connection_id = connection_id
+  async def send(self, event: dict): await self._send(events=[event])
+  async def close(self): await self._send(events=[], closed=True)
+  async def _send(self, events: list[dict], closed: Optional[bool] = None):
+    events = [MessagePackValueTransformer.annotate_value(event) for event in events]
+    await self._client.send_to(self._remote_address, MessagePackData(ASGIEventMessage(connection_id=self._connection_id, events=events, closed=closed).dict()))
 
 class ASGIAppRunner:
   _client: 'Client'
@@ -139,23 +152,25 @@ class ASGIAppRunner:
   def _start_connection(self, config: ASGIConnectionConfig):
     receiver = ASGIEventReceiver(self._client, config.own_address)
     receiver.start_recv()
+    sender = ASGIEventSender(self._client, config.remote_address, config.connection_id)
+    
     recv_queue = asyncio.Queue()
-
-    async def send(event: dict):
-      event = MessagePackValueTransformer.annotate_value(event)
-      await self._client.send_to(config.remote_address, MessagePackData(ASGIEventMessage(connection_id=config.connection_id, events=[event]).dict()))
-
+    
+    async def send(event: dict): 
+      await sender.send(event)
     async def receive() -> dict: 
       while recv_queue.empty(): 
         data = await receiver.recv()
-        for event in data.events: recv_queue.put_nowait(MessagePackValueTransformer.deannotate_value(event))
+        for event in data.events: 
+          event = MessagePackValueTransformer.deannotate_value(event)
+          recv_queue.put_nowait(event)
       await recv_queue.get()
 
     async def run():
       logging.info(f"ASGI instance ({config.connection_id}) starting!")
       await self._app(config.scope, receive, send)
+      await sender.close()
       receiver.stop_recv()
-      await self._client.send_to(config.remote_address, MessagePackData(ASGIEventMessage(connection_id=config.connection_id, events=[], closed=True).dict()))
       logging.info(f"ASGI instance ({config.connection_id}) finished!")
 
     return asyncio.create_task(run())
@@ -181,18 +196,17 @@ class ASGIProxyApp:
 
     closed_event = asyncio.Event()
     receiver = ASGIEventReceiver(self._client, self._own_address)
+    sender = ASGIEventSender(self._client, self._remote_address, connection_id)
 
-    async def recv_loop():
-      while not closed_event.is_set():
-        event = await receive()
-        event = MessagePackValueTransformer.annotate_value(event)
-        self._client.send_to(self._remote_address, MessagePackData(ASGIEventMessage(connection_id=connection_id, events=[event]).dict()))
-    
+    async def recv_loop(): 
+      while not closed_event.is_set(): await sender.send(await receive())
     async def send_loop():
+      receiver.start_recv()
       while not closed_event.is_set():
         data = await receiver.recv()
         for event in data.events: await send(MessagePackValueTransformer.deannotate_value(event))
         if data.closed: closed_event.set()
+      receiver.stop_recv()
 
     recv_task = asyncio.create_task(recv_loop())
     send_task = asyncio.create_task(send_loop())

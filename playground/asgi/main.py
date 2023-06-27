@@ -29,6 +29,11 @@ async def start_secondary_server():
     client = Client(await worker.create_connection())
     await client.change_addresses([1337])
 
+    app = FastAPI()
+    @app.get("/")
+    def read_root():
+        return "hi from secondary server"
+
     runner = ASGIAppRunner(client, demo_app, "demo_app", 1337)
     processing_tasks.append(asyncio.create_task(runner.async_start(stop_signal)))
 
@@ -46,7 +51,14 @@ async def start_main_server():
         return {"Hello": "World"}
 
     demo_proxy_app = ASGIProxyApp(client, 1337, "demo_app")
-    app.mount("/demo", demo_proxy_app)
+    async def wrap_demo_app(scope, receive, send):
+        try:
+            await demo_proxy_app(scope, receive, send)
+            print("demo app finished")
+        except Exception as e:
+            print(e)
+            raise e
+    app.mount("/demo", wrap_demo_app)
 
     config = uvicorn.Config(app, port=8000)
     server = uvicorn.Server(config)
