@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import asyncio
 import logging
 from uuid import uuid4
-from typing import TYPE_CHECKING, Any, Awaitable, Optional, Callable, ClassVar
+from typing import TYPE_CHECKING, Any, Awaitable, Optional, Callable, ClassVar, Union
 
 if TYPE_CHECKING:
     from streamtasks.client import Client
@@ -103,7 +103,7 @@ class ASGIEventReceiver(Receiver):
     except: pass
 
 class ASGIEventSender:
-  def __init__(self, client: 'Client', remote_address: int, connection_id: str):
+  def __init__(self, client: 'Client', remote_address: Union[int, str], connection_id: str):
     self._client = client
     self._remote_address = remote_address
     self._connection_id = connection_id
@@ -181,11 +181,11 @@ class ASGIAppRunner:
 
 class ASGIProxyApp:
   _client: 'Client'
-  _remote_address: int
+  _remote_address: Union[int, str]
   _init_descriptor: str
   _own_address: int
 
-  def __init__(self, client: 'Client', remote_address: int, init_descriptor: str, own_address: Optional[int] = None):
+  def __init__(self, client: 'Client', remote_address: Union[int, str], init_descriptor: str, own_address: Optional[int] = None):
     self._client = client
     self._remote_address = remote_address
     self._init_descriptor = init_descriptor

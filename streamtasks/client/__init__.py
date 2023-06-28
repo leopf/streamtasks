@@ -36,7 +36,7 @@ class Client:
   def get_address_receiver(self, addresses: Iterable[int]): return AddressReceiver(self, set(addresses))
   def get_fetch_request_receiver(self, descriptor: str): return FetchRequestReceiver(self, descriptor)
 
-  async def send_to(self, address: int, data: Any): await self._connection.send(AddressedMessage(address, data))
+  async def send_to(self, address: Union[int, str], data: Any): await self._connection.send(AddressedMessage(await self._get_address(address), data))
   async def send_stream_control(self, topic: int, control_data: TopicControlData): await self._connection.send(control_data.to_message(topic))
   async def send_stream_data(self, topic: int, data: Any): await self._connection.send(TopicDataMessage(topic, data))
 
@@ -96,7 +96,7 @@ class Client:
     self._subscribed_topics = new_sub
     await self._connection.send(InTopicsChangedMessage(add, remove))
 
-  async def fetch(self, address, descriptor, body):
+  async def fetch(self, address: Union[int, str], descriptor: str, body):
     self._fetch_id_counter = fetch_id = self._fetch_id_counter + 1
     if self.default_address is None: raise Exception("No local address")
     await self.send_to(address, JsonData(FetchRequestMessage(
@@ -113,6 +113,7 @@ class Client:
     self._receive_task = self._receive_task or asyncio.create_task(self._task_receive())
   def disable_receiver(self, receiver: Receiver): self._receivers.remove(receiver)
 
+  async def _get_address(self, address: Union[int, str]) -> int: return await self.resolve_address_name(address) if isinstance(address, str) else address
   async def _register_address_name(self, name: str, address: Optional[int]):
     await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.REGISTER_ADDRESS, RegisterAddressRequestBody(address_name=name, address=address).dict())
     if address is None: self._address_map.pop(name, None)
