@@ -49,12 +49,15 @@ class Client:
       if result is not None:
         self._set_address_name(name, result)
         found_address = result
+      while found_address is None:
+        data = await receiver.recv()
+        self._set_address_name(data.address_name, data.address)
+        if data.address_name == name: found_address = data.address
     await self.subscribe(self._subscribed_topics - {WorkerTopics.ADDRESS_NAME_ASSIGNED})
 
     while not receiver.empty():
       data: AddressNameAssignmentMessage = await receiver.get()
       self._set_address_name(data.address_name, data.address)
-      if found_address is None and data.address_name == name: found_address = data.address
 
     return found_address
 

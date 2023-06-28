@@ -27,6 +27,8 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
 
     await asyncio.sleep(0.001)
 
+  async def wait_for(self, fut): return await asyncio.wait_for(fut, 1)
+
   async def asyncTearDown(self):
     self.stop_signal.set()
     for task in self.tasks: await task
@@ -42,38 +44,36 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
 
     client = Client(await self.worker.create_connection(raw=True))
 
-    own_address = await asyncio.wait_for(client.request_address(), 1) 
+    own_address = await self.wait_for(client.request_address()) 
     self.assertEqual(WorkerAddresses.COUNTER_INIT, own_address)
 
     expected_addresses = list(range(WorkerAddresses.COUNTER_INIT + 1, WorkerAddresses.COUNTER_INIT + 6))
-    addresses = await asyncio.wait_for(client.request_addresses(5), 1)
+    addresses = await self.wait_for(client.request_addresses(5))
     addresses = list(addresses)
 
     self.assertEqual(5, len(addresses))
     self.assertEqual(expected_addresses, list(addresses))
 
-  async def test_wait_for_name(self):
+  async def test_wait_for_name(self): # NOTE: this test is broken, waiter before is not waiting for the fetch to finish
     discovery_worker = DiscoveryWorker(1)
     await self.setup_worker(discovery_worker)
     await asyncio.sleep(0.001)
 
     client1 = Client(await self.worker.create_connection(raw=True))
-    await asyncio.wait_for(client1.request_address(), 1) 
+    await self.wait_for(client1.request_address()) 
     client2 = Client(await self.worker.create_connection(raw=True))
-    await asyncio.wait_for(client2.request_address(), 1) 
+    await self.wait_for(client2.request_address()) 
     client3 = Client(await self.worker.create_connection(raw=True))
-    await asyncio.wait_for(client3.request_address(), 1) 
+    await self.wait_for(client3.request_address()) 
 
     async def waiter_before():
-      self.assertEquals(await client3.wait_for_address_name("c1"), client1.default_address)
+      self.assertEquals(await self.wait_for(client3.wait_for_address_name("c1")), client1.default_address)
     
     waiter_task = asyncio.create_task(waiter_before())
     
-    await asyncio.sleep(0.001)
-
     await client1.register_address_name("c1")
     await asyncio.sleep(0.001)
-    self.assertEquals(await client2.resolve_address_name("c1"), client1.default_address)
+    self.assertEquals(await self.wait_for(client2.wait_for_address_name("c1")), client1.default_address)
     await waiter_task
 
   async def test_address_name_resolver(self):
@@ -82,10 +82,10 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     await asyncio.sleep(0.001)
     
     client1 = Client(await self.worker.create_connection(raw=True))
-    await asyncio.wait_for(client1.request_address(), 10) 
+    await self.wait_for(client1.request_address()) 
 
     client2 = Client(await self.worker.create_connection(raw=True))
-    await asyncio.wait_for(client2.request_address(), 10) 
+    await self.wait_for(client2.request_address()) 
 
     await client1.register_address_name("c1")
     await asyncio.sleep(0.001)
@@ -97,8 +97,8 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
 
     client = Client(await self.worker.create_connection(raw=True))
 
-    await asyncio.wait_for(client.request_address(), 1000) # make sure we have an address
-    topics = await asyncio.wait_for(client.request_topic_ids(5, apply=True), 1)
+    await self.wait_for(client.request_address()) # make sure we have an address
+    topics = await self.wait_for(client.request_topic_ids(5, apply=True))
     topics = list(topics)
 
     self.assertEqual(5, len(topics))

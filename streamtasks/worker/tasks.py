@@ -29,5 +29,4 @@ class TaskManagerWorker(Worker):
 
 
   async def _run_dashboard(self, stop_signal: asyncio.Event, client: Client):
-    await self.running.wait()
-    await client.send_stream_control(WorkerTopics.DISCOVERY_SIGNAL, TopicControlData(False))
+    await self.ready.wait()
