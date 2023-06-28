@@ -1,52 +1,9 @@
-from streamtasks.comm import *
-from multiprocessing.connection import Client, Listener
-from typing import Union, Optional
-from enum import Enum
-import asyncio
-import logging
+from streamtasks.worker import Worker
 from streamtasks.client import Client, FetchRequest
 from streamtasks.protocols import *
-from streamtasks.comm.serialization import *
-
-class Worker:
-  node_id: int
-  switch: Switch
-  node_conn: Optional[Connection]
-  running: bool
-
-  def __init__(self, node_id: int, switch: Optional[Switch] = None):
-    self.node_id = node_id
-    self.switch = switch if switch is not None else Switch()
-    self.running = False
-    self.node_conn = None
-
-  async def set_node_connection(self, conn: Connection):
-    if self.node_conn is not None: await self.switch.remove_connection(self.node_conn)
-    self.node_conn = conn
-    await self.switch.add_connection(conn)
-
-  async def create_connection(self, raw: bool = False) -> Connection:
-    connector = create_local_cross_connector(raw)
-    await self.switch.add_connection(connector[0])
-    return connector[1]
-
-  async def process(self):
-    await self.connect_to_node()
-    await self.switch.process()
-
-  async def async_start(self, stop_signal: asyncio.Event):
-    await self.connect_to_node()
-    self.running = True
-    while not stop_signal.is_set():
-      await self.process()
-      await asyncio.sleep(0.001)
-    self.running = False
-
-  async def connect_to_node(self):
-    while self.node_conn is None or self.node_conn.closed:
-      conn = connect_to_listener(get_node_socket_path(self.node_id))
-      if conn is None: await asyncio.sleep(1)
-      else: await self.set_node_connection(conn)
+from streamtasks.comm.serialization import JsonData
+import logging
+import asyncio
 
 class DiscoveryWorker(Worker):
   _address_counter: int
@@ -138,42 +95,4 @@ class DiscoveryWorker(Worker):
     self._address_counter += count
     return res
 
-class RemoteServerWorker(Worker):
-  bind_address: RemoteAddress
-  switch: IPCSwitch
 
-  def __init__(self, node_id: int, bind_address: RemoteAddress):
-    super().__init__(node_id, IPCSwitch(bind_address))
-
-  async def async_start(self, stop_signal: asyncio.Event):
-    await asyncio.gather(
-      self.switch.start_listening(stop_signal),
-      super().async_start(stop_signal)
-    )
-
-class RemoteClientWorker(Worker):
-  remote_address: RemoteAddress
-  remote_conn: Optional[IPCConnection]
-  connection_cost: int
-
-  def __init__(self, node_id: int, remote_address: RemoteAddress, connection_cost: int = 10):
-    super().__init__(node_id)
-    self.remote_address = remote_address
-    self.connection_cost = connection_cost
-    self.remote_conn = None
-
-  async def async_start(self, stop_signal: asyncio.Event):
-    await self.connect_to_remote()
-    await super().async_start(stop_signal)
-
-  async def process(self):
-    await self.connect_to_remote(stop_signal)
-    await super().process()
-
-  async def connect_to_remote(self):
-    while self.remote_conn is None or self.remote_conn.closed:
-      self.remote_conn = connect_to_listener(self.remote_address)
-      if self.remote_conn is None: await asyncio.sleep(1)
-      else: 
-        self.remote_conn.cost = self.connection_cost
-        await self.switch.add_connection(self.remote_conn)
