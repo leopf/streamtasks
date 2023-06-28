@@ -8,7 +8,7 @@ from enum import Enum
 class SerializationType(Enum):
   JSON = 1
   MSGPACK = 2
-  TEXT = 3,
+  TEXT = 3
   CUSTOM = 255
 
 class Serializer:
