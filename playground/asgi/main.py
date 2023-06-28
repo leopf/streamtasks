@@ -53,14 +53,7 @@ async def start_main_server():
         return {"Hello": "World"}
 
     demo_proxy_app = ASGIProxyApp(client, 1337, "demo_app")
-    async def wrap_demo_app(scope, receive, send):
-        try:
-            await demo_proxy_app(scope, receive, send)
-            print("demo app finished")
-        except Exception as e:
-            print(e)
-            raise e
-    app.mount("/demo", wrap_demo_app)
+    app.mount("/demo", demo_proxy_app)
 
     config = uvicorn.Config(app, port=8000)
     server = uvicorn.Server(config)
@@ -76,23 +69,4 @@ async def main():
     await stop_signal.wait()
 
 if __name__ == "__main__":
-    # asyncio.run(main())
-    # exit(0)
-
-    profiler = cProfile.Profile()
-    profiler.enable()
-
-    def timeout_handler(signum, frame):
-        stop_signal.set()
-        raise TimeoutError("Program execution timed out")
-    signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(20)
-
-    try:
-        asyncio.run(main())
-    except:
-        pass
-
-    profiler.disable()
-    # stats next to this file
-    profiler.dump_stats(os.path.join(os.path.dirname(__file__), "profile.prof"))
+    asyncio.run(main())
