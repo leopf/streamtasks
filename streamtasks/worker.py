@@ -73,7 +73,7 @@ class DiscoveryWorker(Worker):
     )
 
   async def _run_address_name_registry(self, stop_signal: asyncio.Event, client: Client):
-    with client.get_fetch_request_receiver(WorkerFetchDescriptors.RESOLVE_ADDRESS) as receiver:
+    with client.get_fetch_request_receiver(WorkerFetchDescriptors.REGISTER_ADDRESS) as receiver:
       while not stop_signal.is_set():
         try:
           if not receiver.empty():

@@ -56,13 +56,13 @@ class AddressesChangedMessage(Message):
   def as_dict(self) -> dict[str, Any]:
     return {
       'add': list([ pid.__dict__ for pid in self.add ]),
-      'remove': list([ pid.__dict__ for pid in self.remove ]),
+      'remove': list(self.remove),
     }
   @classmethod
   def from_dict(cls, data: dict[str, Any]) -> Self:
     return cls(
       add=set([ PricedId(**pid) for pid in data['add'] ]),
-      remove=set([ pid['id'] for pid in data['remove'] ]),
+      remove=set(data['remove']),
     )
 
 @dataclass
@@ -95,13 +95,13 @@ class OutTopicsChangedMessage(Message):
   def as_dict(self) -> dict[str, Any]:
     return {
       'add': list([ pid.__dict__ for pid in self.add ]),
-      'remove': list([ pid.__dict__ for pid in self.remove ]),
+      'remove': list(self.remove),
     }
   @classmethod
   def from_dict(cls, data: dict[str, Any]) -> Self:
     return cls(
       add=set([ PricedId(**pid) for pid in data['add'] ]),
-      remove=set([ pid['id'] for pid in data['remove'] ]),
+      remove=set(data['remove']),
     )
 
 @dataclass

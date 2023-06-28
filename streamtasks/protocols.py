@@ -13,6 +13,7 @@ class WorkerTopics:
 class WorkerFetchDescriptors:
   GENERATE_TOPICS = "request_topics"
   RESOLVE_ADDRESS = "resolve_address_name"
+  REGISTER_ADDRESS = "register_address_name"
 
 
 class GenerateAddressesRequestMessage(BaseModel):

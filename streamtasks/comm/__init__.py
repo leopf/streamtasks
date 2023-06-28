@@ -89,7 +89,7 @@ class Connection(ABC):
       ac_message: AddressesChangedMessage = message
       message = AddressesChangedRecvMessage(
         set(PricedId(pa.id, pa.cost + self.cost) for pa in ac_message.add), 
-        set(PricedId(a, self.addresses[a]) for a in ac_message.remove if t in self.addresses))
+        set(PricedId(a, self.addresses[a]) for a in ac_message.remove if a in self.addresses))
       for address in ac_message.remove: self.addresses.pop(address, None)
       for pa in message.add: self.addresses[pa.id] = pa.cost
 
