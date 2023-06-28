@@ -108,7 +108,8 @@ class ASGIEventSender:
     self._remote_address = remote_address
     self._connection_id = connection_id
   async def send(self, event: dict): await self._send(events=[event])
-  async def close(self): await self._send(events=[], closed=True)
+  async def close(self): 
+    await self._send(events=[], closed=True)
   async def _send(self, events: list[dict], closed: Optional[bool] = None):
     events = [MessagePackValueTransformer.annotate_value(event) for event in events]
     await self._client.send_to(self._remote_address, MessagePackData(ASGIEventMessage(connection_id=self._connection_id, events=events, closed=closed).dict()))
@@ -151,6 +152,7 @@ class ASGIAppRunner:
 
   def _start_connection(self, config: ASGIConnectionConfig):
     receiver = ASGIEventReceiver(self._client, config.own_address)
+    stop_signal = asyncio.Event()
     receiver.start_recv()
     sender = ASGIEventSender(self._client, config.remote_address, config.connection_id)
     
@@ -159,11 +161,12 @@ class ASGIAppRunner:
     async def send(event: dict): 
       await sender.send(event)
     async def receive() -> dict: 
-      while recv_queue.empty(): 
+      while recv_queue.empty():
+        if stop_signal.is_set(): raise RuntimeError("Connection closed")
         data = await receiver.recv()
         for event in data.events: 
           event = MessagePackValueTransformer.deannotate_value(event)
-          recv_queue.put_nowait(event)
+          await recv_queue.put(event)
       await recv_queue.get()
 
     async def run():
@@ -171,6 +174,7 @@ class ASGIAppRunner:
       await self._app(config.scope, receive, send)
       await sender.close()
       receiver.stop_recv()
+      stop_signal.set()
       logging.info(f"ASGI instance ({config.connection_id}) finished!")
 
     return asyncio.create_task(run())
@@ -199,7 +203,7 @@ class ASGIProxyApp:
     sender = ASGIEventSender(self._client, self._remote_address, connection_id)
 
     async def recv_loop(): 
-      while not closed_event.is_set(): await sender.send(await receive())
+      while not closed_event.is_set(): await sender.send(await receive()) # STUCK: in receive?
     async def send_loop():
       receiver.start_recv()
       while not closed_event.is_set():

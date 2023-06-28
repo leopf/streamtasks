@@ -4,7 +4,9 @@ from streamtasks.node import LocalNode
 from streamtasks.client import Client
 from streamtasks.client.asgi import *
 import uvicorn
-
+import cProfile
+import signal
+import os
 import asyncio
 
 node = LocalNode()
@@ -74,4 +76,23 @@ async def main():
     await stop_signal.wait()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # asyncio.run(main())
+    # exit(0)
+
+    profiler = cProfile.Profile()
+    profiler.enable()
+
+    def timeout_handler(signum, frame):
+        stop_signal.set()
+        raise TimeoutError("Program execution timed out")
+    signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(20)
+
+    try:
+        asyncio.run(main())
+    except:
+        pass
+
+    profiler.disable()
+    # stats next to this file
+    profiler.dump_stats(os.path.join(os.path.dirname(__file__), "profile.prof"))

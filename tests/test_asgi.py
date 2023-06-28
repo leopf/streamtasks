@@ -5,7 +5,8 @@ from streamtasks.client.asgi import *
 from streamtasks.worker import *
 from streamtasks.node import *
 import asyncio
-from httpx import AsyncClient
+from uuid import uuid4
+import httpx
 
 class TestASGI(unittest.IsolatedAsyncioTestCase):
   client1: Client
@@ -56,6 +57,37 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
     self.assertEqual([], data.events)
     self.assertEqual(True, data.closed)
 
+  async def test_half_app(self):
+    async def demo_app(scope, receive, send):
+      await send({"type": "http.response.start", "status": 200})
+      await send({"type": "http.response.body", "body": b"Hello world!"})
+
+    runner = ASGIAppRunner(self.client2, demo_app, "demo_app", 1337)
+    self.tasks.append(asyncio.create_task(runner.async_start(self.stop_signal)))
+
+    async def proxy_app(scope, receive, send):
+      connection_id = str(uuid4())
+
+      await self.client1.fetch(1337, "demo_app", ASGIInitMessage(
+        scope=JSONValueTransformer.annotate_value(scope), 
+        connection_id=connection_id, 
+        return_address=1338))
+      
+      receiver = ASGIEventReceiver(self.client1, 1338)
+
+      with receiver:
+        while True:
+          data = await receiver.recv()
+          for event in data.events:
+            await send(MessagePackValueTransformer.deannotate_value(event))
+          if data.closed: break
+    
+    transport = httpx.ASGITransport(app=proxy_app)
+    client = httpx.AsyncClient(transport=transport, base_url="http://testserver")
+    response = await client.get("/")
+    self.assertEqual(200, response.status_code)
+    self.assertEqual(b"Hello world!", response.content)
+
   async def test_app(self):
     async def demo_app(scope, receive, send):
       await send({"type": "http.response.start", "status": 200})
@@ -66,7 +98,7 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
 
     proxy_app = ASGIProxyApp(self.client1, 1337, "demo_app", 1338)
     
-    client = AsyncClient(app=proxy_app)
+    client = httpx.AsyncClient(app=proxy_app)
     response = await client.get("/")
     self.assertEqual(200, response.status_code)
     self.assertEqual(b"Hello world!", response.content)
