@@ -10,12 +10,12 @@ class Worker:
   node_id: int
   switch: Switch
   node_conn: Optional[Connection]
-  running: bool
+  running: asyncio.Event
 
   def __init__(self, node_id: int, switch: Optional[Switch] = None):
     self.node_id = node_id
     self.switch = switch if switch is not None else Switch()
-    self.running = False
+    self.running = asyncio.Event()
     self.node_conn = None
 
   async def set_node_connection(self, conn: Connection):
@@ -34,11 +34,11 @@ class Worker:
 
   async def async_start(self, stop_signal: asyncio.Event):
     await self.connect_to_node()
-    self.running = True
+    self.running.set()
     while not stop_signal.is_set():
       await self.process()
       await asyncio.sleep(0.001)
-    self.running = False
+    self.running.clear()
 
   async def connect_to_node(self):
     while self.node_conn is None or self.node_conn.closed:

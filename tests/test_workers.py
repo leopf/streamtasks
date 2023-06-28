@@ -52,6 +52,30 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     self.assertEqual(5, len(addresses))
     self.assertEqual(expected_addresses, list(addresses))
 
+  async def test_wait_for_name(self):
+    discovery_worker = DiscoveryWorker(1)
+    await self.setup_worker(discovery_worker)
+    await asyncio.sleep(0.001)
+
+    client1 = Client(await self.worker.create_connection(raw=True))
+    await asyncio.wait_for(client1.request_address(), 1) 
+    client2 = Client(await self.worker.create_connection(raw=True))
+    await asyncio.wait_for(client2.request_address(), 1) 
+    client3 = Client(await self.worker.create_connection(raw=True))
+    await asyncio.wait_for(client3.request_address(), 1) 
+
+    async def waiter_before():
+      self.assertEquals(await client3.wait_for_address_name("c1"), client1.default_address)
+    
+    waiter_task = asyncio.create_task(waiter_before())
+    
+    await asyncio.sleep(0.001)
+
+    await client1.register_address_name("c1")
+    await asyncio.sleep(0.001)
+    self.assertEquals(await client2.resolve_address_name("c1"), client1.default_address)
+    await waiter_task
+
   async def test_address_name_resolver(self):
     discovery_worker = DiscoveryWorker(1)
     await self.setup_worker(discovery_worker)

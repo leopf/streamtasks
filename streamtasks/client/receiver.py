@@ -40,6 +40,7 @@ class Receiver(ABC):
 
   def empty(self): return self._recv_queue.empty()
 
+  async def get(self) -> Any: return await self._recv_queue.get()
   async def recv(self) -> Any:
     with self:
       return await self._recv_queue.get()
@@ -55,6 +56,31 @@ class AddressReceiver(Receiver):
     if isinstance(message, AddressedMessage) and message.address in self._addresses:
       a_message: AddressedMessage = message
       self._recv_queue.put_nowait((a_message.address, a_message.data))
+
+class TopicSignalReceiver(Receiver):
+  def __init__(self, client: 'Client', topic: int):
+    super().__init__(client)
+    self._topic = topic
+    self._signal_event = asyncio.Event()
+
+  async def wait(self): 
+    with self:
+      await self._signal_event.wait()
+
+  def on_message(self, message: Message):
+    if not isinstance(message, TopicMessage): return
+    if message.topic != self._topic: return
+    self._signal_event.set()
+
+class AddressNameAssignedReceiver(Receiver):
+  _recv_queue: asyncio.Queue[AddressNameAssignmentMessage]
+  def on_message(self, message: Message):
+    if not isinstance(message, TopicDataMessage): return
+    if message.topic != WorkerTopics.ADDRESS_NAME_ASSIGNED: return
+    if not isinstance(message.data, MessagePackData): return
+    try:
+      self._recv_queue.put_nowait(AddressNameAssignmentMessage.parse_obj(message.data.data))
+    except: pass
 
 class TopicsReceiver(Receiver):
   _topics: set[int]

@@ -59,6 +59,15 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     self.assertEqual(topic, 1)
     self.assertEqual(data.data, "Hello 1")
 
+  async def test_topic_signal(self):
+    await self.b.subscribe([1])
+    await asyncio.sleep(0.001)
+    async def wait_for_topic_signal():
+      await asyncio.wait_for(self.b.wait_for_topic_signal(1), 1)
+    receiver_task = asyncio.create_task(wait_for_topic_signal())
+    await self.a.send_stream_data(1, TextData("Hello!"))
+    await receiver_task
+
   async def test_fetch(self):
     await self.a.change_addresses([1])
     await self.b.change_addresses([2])

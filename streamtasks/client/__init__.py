@@ -35,10 +35,32 @@ class Client:
   def get_topics_receiver(self, topics: Iterable[int]): return TopicsReceiver(self, set(topics))
   def get_address_receiver(self, addresses: Iterable[int]): return AddressReceiver(self, set(addresses))
   def get_fetch_request_receiver(self, descriptor: str): return FetchRequestReceiver(self, descriptor)
+  
+  async def wait_for_topic_signal(self, topic: int): return await TopicSignalReceiver(self, topic).wait()
+  async def wait_for_address_name(self, name: str):
+    found_address = self._address_map.get(name, None)
+    if found_address is not None: return found_address
+
+    receiver = AddressNameAssignedReceiver(self)
+    
+    await self.subscribe(self._subscribed_topics | {WorkerTopics.ADDRESS_NAME_ASSIGNED})
+    with receiver:
+      result = await self.resolve_address_name(name)
+      if result is not None:
+        self._set_address_name(name, result)
+        found_address = result
+    await self.subscribe(self._subscribed_topics - {WorkerTopics.ADDRESS_NAME_ASSIGNED})
+
+    while not receiver.empty():
+      data: AddressNameAssignmentMessage = await receiver.get()
+      self._set_address_name(data.address_name, data.address)
+      if found_address is None and data.address_name == name: found_address = data.address
+
+    return found_address
 
   async def send_to(self, address: Union[int, str], data: Any): await self._connection.send(AddressedMessage(await self._get_address(address), data))
   async def send_stream_control(self, topic: int, control_data: TopicControlData): await self._connection.send(control_data.to_message(topic))
-  async def send_stream_data(self, topic: int, data: Any): await self._connection.send(TopicDataMessage(topic, data))
+  async def send_stream_data(self, topic: int, data: SerializableData): await self._connection.send(TopicDataMessage(topic, data))
 
   async def unregister_address_name(self, name: str): await self._register_address_name(name, None)
   async def register_address_name(self, name: str, address: Optional[int] = None): 
@@ -116,6 +138,8 @@ class Client:
   async def _get_address(self, address: Union[int, str]) -> int: return await self.resolve_address_name(address) if isinstance(address, str) else address
   async def _register_address_name(self, name: str, address: Optional[int]):
     await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.REGISTER_ADDRESS, RegisterAddressRequestBody(address_name=name, address=address).dict())
+    self._set_address_name(name, address)
+  def _set_address_name(self, name: str, address: Optional[int]):
     if address is None: self._address_map.pop(name, None)
     else: self._address_map[name] = address
 

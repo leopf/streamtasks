@@ -1,7 +1,8 @@
 from streamtasks.worker import Worker
 from streamtasks.client import Client, FetchRequest
 from streamtasks.protocols import *
-from streamtasks.comm.serialization import JsonData
+from streamtasks.comm.serialization import JsonData, TextData, MessagePackData
+from streamtasks.comm.types import TopicControlData
 import logging
 import asyncio
 
@@ -19,15 +20,23 @@ class DiscoveryWorker(Worker):
   async def async_start(self, stop_signal: asyncio.Event):
     client = Client(await self.create_connection())
     await client.change_addresses([WorkerAddresses.ID_DISCOVERY])
-    await client.provide([WorkerTopics.ADDRESSES_CREATED])
+    await client.provide([WorkerTopics.ADDRESSES_CREATED, WorkerTopics.DISCOVERY_SIGNAL, WorkerTopics.ADDRESS_NAME_ASSIGNED])
 
     await asyncio.gather(
       self._run_address_generator(stop_signal, client),
       self._run_topic_generator(stop_signal, client),
       self._run_address_name_resolver(stop_signal, client),
       self._run_address_name_registry(stop_signal, client),
+      self._run_lighthouse(stop_signal, client),
       super().async_start(stop_signal)
     )
+
+  async def _run_lighthouse(self, stop_signal: asyncio.Event, client: Client):
+    await self.running.wait()
+    await client.send_stream_control(WorkerTopics.DISCOVERY_SIGNAL, TopicControlData(False)) # NOTE: not sure if i want this...
+    while not stop_signal.is_set():
+      await client.send_stream_data(WorkerTopics.DISCOVERY_SIGNAL, TextData("running"))
+      await asyncio.sleep(1)
 
   async def _run_address_name_registry(self, stop_signal: asyncio.Event, client: Client):
     with client.get_fetch_request_receiver(WorkerFetchDescriptors.REGISTER_ADDRESS) as receiver:
@@ -39,6 +48,12 @@ class DiscoveryWorker(Worker):
             logging.info(f"registering address name {request.address_name} for address {request.address}")
             if request.address is None: self._address_map.pop(request.address_name, None)
             else: self._address_map[request.address_name] = request.address
+
+            await client.send_stream_data(WorkerTopics.ADDRESS_NAME_ASSIGNED, MessagePackData(AddressNameAssignmentMessage(
+              address_name=request.address_name,
+              address=self._address_map.get(request.address_name, None)
+            ).dict()))
+
             await req.respond(None) # any response signifies success
           else: await asyncio.sleep(0.001)
         except Exception as e: logging.error(e)
