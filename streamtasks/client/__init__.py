@@ -16,6 +16,7 @@ class Client:
   _addresses: set[int]
   _fetch_id_counter: int
   _address_request_lock: asyncio.Lock
+  _address_map: dict[str, int]
 
   def __init__(self, connection: Connection):
     self._connection = connection
@@ -26,6 +27,7 @@ class Client:
     self._addresses = set()
     self._fetch_id_counter = 0
     self._address_request_lock = asyncio.Lock()
+    self._address_map = {}
 
   @property
   def default_address(self): return next(iter(self._addresses), None)
@@ -37,6 +39,18 @@ class Client:
   async def send_to(self, address: int, data: Any): await self._connection.send(AddressedMessage(address, data))
   async def send_stream_control(self, topic: int, control_data: TopicControlData): await self._connection.send(control_data.to_message(topic))
   async def send_stream_data(self, topic: int, data: Any): await self._connection.send(TopicDataMessage(topic, data))
+
+  async def unregister_address_name(self, name: str): await self._register_address_name(name, None)
+  async def register_address_name(self, name: str, address: Optional[int] = None): 
+    address = address or self.default_address
+    if address is None: raise Exception("No local address")
+    await self._register_address_name(name, address)
+  async def resolve_address_name(self, name: str) -> Optional[int]:
+    if name in self._address_map: return self._address_map[name]
+    raw_res = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.RESOLVE_ADDRESS, ResolveAddressRequestBody(address_name=name).dict())
+    res: ResolveAddressResonseBody = ResolveAddressResonseBody.parse_obj(raw_res)
+    if res.address is not None: self._address_map[name] = res.address
+    return res.address
 
   async def request_address(self): return next(iter(await self.request_addresses(1, apply=True)))
   async def request_addresses(self, count: int, apply: bool=False) -> set[int]:
@@ -98,6 +112,11 @@ class Client:
     self._receivers.append(receiver)
     self._receive_task = self._receive_task or asyncio.create_task(self._task_receive())
   def disable_receiver(self, receiver: Receiver): self._receivers.remove(receiver)
+
+  async def _register_address_name(self, name: str, address: Optional[int]):
+    await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.REGISTER_ADDRESS, RegisterAddressRequestBody(address_name=name, address=address).dict())
+    if address is None: self._address_map.pop(name, None)
+    else: self._address_map[name] = address
 
   async def _task_receive(self):
     while len(self._receivers) > 0:
