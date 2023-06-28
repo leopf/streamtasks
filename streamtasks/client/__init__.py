@@ -45,8 +45,8 @@ class Client:
         await self.subscribe(self._subscribed_topics | {WorkerTopics.ADDRESSES_CREATED})
         request_id = secrets.randbelow(1<<64)
         with ResolveAddressesReceiver(self, request_id) as receiver:
-          await self.send_to(WorkerAddresses.ID_DISCOVERY, JsonData(RequestAddressesMessage(request_id=request_id, count=count).dict()))
-          data: ResolveAddressesMessage = await receiver.recv()
+          await self.send_to(WorkerAddresses.ID_DISCOVERY, JsonData(GenerateAddressesRequestMessage(request_id=request_id, count=count).dict()))
+          data: GenerateAddressesResponseMessage = await receiver.recv()
           addresses = set(data.addresses)
         assert len(addresses) == count, "The response returned an invalid number of addresses"
         if apply: await self.change_addresses(self._addresses | addresses)
@@ -55,8 +55,8 @@ class Client:
       return addresses
 
   async def request_topic_ids(self, count: int, apply: bool=False) -> set[int]:
-    raw_res = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.REQUEST_TOPICS, RequestTopicsBody(count=count).dict())
-    res = ResolveTopicBody.parse_obj(raw_res)
+    raw_res = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.GENERATE_TOPICS, GenerateTopicsRequestBody(count=count).dict())
+    res = GenerateTopicsResponseBody.parse_obj(raw_res)
     assert len(res.topics) == count, "The fetch request returned an invalid number of topics"
     if apply: await self.provide(self._provided_topics | set(res.topics))
     return res.topics

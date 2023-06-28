@@ -80,7 +80,7 @@ class TopicsReceiver(Receiver):
         self._recv_queue.put_nowait((sc_message.topic, None, control_data))
 
 class ResolveAddressesReceiver(Receiver):
-  _recv_queue: asyncio.Queue[ResolveAddressesMessage]
+  _recv_queue: asyncio.Queue[GenerateAddressesResponseMessage]
   _request_id: int
 
   def __init__(self, client: 'Client', request_id: int):
@@ -92,7 +92,7 @@ class ResolveAddressesReceiver(Receiver):
       sd_message: TopicDataMessage = message
       if isinstance(sd_message.data, JsonData):
         try:
-          ra_message = ResolveAddressesMessage.parse_obj(sd_message.data.data)
+          ra_message = GenerateAddressesResponseMessage.parse_obj(sd_message.data.data)
           if ra_message.request_id == self._request_id:
             self._recv_queue.put_nowait(ra_message)
         except: pass

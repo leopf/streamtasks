@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 from pydantic import BaseModel
 
 class WorkerAddresses:
@@ -11,18 +11,30 @@ class WorkerTopics:
   COUNTER_INIT = 1000000
 
 class WorkerFetchDescriptors:
-  REQUEST_TOPICS = "request_topics"
+  GENERATE_TOPICS = "request_topics"
+  RESOLVE_ADDRESS = "resolve_address_name"
 
-class RequestAddressesMessage(BaseModel):
+
+class GenerateAddressesRequestMessage(BaseModel):
   request_id: int
   count: int
 
-class ResolveAddressesMessage(BaseModel):
+class GenerateAddressesResponseMessage(BaseModel):
   request_id: int
   addresses: list[int]
 
-class RequestTopicsBody(BaseModel):
+class GenerateTopicsRequestBody(BaseModel):
   count: int
 
-class ResolveTopicBody(BaseModel):
+class GenerateTopicsResponseBody(BaseModel):
   topics: list[int]
+
+class ResolveAddressRequestBody(BaseModel):
+  address_name: str
+
+class ResolveAddressResonseBody(BaseModel):
+  address: Optional[int]
+
+class RegisterAddressRequestBody(BaseModel):
+  address_name: str
+  address: Optional[int]
