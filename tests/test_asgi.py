@@ -1,7 +1,7 @@
 import unittest
 from streamtasks.comm import *
 from streamtasks.client import *
-from streamtasks.client.asgi import *
+from streamtasks.asgi import *
 from streamtasks.worker import *
 from streamtasks.node import *
 import asyncio

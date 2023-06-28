@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from streamtasks.worker import Worker
 from streamtasks.node import LocalNode
 from streamtasks.client import Client
-from streamtasks.client.asgi import *
+from streamtasks.asgi import *
 import uvicorn
 import cProfile
 import signal
