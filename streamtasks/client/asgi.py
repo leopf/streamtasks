@@ -203,7 +203,9 @@ class ASGIProxyApp:
     sender = ASGIEventSender(self._client, self._remote_address, connection_id)
 
     async def recv_loop(): 
-      while not closed_event.is_set(): await sender.send(await receive()) # STUCK: in receive?
+      while not closed_event.is_set(): 
+        await sender.send(await receive())
+        await asyncio.sleep(0)
     async def send_loop():
       receiver.start_recv()
       while not closed_event.is_set():
