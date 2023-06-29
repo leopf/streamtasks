@@ -47,7 +47,7 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
     sender = ASGIEventSender(self.client1, 1337, 1)
     receiver = ASGIEventReceiver(self.client2, 1337)
 
-    receiver.start_recv()
+    await receiver.start_recv()
 
     await sender.send({"type": "test", "data": "test"})
     data = await receiver.recv()

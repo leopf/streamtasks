@@ -1,10 +1,6 @@
 Testing:
 test topic control data
 
-Refactor:
-better sub and provide tracker
-receiver async with and auto subscribe
-
 Questions:
 How do i solve topic remapping?
 

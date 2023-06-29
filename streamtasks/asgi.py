@@ -131,29 +131,27 @@ class ASGIAppRunner:
     self._init_receiver = FetchRequestReceiver(client, init_conn_desc, self._own_address)
 
   async def async_start(self, stop_signal: asyncio.Event):
-    self._init_receiver.start_recv()
-    while not stop_signal.is_set():
-      if self._init_receiver.empty(): 
-        await asyncio.sleep(0.001)
-        continue
+    async with self._init_receiver:
+      while not stop_signal.is_set():
+        if self._init_receiver.empty(): 
+          await asyncio.sleep(0.001)
+          continue
 
-      raw_request: FetchRequest = await self._init_receiver.recv()
-      init_request = ASGIInitMessage.parse_obj(raw_request.body)
+        raw_request: FetchRequest = await self._init_receiver.recv()
+        init_request = ASGIInitMessage.parse_obj(raw_request.body)
 
-      config = ASGIConnectionConfig(
-        scope=JSONValueTransformer.deannotate_value(init_request.scope), 
-        connection_id=init_request.connection_id, 
-        remote_address=init_request.return_address, 
-        own_address=self._own_address)
-      
-      self._start_connection(config)
-      await raw_request.respond(None)
-    self._init_receiver.stop_recv()
+        config = ASGIConnectionConfig(
+          scope=JSONValueTransformer.deannotate_value(init_request.scope), 
+          connection_id=init_request.connection_id, 
+          remote_address=init_request.return_address, 
+          own_address=self._own_address)
+        
+        self._start_connection(config)
+        await raw_request.respond(None)
 
   def _start_connection(self, config: ASGIConnectionConfig):
     receiver = ASGIEventReceiver(self._client, config.own_address)
     stop_signal = asyncio.Event()
-    receiver.start_recv()
     sender = ASGIEventSender(self._client, config.remote_address, config.connection_id)
     
     recv_queue = asyncio.Queue()
@@ -171,9 +169,9 @@ class ASGIAppRunner:
 
     async def run():
       logging.info(f"ASGI instance ({config.connection_id}) starting!")
-      await self._app(config.scope, receive, send)
+      async with receiver:
+        await self._app(config.scope, receive, send)
       await sender.close()
-      receiver.stop_recv()
       stop_signal.set()
       logging.info(f"ASGI instance ({config.connection_id}) finished!")
 
@@ -207,12 +205,11 @@ class ASGIProxyApp:
         await sender.send(await receive())
         await asyncio.sleep(0)
     async def send_loop():
-      receiver.start_recv()
-      while not closed_event.is_set():
-        data = await receiver.recv()
-        for event in data.events: await send(MessagePackValueTransformer.deannotate_value(event))
-        if data.closed: closed_event.set()
-      receiver.stop_recv()
+      async with receiver:
+        while not closed_event.is_set():
+          data = await receiver.recv()
+          for event in data.events: await send(MessagePackValueTransformer.deannotate_value(event))
+          if data.closed: closed_event.set()
 
     recv_task = asyncio.create_task(recv_loop())
     send_task = asyncio.create_task(send_loop())

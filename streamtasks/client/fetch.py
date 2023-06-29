@@ -79,16 +79,15 @@ class FetchServerReceiver(Receiver):
     except: pass
 
   async def async_start(self, stop_signal: asyncio.Event):
-    self.start_recv()
-    while not stop_signal.is_set():
-      if self.empty(): await asyncio.sleep(0.001)
-      else:
-        descriptor, fr = await self.get()
-        if descriptor in self._descriptor_mapping:
-          try:
-            await self._descriptor_mapping[descriptor](fr)
-          except Exception as e: logging.error(e)
-    self.stop_recv()
+    async with self:
+      while not stop_signal.is_set():
+        if self.empty(): await asyncio.sleep(0.001)
+        else:
+          descriptor, fr = await self.get()
+          if descriptor in self._descriptor_mapping:
+            try:
+              await self._descriptor_mapping[descriptor](fr)
+            except Exception as e: logging.error(e, fr, descriptor)
 
 class FetchRequestReceiver(Receiver):
   _descriptor: str

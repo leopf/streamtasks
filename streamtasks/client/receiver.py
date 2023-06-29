@@ -17,22 +17,22 @@ class Receiver(ABC):
     self._client = client
     self._receiving_count = 0
   
-  def start_recv(self):
+  async def start_recv(self):
     self._receiving_count += 1 
     if self._receiving_count > 1: return
     self._client.enable_receiver(self)
+    await self._on_start_recv()
 
-  def stop_recv(self): 
+  async def stop_recv(self): 
     self._receiving_count = max(0, self._receiving_count - 1)
     if self._receiving_count > 0: return
     self._client.disable_receiver(self)
+    await self._on_stop_recv()
 
-  def __enter__(self):
-    self.start_recv()
+  async def __aenter__(self): 
+    await self.start_recv()
     return self
-  def __exit__(self, *args):
-    self.stop_recv()
-    return False
+  async def __aexit__(self, *args): await self.stop_recv()
 
   @abstractmethod
   def on_message(self, message: Message):
@@ -40,9 +40,12 @@ class Receiver(ABC):
 
   def empty(self): return self._recv_queue.empty()
 
+  async def _on_start_recv(self): pass
+  async def _on_stop_recv(self): pass
+
   async def get(self) -> Any: return await self._recv_queue.get()
   async def recv(self) -> Any:
-    with self:
+    async with self:
       return await self._recv_queue.get()
 
 class AddressReceiver(Receiver):
@@ -63,8 +66,11 @@ class TopicSignalReceiver(Receiver):
     self._topic = topic
     self._signal_event = asyncio.Event()
 
+  async def _on_start_recv(self): await self._client.subscribe([self._topic])
+  async def _on_stop_recv(self): await self._client.unsubscribe([self._topic]) 
+
   async def wait(self): 
-    with self:
+    async with self:
       await self._signal_event.wait()
 
   def on_message(self, message: Message):
@@ -74,6 +80,8 @@ class TopicSignalReceiver(Receiver):
 
 class AddressNameAssignedReceiver(Receiver):
   _recv_queue: asyncio.Queue[AddressNameAssignmentMessage]
+  async def _on_start_recv(self): await self._client.subscribe([WorkerTopics.ADDRESS_NAME_ASSIGNED])
+  async def _on_stop_recv(self): await self._client.unsubscribe([WorkerTopics.ADDRESS_NAME_ASSIGNED])
   def on_message(self, message: Message):
     if not isinstance(message, TopicDataMessage): return
     if message.topic != WorkerTopics.ADDRESS_NAME_ASSIGNED: return
@@ -94,6 +102,9 @@ class TopicsReceiver(Receiver):
     
   def get_control_data(self, topic: int): return self._control_data.get(topic, None)
 
+  async def _on_start_recv(self): await self._client.subscribe(self._topics)
+  async def _on_stop_recv(self): await self._client.unsubscribe(self._topics)
+
   def on_message(self, message: Message):
     if isinstance(message, TopicDataMessage) and message.topic in self._topics:
       sd_message: TopicDataMessage = message
@@ -112,6 +123,9 @@ class ResolveAddressesReceiver(Receiver):
   def __init__(self, client: 'Client', request_id: int):
     super().__init__(client)
     self._request_id = request_id
+
+  async def _on_start_recv(self): await self._client.subscribe([WorkerTopics.ADDRESSES_CREATED])
+  async def _on_stop_recv(self): await self._client.unsubscribe([WorkerTopics.ADDRESSES_CREATED])
 
   def on_message(self, message: Message):
     if isinstance(message, TopicDataMessage) and message.topic == WorkerTopics.ADDRESSES_CREATED:

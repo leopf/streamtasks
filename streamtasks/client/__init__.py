@@ -63,17 +63,15 @@ class Client:
     if found_address is not None: return found_address
 
     receiver = AddressNameAssignedReceiver(self)
-    
-    async with self.subscribe_context([WorkerTopics.ADDRESS_NAME_ASSIGNED]):
-      with receiver:
-        result = await self.resolve_address_name(name)
-        if result is not None:
-          self._set_address_name(name, result)
-          found_address = result
-        while found_address is None:
-          data = await receiver.recv()
-          self._set_address_name(data.address_name, data.address)
-          if data.address_name == name: found_address = data.address
+    async with receiver:
+      result = await self.resolve_address_name(name)
+      if result is not None:
+        self._set_address_name(name, result)
+        found_address = result
+      while found_address is None:
+        data = await receiver.recv()
+        self._set_address_name(data.address_name, data.address)
+        if data.address_name == name: found_address = data.address
 
     while not receiver.empty():
       data: AddressNameAssignmentMessage = await receiver.get()
@@ -100,16 +98,13 @@ class Client:
   async def request_address(self): return next(iter(await self.request_addresses(1, apply=True)))
   async def request_addresses(self, count: int, apply: bool=False) -> set[int]:
     async with self._address_request_lock:
-      async with self.subscribe_context([WorkerTopics.ADDRESSES_CREATED]):
-        try:
-          request_id = secrets.randbelow(1<<64)
-          with ResolveAddressesReceiver(self, request_id) as receiver:
-            await self.send_to(WorkerAddresses.ID_DISCOVERY, JsonData(GenerateAddressesRequestMessage(request_id=request_id, count=count).dict()))
-            data: GenerateAddressesResponseMessage = await receiver.recv()
-            addresses = set(data.addresses)
-          assert len(addresses) == count, "The response returned an invalid number of addresses"
-          if apply: await self.change_addresses(self._addresses | addresses)
-        except: pass 
+      request_id = secrets.randbelow(1<<64)
+      async with ResolveAddressesReceiver(self, request_id) as receiver:
+        await self.send_to(WorkerAddresses.ID_DISCOVERY, JsonData(GenerateAddressesRequestMessage(request_id=request_id, count=count).dict()))
+        data: GenerateAddressesResponseMessage = await receiver.recv()
+        addresses = set(data.addresses)
+    assert len(addresses) == count, "The response returned an invalid number of addresses"
+    if apply: await self.change_addresses(self._addresses | addresses)
     return addresses
 
   async def request_topic_ids(self, count: int, apply: bool=False) -> set[int]:
@@ -129,17 +124,17 @@ class Client:
   def provide_context(self, topics: Iterable[int]): return ProvideContext(self, topics)
   async def provide(self, topics: Iterable[int]):
     actually_added = self._provided_topics.add_many(topics)
-    await self._connection.send(OutTopicsChangedMessage(ids_to_priced_ids(actually_added), set()))
+    if len(actually_added) > 0: await self._connection.send(OutTopicsChangedMessage(ids_to_priced_ids(actually_added), set()))
   async def unprovide(self, topics: Iterable[int]):
     actually_removed = self._provided_topics.remove_many(topics)
-    await self._connection.send(OutTopicsChangedMessage(set(), set(actually_removed)))
+    if len(actually_removed) > 0: await self._connection.send(OutTopicsChangedMessage(set(), set(actually_removed)))
   def subscribe_context(self, topics: Iterable[int]): return SubscibeContext(self, topics)
   async def subscribe(self, topics: Iterable[int]):
     actually_added = self._subscribed_topics.add_many(topics)
-    await self._connection.send(InTopicsChangedMessage(set(actually_added), set()))
+    if len(actually_added) > 0: await self._connection.send(InTopicsChangedMessage(set(actually_added), set()))
   async def unsubscribe(self, topics: Iterable[int]):
     actually_removed = self._subscribed_topics.remove_many(topics)
-    await self._connection.send(InTopicsChangedMessage(set(), set(actually_removed)))
+    if len(actually_removed) > 0: await self._connection.send(InTopicsChangedMessage(set(), set(actually_removed)))
 
   async def fetch(self, address: Union[int, str], descriptor: str, body):
     self._fetch_id_counter = fetch_id = self._fetch_id_counter + 1

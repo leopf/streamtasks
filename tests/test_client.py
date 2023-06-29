@@ -43,6 +43,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     self.assertEqual((recv_data[0], recv_data[1].data, recv_data[2]), (2, "Hello 2", None))
 
     await self.b.unsubscribe([ 1 ])
+    await asyncio.sleep(0.001)
 
     await self.a.send_stream_data(1, TextData("Hello 1"))
     await self.a.send_stream_data(2, TextData("Hello 2"))
