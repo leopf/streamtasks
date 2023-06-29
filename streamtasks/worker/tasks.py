@@ -90,8 +90,7 @@ class TaskFactoryWorker(Worker, ABC):
     client = Client(await self.create_connection())
     await asyncio.gather(
       self._setup(client),
-      self._run_task_deployments(stop_signal, client),
-      self._run_task_deletions(stop_signal, client),
+      self._run_fetch_server(stop_signal, client),
       self._run_dashboard(stop_signal, client),
       super().async_start(stop_signal)
     )
@@ -103,31 +102,24 @@ class TaskFactoryWorker(Worker, ABC):
     self.reg = TaskFactoryRegistration(id=self.id, worker_address=client.default_address)
     self.ready.set()
 
-  async def _run_task_deployments(self, stop_signal: asyncio.Event, client: Client):
+  async def _run_fetch_server(self, stop_signal: asyncio.Event, client: Client):
     await self.ready.wait()
-    with client.get_fetch_request_receiver(self.reg.deploy_descriptor) as receiver:
-      while not stop_signal.is_set():
-        try:
-          if not receiver.empty():
-            req: FetchRequest = await receiver.recv()
-            deployment: TaskDeployment = TaskDeployment.parse_obj(req.body)
-            await self.deploy(deployment)
-            await req.respond(None)
-          else: await asyncio.sleep(0.001)
-        except Exception as e: logging.error(e)
 
-  async def _run_task_deletions(self, stop_signal: asyncio.Event, client: Client):
-    await self.ready.wait()
-    with client.get_fetch_request_receiver(self.reg.delete_descriptor) as receiver:
-      while not stop_signal.is_set():
-        try:
-          if not receiver.empty():
-            req: FetchRequest = await receiver.recv()
-            deployment: TaskDeploymentDelete = TaskDeploymentDelete.parse_obj(req.body)
-            await self.delete(deployment)
-            await req.respond(None)
-          else: await asyncio.sleep(0.001)
-        except Exception as e: logging.error(e)
+    server = client.create_fetch_server()
+
+    @server.route(self.reg.delete_descriptor)
+    async def delete_task(req: FetchRequest):
+      deployment: TaskDeploymentDelete = TaskDeploymentDelete.parse_obj(req.body)
+      await self.delete(deployment)
+      await req.respond(None)
+
+    @server.route(self.reg.deploy_descriptor)
+    async def deploy_task(req: FetchRequest):
+      deployment: TaskDeployment = TaskDeployment.parse_obj(req.body)
+      await self.deploy(deployment)
+      await req.respond(None)
+
+    await server.async_start(stop_signal)
 
   async def _run_dashboard(self, stop_signal: asyncio.Event, client: Client):
     await self.ready.wait()

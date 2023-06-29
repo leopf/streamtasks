@@ -3,7 +3,7 @@ from streamtasks.comm.types import AddressedMessage, Message
 from streamtasks.comm.serialization import JsonData
 import asyncio
 from pydantic import BaseModel
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, Callable, Awaitable
 if TYPE_CHECKING:
     from streamtasks.client import Client
 
@@ -50,6 +50,42 @@ class FetchReponseReceiver(Receiver):
             self._recv_queue.put_nowait(fr_message.body)
         except: pass
 
+class FetchServerReceiver(Receiver):
+  _recv_queue: asyncio.Queue[FetchRequest]
+  _descriptor_mapping: dict[str, Callable[[FetchRequest], Awaitable[Any]]]
+
+  def __init__(self, client: 'Client'):
+    super().__init__(client)
+
+  def add_route(self, descriptor: str, func: Callable[[FetchRequest], Awaitable[Any]]): self._descriptor_mapping[descriptor] = func
+  def remove_route(self, descriptor: str): self._descriptor_mapping.pop(descriptor, None)
+
+  def route(self, descriptor: str):
+    def decorator(func):
+      self._descriptor_mapping[descriptor] = func
+      return func
+    return decorator
+
+  def on_message(self, message: Message):
+    if not isinstance(message, AddressedMessage): return
+    a_message: AddressedMessage = message
+    if not isinstance(a_message.data, JsonData): return
+    try:
+      fr_message = FetchRequestMessage.parse_obj(a_message.data.data)
+      if fr_message.descriptor in self._descriptor_mapping:
+        self._recv_queue.put_nowait(FetchRequest(self._client, fr_message.return_address, fr_message.request_id, fr_message.body))
+    except: pass
+
+  async def async_start(self, stop_signal: asyncio.Event):
+    while not stop_signal.is_set():
+      if self._recv_queue.empty():
+        await asyncio.sleep(0.1)
+      else:
+        fr = await self._recv_queue.get()
+        if fr.descriptor in self._descriptor_mapping:
+          try:
+            await self._descriptor_mapping[fr.descriptor](fr)
+          except: pass
 
 class FetchRequestReceiver(Receiver):
   _descriptor: str

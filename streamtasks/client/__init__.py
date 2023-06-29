@@ -35,6 +35,7 @@ class Client:
   def get_topics_receiver(self, topics: Iterable[int]): return TopicsReceiver(self, set(topics))
   def get_address_receiver(self, addresses: Iterable[int]): return AddressReceiver(self, set(addresses))
   def get_fetch_request_receiver(self, descriptor: str): return FetchRequestReceiver(self, descriptor)
+  def create_fetch_server(self): return FetchServerReceiver(self)
   
   async def wait_for_topic_signal(self, topic: int): return await TopicSignalReceiver(self, topic).wait()
   async def wait_for_address_name(self, name: str):
