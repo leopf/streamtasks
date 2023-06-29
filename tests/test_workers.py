@@ -84,6 +84,8 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     client1 = Client(await self.worker.create_connection(raw=True))
     await self.wait_for(client1.request_address()) 
 
+    self.assertEquals(len(client1._subscribed_topics.items()), 0)
+
     client2 = Client(await self.worker.create_connection(raw=True))
     await self.wait_for(client2.request_address()) 
 
@@ -105,7 +107,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
 
     expected_topics = list(range(WorkerTopics.COUNTER_INIT, WorkerTopics.COUNTER_INIT + 5))
     self.assertEqual(expected_topics, topics)
-    self.assertEqual(set(expected_topics), client._provided_topics)
+    self.assertEqual(set(expected_topics), client._provided_topics.items())
 
 if __name__ == '__main__':
   unittest.main()

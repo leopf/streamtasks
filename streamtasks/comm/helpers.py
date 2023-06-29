@@ -10,6 +10,7 @@ class IdTracker:
     self._map = {}
 
   def __contains__(self, id: int): return id in self._map
+  def items(self) -> Iterable[int]: return self._map.keys()
 
   def add_many(self, ids: Iterable[int]):
     final = set()
