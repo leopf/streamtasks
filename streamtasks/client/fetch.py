@@ -77,6 +77,7 @@ class FetchServerReceiver(Receiver):
     except: pass
 
   async def async_start(self, stop_signal: asyncio.Event):
+    self.start_recv()
     while not stop_signal.is_set():
       if self._recv_queue.empty():
         await asyncio.sleep(0.1)
@@ -86,6 +87,7 @@ class FetchServerReceiver(Receiver):
           try:
             await self._descriptor_mapping[fr.descriptor](fr)
           except: pass
+    self.stop_recv()
 
 class FetchRequestReceiver(Receiver):
   _descriptor: str
