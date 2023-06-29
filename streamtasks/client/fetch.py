@@ -29,9 +29,11 @@ class FetchRequest:
     self._return_address = return_address
     self._request_id = request_id
     self.body = body
+    self.response_sent = False
 
   async def respond(self, body: Any):
     await self._client.send_to(self._return_address, JsonData(FetchResponseMessage(request_id=self._request_id, body=body).dict()))
+    self.response_sent = True
 
 class FetchReponseReceiver(Receiver):
   _fetch_id: int
@@ -87,6 +89,7 @@ class FetchServerReceiver(Receiver):
           if descriptor in self._descriptor_mapping:
             try:
               await self._descriptor_mapping[descriptor](fr)
+              if not fr.response_sent: await fr.respond(None) 
             except Exception as e: logging.error(e, fr, descriptor)
 
 class FetchRequestReceiver(Receiver):

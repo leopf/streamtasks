@@ -190,13 +190,11 @@ class TaskFactoryWorker(Worker, ABC):
     async def delete_task(req: FetchRequest):
       deployment: TaskDeploymentDeleteMessage = TaskDeploymentDeleteMessage.parse_obj(req.body)
       await self.delete_task(deployment)
-      await req.respond(None)
 
     @server.route(TaskFetchDescriptors.DEPLOY_TASK)
     async def deploy_task(req: FetchRequest):
       deployment: TaskDeployment = TaskDeployment.parse_obj(req.body)
       await self.deploy_task(deployment)
-      await req.respond(None)
 
     await server.async_start(self._stop_signal)
 
@@ -296,25 +294,21 @@ class TaskManagerWorker(Worker):
     async def register_task_factory(req: FetchRequest):
       registration: TaskFactoryRegistration = TaskFactoryRegistration.parse_obj(req.body)
       self.task_factory_router.add_task_factory(registration)
-      await req.respond(None)  
 
     @server.route(TaskFetchDescriptors.UNREGISTER_TASK_FACTORY)
     async def unregister_task_factory(req: FetchRequest):
       registration: TaskFactoryDeleteMessage = TaskFactoryDeleteMessage.parse_obj(req.body)
       self.task_factory_router.remove_task_factory(registration.id)
-      await req.respond(None)
 
     @server.route(TaskFetchDescriptors.REGISTER_DASHBOARD)
     async def register_dashboard(req: FetchRequest):
       dashboard: DashboardInfo = DashboardInfo.parse_obj(req.body)
       self.dashboard_router.add_dashboard(dashboard)
-      await req.respond(None)
 
     @server.route(TaskFetchDescriptors.UNREGISTER_DASHBOARD)
     async def unregister_dashboard(req: FetchRequest):
       dashboard: DashboardDeleteMessage = DashboardDeleteMessage.parse_obj(req.body)
       self.dashboard_router.remove_dashboard(dashboard.id)
-      await req.respond(None)
 
   async def _run_dashboard(self, stop_signal: asyncio.Event, client: Client):
     app = FastAPI()

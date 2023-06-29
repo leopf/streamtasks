@@ -51,8 +51,6 @@ class DiscoveryWorker(Worker):
         address=self._address_map.get(request.address_name, None)
       ).dict()))
 
-      await req.respond(None)
-
     @server.route(WorkerFetchDescriptors.RESOLVE_ADDRESS)
     async def resolve_address(req: FetchRequest):
       request: ResolveAddressRequestBody = ResolveAddressRequestBody.parse_obj(req.body)
