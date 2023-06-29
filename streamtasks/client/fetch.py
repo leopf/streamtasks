@@ -4,6 +4,7 @@ from streamtasks.comm.serialization import JsonData
 import asyncio
 from pydantic import BaseModel
 from typing import TYPE_CHECKING, Any, Optional, Callable, Awaitable
+import logging
 if TYPE_CHECKING:
     from streamtasks.client import Client
 
@@ -51,11 +52,12 @@ class FetchReponseReceiver(Receiver):
         except: pass
 
 class FetchServerReceiver(Receiver):
-  _recv_queue: asyncio.Queue[FetchRequest]
+  _recv_queue: asyncio.Queue[tuple[str, FetchRequest]]
   _descriptor_mapping: dict[str, Callable[[FetchRequest], Awaitable[Any]]]
 
   def __init__(self, client: 'Client'):
     super().__init__(client)
+    self._descriptor_mapping = {}
 
   def add_route(self, descriptor: str, func: Callable[[FetchRequest], Awaitable[Any]]): self._descriptor_mapping[descriptor] = func
   def remove_route(self, descriptor: str): self._descriptor_mapping.pop(descriptor, None)
@@ -73,20 +75,19 @@ class FetchServerReceiver(Receiver):
     try:
       fr_message = FetchRequestMessage.parse_obj(a_message.data.data)
       if fr_message.descriptor in self._descriptor_mapping:
-        self._recv_queue.put_nowait(FetchRequest(self._client, fr_message.return_address, fr_message.request_id, fr_message.body))
+        self._recv_queue.put_nowait((fr_message.descriptor, FetchRequest(self._client, fr_message.return_address, fr_message.request_id, fr_message.body)))
     except: pass
 
   async def async_start(self, stop_signal: asyncio.Event):
     self.start_recv()
     while not stop_signal.is_set():
-      if self._recv_queue.empty():
-        await asyncio.sleep(0.1)
+      if self.empty(): await asyncio.sleep(0.001)
       else:
-        fr = await self._recv_queue.get()
-        if fr.descriptor in self._descriptor_mapping:
+        descriptor, fr = await self.get()
+        if descriptor in self._descriptor_mapping:
           try:
-            await self._descriptor_mapping[fr.descriptor](fr)
-          except: pass
+            await self._descriptor_mapping[descriptor](fr)
+          except Exception as e: logging.error(e)
     self.stop_recv()
 
 class FetchRequestReceiver(Receiver):

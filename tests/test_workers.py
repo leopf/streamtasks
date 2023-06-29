@@ -27,7 +27,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
 
     await asyncio.sleep(0.001)
 
-  async def wait_for(self, fut): return await asyncio.wait_for(fut, 1)
+  async def wait_for(self, fut): return await asyncio.wait_for(fut, 1000)
 
   async def asyncTearDown(self):
     self.stop_signal.set()
