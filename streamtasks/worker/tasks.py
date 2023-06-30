@@ -38,7 +38,6 @@ class TaskFactoryDeleteMessage(BaseModel):
 
 class TaskStreamFormat(BaseModel):
   label: str
-  multiple: Optional[bool]
   content_type: Optional[str]
   encoding: Optional[str]
 
@@ -47,11 +46,13 @@ class TaskStream(TaskStreamFormat):
 
 class TaskStreamFormatGroup(BaseModel):
   label: Optional[str]
+  placeholder: Optional[bool]
   inputs: list[TaskStreamFormat]
   outputs: list[TaskStreamFormat]
 
 class TaskStreamGroup(BaseModel):
   label: Optional[str]
+  placeholder: Optional[bool]
   inputs: list[TaskStream]
   outputs: list[TaskStream]
 
@@ -206,7 +207,7 @@ class TaskFactoryWorker(Worker, ABC):
     app = FastAPI()
 
     @app.get("/config.js")
-    async def config_js(): return PlainTextResponse(await self.read_config_script(), media_type="application/javascript")
+    async def config_js(): return PlainTextResponse(self.config_script, media_type="application/javascript")
 
     @app.get("/task-format.json")
     async def task_format(): return self.task_format.dict()
@@ -228,11 +229,11 @@ class TaskFactoryWorker(Worker, ABC):
       else: await task.stop(self.stop_timeout)
     task = await self.create_task(deployment)
     self.tasks[deployment.id] = task
-
+  async def create_client(self) -> Client: return Client(await self.create_connection())
   @abstractproperty
   def task_format(self) -> TaskFormat: return None
-  @abstractmethod
-  async def read_config_script(self) -> str: pass
+  @abstractproperty
+  def config_script(self) -> str: pass
   @abstractmethod
   async def create_task(self, deployment: TaskDeployment) -> Task: pass
 
@@ -261,12 +262,25 @@ class NodeManagerWorker(Worker):
     await self._client.fetch(AddressNames.TASK_MANAGER, TaskFetchDescriptors.REGISTER_DASHBOARD, dashboard.dict())
     return id
 
-class TaskManagerWorker(Worker):
-  def __init__(self, node_id: int, port: int, host: str = "127.0.0.1"):
-    super().__init__(node_id)
-    self.ready = asyncio.Event()
+class ASGIServer(ABC):
+  @abstractmethod
+  async def serve(self, app: ASGIApp): pass
+
+class UvicornASGIServer(ASGIServer):
+  def __init__(self, port: int, host: str = "127.0.0.1"):
+    super().__init__()
     self.port = port
     self.host = host
+  async def serve(self, app: ASGIApp):
+    config = uvicorn.Config(app, port=self.port, host=self.host)
+    server = uvicorn.Server(config)
+    await server.serve()
+
+class TaskManagerWorker(Worker):
+  def __init__(self, node_id: int, asgi_server: ASGIServer):
+    super().__init__(node_id)
+    self.ready = asyncio.Event()
+    self.asgi_server = asgi_server
 
   async def async_start(self, stop_signal: asyncio.Event):
     client = Client(await self.create_connection())
@@ -310,6 +324,8 @@ class TaskManagerWorker(Worker):
       dashboard: DashboardDeleteMessage = DashboardDeleteMessage.parse_obj(req.body)
       self.dashboard_router.remove_dashboard(dashboard.id)
 
+    await server.async_start(stop_signal)
+
   async def _run_dashboard(self, stop_signal: asyncio.Event, client: Client):
     app = FastAPI()
 
@@ -318,6 +334,4 @@ class TaskManagerWorker(Worker):
 
     app.mount(self.dashboard_router.base_url, self.dashboard_router)
 
-    config = uvicorn.Config(app, port=self.port, host=self.host)
-    server = uvicorn.Server(config)
-    await server.serve()
+    await self.asgi_server.serve(app)
