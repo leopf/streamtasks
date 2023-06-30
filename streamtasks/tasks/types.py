@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional, Any
+import itertools
 
 class DashboardInfo(BaseModel):
   label: str
@@ -11,6 +12,10 @@ class DashboardInfo(BaseModel):
 
 class DashboardDeleteMessage(BaseModel):
   id: str
+
+class TaskFactoryInfo(BaseModel):
+  id: str
+  path: str
 
 class TaskFactoryRegistration(BaseModel):
   id: str
@@ -49,16 +54,28 @@ class TaskFormat(BaseModel):
   worker_id: str
   stream_groups: list[TaskStreamFormatGroup]
 
-class TaskDeployment(BaseModel):
-  id: str
+class TaskDeploymentBase(BaseModel):
   task_factory_id: str
   label: str
   config: Any
   stream_groups: list[TaskStreamGroup]
+
+  def get_topic_ids(self) -> set[str]:
+    for stream_group in self.stream_groups:
+      for stream in itertools.chain(stream_group.inputs, stream_group.outputs):
+        yield stream.topic_id
+
+class TaskDeployment(TaskDeploymentBase):
+  id: str
   topic_id_map: dict[str, int]
 
 class TaskDeploymentDeleteMessage(BaseModel):
   id: str
+
+class Deployment(BaseModel):
+  id: str
+  tasks: list[TaskDeployment]
+  status: str 
 
 class TaskFetchDescriptors:
   REGISTER_TASK_FACTORY = "register_task_factory"

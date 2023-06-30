@@ -9,15 +9,18 @@ from streamtasks.client import Client
 from streamtasks.asgi import *
 from streamtasks.worker import Worker
 from streamtasks.tasks.task import Task
-from streamtasks.tasks.types import TaskDeployment, TaskDeploymentDeleteMessage, TaskFactoryRegistration, TaskFactoryDeleteMessage, DashboardInfo, DashboardDeleteMessage
+from streamtasks.tasks.types import *
+from streamtasks.tasks.helpers import *
 from uuid import uuid4
 import urllib.parse
 from fastapi.responses import PlainTextResponse
 from fastapi import FastAPI
+import itertools
 
 
 class TaskFactoryWorker(Worker, ABC):
-  def __init__(self):
+  def __init__(self, node_id: int):
+    super().__init__(node_id)
     self.id = str(uuid4())
     self.tasks = {}
     self.ready = asyncio.Event()
@@ -40,6 +43,7 @@ class TaskFactoryWorker(Worker, ABC):
     await self._client.request_address()
     await self._client.wait_for_address_name(AddressNames.TASK_MANAGER)
     self.reg = TaskFactoryRegistration(id=self.id, worker_address=self._client.default_address)
+    await self._client.fetch(AddressNames.TASK_MANAGER, TaskFetchDescriptors.REGISTER_TASK_FACTORY, self.reg.dict())
     self.ready.set()
 
   async def _run_fetch_server(self):
@@ -61,8 +65,6 @@ class TaskFactoryWorker(Worker, ABC):
 
   async def _run_dashboard(self):
     await self.ready.wait()
-
-    await self._client.fetch(AddressNames.TASK_MANAGER, TaskFetchDescriptors.REGISTER_TASK_FACTORY, self.reg.dict())
 
     app = FastAPI()
 
@@ -91,7 +93,7 @@ class TaskFactoryWorker(Worker, ABC):
     self.tasks[deployment.id] = task
   async def create_client(self) -> Client: return Client(await self.create_connection())
   @abstractproperty
-  def task_format(self) -> TaskFormat: return None
+  def task_format(self) -> TaskFormat: pass
   @abstractproperty
   def config_script(self) -> str: pass
   @abstractmethod
@@ -128,6 +130,11 @@ class TaskManagerWorker(Worker):
     self.ready = asyncio.Event()
     self.asgi_server = asgi_server
 
+    self.deployments = {}
+
+    self.dashboard_router = None
+    self.task_factory_router = None
+
   async def async_start(self, stop_signal: asyncio.Event):
     client = Client(await self.create_connection())
     self.dashboard_router = ASGIDashboardRouter(client, "/dashboard/")
@@ -135,7 +142,7 @@ class TaskManagerWorker(Worker):
 
     await asyncio.gather(
       self._setup(client),
-      self._run_dashboard(stop_signal, client),
+      self._run_web_server(stop_signal, client),
       super().async_start(stop_signal)
     )
 
@@ -143,8 +150,8 @@ class TaskManagerWorker(Worker):
     await self.running.wait()
     await client.wait_for_topic_signal(WorkerTopics.DISCOVERY_SIGNAL)
     await client.request_address()
-    await client.register_address_name(AddressNames.TASK_MANAGER)
     self.ready.set()
+    await client.register_address_name(AddressNames.TASK_MANAGER)
 
   async def _run_fetch_server(self, stop_signal: asyncio.Event, client: Client):
     await self.ready.wait()
@@ -172,12 +179,88 @@ class TaskManagerWorker(Worker):
 
     await server.async_start(stop_signal)
 
-  async def _run_dashboard(self, stop_signal: asyncio.Event, client: Client):
+  async def _run_web_server(self, stop_signal: asyncio.Event, client: Client):
+    await self.ready.wait()
     app = FastAPI()
 
     @app.get("/dashboards")
     def list_dashboards(): return self.dashboard_router.list_dashboards()
-
     app.mount(self.dashboard_router.base_url, self.dashboard_router)
 
+    @app.get("/api/deployment/{id}/status")
+    def get_deployment_status(id: str):
+      deployment = self.deployments.get(id, None)
+      if deployment is None: raise HTTPException(status_code=404, detail="not found")
+      return deployment.status
+
+    @app.post("/api/deployment/{id}/stop")
+    async def stop_deployment(id: str):
+      deployment = self.deployments.get(id, None)
+      if deployment is None: raise HTTPException(status_code=404, detail="not found")
+      asyncio.create_task(self.stop_deployment(client, deployment))
+      return deployment.dict()
+
+    @app.post("/api/deployment/{id}/start")
+    async def start_deployment(id: str):
+      deployment = self.deployments.get(id, None)
+      if deployment is None: raise HTTPException(status_code=404, detail="not found")
+      asyncio.create_task(self.start_deployment(client, deployment))
+      return deployment.dict()
+
+    @app.delete("/api/deployment/{id}")
+    async def delete_deployment(id: str):
+      deployment = self.deployments.get(id, None)
+      if deployment is None: raise HTTPException(status_code=404, detail="not found")
+      asyncio.create_task(self.stop_deployment(client, deployment))
+      del self.deployments[id]
+      return deployment.dict()
+
+    @app.get("/api/deployment/{id}")
+    async def get_deployment(id: str):
+      deployment = self.deployments.get(id, None)
+      if deployment is None: raise HTTPException(status_code=404, detail="not found")
+      return deployment.dict()
+
+    @app.post("/api/deployment")
+    async def create_deployment(tasks: list[TaskDeploymentBase]):
+      topic_str_ids = set(itertools.chain.from_iterable(task.get_topic_ids() for task in tasks))
+      topic_int_ids = await client.request_topic_ids(len(topic_str_ids))
+      topic_id_map = { topic_str_id: topic_int_id for topic_str_id, topic_int_id in zip(topic_str_ids, topic_int_ids) }
+      deployment = Deployment(id=str(uuid4()), status="offline", tasks=[ TaskDeployment(
+        id=str(uuid4()),
+        topic_id_map={ k: topic_id_map[k] for k in set(deployment.get_topic_ids()) },
+        **deployment.dict()
+      ) for deployment in tasks ])
+
+      self.deployments[deployment.id] = deployment
+      return deployment.dict()
+    
     await self.asgi_server.serve(app)
+
+  async def _stop_task_deployments(self, client: Client, tasks: list[TaskDeployment]):
+    for task in tasks:
+      factory: TaskFactoryRegistration = self.task_factory_router.get_task_factory(task.task_factory_id)
+      if factory is None: 
+        logging.error(f"task factory {task.task_factory_id} not found while deleting deployment {task.id}")
+        continue
+      await client.fetch(factory.worker_address, TaskFetchDescriptors.DELETE_TASK, TaskDeploymentDeleteMessage(id=task.id).dict())
+  
+  async def stop_deployment(self, client: Client, deployment: Deployment):
+    await self._stop_task_deployments(client, deployment.tasks)
+    deployment.status = "stopped"
+
+  async def start_deployment(self, client: Client, deployment: Deployment):
+    deployment.status = "starting"
+    deployed_tasks = []
+    try:
+      for task in deployment.tasks:
+        factory: TaskFactoryRegistration = self.task_factory_router.get_task_factory(task.task_factory_id)
+        if factory is None: raise RuntimeError(f"task factory {task.task_factory_id} not found!")
+        await client.fetch(factory.worker_address, TaskFetchDescriptors.DEPLOY_TASK, task.dict())
+        deployed_tasks.append(task)
+    except Exception as e:
+      logging.error(f"failed to deploy tasks for deployment {deployment.id}: {e}")
+      await self._stop_task_deployments(client, deployed_tasks)
+      deployment.status = "failed"
+      return
+    deployment.status = "running"

@@ -10,9 +10,9 @@ import urllib.parse
 import uvicorn
 import re
 import asyncio
-from httpx import AsyncClient
+import httpx
 
-def asgi_app_not_found(scope, receive, send):
+async def asgi_app_not_found(scope, receive, send):
   await send({"type": "http.response.start", "status": 404})
   await send({"type": "http.response.body", "body": b"404 Not Found"})
 
@@ -80,15 +80,26 @@ class ASGITaskFactoryRouter(ASGIRouterBase):
   def __init__(self, client: Client, base_url: str):
     super().__init__(base_url)
     self.client = client
+    self._task_factory_apps = {}
     self._task_factories = {}
+    self._task_facotry_infos = {}
 
-  def remove_task_factory(self, id: str): self._task_factories.pop(id, None)
+  def remove_task_factory(self, id: str): 
+    self._task_factories.pop(id, None)
+    self._task_facotry_infos.pop(id, None)
+    self._task_factory_apps.pop(id, None)
+
   def add_task_factory(self, task_factory: TaskFactoryRegistration):
     proxy_app = ASGIProxyApp(self.client, task_factory.worker_address, task_factory.web_init_descriptor, self.client.default_address)
     tf_base_url = f"/{urllib.parse.quote(task_factory.id)}"
     path_pattern = fnmatch.translate(f"{tf_base_url}/**")
-    self._task_factories[task_factory.id] = (path_pattern, proxy_app, tf_base_url)
+    self._task_factory_apps[task_factory.id] = (path_pattern, proxy_app)
+    self._task_factories[task_factory.id] = task_factory
+    self._task_facotry_infos[task_factory.id] = TaskFactoryInfo(id=task_factory.id, path=urllib.parse.urljoin(self.base_url, tf_base_url))
 
-  def list_task_factories(self): return [ { "id": id, "path": urllib.parse.urljoin(self.base_url, data[2]) } for id, data in self._task_factories.items()]
-  def list_apps(self) -> Iterable[tuple[re.Pattern, ASGIApp]]: return [(path_pattern, app) for (path_pattern, app, _) in self._task_factories.values()]
+  def get_task_factory(self, id: str) -> Optional[TaskFactoryRegistration]: 
+    return self._task_factories.get(id, None)
+
+  def list_task_factory_infos(self): return self._task_facotry_infos.values()
+  def list_apps(self) -> Iterable[tuple[re.Pattern, ASGIApp]]: return self._task_factories.values()
 
