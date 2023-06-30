@@ -1,160 +1,20 @@
-from streamtasks.worker import Worker
-from streamtasks.client import Client
-from streamtasks.protocols import *
-from streamtasks.asgi import *
-import fnmatch
-import re
 import asyncio
 from abc import ABC, abstractmethod, abstractproperty
 from typing import Iterable
-from pydantic import BaseModel
-import urllib.parse
-from fastapi import FastAPI
-from fastapi.responses import PlainTextResponse
+from streamtasks.asgi import ASGIApp
 import uvicorn
+import re
+from streamtasks.protocols import *
+from streamtasks.client import Client
+from streamtasks.asgi import *
+from streamtasks.worker import Worker
+from streamtasks.tasks.task import Task
+from streamtasks.tasks.types import TaskDeployment, TaskDeploymentDeleteMessage, TaskFactoryRegistration, TaskFactoryDeleteMessage, DashboardInfo, DashboardDeleteMessage
 from uuid import uuid4
-import logging
+import urllib.parse
+from fastapi.responses import PlainTextResponse
+from fastapi import FastAPI
 
-class DashboardInfo(BaseModel):
-  label: str
-  id: str
-  address: int
-
-  @property
-  def web_init_descriptor(self) -> str: return f"task_factory_{self.id}_web"
-
-class DashboardDeleteMessage(BaseModel):
-  id: str
-
-class TaskFactoryRegistration(BaseModel):
-  id: str
-  worker_address: int
-
-  @property
-  def web_init_descriptor(self) -> str: return f"task_factory_{self.id}_web"
-
-class TaskFactoryDeleteMessage(BaseModel):
-  id: str
-
-class TaskStreamFormat(BaseModel):
-  label: str
-  content_type: Optional[str]
-  encoding: Optional[str]
-
-class TaskStream(TaskStreamFormat):
-  topic_id: str
-
-class TaskStreamFormatGroup(BaseModel):
-  label: Optional[str]
-  placeholder: Optional[bool]
-  inputs: list[TaskStreamFormat]
-  outputs: list[TaskStreamFormat]
-
-class TaskStreamGroup(BaseModel):
-  label: Optional[str]
-  placeholder: Optional[bool]
-  inputs: list[TaskStream]
-  outputs: list[TaskStream]
-
-class TaskFormat(BaseModel):
-  task_factory_id: str
-  label: str
-  hostname: str
-  worker_id: str
-  stream_groups: list[TaskStreamFormatGroup]
-
-class TaskDeployment(BaseModel):
-  id: str
-  task_factory_id: str
-  label: str
-  config: Any
-  stream_groups: list[TaskStreamGroup]
-  topic_id_map: dict[str, int]
-
-class TaskDeploymentDeleteMessage(BaseModel):
-  id: str
-
-class TaskFetchDescriptors:
-  REGISTER_TASK_FACTORY = "register_task_factory"
-  UNREGISTER_TASK_FACTORY = "unregister_task_factory"
-  DEPLOY_TASK = "deploy_task"
-  DELETE_TASK = "delete_task"
-  REGISTER_DASHBOARD = "register_dashboard"
-  UNREGISTER_DASHBOARD = "unregister_dashboard"
-
-def asgi_app_not_found(scope, receive, send):
-  await send({"type": "http.response.start", "status": 404})
-  await send({"type": "http.response.body", "body": b"404 Not Found"})
-
-class ASGIRouterBase(ABC):
-  def __init__(self, base_url: str):
-    self.base_url = base_url
-
-  @abstractmethod
-  def list_apps(self) -> Iterable[tuple[re.Pattern, ASGIApp]]: pass
-
-  async def __call__(self, scope, receive, send):
-    if "path" in scope: 
-      req_path = scope["path"].decode("utf-8")
-      found_app = next((app for (path_pattern, app) in self.list_apps() if path_pattern.match(req_path)), None)
-      if found_app:
-        return await found_app(scope, receive, send)
-    await asgi_app_not_found(scope, receive, send)
-
-
-class ASGIDashboardRouter(ASGIRouterBase):
-  def __init__(self, client: Client, base_url: str):
-    super().__init__(base_url)
-    self.client = client
-    self._dashboards = {}
-
-  def remove_dashboard(self, id: str): self._dashboards.pop(id, None)
-  def add_dashboard(self, dashboard: DashboardInfo):
-    proxy_app = ASGIProxyApp(self.client, dashboard.address, dashboard.web_init_descriptor, self.client.default_address)
-    db_base_url = f"/{urllib.parse.quote(dashboard.id)}"
-    path_pattern = fnmatch.translate(f"{db_base_url}/**") # TODO: is this good enough?
-    self._dashboards[dashboard.id] = (path_pattern, proxy_app, db_base_url, dashboard.label)
-
-  def list_dashboards(self):
-    return [ { "key": key, "path": urllib.parse.urljoin(self.base_url, data[2]), "label": data[3] } for key, data in self._dashboards.items()]
-  def list_apps(self) -> Iterable[tuple[re.Pattern, ASGIApp]]:
-    return [(path_pattern, app) for (path_pattern, app, _, _) in self._dashboards.values()]
-
-class ASGITaskFactoryRouter(ASGIRouterBase):
-  def __init__(self, client: Client, base_url: str):
-    super().__init__(base_url)
-    self.client = client
-    self._task_factories = {}
-
-  def remove_task_factory(self, id: str): self._task_factories.pop(id, None)
-  def add_task_factory(self, task_factory: TaskFactoryRegistration):
-    proxy_app = ASGIProxyApp(self.client, task_factory.worker_address, task_factory.web_init_descriptor, self.client.default_address)
-    tf_base_url = f"/{urllib.parse.quote(task_factory.id)}"
-    path_pattern = fnmatch.translate(f"{tf_base_url}/**")
-    self._task_factories[task_factory.id] = (path_pattern, proxy_app, tf_base_url)
-
-  def list_task_factories(self): return [ { "id": id, "path": urllib.parse.urljoin(self.base_url, data[2]) } for id, data in self._task_factories.items()]
-  def list_apps(self) -> Iterable[tuple[re.Pattern, ASGIApp]]: return [(path_pattern, app) for (path_pattern, app, _) in self._task_factories.values()]
-
-class Task(ABC):
-  def __init__(self):
-    self._task = None
-    self._stop_signal = asyncio.Event()
-    self.app = asgi_app_not_found
-
-  def can_update(self, deployment: TaskDeployment): return False
-  async def update(self, deployment: TaskDeployment): pass
-  async def stop(self, timeout: float = None): 
-    if self._task is None: raise RuntimeError("Task not started")
-    self._stop_signal.set()
-    try: await asyncio.wait_for(self._task, timeout=timeout)
-    except asyncio.TimeoutError: pass
-  async def start(self):
-    if self._task is not None: raise RuntimeError("Task already started")
-    self._task = asyncio.create_task(self._run(self._stop_signal))
-
-  @abstractmethod
-  async def async_start(self, stop_signal: asyncio.Event): pass
 
 class TaskFactoryWorker(Worker, ABC):
   def __init__(self):
@@ -261,20 +121,6 @@ class NodeManagerWorker(Worker):
     self.async_tasks.append(asyncio.create_task(runner.async_start(self._stop_signal)))
     await self._client.fetch(AddressNames.TASK_MANAGER, TaskFetchDescriptors.REGISTER_DASHBOARD, dashboard.dict())
     return id
-
-class ASGIServer(ABC):
-  @abstractmethod
-  async def serve(self, app: ASGIApp): pass
-
-class UvicornASGIServer(ASGIServer):
-  def __init__(self, port: int, host: str = "127.0.0.1"):
-    super().__init__()
-    self.port = port
-    self.host = host
-  async def serve(self, app: ASGIApp):
-    config = uvicorn.Config(app, port=self.port, host=self.host)
-    server = uvicorn.Server(config)
-    await server.serve()
 
 class TaskManagerWorker(Worker):
   def __init__(self, node_id: int, asgi_server: ASGIServer):
