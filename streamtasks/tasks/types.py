@@ -69,6 +69,15 @@ class TaskDeployment(TaskDeploymentBase):
   id: str
   topic_id_map: dict[str, int]
 
+class TaskDeploymentStatus(BaseModel):
+  running: bool
+  error: Optional[str]
+
+  def validate_running(self, running: bool):
+    if self.error is not None: raise Exception(f"task errored: {self.error}")
+    if running and not self.running: raise Exception("task not running")
+    if not running and self.running: raise Exception("task running but should not be")
+
 class TaskDeploymentDeleteMessage(BaseModel):
   id: str
 

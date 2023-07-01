@@ -11,7 +11,7 @@ import json
 
 class CounterEmitTask(Task):
   def __init__(self, client: Client, deployment: TaskDeployment):
-    super().__init__(client, deployment)
+    super().__init__(client)
     self.counter = deployment.config["initial_count"] if "initial_count" in deployment.config else 0
     self.topic_id_map = deployment.topic_id_map
     assert len(deployment.stream_groups) == 1
@@ -19,14 +19,16 @@ class CounterEmitTask(Task):
     assert len(deployment.stream_groups[0].outputs) == 1
     self.output_stream_id = deployment.stream_groups[0].outputs[0].topic_id
   async def async_start(self, stop_signal: asyncio.Event):
-    while not stop_signal.is_set():
-      await asyncio.sleep(0.001)
-      self.counter += 1
-      await self.client.send_stream_data(self.topic_id_map[self.output_stream_id], MessagePackData({ "count": self.counter }))
+    output_topic_id = self.topic_id_map[self.output_stream_id]
+    async with self.client.provide_context([ output_topic_id ]):
+      while not stop_signal.is_set():
+        await asyncio.sleep(0.001)
+        self.counter += 1
+        await self.client.send_stream_data(output_topic_id, MessagePackData({ "count": self.counter }))
 
 class CounterIncrementTask(Task):
   def __init__(self, client: Client, deployment: TaskDeployment):
-    super().__init__(client, deployment)
+    super().__init__(client)
     self.topic_id_map = deployment.topic_id_map
     assert len(deployment.stream_groups) == 1
     assert len(deployment.stream_groups[0].inputs) == 1
@@ -35,15 +37,17 @@ class CounterIncrementTask(Task):
     self.output_stream_id = deployment.stream_groups[0].outputs[0].topic_id
   async def async_start(self, stop_signal: asyncio.Event):
     input_topic_id = self.topic_id_map[self.input_stream_id]
-    async with self.client.get_topics_receiver([ input_topic_id ]) as receiver:
-      while not stop_signal.is_set():
-        await asyncio.sleep(0.001)
-        topic_id, data, _ = await receiver.recv()
-        assert topic_id == input_topic_id
-        assert "count" in data.data
-        count = data.data["count"]
-        assert isinstance(count, int)
-        await self.client.send_stream_data(self.topic_id_map[self.output_stream_id], MessagePackData({ "count": count + 1 }))
+    output_topic_id = self.topic_id_map[self.output_stream_id]
+    async with self.client.provide_context([ output_topic_id ]):
+      async with self.client.get_topics_receiver([ input_topic_id ]) as receiver:
+        while not stop_signal.is_set():
+          await asyncio.sleep(0.001)
+          topic_id, data, _ = await receiver.recv()
+          assert topic_id == input_topic_id
+          assert "count" in data.data
+          count = data.data["count"]
+          assert isinstance(count, int)
+          await self.client.send_stream_data(output_topic_id, MessagePackData({ "count": count + 1 }))
 
 class TestTaskFactoryWorker(TaskFactoryWorker):
   @property
@@ -52,10 +56,10 @@ class TestTaskFactoryWorker(TaskFactoryWorker):
   def config_script(self): return ""
 
 class CounterIncrementTaskFactory(TestTaskFactoryWorker):
-  def create_task(self, client: Client, deployment: TaskDeployment) -> Task: return CounterIncrementTask(client, deployment)
+  async def create_task(self, deployment: TaskDeployment) -> Task: return CounterIncrementTask(await self.create_client(), deployment)
 
 class CounterEmitTaskFactory(TestTaskFactoryWorker):
-  def create_task(self, client: Client, deployment: TaskDeployment) -> Task: return CounterEmitTask(client, deployment)
+  async def create_task(self, deployment: TaskDeployment) -> Task: return CounterEmitTask(await self.create_client(), deployment)
 
 class TestTasks(unittest.IsolatedAsyncioTestCase):
   node: LocalNode
@@ -80,12 +84,15 @@ class TestTasks(unittest.IsolatedAsyncioTestCase):
     for task in self.tasks: await task
 
   async def setup_worker(self, worker: Worker):
+    if hasattr(worker, "stop_timeout"): worker.stop_timeout = 0.1
     await worker.set_node_connection(await self.node.create_connection(raw=True))
-    self.tasks.append(asyncio.create_task(worker.async_start(self.stop_signal)))
+    task = asyncio.create_task(worker.async_start(self.stop_signal))
+    self.tasks.append(task)
+    await worker.connected.wait()
+    return task
 
   async def test_counter(self):
     managment_server = ASGITestServer()
-    
     management_worker = TaskManagerWorker(0, managment_server)
     await self.setup_worker(management_worker)
 
@@ -113,7 +120,10 @@ class TestTasks(unittest.IsolatedAsyncioTestCase):
       )
     ]
 
+    await counter_emit_worker.wait_idle()
+    await counter_increment_worker.wait_idle()
     web_client = await managment_server.wait_for_client()
+
     result = await web_client.post("/api/deployment", content=json.dumps([ deployment.dict() for deployment in deployments]))
     deployment: Deployment = Deployment.parse_obj(result.json())
     self.assertEqual(len(deployment.tasks), 2)
@@ -123,10 +133,13 @@ class TestTasks(unittest.IsolatedAsyncioTestCase):
     result_topic_id = deployment.tasks[1].topic_id_map["increment"]
     async with client.get_topics_receiver([ result_topic_id ]) as receiver:
       await web_client.post(f"/api/deployment/{deployment.id}/start")
-      for i in range(2, 6):
+      topic_id, data, _ = await receiver.recv()
+      last_value = data.data["count"]
+      for _ in range(5):
         topic_id, data, _ = await receiver.recv()
         self.assertEqual(topic_id, result_topic_id)
-        self.assertEqual(data.data["count"], i)
+        self.assertEqual(data.data["count"], last_value + 1)
+        last_value = data.data["count"]
 
 
 if __name__ == "__main__":

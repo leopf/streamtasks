@@ -3,7 +3,7 @@ from typing import Iterable
 from streamtasks.asgi import ASGIApp
 from streamtasks.client import Client
 from streamtasks.protocols import *
-from streamtasks.tasks.types import TaskFactoryRegistration, DashboardInfo
+from streamtasks.tasks.types import TaskFactoryRegistration, DashboardInfo, TaskFactoryInfo
 from streamtasks.asgi import *
 import fnmatch
 import urllib.parse

@@ -30,7 +30,7 @@ class DiscoveryWorker(Worker):
       )
 
   async def _run_lighthouse(self, stop_signal: asyncio.Event, client: Client):
-    await self.running.wait()
+    await self.connected.wait()
     await client.send_stream_control(WorkerTopics.DISCOVERY_SIGNAL, TopicControlData(False)) # NOTE: not sure if i want this...
     while not stop_signal.is_set():
       await client.send_stream_data(WorkerTopics.DISCOVERY_SIGNAL, TextData("running"))
