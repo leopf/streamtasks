@@ -1,5 +1,5 @@
 from streamtasks.task import Task, TaskFactoryWorker, TaskDeployment, TaskFormat, TaskStreamFormatGroup, TaskStreamFormat
-from streamtasks.client import Client
+from streamtasks.client import Client, SubscribeTracker, ProvideTracker
 from streamtasks.comm.serialization import SerializableData
 import socket
 from pydantic import BaseModel
@@ -23,27 +23,24 @@ def get_timestamp_from_message(data: SerializableData) -> int:
 class GateTask(Task):
   def __init__(self, client: Client, deployment: TaskDeployment):
     super().__init__(client)
-    self.restart = asyncio.Event()
-    self._set_deployment(deployment)
+    self.input_topic = SubscribeTracker(client, None)
+    self.gate_topic = SubscribeTracker(client, None)
+    self.output_topic = ProvideTracker(client, None)
+    self.deployment = deployment
     self.stop_stream_after_timestamp = None
 
   def can_update(self, deployment: TaskDeployment): return True
-  async def update(self, deployment: TaskDeployment):
-    self._set_deployment(deployment)
-    self.restart.set()
+  async def update(self, deployment: TaskDeployment): 
+    self.deployment = deployment
+    await self._apply_deployment(deployment)
 
   async def async_start(self, stop_signal: asyncio.Event):
-    while not stop_signal.is_set():
-      await self._run(stop_signal)
-      self.restart.clear()
-
-  async def _run(self, stop_signal: asyncio.Event):
-    async with self.client.provide([ self.output_topic_id ]):
-      async with self.client.get_topics_receiver([ self.input_topic_id, self.gate_topic_id ]) as receiver:
-        while not stop_signal.is_set() and not self.restart.is_set():
-          topic_id, data, _ = await receiver.recv()
-          if topic_id == self.gate_topic_id: await self._process_gate_message(data)
-          elif topic_id == self.input_topic_id: await self._process_input_message(data)
+    await self._apply_deployment()
+    async with self.client.get_topics_receiver([ self.input_topic_id, self.gate_topic_id ], subscribe=False) as receiver:
+      while not stop_signal.is_set():
+        topic_id, data, _ = await receiver.recv()
+        if topic_id == self.gate_topic.topic: await self._process_gate_message(data)
+        elif topic_id == self.input_topic.topic: await self._process_input_message(data)
 
   async def _process_input_message(self, data: SerializableData):
     try:
@@ -61,11 +58,12 @@ class GateTask(Task):
     except:
       if not self.fail_closed: self.stop_stream_after_timestamp = None
 
-  async def _set_deployment(self, deployment: TaskDeployment):
-    self.input_topic_id = deployment.topic_id_map[deployment.stream_groups[0].inputs[0].topic_id]
-    self.gate_topic_id = deployment.topic_id_map[deployment.stream_groups[0].inputs[1].topic_id]
-    self.output_topic_id = deployment.topic_id_map[deployment.stream_groups[0].outputs[0].topic_id]
-    self.fail_closed = bool(deployment.config.get("fail_closed", False))
+  async def _apply_deployment(self):
+    topic_id_map = self.deployment.topic_id_map
+    await self.input_topic.set_topic(topic_id_map[self.deployment.stream_groups[0].inputs[0].topic_id])
+    await self.gate_topic.set_topic(topic_id_map[self.deployment.stream_groups[0].inputs[1].topic_id])
+    await self.output_topic.set_topic(topic_id_map[self.deployment.stream_groups[0].outputs[0].topic_id])
+    self.fail_closed = bool(self.deployment.config.get("fail_closed", False))
 
 class GateTaskFactoryWorker(TaskFactoryWorker):
   async def create_task(self, deployment: TaskDeployment): return GateTask(await self.create_client(), deployment)

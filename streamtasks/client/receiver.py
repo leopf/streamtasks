@@ -95,15 +95,18 @@ class TopicsReceiver(Receiver):
   _control_data: dict[int, TopicControlData]
   _recv_queue: asyncio.Queue[tuple[int, Optional[Any], Optional[TopicControlData]]]
 
-  def __init__(self, client: 'Client', topics: set[int]):
+  def __init__(self, client: 'Client', topics: set[int], subscribe: bool = True):
     super().__init__(client)
     self._topics = topics
     self._control_data = {}
+    self._subscribe = subscribe
     
   def get_control_data(self, topic: int): return self._control_data.get(topic, None)
 
-  async def _on_start_recv(self): await self._client.subscribe(self._topics)
-  async def _on_stop_recv(self): await self._client.unsubscribe(self._topics)
+  async def _on_start_recv(self): 
+    if self._subscribe: await self._client.subscribe(self._topics)
+  async def _on_stop_recv(self): 
+    if self._subscribe: await self._client.unsubscribe(self._topics)
 
   def on_message(self, message: Message):
     if isinstance(message, TopicDataMessage) and message.topic in self._topics:

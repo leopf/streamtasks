@@ -14,16 +14,33 @@ class SubscibeContext:
     self._topics = topics
   async def __aenter__(self): await self._client.subscribe(self._topics)
   async def __aexit__(self, *args): await self._client.unsubscribe(self._topics)
-
 class ProvideContext:
   def __init__(self, client: 'Client', topics: Iterable[int]):
     self._client = client
     self._topics = topics
-  async def __aenter__(self): 
-    await self._client.provide(self._topics)
-    return self
-  async def __aexit__(self, *args):
-    await self._client.unprovide(self._topics)
+  async def __aenter__(self): await self._client.provide(self._topics)
+  async def __aexit__(self, *args): await self._client.unprovide(self._topics)
+
+class SubscribeTracker:
+  def __init__(self, client: 'Client'):
+    self._client = client
+    self._topic = None
+  @property
+  def topic(self): return self._topic
+  async def set_topic(self, topic: int): 
+    if self._topic is not None: await self._client.unsubscribe([ self._topic ])
+    self._topic = topic
+    if self._topic is not None: await self._client.subscribe([ self._topic ])
+class ProvideTracker:
+  def __init__(self, client: 'Client'):
+    self._client = client
+    self._topic = None
+  @property
+  def topic(self): return self._topic
+  async def set_topic(self, topic: int):
+    if self._topic is not None: await self._client.unprovide([ self._topic ])
+    self._topic = topic
+    if self._topic is not None: await self._client.provide([ self._topic ])
 
 class Client:
   _connection: Connection
@@ -52,7 +69,7 @@ class Client:
   @property
   def default_address(self): return next(iter(self._addresses), None)
 
-  def get_topics_receiver(self, topics: Iterable[int]): return TopicsReceiver(self, set(topics))
+  def get_topics_receiver(self, topics: Iterable[int], subscribe: bool = True): return TopicsReceiver(self, set(topics), subscribe)
   def get_address_receiver(self, addresses: Iterable[int]): return AddressReceiver(self, set(addresses))
   def get_fetch_request_receiver(self, descriptor: str): return FetchRequestReceiver(self, descriptor)
   def create_fetch_server(self): return FetchServerReceiver(self)
