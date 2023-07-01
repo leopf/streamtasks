@@ -2,6 +2,7 @@ from streamtasks.message.data import Serializer, CustomData
 from streamtasks.message.structures import MediaPacket
 import fastavro
 from io import BytesIO
+from typing import Any, Union
 
 """
 The core system uses the namespace 1000-1999 for content ids.
@@ -30,8 +31,9 @@ class MediaPacketSerializer(Serializer):
   def deserialize(self, data: bytes) -> Any:
     stream = BytesIO(data)
     return MediaPacket(**fastavro.schemaless_reader(stream, self.avro_schema))
-
 class MediaPacketData(CustomData):
   def __init__(self, data: Union[Any, bytes]): super().__init__(data, MediaPacketSerializer())
-def get_core_serializers() -> List[Serializer]:
-  return [MediaPacketSerializer()]
+
+def get_core_serializers() -> dict[int, Serializer]:
+  l = [MediaPacketSerializer()]
+  return { serializer.content_id: serializer for serializer in l }

@@ -64,7 +64,7 @@ class CustomData(SerializableData):
   def __init__(self, data: Union[Any, bytes], serializer: Optional[Serializer]=None):
     self.serializer = serializer
     if isinstance(data, bytes):
-      self._content_id = struct.unpack("<H", data[:2])
+      self._content_id = struct.unpack("<H", data[:2])[0]
       super().__init__(data[2:])
     else:
       self._content_id = None
@@ -83,7 +83,7 @@ class CustomData(SerializableData):
     assert self.serializer is not None, "CustomData serializer not set"
     return struct.pack("<H", self.content_id) + self.serializer.serialize(self.data)
 
-def data_from_serialization_type(data: bytes, t: SerializationType):
+def data_from_serialization_type(data: bytes, t: SerializationType) -> SerializableData:
   if t == SerializationType.JSON: return JsonData(data)
   elif t == SerializationType.MSGPACK: return MessagePackData(data)
   elif t == SerializationType.TEXT: return TextData(data)
