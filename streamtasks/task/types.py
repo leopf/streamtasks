@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, Any
+from typing import Optional, Any, Union
 import itertools
 
 class DashboardInfo(BaseModel):
@@ -51,13 +51,12 @@ class TaskFormat(BaseModel):
   task_factory_id: str
   label: str
   hostname: str
-  worker_id: str
   stream_groups: list[TaskStreamFormatGroup]
 
 class TaskDeploymentBase(BaseModel):
   task_factory_id: str
   label: str
-  config: Any
+  config: dict[str, Any]
   stream_groups: list[TaskStreamGroup]
 
   def get_topic_ids(self) -> set[str]:

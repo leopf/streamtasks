@@ -115,7 +115,7 @@ class TestTasks(unittest.IsolatedAsyncioTestCase):
       TaskDeploymentBase(
         task_factory_id=counter_increment_worker.id,
         label="increment",
-        config=None,
+        config={},
         stream_groups=[TaskStreamGroup(inputs=[TaskStream(label="value in",topic_id="emit")], outputs=[TaskStream(label="value out",topic_id="increment")])]
       )
     ]
