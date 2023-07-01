@@ -61,8 +61,8 @@ class CustomData(SerializableData):
   serializer: Optional[Serializer]
   _content_id: Optional[int]
   
-  def __init__(self, data: Union[Any, bytes]):
-    self.serializer = None
+  def __init__(self, data: Union[Any, bytes], serializer: Optional[Serializer]=None):
+    self.serializer = serializer
     if isinstance(data, bytes):
       self._content_id = struct.unpack("<H", data[:2])
       super().__init__(data[2:])

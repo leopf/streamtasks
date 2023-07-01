@@ -30,6 +30,8 @@ class MediaPacket:
 
   @property
   def dts(self): return self.pts - self.rel_dts if self.rel_dts is not None and self.pts is not None else None
-
   @property
   def size(self): return len(self.data) + 20
+  def as_dict(self): return self.__dict__
+  @staticmethod
+  def from_dict(d: dict): return MediaPacket(**d)
