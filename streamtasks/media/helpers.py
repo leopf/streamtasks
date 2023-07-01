@@ -1,4 +1,4 @@
-from streamtasks.message.packets import MediaPacket
+from streamtasks.message import MediaPacket
 from streamtasks.media.config import *
 import av
 

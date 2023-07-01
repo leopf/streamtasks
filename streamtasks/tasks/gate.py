@@ -1,24 +1,15 @@
 from streamtasks.task import Task, TaskFactoryWorker, TaskDeployment, TaskFormat, TaskStreamFormatGroup, TaskStreamFormat
 from streamtasks.client import Client
 from streamtasks.message.data import SerializableData
+from streamtasks.message import NumberMessage
 import socket
 from pydantic import BaseModel
 import asyncio
 import logging
 
-class NumberMessage(BaseModel):
-  value: float
-  timestamp: int
 
-def get_timestamp_from_message(data: SerializableData) -> int:
-  content = data.data
-  timestamp = None
-  if isinstance(content, dict) and "timestamp" in content: timestamp = content["timestamp"]
-  elif isinstance(content.timestamp, int): timestamp = content.timestamp
-  else: raise Exception(f"could not get timestamp from message: {data}")
-  if isinstance(timestamp, int): return timestamp
-  if isinstance(timestamp, float): return int(timestamp)
-  raise Exception(f"could not get timestamp from message: {data}")
+
+
 
 class GateTask(Task):
   def __init__(self, client: Client, deployment: TaskDeployment):

@@ -1,8 +1,18 @@
 from typing import Optional
+from pydantic import BaseModel
 
 """
-Packets must all have a timestamp.
+The structures are intended to be used by the system and must all have a timestamp. Timestamps are in milliseconds.
+A message is clear, a packet is opaque.
 """
+
+class NumberMessage(BaseModel):
+  timestamp: int
+  value: float
+
+class StringMessage(BaseModel):
+  timestamp: int
+  value: str
 
 class MediaPacket:
   timestamp: int # 6 bytes

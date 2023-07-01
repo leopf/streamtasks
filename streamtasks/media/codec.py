@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, TypeVar, TypedDict, Optional, Generic, ClassVar, Iterator
-from streamtasks.message.packets import MediaPacket
+from streamtasks.message import MediaPacket
 from streamtasks.media.config import *
 from streamtasks.media.helpers import *
 
