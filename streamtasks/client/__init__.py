@@ -74,6 +74,9 @@ class Client:
   def get_fetch_request_receiver(self, descriptor: str): return FetchRequestReceiver(self, descriptor)
   def create_fetch_server(self): return FetchServerReceiver(self)
   
+  def create_subscription_tracker(self): return SubscribeTracker(self)
+  def create_provide_tracker(self): return ProvideTracker(self)
+
   async def wait_for_topic_signal(self, topic: int): return await TopicSignalReceiver(self, topic).wait()
   async def wait_for_address_name(self, name: str):
     found_address = self._address_map.get(name, None)

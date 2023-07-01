@@ -1,5 +1,5 @@
 from streamtasks.task import Task, TaskFactoryWorker, TaskDeployment, TaskFormat, TaskStreamFormatGroup, TaskStreamFormat
-from streamtasks.client import Client, SubscribeTracker, ProvideTracker
+from streamtasks.client import Client
 from streamtasks.comm.serialization import SerializableData
 import socket
 from pydantic import BaseModel
@@ -23,9 +23,9 @@ def get_timestamp_from_message(data: SerializableData) -> int:
 class GateTask(Task):
   def __init__(self, client: Client, deployment: TaskDeployment):
     super().__init__(client)
-    self.input_topic = SubscribeTracker(client, None)
-    self.gate_topic = SubscribeTracker(client, None)
-    self.output_topic = ProvideTracker(client, None)
+    self.input_topic = client.create_subscription_tracker()
+    self.gate_topic = client.create_subscription_tracker()
+    self.output_topic = client.create_provide_tracker()
     self.deployment = deployment
     self.stop_stream_after_timestamp = None
 
