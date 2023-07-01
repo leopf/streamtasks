@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 from streamtasks.media.container import InputContainer
 from streamtasks.media.video import VideoCodecInfo
-from streamtasks.media.types import MediaPacket
+from streamtasks.message.packets import MediaPacket
 from streamtasks.media.codec import CodecInfo
 import av
 

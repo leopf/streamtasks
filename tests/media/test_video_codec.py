@@ -1,6 +1,6 @@
 import unittest
 from streamtasks.media.video import VideoCodecInfo, VideoFrame
-from streamtasks.media.types import MediaPacket
+from streamtasks.message.packets import MediaPacket
 import numpy as np
 
 class TestVideoCodec(unittest.IsolatedAsyncioTestCase):

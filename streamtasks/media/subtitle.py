@@ -3,7 +3,7 @@ import asyncio
 import time
 from streamtasks.media.config import *
 from streamtasks.media.codec import CodecInfo, Frame
-from streamtasks.media.types import MediaPacket
+from streamtasks.message.packets import MediaPacket
 from av.subtitles.subtitle import SubtitleSet
 from typing import Any
 

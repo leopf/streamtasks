@@ -1,6 +1,6 @@
 from typing import Optional
 from streamtasks.media.config import *
-from streamtasks.media.types import MediaPacket
+from streamtasks.message.packets import MediaPacket
 from streamtasks.media.codec import CodecInfo, Frame
 import numpy as np
 import time

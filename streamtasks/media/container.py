@@ -1,4 +1,4 @@
-from streamtasks.media.types import MediaPacket
+from streamtasks.message.packets import MediaPacket
 from streamtasks.media.codec import CodecInfo, Frame, Transcoder, EmptyTranscoder, AVTranscoder, Decoder, CodecOptions
 from streamtasks.media.config import *
 from streamtasks.media.helpers import *
