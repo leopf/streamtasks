@@ -25,6 +25,15 @@ class SubscribeTracker:
   def __init__(self, client: 'Client'):
     self._client = client
     self._topic = None
+    self._subscribed = False
+  async def subscribe(self): 
+    if not self._subscribed: 
+      self._subscribed = True
+      await self._client.subscribe(self._topic)
+  async def unsubscribe(self): 
+    if self._subscribed: 
+      self._subscribed = False
+      await self._client.unsubscribe(self._topic)
   @property
   def topic(self): return self._topic
   async def set_topic(self, topic: int): 
@@ -35,6 +44,15 @@ class ProvideTracker:
   def __init__(self, client: 'Client'):
     self._client = client
     self._topic = None
+    self._paused = False
+  async def pause(self):
+    if not self._paused:
+      self._paused = True
+      await self._client.send_stream_control(self._topic, TopicControlData(paused=True))
+  async def resume(self):
+    if self._paused:
+      self._paused = False
+      await self._client.send_stream_control(self._topic, TopicControlData(paused=False))
   @property
   def topic(self): return self._topic
   async def set_topic(self, topic: int):

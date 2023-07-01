@@ -38,15 +38,25 @@ class GateTask(Task):
     await self._apply_deployment()
     async with self.client.get_topics_receiver([ self.input_topic_id, self.gate_topic_id ], subscribe=False) as receiver:
       while not stop_signal.is_set():
-        topic_id, data, _ = await receiver.recv()
-        if topic_id == self.gate_topic.topic: await self._process_gate_message(data)
-        elif topic_id == self.input_topic.topic: await self._process_input_message(data)
+        topic_id, data, control = await receiver.recv()
+        if data is not None:
+          if topic_id == self.gate_topic.topic: await self._process_gate_message(data)
+          elif topic_id == self.input_topic.topic: await self._process_input_message(data)
+        elif control is not None and topic_id == self.input_topic.topic: 
+          if control.paused: await self.output_topic.pause()
+          else: await self.output_topic.resume()
+          
+    await self.input_topic.set_topic(None)
+    await self.gate_topic.set_topic(None)
+    await self.output_topic.set_topic(None)
 
   async def _process_input_message(self, data: SerializableData):
     try:
       timestamp = get_timestamp_from_message(data)
-      if self.stop_stream_after_timestamp is not None and timestamp > self.stop_stream_after_timestamp: return
-      await self.client.send_stream_data(self.output_topic_id, data)
+      if self.stop_stream_after_timestamp is not None and timestamp > self.stop_stream_after_timestamp: 
+        await self.input_topic.unsubscribe()
+        await self.output_topic.pause()
+      await self.client.send_stream_data(self.output_topic.topic, data)
     except Exception as e:
       logging.error(f"error processing input message: {e}")
 
@@ -54,9 +64,15 @@ class GateTask(Task):
     try:
       message: NumberMessage = NumberMessage.parse_obj(data.data)
       if message.value < 0.5: self.stop_stream_after_timestamp = message.timestamp
-      else: self.stop_stream_after_timestamp = None
+      else: 
+        await self.input_topic.subscribe()
+        await self.output_topic.resume()
+        self.stop_stream_after_timestamp = None
     except:
-      if not self.fail_closed: self.stop_stream_after_timestamp = None
+      if not self.fail_closed: 
+        await self.input_topic.subscribe()
+        await self.output_topic.resume()
+        self.stop_stream_after_timestamp = None
 
   async def _apply_deployment(self):
     topic_id_map = self.deployment.topic_id_map
