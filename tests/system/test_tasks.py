@@ -1,10 +1,9 @@
 import unittest
 from streamtasks.worker import Worker
-from streamtasks.worker.discovery import DiscoveryWorker
 from streamtasks.node import *
 from streamtasks.message.data import MessagePackData
 from streamtasks.client import *
-from streamtasks.task import *
+from streamtasks.system import *
 import asyncio
 from pydantic import parse_obj_as
 import json

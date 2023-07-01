@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import asyncio
 from streamtasks.comm import *
-from streamtasks.protocols import *
+from streamtasks.system.protocols import *
 from streamtasks.message.data import *
 import weakref
 import secrets

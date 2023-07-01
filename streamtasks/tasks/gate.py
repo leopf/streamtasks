@@ -1,4 +1,4 @@
-from streamtasks.task import Task, TaskFactoryWorker, TaskDeployment, TaskFormat, TaskStreamFormatGroup, TaskStreamFormat
+from streamtasks.system import Task, TaskFactoryWorker, TaskDeployment, TaskFormat, TaskStreamFormatGroup, TaskStreamFormat
 from streamtasks.client import Client
 from streamtasks.message.data import SerializableData
 from streamtasks.message import NumberMessage

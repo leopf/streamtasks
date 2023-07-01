@@ -4,13 +4,13 @@ from typing import Iterable
 from streamtasks.asgi import ASGIApp
 import uvicorn
 import re
-from streamtasks.protocols import *
+from streamtasks.system.protocols import *
 from streamtasks.client import Client
 from streamtasks.asgi import *
 from streamtasks.worker import Worker
-from streamtasks.task.task import Task
-from streamtasks.task.types import *
-from streamtasks.task.helpers import *
+from streamtasks.system.task import Task
+from streamtasks.system.types import *
+from streamtasks.system.helpers import *
 from uuid import uuid4
 import urllib.parse
 from fastapi.responses import PlainTextResponse

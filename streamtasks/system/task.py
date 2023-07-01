@@ -1,9 +1,9 @@
-from streamtasks.task.types import TaskDeployment, TaskDeploymentStatus
-from streamtasks.client import Client
-from streamtasks.task.helpers import asgi_app_not_found
+from streamtasks.system.types import TaskDeployment, TaskDeploymentStatus
+from streamtasks.system.helpers import asgi_app_not_found
 from abc import ABC, abstractmethod
 import asyncio
 
+from streamtasks.client import Client
 class Task(ABC):
   def __init__(self, client: Client):
     self.client = client

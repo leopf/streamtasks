@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 from typing import Iterable
 from streamtasks.asgi import ASGIApp
 from streamtasks.client import Client
-from streamtasks.protocols import *
-from streamtasks.task.types import TaskFactoryRegistration, DashboardInfo, TaskFactoryInfo
+from streamtasks.system.protocols import *
+from streamtasks.system.types import TaskFactoryRegistration, DashboardInfo, TaskFactoryInfo
 from streamtasks.asgi import *
 import fnmatch
 import urllib.parse

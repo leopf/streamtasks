@@ -2,7 +2,7 @@ from typing import Optional, Any
 import asyncio
 from streamtasks.comm import *
 from streamtasks.comm.helpers import IdTracker
-from streamtasks.protocols import *
+from streamtasks.system.protocols import WorkerAddresses, WorkerFetchDescriptors
 from streamtasks.message import get_core_serializers
 from streamtasks.message.data import *
 from streamtasks.client.receiver import *
