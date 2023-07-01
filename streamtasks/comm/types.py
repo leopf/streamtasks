@@ -11,7 +11,6 @@ class Message(ABC):
 
 class DataMessage(Message, ABC):
   data: SerializableData
-  ser_type: SerializationType
 
   def as_dict(self): return { **self.__dict__, 'data': self.data.serialize(), 'ser_type': self.data.type.value }
   @classmethod

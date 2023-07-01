@@ -56,7 +56,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     await self.b.send_to(1, TextData("Hello 1"))
 
     a_recv = self.a.get_address_receiver([1])
-    topic, data = await a_recv.recv()
+    topic, data = await asyncio.wait_for(a_recv.recv(), 1)
     self.assertEqual(topic, 1)
     self.assertEqual(data.data, "Hello 1")
 

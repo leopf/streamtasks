@@ -3,6 +3,7 @@ import asyncio
 from streamtasks.comm import *
 from streamtasks.comm.helpers import IdTracker
 from streamtasks.protocols import *
+from streamtasks.message import get_core_serializers
 from streamtasks.message.data import *
 from streamtasks.client.receiver import *
 from streamtasks.client.fetch import *
@@ -68,7 +69,7 @@ class Client:
   _fetch_id_counter: int
   _address_request_lock: asyncio.Lock
   _address_map: dict[str, int]
-
+  _custom_serializers: dict[int, Serializer]
   _subscribed_topics: IdTracker
   _provided_topics: IdTracker
 
@@ -80,6 +81,7 @@ class Client:
     self._fetch_id_counter = 0
     self._address_request_lock = asyncio.Lock()
     self._address_map = {}
+    self._custom_serializers = get_core_serializers()
 
     self._subscribed_topics = IdTracker()
     self._provided_topics = IdTracker()
@@ -94,6 +96,10 @@ class Client:
   
   def create_subscription_tracker(self): return SubscribeTracker(self)
   def create_provide_tracker(self): return ProvideTracker(self)
+
+  def add_serializer(self, serializer: Serializer): 
+    if serializer.content_id not in self._custom_serializers: self._custom_serializers[serializer.content_id] = serializer
+  def remove_serializer(self, content_id: int): self._custom_serializers.pop(content_id, None)
 
   async def wait_for_topic_signal(self, topic: int): return await TopicSignalReceiver(self, topic).wait()
   async def wait_for_address_name(self, name: str):
@@ -204,6 +210,7 @@ class Client:
       message = await self._connection.recv()
       if message:
         if isinstance(message, TopicMessage) and message.topic not in self._subscribed_topics: continue
+        if isinstance(message, DataMessage) and message.data.type == SerializationType.CUSTOM: message.data.serializer = self._custom_serializers.get(message.data.content_id, None)
         for receiver in self._receivers:
           receiver.on_message(message)
       else:

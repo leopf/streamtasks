@@ -23,6 +23,8 @@ class SerializableData(ABC):
   _data: Any
   _raw: bytes
   def __init__(self, data: Union[Any, bytes]): self._data, self._raw = (data, None) if not isinstance(data, bytes) else (None, data)
+  @abstractproperty
+  def type(self) -> SerializationType: pass
   @property
   def data(self):
     if self._data is None: self._data = self.deserialize()
