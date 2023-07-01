@@ -1,6 +1,7 @@
 from streamtasks.media.types import MediaPacket
 from streamtasks.media.codec import CodecInfo, Frame, Transcoder, EmptyTranscoder, AVTranscoder, Decoder, CodecOptions
 from streamtasks.media.config import *
+from streamtasks.media.helpers import *
 from typing import AsyncIterable
 import av
 import asyncio
@@ -61,7 +62,7 @@ class InputContainer:
 
 
       if self._t0 == 0 and av_packet.pts is not None: self._t0 = int(time.time() * 1000 - (av_packet.pts / DEFAULT_TIME_BASE_TO_MS))
-      packet = MediaPacket.from_av_packet(av_packet, self._t0)
+      packet = av_packet_to_media_packat(av_packet, self._t0)
 
       for t_packet in await transcoder.transcode(packet):
         yield (topic, t_packet) 

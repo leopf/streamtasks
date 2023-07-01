@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any, TypeVar, TypedDict, Optional, Generic, ClassVar, Iterator
 from streamtasks.media.types import MediaPacket
 from streamtasks.media.config import *
+from streamtasks.media.helpers import *
 
 from dataclasses import dataclass 
 import av
@@ -69,7 +70,7 @@ class Encoder(Generic[F]):
     if len(packets) == 0: return []
     if self._t0 == 0 and packets[0].pts is not None: self._t0 = int(time.time() * 1000 - (packets[0].pts / DEFAULT_TIME_BASE_TO_MS))
 
-    return [ MediaPacket.from_av_packet(packet, self._t0) for packet in packets ]
+    return [ av_packet_to_media_packat(packet, self._t0) for packet in packets ]
 
   def close(self): self.codec_context.close(strict=False)
   def _encode(self, frame: F) -> list[av.Packet]: return self.codec_context.encode(frame.frame)
@@ -82,7 +83,7 @@ class Decoder(Generic[F]):
 
   async def decode(self, packet: MediaPacket) -> list[F]:
     loop = asyncio.get_running_loop()
-    av_packet = packet.to_av_packet()
+    av_packet = media_packet_to_av_packet(packet)
     frames = await loop.run_in_executor(None, self._decode, av_packet)
     return [ Frame.from_av_frame(frame) for frame in frames ]
 
