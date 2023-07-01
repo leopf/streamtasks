@@ -1,6 +1,6 @@
-from streamtasks.tasks.types import TaskDeployment, TaskDeploymentStatus
+from streamtasks.task.types import TaskDeployment, TaskDeploymentStatus
 from streamtasks.client import Client
-from streamtasks.tasks.helpers import asgi_app_not_found
+from streamtasks.task.helpers import asgi_app_not_found
 from abc import ABC, abstractmethod
 import asyncio
 

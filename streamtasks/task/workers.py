@@ -8,9 +8,9 @@ from streamtasks.protocols import *
 from streamtasks.client import Client
 from streamtasks.asgi import *
 from streamtasks.worker import Worker
-from streamtasks.tasks.task import Task
-from streamtasks.tasks.types import *
-from streamtasks.tasks.helpers import *
+from streamtasks.task.task import Task
+from streamtasks.task.types import *
+from streamtasks.task.helpers import *
 from uuid import uuid4
 import urllib.parse
 from fastapi.responses import PlainTextResponse
