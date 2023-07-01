@@ -1,6 +1,6 @@
 from streamtasks.client.receiver import Receiver
 from streamtasks.comm.types import AddressedMessage, Message
-from streamtasks.comm.serialization import JsonData
+from streamtasks.message.data import JsonData
 import asyncio
 from pydantic import BaseModel
 from typing import TYPE_CHECKING, Any, Optional, Callable, Awaitable

@@ -1,6 +1,6 @@
 from streamtasks.task import Task, TaskFactoryWorker, TaskDeployment, TaskFormat, TaskStreamFormatGroup, TaskStreamFormat
 from streamtasks.client import Client
-from streamtasks.comm.serialization import SerializableData
+from streamtasks.message.data import SerializableData
 import socket
 from pydantic import BaseModel
 import asyncio

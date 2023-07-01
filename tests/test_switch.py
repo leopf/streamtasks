@@ -1,6 +1,6 @@
 import unittest
 from streamtasks.comm import *
-from streamtasks.comm.serialization import *
+from streamtasks.message.data import *
 
 class TestSwitch(unittest.IsolatedAsyncioTestCase):
   a: Connection

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import asyncio
 from streamtasks.comm import *
 from streamtasks.protocols import *
-from streamtasks.comm.serialization import *
+from streamtasks.message.data import *
 import weakref
 import secrets
 

@@ -2,7 +2,7 @@ import unittest
 from streamtasks.worker import Worker
 from streamtasks.worker.discovery import DiscoveryWorker
 from streamtasks.node import *
-from streamtasks.comm.serialization import MessagePackData
+from streamtasks.message.data import MessagePackData
 from streamtasks.client import *
 from streamtasks.task import *
 import asyncio

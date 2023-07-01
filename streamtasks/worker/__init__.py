@@ -4,7 +4,7 @@ import asyncio
 import logging
 from streamtasks.client import Client, FetchRequest
 from streamtasks.protocols import *
-from streamtasks.comm.serialization import *
+from streamtasks.message.data import *
 
 class Worker:
   node_id: int

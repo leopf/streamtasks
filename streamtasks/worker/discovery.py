@@ -1,7 +1,7 @@
 from streamtasks.worker import Worker
 from streamtasks.client import Client, FetchRequest
 from streamtasks.protocols import *
-from streamtasks.comm.serialization import JsonData, TextData, MessagePackData
+from streamtasks.message.data import JsonData, TextData, MessagePackData
 from streamtasks.comm.types import TopicControlData
 import logging
 import asyncio

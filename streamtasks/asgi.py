@@ -1,7 +1,7 @@
 from streamtasks.client.receiver import Receiver
 from streamtasks.client.fetch import FetchRequestReceiver, FetchRequest
 from streamtasks.comm.types import AddressedMessage, Message
-from streamtasks.comm.serialization import MessagePackData
+from streamtasks.message.data import MessagePackData
 from pydantic import BaseModel
 from abc import ABC
 from dataclasses import dataclass

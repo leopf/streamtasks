@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Any, Iterable
 from abc import ABC, abstractproperty, abstractclassmethod
 from typing_extensions import Self
-from streamtasks.comm.serialization import SerializableData, SerializationType, data_from_serialization_type
+from streamtasks.message.data import SerializableData, SerializationType, data_from_serialization_type
 
 class Message(ABC):
   def as_dict(self) -> dict[str, Any]: return self.__dict__

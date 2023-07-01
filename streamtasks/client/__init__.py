@@ -3,7 +3,7 @@ import asyncio
 from streamtasks.comm import *
 from streamtasks.comm.helpers import IdTracker
 from streamtasks.protocols import *
-from streamtasks.comm.serialization import *
+from streamtasks.message.data import *
 from streamtasks.client.receiver import *
 from streamtasks.client.fetch import *
 import secrets
