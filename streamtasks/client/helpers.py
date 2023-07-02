@@ -40,6 +40,9 @@ class ProvideTracker:
     self._client = client
     self._topic = None
     self._paused = False
+  @property
+  def is_subscribed(self): return self._client.topic_is_subscribed(self._topic)
+  async def wait_subscribed(self): await self._client.wait_topic_subscribed(self._topic)
   async def pause(self):
     if not self._paused:
       self._paused = True
