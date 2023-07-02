@@ -33,7 +33,13 @@ class GateTask(Task):
     async with self.client.get_topics_receiver([ self.input_topic, self.gate_topic ]) as receiver:
       while not stop_signal.is_set():
         if receiver.empty(): 
-          await asyncio.sleep(0.001)
+          if not self.output_topic.is_subscribed: 
+            await self.gate_topic.unsubscribe()
+            await self.input_topic.unsubscribe()
+            await self.output_topic.pause()
+            await self.output_topic.wait_subscribed(stop_signal)
+            await self.update_stream_states()
+          else: await asyncio.sleep(0.001)
           continue
         topic_id, data, control = await receiver.recv()
         if data is not None:
@@ -69,6 +75,7 @@ class GateTask(Task):
     finally: await self.update_stream_states()
   
   async def update_stream_states(self):
+    await self.gate_topic.subscribe()
     if self.input_paused: await self.output_topic.pause()
     if not self.gate_value_tracker.has_value(lambda _, value: value >= 0.5, self.default_gate_value):
       await self.input_topic.unsubscribe()
