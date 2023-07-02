@@ -1,10 +1,12 @@
+from typing import Any, Callable
+
 class StreamValueTracker:
   def __init__(self):
     self.values = []
     self._stale = False
     self._in_timeframe = False
   def pop(self, timestamp: int, default=None):
-    if len(self.values) == 0 or self.values[0][0] < timestamp: 
+    if len(self.values) == 0 or timestamp < self.values[0][0]: 
       self._in_timeframe = False
       return default
     self._in_timeframe = True

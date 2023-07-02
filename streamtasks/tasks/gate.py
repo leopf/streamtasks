@@ -1,7 +1,8 @@
-from streamtasks.system import Task, TaskFactoryWorker, TaskDeployment, TaskFormat, TaskStreamFormatGroup, TaskStreamFormat
+from streamtasks.system.task import Task
+from streamtasks.system.workers import TaskFactoryWorker
+from streamtasks.system.types import TaskDeployment, TaskFormat, TaskStreamFormatGroup, TaskStreamFormat
 from streamtasks.client import Client
-from streamtasks.message.data import SerializableData
-from streamtasks.message import NumberMessage
+from streamtasks.message import NumberMessage, get_timestamp_from_message, SerializableData
 from streamtasks.streams.helpers import StreamValueTracker
 import socket
 from pydantic import BaseModel
@@ -29,8 +30,12 @@ class GateTask(Task):
   async def update(self, deployment: TaskDeployment): await self._apply_deployment(deployment)
   async def async_start(self, stop_signal: asyncio.Event):
     await self._apply_deployment(self.deployment)
-    async with self.client.get_topics_receiver([ self.input_topic_id, self.gate_topic_id ], subscribe=False) as receiver:
+    # TODO: this is not hot-reloadable
+    async with self.client.get_topics_receiver([ self.input_topic.topic, self.gate_topic.topic ], subscribe=False) as receiver:
       while not stop_signal.is_set():
+        if receiver.empty(): 
+          await asyncio.sleep(0.001)
+          continue
         topic_id, data, control = await receiver.recv()
         if data is not None:
           if topic_id == self.gate_topic.topic: await self._process_gate_message(data)
@@ -39,7 +44,8 @@ class GateTask(Task):
           if topic_id == self.input_topic.topic: 
             self.input_paused = control.paused
             await self.update_stream_states()
-          if topic_id == self.gate_topic.topic and control.paused and self.fail_mode != GateFailMode.PASSIVE: self.gate_value_tracker.set_stale()
+          if topic_id == self.gate_topic.topic and self.fail_mode != GateFailMode.PASSIVE: 
+            if control.paused: self.gate_value_tracker.set_stale()
           
     await self.input_topic.set_topic(None)
     await self.gate_topic.set_topic(None)

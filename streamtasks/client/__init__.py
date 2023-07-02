@@ -30,11 +30,11 @@ class SubscribeTracker:
   async def subscribe(self): 
     if not self._subscribed: 
       self._subscribed = True
-      await self._client.subscribe(self._topic)
+      await self._client.subscribe([self._topic])
   async def unsubscribe(self): 
     if self._subscribed: 
       self._subscribed = False
-      await self._client.unsubscribe(self._topic)
+      await self._client.unsubscribe([self._topic])
   @property
   def topic(self): return self._topic
   async def set_topic(self, topic: int): 
