@@ -97,9 +97,9 @@ class TopicsReceiver(Receiver):
   _control_data: dict[int, TopicControlData]
   _recv_queue: asyncio.Queue[tuple[int, Optional[Any], Optional[TopicControlData]]]
 
-  def __init__(self, client: 'Client', topics: set[Union[int, SubscribeTracker]], subscribe: bool = True):
+  def __init__(self, client: 'Client', topics: Iterable[Union[int, SubscribeTracker]], subscribe: bool = True):
     super().__init__(client)
-    self._topics = [ t for t in topics if isinstance(t, int) ]
+    self._topics = set(t for t in topics if isinstance(t, int))
     self._tracked_topics = [ t for t in topics if isinstance(t, SubscribeTracker) ]
     self._control_data = {}
     self._subscribe = subscribe
