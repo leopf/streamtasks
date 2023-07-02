@@ -106,10 +106,11 @@ class TestGate(unittest.IsolatedAsyncioTestCase):
       await self.send_input_data(8)
       await self.send_gate_data(1)
 
-      # await self.stream_out_topic.unsubscribe()
-      # await asyncio.wait_for(self.stream_in_topic.wait_subscribed(self.stop_signal, False), 10000)
-      # await self.stream_out_topic.subscribe()
-      # await asyncio.wait_for(self.stream_in_topic.wait_subscribed(self.stop_signal), 10000)
+      await asyncio.sleep(0.001)
+      await self.stream_out_topic.unsubscribe()
+      await asyncio.wait_for(self.stream_in_topic.wait_subscribed(self.stop_signal, False), 10000)
+      await self.stream_out_topic.subscribe()
+      await asyncio.wait_for(self.stream_in_topic.wait_subscribed(self.stop_signal), 10000)
 
 
       expected_values = expected_values.copy()

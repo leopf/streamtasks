@@ -1,14 +1,15 @@
-from typing import Union, Optional, Any, Callable, Awaitable
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import asyncio
 from streamtasks.comm import *
 from streamtasks.system.protocols import *
 from streamtasks.message.data import *
-from streamtasks.client.helpers import SubscribeTracker
 import weakref
 import secrets
 import itertools
+from typing import Union, Optional, Any, Callable, Awaitable
+from streamtasks.client.helpers import SubscribeTracker
+
 
 class Receiver(ABC):
   _client: 'Client'
@@ -49,6 +50,15 @@ class Receiver(ABC):
   async def recv(self) -> Any:
     async with self:
       return await self._recv_queue.get()
+
+class NoopReceiver(Receiver):
+  def __init__(self, client: 'Client'):
+    super().__init__(client)
+    self._recv_queue = None
+  def on_message(self, message: Message): pass
+  def empty(self): return True
+  async def get(self): raise NotImplementedError("A noop receiver will never receive any messages")
+  async def recv(self): raise NotImplementedError("A noop receiver will never receive any messages")
 
 class AddressReceiver(Receiver):
   _addresses: set[int]
@@ -97,7 +107,7 @@ class TopicsReceiver(Receiver):
   _control_data: dict[int, TopicControlData]
   _recv_queue: asyncio.Queue[tuple[int, Optional[Any], Optional[TopicControlData]]]
 
-  def __init__(self, client: 'Client', topics: Iterable[Union[int, SubscribeTracker]], subscribe: bool = True):
+  def __init__(self, client: 'Client', topics: Iterable[Union[int, 'SubscribeTracker']], subscribe: bool = True):
     super().__init__(client)
     self._topics = set(t for t in topics if isinstance(t, int))
     self._tracked_topics = [ t for t in topics if isinstance(t, SubscribeTracker) ]

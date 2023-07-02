@@ -36,7 +36,7 @@ class Worker:
     self.connected.set()
     while not stop_signal.is_set():
       await self.process()
-      await asyncio.sleep(0.001)
+      await asyncio.sleep(0.001) # TODO: this is not clean!!
     self.connected.clear()
 
   async def connect_to_node(self):

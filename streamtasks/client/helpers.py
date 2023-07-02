@@ -1,7 +1,7 @@
 from streamtasks.comm.types import TopicControlData
 from typing import TYPE_CHECKING, Iterable
 if TYPE_CHECKING:
-    from streamtasks.client import Client
+  from streamtasks.client import Client
 
 import asyncio
 
@@ -47,7 +47,9 @@ class ProvideTracker:
   @property
   def is_subscribed(self): return self._client.topic_is_subscribed(self._topic)
   async def wait_subscribed(self, stop_signal: asyncio.Event, subscribed: bool = True): 
-    while self._client.topic_is_subscribed(self._topic) != subscribed and not stop_signal.is_set(): await asyncio.sleep(0.001)
+    from streamtasks.client.receiver import NoopReceiver
+    async with NoopReceiver(self._client):
+      while self._client.topic_is_subscribed(self._topic) != subscribed and not stop_signal.is_set(): await asyncio.sleep(0.001)
   async def pause(self):
     if not self._paused:
       self._paused = True
