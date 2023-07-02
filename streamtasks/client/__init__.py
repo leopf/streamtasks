@@ -1,7 +1,7 @@
 from typing import Optional, Any
 import asyncio
 from streamtasks.comm import *
-from streamtasks.comm.helpers import IdTracker
+from streamtasks.helpers import IdTracker, AwaitableIdTracker
 from streamtasks.system.protocols import WorkerAddresses, WorkerFetchDescriptors
 from streamtasks.message.serializers import get_core_serializers
 from streamtasks.message.data import *
@@ -19,7 +19,7 @@ class Client:
   _address_request_lock: asyncio.Lock
   _address_map: dict[str, int]
   _custom_serializers: dict[int, Serializer]
-  _subscribed_topics: IdTracker
+  _subscribing_topics: IdTracker
   _provided_topics: IdTracker
 
   def __init__(self, connection: Connection):
@@ -32,7 +32,8 @@ class Client:
     self._address_map = {}
     self._custom_serializers = get_core_serializers()
 
-    self._subscribed_topics = IdTracker()
+    self._subscribed_provided_topics = AwaitableIdTracker()
+    self._subscribing_topics = IdTracker()
     self._provided_topics = IdTracker()
 
   @property
@@ -71,6 +72,9 @@ class Client:
       self._set_address_name(data.address_name, data.address)
 
     return found_address
+
+  def topic_is_subscribed(self, topic: int): return topic in self._subscribed_provided_topics
+  async def wait_topic_subscribed(self, topic: int): return await self._subscribed_provided_topics.wait_for_id(topic)
 
   async def send_to(self, address: Union[int, str], data: Any): await self._connection.send(AddressedMessage(await self._get_address(address), data))
   async def send_stream_control(self, topic: int, control_data: TopicControlData): await self._connection.send(control_data.to_message(topic))
@@ -123,10 +127,10 @@ class Client:
     if len(actually_removed) > 0: await self._connection.send(OutTopicsChangedMessage(set(), set(actually_removed)))
   def subscribe_context(self, topics: Iterable[int]): return SubscibeContext(self, topics)
   async def subscribe(self, topics: Iterable[int]):
-    actually_added = self._subscribed_topics.add_many(topics)
+    actually_added = self._subscribing_topics.add_many(topics)
     if len(actually_added) > 0: await self._connection.send(InTopicsChangedMessage(set(actually_added), set()))
   async def unsubscribe(self, topics: Iterable[int]):
-    actually_removed = self._subscribed_topics.remove_many(topics)
+    actually_removed = self._subscribing_topics.remove_many(topics)
     if len(actually_removed) > 0: await self._connection.send(InTopicsChangedMessage(set(), set(actually_removed)))
 
   async def fetch(self, address: Union[int, str], descriptor: str, body):
@@ -158,7 +162,8 @@ class Client:
     while len(self._receivers) > 0:
       message = await self._connection.recv()
       if message:
-        if isinstance(message, TopicMessage) and message.topic not in self._subscribed_topics: continue
+        if isinstance(message, InTopicsChangedMessage): self._subscribed_provided_topics.change_many(message.add, message.remove)
+        if isinstance(message, TopicMessage) and message.topic not in self._subscribing_topics: continue
         if isinstance(message, DataMessage) and message.data.type == SerializationType.CUSTOM: message.data.serializer = self._custom_serializers.get(message.data.content_id, None)
         for receiver in self._receivers:
           receiver.on_message(message)

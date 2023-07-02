@@ -1,0 +1,51 @@
+from typing import Iterable
+import asyncio
+
+class IdTracker:
+  _map: dict[int, int]
+
+  def __init__(self):
+    self._map = {}
+
+  def __contains__(self, id: int): return id in self._map
+  def items(self) -> Iterable[int]: return self._map.keys()
+
+  def add_many(self, ids: Iterable[int]):
+    final = set()
+    for id in ids:
+      val = self._map.get(id, 0)
+      if val == 0: final.add(id)
+      self._map[id] = val + 1
+    return final
+
+  def remove_many(self, ids: Iterable[int]):
+    final = set()
+    for id in ids:
+      val = self._map.get(id, 0)
+      if val == 0: continue
+      elif val == 1: 
+        self._map.pop(id, None)
+        final.add(id)
+      else: self._map[id] = val - 1
+    return final
+
+  def change_many(self, add: Iterable[int], remove: Iterable[int]):
+    return self.add_many(add), self.remove_many(remove)
+
+class AwaitableIdTracker(IdTracker):
+  _waiting_ids: dict[int, asyncio.Event]
+
+  def __init__(self):
+    super().__init__()
+    self._waiting_ids = {}
+  
+  def add_many(self, ids: Iterable[int]):
+    added = super().add_many(ids)
+    for id in added:
+      event = self._waiting_ids.pop(id, None)
+      if event is not None: event.set()
+    return added
+
+  async def wait_for_id(self, id: int):
+    if id not in self._waiting_ids: self._waiting_ids[id] = asyncio.Event()
+    return await self._waiting_ids[id].wait()

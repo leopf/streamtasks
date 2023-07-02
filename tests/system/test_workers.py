@@ -83,7 +83,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     client1 = Client(await self.worker.create_connection(raw=True))
     await self.wait_for(client1.request_address()) 
 
-    self.assertEquals(len(client1._subscribed_topics.items()), 0)
+    self.assertEquals(len(client1._subscribing_topics.items()), 0)
 
     client2 = Client(await self.worker.create_connection(raw=True))
     await self.wait_for(client2.request_address()) 

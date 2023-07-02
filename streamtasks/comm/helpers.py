@@ -3,34 +3,6 @@ from streamtasks.comm.types import PricedId
 from itertools import chain
 import random
 
-class IdTracker:
-  _map: dict[int, int]
-
-  def __init__(self):
-    self._map = {}
-
-  def __contains__(self, id: int): return id in self._map
-  def items(self) -> Iterable[int]: return self._map.keys()
-
-  def add_many(self, ids: Iterable[int]):
-    final = set()
-    for id in ids:
-      val = self._map.get(id, 0)
-      if val == 0: final.add(id)
-      self._map[id] = val + 1
-    return final
-
-  def remove_many(self, ids: Iterable[int]):
-    final = set()
-    for id in ids:
-      val = self._map.get(id, 0)
-      if val == 0: continue
-      elif val == 1: 
-        self._map.pop(id, None)
-        final.add(id)
-      else: self._map[id] = val - 1
-    return final
-
 class PricedIdTracker:
   _map: dict[int, dict[int, int]]
   _computed_map: dict[int, int]

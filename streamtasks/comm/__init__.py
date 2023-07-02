@@ -1,6 +1,7 @@
 from streamtasks.comm.types import *
 from streamtasks.comm.helpers import *
 from streamtasks.comm.serialize import serialize_message, deserialize_message
+from streamtasks.helpers import IdTracker
 
 from typing import Union, Optional, Any, Iterable
 import multiprocessing.connection as mpconn
