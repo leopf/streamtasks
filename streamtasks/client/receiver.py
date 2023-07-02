@@ -5,8 +5,10 @@ import asyncio
 from streamtasks.comm import *
 from streamtasks.system.protocols import *
 from streamtasks.message.data import *
+from streamtasks.client.helpers import SubscribeTracker
 import weakref
 import secrets
+import itertools
 
 class Receiver(ABC):
   _client: 'Client'
@@ -95,27 +97,28 @@ class TopicsReceiver(Receiver):
   _control_data: dict[int, TopicControlData]
   _recv_queue: asyncio.Queue[tuple[int, Optional[Any], Optional[TopicControlData]]]
 
-  def __init__(self, client: 'Client', topics: set[int], subscribe: bool = True):
+  def __init__(self, client: 'Client', topics: set[Union[int, SubscribeTracker]], subscribe: bool = True):
     super().__init__(client)
-    self._topics = topics
+    self._topics = [ t for t in topics if isinstance(t, int) ]
+    self._tracked_topics = [ t for t in topics if isinstance(t, SubscribeTracker) ]
     self._control_data = {}
     self._subscribe = subscribe
     
   def get_control_data(self, topic: int): return self._control_data.get(topic, None)
 
   async def _on_start_recv(self): 
-    if self._subscribe: await self._client.subscribe(self._topics)
+    if self._subscribe and len(self._topics) > 0: await self._client.subscribe(self._topics)
   async def _on_stop_recv(self): 
-    if self._subscribe: await self._client.unsubscribe(self._topics)
+    if self._subscribe and len(self._topics) > 0: await self._client.unsubscribe(self._topics)
 
   def on_message(self, message: Message):
-    if isinstance(message, TopicDataMessage) and message.topic in self._topics:
-      sd_message: TopicDataMessage = message
-      if sd_message.topic in self._topics:
+    topics = itertools.chain(self._topics, (t.topic for t in self._tracked_topics))
+    if isinstance(message, TopicMessage) and message.topic in topics:
+      if isinstance(message, TopicDataMessage):
+        sd_message: TopicDataMessage = message
         self._recv_queue.put_nowait((sd_message.topic, sd_message.data, None))
-    elif isinstance(message, TopicControlMessage):
-      sc_message: TopicControlMessage = message
-      if sc_message.topic in self._topics:
+      elif isinstance(message, TopicControlMessage):
+        sc_message: TopicControlMessage = message
         self._control_data[sc_message.topic] = control_data = sc_message.to_data()
         self._recv_queue.put_nowait((sc_message.topic, None, control_data))
 

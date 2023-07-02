@@ -30,8 +30,7 @@ class GateTask(Task):
   async def update(self, deployment: TaskDeployment): await self._apply_deployment(deployment)
   async def async_start(self, stop_signal: asyncio.Event):
     await self._apply_deployment(self.deployment)
-    # TODO: this is not hot-reloadable
-    async with self.client.get_topics_receiver([ self.input_topic.topic, self.gate_topic.topic ], subscribe=False) as receiver:
+    async with self.client.get_topics_receiver([ self.input_topic, self.gate_topic ]) as receiver:
       while not stop_signal.is_set():
         if receiver.empty(): 
           await asyncio.sleep(0.001)
