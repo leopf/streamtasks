@@ -89,6 +89,7 @@ class TestGate(unittest.IsolatedAsyncioTestCase):
     await asyncio.sleep(0.001)
 
   async def wrap_routine(self, fail_mode: GateFailMode, expected_values: list[float], expected_pauses: list[bool]):
+    assert False
     gate = self.start_gate(fail_mode)
     async with self.client.get_topics_receiver([ self.stream_out_topic ]) as out_reciever:
       await self.stream_out_topic.subscribe()

@@ -70,18 +70,24 @@ class Connection(ABC):
     return message
 
   async def _recv_one(self):
+    return await self._recv()
     if self.closed.is_set(): raise Exception("Connection closed")
 
     message = None
     async def receiver():
       nonlocal message
       message = await self._recv()
+      print("Connection receiving: ", message.__class__.__name__, message.as_dict())
+
 
     try:
       await asyncio.wait([asyncio.create_task(receiver()), asyncio.create_task(self.closed.wait())], return_when=asyncio.FIRST_COMPLETED)
-    except:
+      print("wait done")
+    except Exception as e:
+      print("error: ", e)
       # assert message is not None or self.closed.is_set(), "invalid state"
       if self.closed.is_set(): raise Exception("Connection closed") from e
+    print("conn returned")
     return message
 
   @abstractmethod
@@ -252,7 +258,7 @@ class Switch:
     self.connections.append(connection)
   
   async def remove_connection(self, connection: Connection):
-    self.connections.remove(connection)
+    if connection in self.connections: self.connections.remove(connection)
     self._remove_pending_connection(connection)
     if connection in self.connection_receiving_tasks: self.connection_receiving_tasks[connection].cancel()
 
@@ -334,6 +340,7 @@ class Switch:
       await self.send_to(AddressesChangedMessage(addresses_added, addresses_removed), [ conn for conn in self.connections if conn != origin ])
 
   async def handle_message(self, message: Message, origin: Connection):
+    print("Switch processing: ", message.__class__.__name__, message.as_dict())
     if isinstance(message, TopicMessage):
       if isinstance(message, TopicControlMessage):
         self.stream_controls[message.topic] = message.to_data()
@@ -374,7 +381,7 @@ class Switch:
     self.pending_connections.append(connection)
     self.connections_pending.set()
   def _remove_pending_connection(self, connection: Connection):
-    self.pending_connections.remove(connection)
+    if connection in self.pending_connections: self.pending_connections.remove(connection)
     if len(self.pending_connections) == 0: self.connections_pending.clear()
 
 class IPCSwitch(Switch):

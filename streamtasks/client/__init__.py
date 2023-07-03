@@ -166,11 +166,15 @@ class Client:
 
   async def _task_receive(self):
     try:
+      print("start recv")
       while len(self._receivers) > 0:
         message = await self._connection.recv()
+        print("Client receiving: ", message.__class__.__name__, message.as_dict())
         if isinstance(message, InTopicsChangedMessage): self._subscribed_provided_topics.change_many(message.add, message.remove)
         if isinstance(message, TopicMessage) and message.topic not in self._subscribing_topics: continue
         if isinstance(message, DataMessage) and message.data.type == SerializationType.CUSTOM: message.data.serializer = self._custom_serializers.get(message.data.content_id, None)
         for receiver in self._receivers:
           receiver.on_message(message)
-    finally: self._receive_task = None
+    finally: 
+      print("end recv")
+      self._receive_task = None

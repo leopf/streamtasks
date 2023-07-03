@@ -23,7 +23,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
 
     await asyncio.sleep(0.001)
 
-  async def wait_for(self, fut): return await asyncio.wait_for(fut, 1000)
+  async def wait_for(self, fut): return await asyncio.wait_for(fut, 1)
 
   async def asyncTearDown(self):
     for task in self.tasks: task.cancel()
@@ -31,11 +31,11 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
   async def setup_worker(self, worker: Worker):
     await worker.set_node_connection(await self.node.create_connection(raw=True))
     self.tasks.append(asyncio.create_task(worker.start()))
+    await asyncio.sleep(0.001) # wait for worker setup
 
   async def test_address_discovery(self):
     discovery_worker = DiscoveryWorker(1)
     await self.setup_worker(discovery_worker)
-    await asyncio.sleep(0.01)
 
     client = Client(await self.worker.create_connection(raw=True))
 
@@ -52,7 +52,6 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
   async def test_wait_for_name(self): # NOTE: this test is broken, waiter before is not waiting for the fetch to finish
     discovery_worker = DiscoveryWorker(1)
     await self.setup_worker(discovery_worker)
-    await asyncio.sleep(0.001)
 
     client1 = Client(await self.worker.create_connection(raw=True))
     await self.wait_for(client1.request_address()) 
@@ -76,7 +75,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     await self.setup_worker(discovery_worker)
 
     client1 = Client(await self.worker.create_connection(raw=True))
-    await client1.wait_for_topic_signal(WorkerTopics.DISCOVERY_SIGNAL)
+    await self.wait_for(client1.wait_for_topic_signal(WorkerTopics.DISCOVERY_SIGNAL))
     await self.wait_for(client1.request_address()) 
 
     self.assertEquals(len(client1._subscribing_topics.items()), 0)

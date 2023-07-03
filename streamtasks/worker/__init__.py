@@ -28,6 +28,8 @@ class Worker:
     return connector[1]
 
   async def start(self):
+    await self.connect_to_node()
+    self.connected.set()
     return await asyncio.gather(
       self._run_connect_to_node(), 
       self.switch.start()
@@ -43,7 +45,7 @@ class Worker:
     finally: self.connected.clear()
 
   async def connect_to_node(self):
-    while self.node_conn is None or self.node_conn.closed:
+    while self.node_conn is None or self.node_conn.closed.is_set():
       conn = connect_to_listener(get_node_socket_path(self.node_id))
       if conn is None: await asyncio.sleep(1)
       else: await self.set_node_connection(conn)

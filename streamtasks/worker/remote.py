@@ -39,7 +39,7 @@ class RemoteClientWorker(Worker):
       await self.connect_to_remote()
 
   async def connect_to_remote(self):
-    while self.remote_conn is None or self.remote_conn.closed:
+    while self.remote_conn is None or self.remote_conn.closed.is_set():
       self.remote_conn = connect_to_listener(self.remote_address)
       if self.remote_conn is None: await asyncio.sleep(1)
       else: 
