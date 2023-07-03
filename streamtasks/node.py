@@ -13,7 +13,7 @@ class NodeBase(ABC):
   async def start(self):
     try:
       self.running = True
-      while True: await self.switch.process()
+      await self.switch.start()
     finally:
       self.running = False
 

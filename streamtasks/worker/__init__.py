@@ -27,15 +27,19 @@ class Worker:
     await self.switch.add_connection(connector[0])
     return connector[1]
 
-  async def process(self):
-    await self.connect_to_node()
-    await self.switch.process()
-
   async def start(self):
+    return await asyncio.gather(
+      self._run_connect_to_node(), 
+      self.switch.start()
+    )
+
+  async def _run_connect_to_node(self):
     try:
-      await self.connect_to_node()
-      self.connected.set()
-      while True: await self.process()
+      while True:
+        await self.node_conn.closed.wait()
+        self.connected.clear()
+        await self.connect_to_node()
+        self.connected.set()
     finally: self.connected.clear()
 
   async def connect_to_node(self):

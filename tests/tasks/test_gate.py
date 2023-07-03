@@ -2,7 +2,7 @@ import unittest
 from streamtasks.tasks.gate import GateTask, GateFailMode
 from streamtasks.system.types import TaskDeployment, TaskStream, TaskStreamGroup
 from streamtasks.client import Client
-from streamtasks.comm import Switch, create_local_cross_connector, create_switch_processing_task
+from streamtasks.comm import Switch, create_local_cross_connector
 from streamtasks.comm.types import TopicControlData
 from streamtasks.message import NumberMessage, StringMessage, MessagePackData
 import asyncio
@@ -23,7 +23,7 @@ class TestGate(unittest.IsolatedAsyncioTestCase):
     await switch.add_connection(conn1[0])
     await switch.add_connection(conn2[0])
     self.timestamp = 0
-    self.tasks.append(create_switch_processing_task(switch))
+    self.tasks.append(asyncio.create_task(switch.start()))
 
     self.client = Client(conn1[1])
     self.stream_gate_topic = self.client.create_provide_tracker()

@@ -2,6 +2,9 @@ Testing:
 - topic control data
 - sub unsub
 
+Fix:
+connection close not working, race
+
 Questions:
 How do i solve topic remapping?
 

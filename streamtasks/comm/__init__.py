@@ -21,7 +21,7 @@ class Connection(ABC):
   recv_topics: set[int]
   cost: int
 
-  closed: bool
+  closed: asyncio.Event
   ignore_internal: bool
 
   def __init__(self, cost: int = 1):
@@ -30,16 +30,13 @@ class Connection(ABC):
     self.addresses = dict()
     self.recv_topics = set()
 
-    self.closed = False
+    self.closed = asyncio.Event()
 
     assert cost > 0, "Cost must be greater than 0"
     self.cost = cost
 
-  def __del__(self):
-    self.close()
-
-  def close(self):
-    self.closed = True
+  def __del__(self): self.close()
+  def close(self): self.closed.set()
 
   def get_priced_out_topics(self, topics: set[int] = None) -> set[PricedId]:
     if topics is None:
@@ -66,8 +63,36 @@ class Connection(ABC):
     await self._send(message)
 
   async def recv(self) -> Message:
-    message = await self._recv()
+    message = None
+    while message is None:
+      message = await self._recv_one()
+      message = self._process_recv_message(message)
+    return message
 
+  async def _recv_one(self):
+    if self.closed.is_set(): raise Exception("Connection closed")
+
+    message = None
+    async def receiver():
+      nonlocal message
+      message = await self._recv()
+
+    try:
+      await asyncio.wait([asyncio.create_task(receiver()), asyncio.create_task(self.closed.wait())], return_when=asyncio.FIRST_COMPLETED)
+    except:
+      # assert message is not None or self.closed.is_set(), "invalid state"
+      if self.closed.is_set(): raise Exception("Connection closed") from e
+    return message
+
+  @abstractmethod
+  async def _send(self, message: Message):
+    pass
+
+  @abstractmethod
+  async def _recv(self) -> Message:
+    pass
+
+  def _process_recv_message(self, message: Message) -> Message:
     if isinstance(message, InTopicsChangedMessage):
       itc_message: InTopicsChangedMessage = message
       message = InTopicsChangedMessage(itc_message.add.difference(self.in_topics), itc_message.remove.intersection(self.in_topics))
@@ -94,14 +119,6 @@ class Connection(ABC):
 
     return message
 
-  @abstractmethod
-  async def _send(self, message: Message):
-    pass
-
-  @abstractmethod
-  async def _recv(self) -> Message:
-    pass
-
 class IPCConnection(Connection):
   connection: mpconn.Connection
 
@@ -125,7 +142,7 @@ class IPCConnection(Connection):
 
   def validate_open(self):
     if self.connection.closed:
-      if not self.closed: self.close()
+      if not self.closed.is_set(): self.close()
       raise Exception("Connection closed")
 
 class QueueConnection(Connection):
@@ -147,13 +164,13 @@ class QueueConnection(Connection):
     self.validate_open()
     await self.out_messages.put(message)
 
-  async def _recv(self) -> Optional[Message]:
+  async def _recv(self) -> Message:
     self.validate_open()
-    await self.in_messages.get()
+    return await self.in_messages.get()
 
   def validate_open(self):
     if self.close_signal.is_set():
-      if not self.closed: self.close()
+      if not self.closed.is_set(): self.close()
       raise Exception("Connection closed")
 
 class RawQueueConnection(QueueConnection):
@@ -164,7 +181,7 @@ class RawQueueConnection(QueueConnection):
     self.validate_open()
     await self.out_messages.put(serialize_message(message))
 
-  async def _recv(self) -> Optional[Message]:
+  async def _recv(self) -> Message:
     self.validate_open()
     return deserialize_message(await self.in_messages.get())
 
@@ -199,15 +216,24 @@ class Switch:
 
   stream_controls: dict[int, TopicControlData]
   connections: list[Connection]
+  pending_connections: list[Connection]
+  connection_receiving_tasks: dict[Connection, asyncio.Task]
+  connections_pending: asyncio.Event
 
   def __init__(self):
     self.connections = []
+    self.pending_connections = []
+    self.connection_receiving_tasks = {}
+    self.connections_pending = asyncio.Event()
+
     self.in_topics = IdTracker()
     self.out_topics = PricedIdTracker()
     self.addresses = PricedIdTracker()
     self.stream_controls = {}
 
   async def add_connection(self, connection: Connection):
+    self._add_pending_connection(connection)
+
     switch_out_topics = set(self.out_topics.items())
     if len(switch_out_topics) > 0: await connection.send(OutTopicsChangedMessage(switch_out_topics, set()))
 
@@ -227,6 +253,9 @@ class Switch:
   
   async def remove_connection(self, connection: Connection):
     self.connections.remove(connection)
+    self._remove_pending_connection(connection)
+    if connection in self.connection_receiving_tasks: self.connection_receiving_tasks[connection].cancel()
+
     recv_topics = connection.recv_topics
     removed_topics, updated_topics = self.out_topics.remove_many(connection.get_priced_out_topics())
     updated_in_topics = recv_topics - removed_topics
@@ -240,20 +269,6 @@ class Switch:
     removed_addresses, updated_addresses = self.addresses.remove_many(connection.get_priced_addresses())
     if len(removed_addresses) > 0 or len(updated_addresses) > 0:
       await self.broadcast(AddressesChangedMessage(updated_addresses, removed_addresses))
-
-  async def process(self):
-    removing_connections = []
-
-    for connection in self.connections:
-      message = await connection.recv()
-      if connection.closed:
-        removing_connections.append(connection)
-      elif message is None:
-        continue
-      else:
-        await self.handle_message(message, connection)
-
-    for connection in removing_connections: await self.remove_connection(connection)
 
   async def send_to(self, message: Message, connections: list[Connection]): 
     for connection in connections: await connection.send(message)
@@ -335,6 +350,33 @@ class Switch:
       assert type(message) not in [ OutTopicsChangedMessage, AddressesChangedMessage ], "Message type should never be received (sender only)!"
       logging.warning(f"Unhandled message {message}")
 
+  async def start(self):
+    assert len(self.connections) == len(self.pending_connections), "Switch has non receiving connection!"
+    try:
+      while True:
+        await self.connections_pending.wait()
+        connection = self.pending_connections[0]
+        self.connection_receiving_tasks[connection] = asyncio.create_task(self._run_connection_receiving(connection))
+        self._remove_pending_connection(connection)
+    finally:
+      for connection in self.connections: await self.remove_connection(connection)
+
+  async def _run_connection_receiving(self, connection: Connection):
+    try: 
+      while True: 
+        message = await connection.recv()
+        await self.handle_message(message, connection)
+    except Exception as e: logging.error(f"Error receiving from connection: {e}")
+    finally: 
+      await self.remove_connection(connection)
+
+  def _add_pending_connection(self, connection: Connection):
+    self.pending_connections.append(connection)
+    self.connections_pending.set()
+  def _remove_pending_connection(self, connection: Connection):
+    self.pending_connections.remove(connection)
+    if len(self.pending_connections) == 0: self.connections_pending.clear()
+
 class IPCSwitch(Switch):
   bind_address: RemoteAddress
   listening: bool
@@ -359,8 +401,3 @@ class IPCSwitch(Switch):
     finally:
       listener.close()
       self.listening.clear()
-
-def create_switch_processing_task(switch: Switch):
-  async def process_switch():
-    while True: await switch.process()
-  return asyncio.create_task(process_switch())

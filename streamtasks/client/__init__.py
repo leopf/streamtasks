@@ -75,6 +75,7 @@ class Client:
 
   def topic_is_subscribed(self, topic: int): return topic in self._subscribed_provided_topics
   async def wait_topic_subscribed(self, topic: int, subscribed: bool = True): 
+    if (topic in self._subscribed_provided_topics) == subscribed: return
     if subscribed: return await self._subscribed_provided_topics.wait_for_id_added(topic)
     else: return await self._subscribed_provided_topics.wait_for_id_removed(topic)
   async def send_to(self, address: Union[int, str], data: Any): await self._connection.send(AddressedMessage(await self._get_address(address), data))

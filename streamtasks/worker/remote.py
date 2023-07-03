@@ -28,11 +28,15 @@ class RemoteClientWorker(Worker):
 
   async def start(self):
     await self.connect_to_remote()
-    await super().start()
+    return await asyncio.gather(
+      super().start(),
+      self._run_connect_to_remote()
+    )
 
-  async def process(self):
-    await self.connect_to_remote()
-    await super().process()
+  async def _run_connect_to_remote(self):
+    while True:
+      await self.remote_conn.closed.wait()
+      await self.connect_to_remote()
 
   async def connect_to_remote(self):
     while self.remote_conn is None or self.remote_conn.closed:

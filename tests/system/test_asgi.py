@@ -25,7 +25,7 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
     await switch.add_connection(conn1[0])
     await switch.add_connection(conn2[0])
 
-    self.tasks.append(create_switch_processing_task(switch))
+    self.tasks.append(asyncio.create_task(switch.start()))
 
     self.client1 = Client(conn1[1])
     self.client2 = Client(conn2[1])

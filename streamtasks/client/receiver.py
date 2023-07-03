@@ -24,12 +24,14 @@ class Receiver(ABC):
     self._receiving_count += 1 
     if self._receiving_count > 1: return
     self._client.enable_receiver(self)
+    await asyncio.sleep(0)
     await self._on_start_recv()
 
   async def stop_recv(self): 
     self._receiving_count = max(0, self._receiving_count - 1)
     if self._receiving_count > 0: return
     self._client.disable_receiver(self)
+    await asyncio.sleep(0)
     await self._on_stop_recv()
 
   async def __aenter__(self): 

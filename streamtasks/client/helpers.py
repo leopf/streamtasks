@@ -47,6 +47,7 @@ class ProvideTracker:
   @property
   def is_subscribed(self): return self._client.topic_is_subscribed(self._topic)
   async def wait_subscribed(self, subscribed: bool = True): 
+    if self.is_subscribed == subscribed: return # pre check, maybe we can avoid the async context
     from streamtasks.client.receiver import NoopReceiver
     async with NoopReceiver(self._client):
       return await self._client.wait_topic_subscribed(self._topic, subscribed)

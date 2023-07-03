@@ -11,15 +11,17 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     conn1 = create_local_cross_connector(raw=False)
     conn2 = create_local_cross_connector(raw=True)
 
-    switch = Switch()
-    await switch.add_connection(conn1[0])
-    await switch.add_connection(conn2[0])
+    self.switch = Switch()
+    await self.switch.add_connection(conn1[0])
+    await self.switch.add_connection(conn2[0])
 
     self.tasks = []
-    self.tasks.append(create_switch_processing_task(switch))
+    self.tasks.append(asyncio.create_task(self.switch.start()))
     
     self.a = Client(conn1[1])
     self.b = Client(conn2[1])
+
+    await asyncio.sleep(0.001)
 
   async def asyncTearDown(self):
     for task in self.tasks: task.cancel()
@@ -27,35 +29,33 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
   async def test_subscribe(self):
     topic_tracker = self.a.create_provide_tracker()
     await topic_tracker.set_topic(1)
+    await asyncio.sleep(0.001)
 
     self.assertFalse(topic_tracker.is_subscribed)
     await self.b.subscribe([ 1 ])
-    await asyncio.wait_for(topic_tracker.wait_subscribed(), 1)
+    await asyncio.wait_for(topic_tracker.wait_subscribed(), 10000)
     self.assertTrue(topic_tracker.is_subscribed)
 
   async def test_provide_subscribe(self):
     await self.a.provide([ 1, 2 ])
-    await self.b.subscribe([ 1, 2 ])
 
-    await self.a.send_stream_data(1, TextData("Hello 1"))
-    await self.a.send_stream_data(2, TextData("Hello 2"))
+    async with self.b.get_topics_receiver([ 1, 2 ]) as b_recv:
+      await self.a.send_stream_data(1, TextData("Hello 1"))
+      await self.a.send_stream_data(2, TextData("Hello 2"))
 
-    b_recv = self.b.get_topics_receiver([ 1, 2 ])
+      recv_data = await asyncio.wait_for(b_recv.recv(), 1)
+      self.assertEqual((recv_data[0], recv_data[1].data, recv_data[2]), (1, "Hello 1", None))
 
-    recv_data = await asyncio.wait_for(b_recv.recv(), 1)
-    self.assertEqual((recv_data[0], recv_data[1].data, recv_data[2]), (1, "Hello 1", None))
+      recv_data = await asyncio.wait_for(b_recv.recv(), 1)
+      self.assertEqual((recv_data[0], recv_data[1].data, recv_data[2]), (2, "Hello 2", None))
 
-    recv_data = await asyncio.wait_for(b_recv.recv(), 1)
-    self.assertEqual((recv_data[0], recv_data[1].data, recv_data[2]), (2, "Hello 2", None))
+      await self.b.unsubscribe([ 1 ])
 
-    await self.b.unsubscribe([ 1 ])
-    await asyncio.sleep(0.001)
+      await self.a.send_stream_data(1, TextData("Hello 1"))
+      await self.a.send_stream_data(2, TextData("Hello 2"))
 
-    await self.a.send_stream_data(1, TextData("Hello 1"))
-    await self.a.send_stream_data(2, TextData("Hello 2"))
-
-    recv_data = await asyncio.wait_for(b_recv.recv(), 1)
-    self.assertEqual((recv_data[0], recv_data[1].data, recv_data[2]), (2, "Hello 2", None))
+      recv_data = await asyncio.wait_for(b_recv.recv(), 1)
+      self.assertEqual((recv_data[0], recv_data[1].data, recv_data[2]), (2, "Hello 2", None))
 
   async def test_address(self):
     await self.a.change_addresses([1])

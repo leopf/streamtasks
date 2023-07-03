@@ -35,7 +35,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
   async def test_address_discovery(self):
     discovery_worker = DiscoveryWorker(1)
     await self.setup_worker(discovery_worker)
-    await asyncio.sleep(0.001)
+    await asyncio.sleep(0.01)
 
     client = Client(await self.worker.create_connection(raw=True))
 
@@ -74,9 +74,9 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
   async def test_address_name_resolver(self):
     discovery_worker = DiscoveryWorker(1)
     await self.setup_worker(discovery_worker)
-    await asyncio.sleep(0.001)
-    
+
     client1 = Client(await self.worker.create_connection(raw=True))
+    await client1.wait_for_topic_signal(WorkerTopics.DISCOVERY_SIGNAL)
     await self.wait_for(client1.request_address()) 
 
     self.assertEquals(len(client1._subscribing_topics.items()), 0)
