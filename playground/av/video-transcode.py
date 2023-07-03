@@ -15,7 +15,6 @@ async def display_frame(name: str, f: np.ndarray):
         e.set()
     asyncio.get_running_loop().call_soon_threadsafe(show)
     await e.wait()
-    # await asyncio.sleep(0.02)
 
 
 def generate_frames(frame_count):
