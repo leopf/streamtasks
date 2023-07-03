@@ -68,7 +68,6 @@ class TaskFactoryWorker(Worker, ABC):
     async def deploy_task(req: FetchRequest):
       deployment: TaskDeployment = TaskDeployment.parse_obj(req.body)
       status = await self.deploy_task(deployment)
-      print("deployed with status", status)
       await req.respond(status.dict())
 
     self.fetch_server_running.set()

@@ -39,6 +39,8 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
 
     client = Client(await self.worker.create_connection(raw=True))
 
+    await self.wait_for(client.wait_for_topic_signal(WorkerTopics.DISCOVERY_SIGNAL))
+    
     own_address = await self.wait_for(client.request_address()) 
     self.assertEqual(WorkerAddresses.COUNTER_INIT, own_address)
 
@@ -53,7 +55,11 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     discovery_worker = DiscoveryWorker(1)
     await self.setup_worker(discovery_worker)
 
+
     client1 = Client(await self.worker.create_connection(raw=True))
+    await self.wait_for(client1.wait_for_topic_signal(WorkerTopics.DISCOVERY_SIGNAL))
+
+
     await self.wait_for(client1.request_address()) 
     client2 = Client(await self.worker.create_connection(raw=True))
     await self.wait_for(client2.request_address()) 
@@ -92,6 +98,8 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     await self.setup_worker(discovery_worker)
 
     client = Client(await self.worker.create_connection(raw=True))
+
+    await self.wait_for(client.wait_for_topic_signal(WorkerTopics.DISCOVERY_SIGNAL))
 
     await self.wait_for(client.request_address()) # make sure we have an address
     topics = await self.wait_for(client.request_topic_ids(5, apply=True))

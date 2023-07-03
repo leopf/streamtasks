@@ -189,25 +189,29 @@ class ASGIProxyApp:
   async def __call__(self, scope, receive: Callable[[], Awaitable[dict]], send: Callable[[dict], Awaitable[None]]):
     connection_id = str(uuid4())
     ser_scope = JSONValueTransformer.annotate_value(scope)
+    
+    receiver = ASGIEventReceiver(self._client, self._own_address)
+    await receiver.start_recv() # NOTE: must be enabled before sending init message, otherwise events will be lost
+    
     await self._client.fetch(self._remote_address, self._init_descriptor, ASGIInitMessage(connection_id=connection_id, return_address=self._own_address, scope=ser_scope).dict())
 
     closed_event = asyncio.Event()
-    receiver = ASGIEventReceiver(self._client, self._own_address)
     sender = ASGIEventSender(self._client, self._remote_address, connection_id)
+
 
     async def recv_loop(): 
       while not closed_event.is_set(): 
         await sender.send(await receive())
         await asyncio.sleep(0)
     async def send_loop():
-      async with receiver:
-        while not closed_event.is_set():
-          data = await receiver.recv()
-          for event in data.events: await send(MessagePackValueTransformer.deannotate_value(event))
-          if data.closed: closed_event.set()
+      while not closed_event.is_set():
+        data = await receiver.recv()
+        for event in data.events: await send(MessagePackValueTransformer.deannotate_value(event))
+        if data.closed: closed_event.set()
 
     recv_task = asyncio.create_task(recv_loop())
     send_task = asyncio.create_task(send_loop())
     await closed_event.wait()
+    await receiver.stop_recv()
     recv_task.cancel()
     send_task.cancel()

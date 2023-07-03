@@ -67,28 +67,24 @@ class Connection(ABC):
     while message is None:
       message = await self._recv_one()
       message = self._process_recv_message(message)
+
     return message
 
   async def _recv_one(self):
-    return await self._recv()
-    if self.closed.is_set(): raise Exception("Connection closed")
-
-    message = None
-    async def receiver():
-      nonlocal message
-      message = await self._recv()
-      print("Connection receiving: ", message.__class__.__name__, message.as_dict())
-
-
+    tasks = [
+      asyncio.create_task(self.closed.wait()),
+      asyncio.create_task(self._recv())
+    ]
     try:
-      await asyncio.wait([asyncio.create_task(receiver()), asyncio.create_task(self.closed.wait())], return_when=asyncio.FIRST_COMPLETED)
-      print("wait done")
-    except Exception as e:
-      print("error: ", e)
-      # assert message is not None or self.closed.is_set(), "invalid state"
-      if self.closed.is_set(): raise Exception("Connection closed") from e
-    print("conn returned")
-    return message
+      done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+
+      results = [ task.result() for task in done ]
+      assert len(results) > 0, "Invalid state"
+      if len(results) > 1 or results[0] == True: 
+        raise Exception("Connection closed")
+      return results[0]
+    finally:
+      for task in tasks: task.cancel()
 
   @abstractmethod
   async def _send(self, message: Message):
@@ -340,7 +336,6 @@ class Switch:
       await self.send_to(AddressesChangedMessage(addresses_added, addresses_removed), [ conn for conn in self.connections if conn != origin ])
 
   async def handle_message(self, message: Message, origin: Connection):
-    print("Switch processing: ", message.__class__.__name__, message.as_dict())
     if isinstance(message, TopicMessage):
       if isinstance(message, TopicControlMessage):
         self.stream_controls[message.topic] = message.to_data()
