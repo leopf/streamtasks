@@ -34,6 +34,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     self.assertFalse(topic_tracker.is_subscribed)
     await self.b.subscribe([ 1 ])
     await asyncio.wait_for(topic_tracker.wait_subscribed(self.stop_signal), 1)
+    self.assertTrue(topic_tracker.is_subscribed)
 
   async def test_provide_subscribe(self):
     await self.a.provide([ 1, 2 ])

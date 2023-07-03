@@ -32,10 +32,12 @@ class GateTask(Task):
     await self._apply_deployment(self.deployment)
     async with self.client.get_topics_receiver([ self.input_topic, self.gate_topic ]) as receiver:
       while not stop_signal.is_set():
+        # print("gate task")
         if receiver.empty(): 
           if not self.output_topic.is_subscribed: 
-            await self.gate_topic.unsubscribe()
-            await self.input_topic.unsubscribe()
+            print("gate paused")
+            # await self.gate_topic.unsubscribe()
+            # await self.input_topic.unsubscribe()
             await self.output_topic.pause()
             await self.output_topic.wait_subscribed(stop_signal)
             await self.update_stream_states()
@@ -61,6 +63,7 @@ class GateTask(Task):
     try:
       timestamp = get_timestamp_from_message(data)
       gate_value = self.gate_value_tracker.pop(timestamp, self.default_gate_value)
+      print("got data ", data.data, gate_value)
       if gate_value > 0.5: await self.client.send_stream_data(self.output_topic.topic, data)
       await self.update_stream_states()
     except Exception as e:
@@ -69,6 +72,7 @@ class GateTask(Task):
   async def _process_gate_message(self, data: SerializableData):
     try:
       message: NumberMessage = NumberMessage.parse_obj(data.data)
+      print("got gate ", message)
       self.gate_value_tracker.add(message.timestamp, message.value)
     except: 
       if self.fail_mode != GateFailMode.PASSIVE: self.gate_value_tracker.set_stale()

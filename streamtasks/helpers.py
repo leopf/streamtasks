@@ -37,15 +37,27 @@ class AwaitableIdTracker(IdTracker):
 
   def __init__(self):
     super().__init__()
-    self._waiting_ids = {}
+    self._waiting_ids_added = {}
+    self._waiting_ids_removed = {}
   
   def add_many(self, ids: Iterable[int]):
     added = super().add_many(ids)
     for id in added:
-      event = self._waiting_ids.pop(id, None)
+      event = self._waiting_ids_added.pop(id, None)
       if event is not None: event.set()
     return added
 
-  async def wait_for_id(self, id: int):
-    if id not in self._waiting_ids: self._waiting_ids[id] = asyncio.Event()
-    return await self._waiting_ids[id].wait()
+  def remove_many(self, ids: Iterable[int]):
+    removed = super().remove_many(ids)
+    for id in removed:
+      event = self._waiting_ids_removed.pop(id, None)
+      if event is not None: event.set()
+    return removed
+
+  async def wait_for_id_added(self, id: int):
+    if id not in self._waiting_ids_added: self._waiting_ids_added[id] = asyncio.Event()
+    return await self._waiting_ids_added[id].wait()
+
+  async def wait_for_id_removed(self, id: int):
+    if id not in self._waiting_ids_removed: self._waiting_ids_removed[id] = asyncio.Event()
+    return await self._waiting_ids_removed[id].wait()

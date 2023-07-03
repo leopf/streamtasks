@@ -24,21 +24,21 @@ class SubscribeTracker:
     self._topic = None
     self._subscribed = False
   async def subscribe(self): 
-    if not self._subscribed: 
+    if not self._subscribed and self._topic is not None: 
       self._subscribed = True
       await self._client.subscribe([self._topic])
   async def unsubscribe(self): 
-    if self._subscribed: 
+    if self._subscribed and self._topic is not None: 
       self._subscribed = False
       await self._client.unsubscribe([self._topic])
   @property
   def topic(self): return self._topic
   async def set_topic(self, topic: int, subscribe: bool = True): 
     if topic != self._topic:
-      if self._topic is not None: await self._client.unsubscribe([ self._topic ])
+      await self.unsubscribe()
       self._subscribed = False
       self._topic = topic
-      if self._topic is not None and subscribe: await self._client.subscribe([ self._topic ])
+      if subscribe: await self.subscribe()
 class ProvideTracker:
   def __init__(self, client: 'Client'):
     self._client = client
@@ -49,7 +49,7 @@ class ProvideTracker:
   async def wait_subscribed(self, stop_signal: asyncio.Event, subscribed: bool = True): 
     from streamtasks.client.receiver import NoopReceiver
     async with NoopReceiver(self._client):
-      while self._client.topic_is_subscribed(self._topic) != subscribed and not stop_signal.is_set(): await asyncio.sleep(0.001)
+      await asyncio.wait([ asyncio.create_task(stop_signal.wait()), asyncio.create_task(self._client.wait_topic_subscribed(self._topic, subscribed)) ], return_when=asyncio.FIRST_COMPLETED)
   async def pause(self):
     if not self._paused:
       self._paused = True

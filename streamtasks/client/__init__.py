@@ -74,8 +74,9 @@ class Client:
     return found_address
 
   def topic_is_subscribed(self, topic: int): return topic in self._subscribed_provided_topics
-  async def wait_topic_subscribed(self, topic: int): return await self._subscribed_provided_topics.wait_for_id(topic)
-
+  async def wait_topic_subscribed(self, topic: int, subscribed: bool = True): 
+    if subscribed: return await self._subscribed_provided_topics.wait_for_id_added(topic)
+    else: return await self._subscribed_provided_topics.wait_for_id_removed(topic)
   async def send_to(self, address: Union[int, str], data: Any): await self._connection.send(AddressedMessage(await self._get_address(address), data))
   async def send_stream_control(self, topic: int, control_data: TopicControlData): await self._connection.send(control_data.to_message(topic))
   async def send_stream_data(self, topic: int, data: SerializableData): await self._connection.send(TopicDataMessage(topic, data))
