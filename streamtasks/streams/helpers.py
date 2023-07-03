@@ -5,6 +5,10 @@ class StreamValueTracker:
     self.values = []
     self._stale = False
     self._in_timeframe = False
+  def reset(self): 
+    self.values.clear()
+    self._stale = False
+    self._in_timeframe = False
   def pop(self, timestamp: int, default=None):
     if len(self.values) == 0 or timestamp < self.values[0][0]: 
       self._in_timeframe = False

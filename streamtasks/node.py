@@ -10,15 +10,12 @@ class NodeBase(ABC):
     self.running = False
     self.switch = switch
 
-  async def async_start(self, stop_signal: asyncio.Event):
-    self.running = True
-    await self._start_switching(stop_signal)
-    self.running = False
-    
-  async def _start_switching(self, stop_signal: asyncio.Event):
-    while not stop_signal.is_set():
-      await self.switch.process()
-      await asyncio.sleep(0.001)
+  async def start(self):
+    try:
+      self.running = True
+      while True: await self.switch.process()
+    finally:
+      self.running = False
 
 class LocalNode(NodeBase):
   def __init__(self):
@@ -35,8 +32,8 @@ class IPCNode(NodeBase):
   def __init__(self, id: int):
     super().__init__(IPCSwitch(get_node_socket_path(id)))
 
-  async def async_start(self, stop_signal: asyncio.Event):
+  async def start(self):
     await asyncio.gather(
-      super().async_start(stop_signal),
-      self.switch.start_listening(stop_signal),
+      super().start(),
+      self.switch.start_listening(),
     )

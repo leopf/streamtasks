@@ -15,15 +15,15 @@ def validate_args(args):
 
 def start_remote_connect(args):
   worker = RemoteClientWorker(args["node_id"], (args["address"], args["port"]), args["connection_cost"])
-  asyncio.run(worker.async_start(asyncio.Event()))
+  asyncio.run(worker.start(asyncio.Event()))
 
 def start_remote_listen(args):
   worker = RemoteServerWorker(args["node_id"], (args["address"], args["port"]))
-  asyncio.run(worker.async_start(asyncio.Event()))
+  asyncio.run(worker.start(asyncio.Event()))
 
 def start_node(args):
   node = IPCNode(args["node_id"])
-  asyncio.run(node.async_start(asyncio.Event()))
+  asyncio.run(node.start(asyncio.Event()))
 
 def main():
   parser = argparse.ArgumentParser(prog='streamtask workers')

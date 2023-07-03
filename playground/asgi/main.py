@@ -11,7 +11,6 @@ import asyncio
 
 node = LocalNode()
 processing_tasks: list[asyncio.Task] = []
-stop_signal = asyncio.Event()
 
 async def demo_app(scope, receive, send):
     await send({"type": "http.response.start", "status": 200})
@@ -19,10 +18,10 @@ async def demo_app(scope, receive, send):
 
 async def setup_worker(worker: Worker):
     await worker.set_node_connection(await node.create_connection(raw=True))
-    processing_tasks.append(asyncio.create_task(worker.async_start(stop_signal)))
+    processing_tasks.append(asyncio.create_task(worker.start()))
 
 async def start_node():
-    processing_tasks.append(asyncio.create_task(node.async_start(stop_signal)))
+    processing_tasks.append(asyncio.create_task(node.start()))
 
 async def start_secondary_server():
     worker = Worker(2)
@@ -37,7 +36,7 @@ async def start_secondary_server():
         return "hi from secondary server"
 
     runner = ASGIAppRunner(client, demo_app, "demo_app", 1337)
-    processing_tasks.append(asyncio.create_task(runner.async_start(stop_signal)))
+    processing_tasks.append(asyncio.create_task(runner.start()))
 
 async def start_main_server():
     worker = Worker(1)
@@ -58,15 +57,12 @@ async def start_main_server():
     config = uvicorn.Config(app, port=8000)
     server = uvicorn.Server(config)
     await server.serve()
-    stop_signal.set()
-
-    for task in processing_tasks: await task
+    for task in processing_tasks: task.cancel()
 
 async def main():
     await start_node()
     await start_secondary_server()
     await start_main_server()
-    await stop_signal.wait()
 
 if __name__ == "__main__":
     asyncio.run(main())

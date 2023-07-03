@@ -31,13 +31,12 @@ class Worker:
     await self.connect_to_node()
     await self.switch.process()
 
-  async def async_start(self, stop_signal: asyncio.Event):
-    await self.connect_to_node()
-    self.connected.set()
-    while not stop_signal.is_set():
-      await self.process()
-      await asyncio.sleep(0.001) # TODO: this is not clean!!
-    self.connected.clear()
+  async def start(self):
+    try:
+      await self.connect_to_node()
+      self.connected.set()
+      while True: await self.process()
+    finally: self.connected.clear()
 
   async def connect_to_node(self):
     while self.node_conn is None or self.node_conn.closed:

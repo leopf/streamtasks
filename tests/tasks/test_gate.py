@@ -11,12 +11,9 @@ import itertools
 class TestGate(unittest.IsolatedAsyncioTestCase):
   client: Client
   worker_client: GateTask
-
-  stop_signal: asyncio.Event
   tasks: list[asyncio.Task]
 
   async def asyncSetUp(self):
-    self.stop_signal = asyncio.Event()
     self.tasks = []
 
     conn1 = create_local_cross_connector(raw=False)
@@ -26,7 +23,7 @@ class TestGate(unittest.IsolatedAsyncioTestCase):
     await switch.add_connection(conn1[0])
     await switch.add_connection(conn2[0])
     self.timestamp = 0
-    self.tasks.append(create_switch_processing_task(switch, self.stop_signal))
+    self.tasks.append(create_switch_processing_task(switch))
 
     self.client = Client(conn1[1])
     self.stream_gate_topic = self.client.create_provide_tracker()
@@ -41,8 +38,7 @@ class TestGate(unittest.IsolatedAsyncioTestCase):
     await asyncio.sleep(0.001)
 
   async def asyncTearDown(self):
-    self.stop_signal.set()
-    for task in self.tasks: await task
+    for task in self.tasks: task.cancel()
   
   def get_deployment_config(self, fail_mode: GateFailMode): return TaskDeployment(
       id="test_gate",
@@ -67,7 +63,7 @@ class TestGate(unittest.IsolatedAsyncioTestCase):
 
   def start_gate(self, fail_mode: GateFailMode):
     task = GateTask(self.worker_client, self.get_deployment_config(fail_mode))
-    self.tasks.append(asyncio.create_task(task.async_start(self.stop_signal)))
+    self.tasks.append(asyncio.create_task(task.start()))
     return task
 
   async def send_input_data(self, value: float):
@@ -96,8 +92,8 @@ class TestGate(unittest.IsolatedAsyncioTestCase):
     gate = self.start_gate(fail_mode)
     async with self.client.get_topics_receiver([ self.stream_out_topic ]) as out_reciever:
       await self.stream_out_topic.subscribe()
-      await self.stream_in_topic.wait_subscribed(self.stop_signal)
-      await self.stream_gate_topic.wait_subscribed(self.stop_signal)
+      await self.stream_in_topic.wait_subscribed()
+      await self.stream_gate_topic.wait_subscribed()
 
       await self.send_input_data(1)
       await self.send_gate_data(0)
@@ -122,9 +118,9 @@ class TestGate(unittest.IsolatedAsyncioTestCase):
 
       # await asyncio.sleep(0.001)
       # await self.stream_out_topic.unsubscribe()
-      # await asyncio.wait_for(self.stream_in_topic.wait_subscribed(self.stop_signal, False), 10000)
+      # await asyncio.wait_for(self.stream_in_topic.wait_subscribed(False), 10000)
       # await self.stream_out_topic.subscribe()
-      # await asyncio.wait_for(self.stream_in_topic.wait_subscribed(self.stop_signal), 10000)
+      # await asyncio.wait_for(self.stream_in_topic.wait_subscribed(), 10000)
 
 
       expected_values = expected_values.copy()

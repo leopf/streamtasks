@@ -65,10 +65,8 @@ class Connection(ABC):
       message = AddressesChangedMessage(set(PricedId(pa.id, pa.cost + self.cost) for pa in ac_message.add), ac_message.remove)
     await self._send(message)
 
-  async def recv(self) -> Optional[Message]:
+  async def recv(self) -> Message:
     message = await self._recv()
-    if message is None:
-      return None
 
     if isinstance(message, InTopicsChangedMessage):
       itc_message: InTopicsChangedMessage = message
@@ -101,7 +99,7 @@ class Connection(ABC):
     pass
 
   @abstractmethod
-  async def _recv(self) -> Optional[Message]:
+  async def _recv(self) -> Message:
     pass
 
 class IPCConnection(Connection):
@@ -116,24 +114,19 @@ class IPCConnection(Connection):
     self.connection.close()
 
   async def _send(self, message: Message):
-    if not self.check_closed():
-      await asyncio.sleep(0)
-      self.connection.send(message)
+    self.validate_open()
+    await asyncio.sleep(0)
+    self.connection.send(message)
 
   async def _recv(self) -> Optional[Message]:
-    if self.check_closed():
-      return None
+    self.validate_open()
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, self.connection.recv) # TODO: better ipc and using custom serializer + asyncio
 
-    if self.connection.poll():
-      await asyncio.sleep(0)
-      return self.connection.recv()
-    else:
-      return None
-
-  def check_closed(self):
+  def validate_open(self):
     if self.connection.closed:
       if not self.closed: self.close()
-    return self.connection.closed
+      raise Exception("Connection closed")
 
 class QueueConnection(Connection):
   out_messages: asyncio.Queue[Message]
@@ -151,37 +144,30 @@ class QueueConnection(Connection):
     if not self.close_signal.is_set(): self.close_signal.set()
 
   async def _send(self, message: Message):
-    if self.check_closed(): return
+    self.validate_open()
     await self.out_messages.put(message)
 
   async def _recv(self) -> Optional[Message]:
-    if self.check_closed(): return None
+    self.validate_open()
+    await self.in_messages.get()
 
-    if self.in_messages.empty():
-      return None
-    else:
-      return await self.in_messages.get()
-
-  def check_closed(self):
+  def validate_open(self):
     if self.close_signal.is_set():
       if not self.closed: self.close()
-    return self.close_signal.is_set()
+      raise Exception("Connection closed")
 
 class RawQueueConnection(QueueConnection):
   out_messages: asyncio.Queue[bytes]
   in_messages: asyncio.Queue[bytes]
 
   async def _send(self, message: Message):
-    if self.check_closed(): return
+    self.validate_open()
     await self.out_messages.put(serialize_message(message))
 
   async def _recv(self) -> Optional[Message]:
-    if self.check_closed(): return None
-    if self.in_messages.empty():
-      return None
-    else:
-      m = deserialize_message(await self.in_messages.get())
-      return m
+    self.validate_open()
+    return deserialize_message(await self.in_messages.get())
+
 def create_local_cross_connector(raw: bool = False) -> tuple[Connection, Connection]:
   close_signal = asyncio.Event()
   messages_a, messages_b = asyncio.Queue(), asyncio.Queue()
@@ -356,26 +342,25 @@ class IPCSwitch(Switch):
   def __init__(self, bind_address: RemoteAddress):
     super().__init__()
     self.bind_address = bind_address
-    self.listening = False
+    self.listening = asyncio.Event()
 
-  async def start_listening(self, stop_signal: asyncio.Event):
-    self.listening = True
+  async def start_listening(self):
+    try:
+      self.listening.set()
 
-    loop = asyncio.get_event_loop()
-    listener = mpconn.Listener(self.bind_address)
-    logging.info(f"Listening on {self.bind_address}")
+      loop = asyncio.get_event_loop()
+      listener = mpconn.Listener(self.bind_address)
+      logging.info(f"Listening on {self.bind_address}")
 
-    while not stop_signal.is_set():
-      conn = await loop.run_in_executor(None, listener.accept)
-      logging.info(f"Accepted connection!")
-      self.add_connection(IPCConnection(conn))
+      while True:
+        conn = await loop.run_in_executor(None, listener.accept)
+        logging.info(f"Accepted connection!")
+        self.add_connection(IPCConnection(conn))
+    finally:
+      listener.close()
+      self.listening.clear()
 
-    listener.close()
-    self.listening = False
-
-def create_switch_processing_task(switch: Switch, stop_signal: asyncio.Event) -> tuple[asyncio.Task, asyncio.Event]:
+def create_switch_processing_task(switch: Switch):
   async def process_switch():
-    while not stop_signal.is_set():
-      await switch.process()
-      await asyncio.sleep(0.001)
+    while True: await switch.process()
   return asyncio.create_task(process_switch())

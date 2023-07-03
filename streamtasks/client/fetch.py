@@ -80,17 +80,15 @@ class FetchServerReceiver(Receiver):
         self._recv_queue.put_nowait((fr_message.descriptor, FetchRequest(self._client, fr_message.return_address, fr_message.request_id, fr_message.body)))
     except: pass
 
-  async def async_start(self, stop_signal: asyncio.Event):
+  async def start(self):
     async with self:
-      while not stop_signal.is_set():
-        if self.empty(): await asyncio.sleep(0.001)
-        else:
-          descriptor, fr = await self.get()
-          if descriptor in self._descriptor_mapping:
-            try:
-              await self._descriptor_mapping[descriptor](fr)
-              if not fr.response_sent: await fr.respond(None) 
-            except Exception as e: logging.error(e, fr, descriptor)
+      while True:
+        descriptor, fr = await self.get()
+        if descriptor in self._descriptor_mapping:
+          try:
+            await self._descriptor_mapping[descriptor](fr)
+            if not fr.response_sent: await fr.respond(None) 
+          except Exception as e: logging.error(e, fr, descriptor)
 
 class FetchRequestReceiver(Receiver):
   _descriptor: str

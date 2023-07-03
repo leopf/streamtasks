@@ -28,21 +28,32 @@ class GateTask(Task):
 
   def can_update(self, deployment: TaskDeployment): return True
   async def update(self, deployment: TaskDeployment): await self._apply_deployment(deployment)
-  async def async_start(self, stop_signal: asyncio.Event):
-    await self._apply_deployment(self.deployment)
+  async def start_task(self):
+    try:
+      await self._apply_deployment(self.deployment)
+      return asyncio.gather(
+        self._process_messages(),
+        self._process_subscription_status(),
+      )
+    finally:    
+      self.input_paused = False
+      self.gate_value_tracker.reset()
+      await self.input_topic.set_topic(None)
+      await self.gate_topic.set_topic(None)
+      await self.output_topic.set_topic(None)
+  @property
+  def default_gate_value(self): return 0 if self.fail_mode == GateFailMode.FAIL_CLOSED else 1
+  
+  async def _process_subscription_status(self):
+    while True:
+      await self.output_topic.wait_subscribed(False)
+      await self.output_topic.pause()
+      await self.output_topic.wait_subscribed()
+      await self.update_stream_states()
+
+  async def _process_messages(self):
     async with self.client.get_topics_receiver([ self.input_topic, self.gate_topic ]) as receiver:
-      while not stop_signal.is_set():
-        # print("gate task")
-        if receiver.empty(): 
-          if not self.output_topic.is_subscribed: 
-            print("gate paused")
-            # await self.gate_topic.unsubscribe()
-            # await self.input_topic.unsubscribe()
-            await self.output_topic.pause()
-            await self.output_topic.wait_subscribed(stop_signal)
-            await self.update_stream_states()
-          else: await asyncio.sleep(0.001)
-          continue
+      while True:
         topic_id, data, control = await receiver.recv()
         if data is not None:
           if topic_id == self.gate_topic.topic: await self._process_gate_message(data)
@@ -53,12 +64,7 @@ class GateTask(Task):
             await self.update_stream_states()
           if topic_id == self.gate_topic.topic and self.fail_mode != GateFailMode.PASSIVE: 
             if control.paused: self.gate_value_tracker.set_stale()
-          
-    await self.input_topic.set_topic(None)
-    await self.gate_topic.set_topic(None)
-    await self.output_topic.set_topic(None)
-  @property
-  def default_gate_value(self): return 0 if self.fail_mode == GateFailMode.FAIL_CLOSED else 1
+  
   async def _process_input_message(self, data: SerializableData):
     try:
       timestamp = get_timestamp_from_message(data)

@@ -27,24 +27,23 @@ class TaskFactoryWorker(Worker, ABC):
     self.web_server_running = asyncio.Event()
     self.fetch_server_running = asyncio.Event()
     self.stop_timeout = 2
-    self._stop_signal = None
     self._client = None
     self._task_startup_duration = 0.1
 
-  async def async_start(self, stop_signal: asyncio.Event):
-    self._stop_signal = stop_signal
-    self._client = Client(await self.create_connection())
-    await asyncio.gather(
-      self._setup(),
-      self._run_fetch_server(),
-      self._run_web_server(),
-      super().async_start(stop_signal)
-    )
-    self.web_server_running.clear()
-    self.fetch_server_running.clear()
-    self.setup_done.clear()
-
-    for task in self.tasks.values(): await task.stop(self.stop_timeout)
+  async def start(self):
+    try:
+      self._client = Client(await self.create_connection())
+      await asyncio.gather(
+        self._setup(),
+        self._run_fetch_server(),
+        self._run_web_server(),
+        super().start()
+      )
+    finally:
+      self.web_server_running.clear()
+      self.fetch_server_running.clear()
+      self.setup_done.clear()
+      for task in self.tasks.values(): await task.stop(self.stop_timeout)
 
   async def _setup(self):
     await self.connected.wait()
@@ -73,7 +72,7 @@ class TaskFactoryWorker(Worker, ABC):
       await req.respond(status.dict())
 
     self.fetch_server_running.set()
-    await server.async_start(self._stop_signal)
+    await server.start()
 
   async def _run_web_server(self):
     await self.setup_done.wait()
@@ -88,7 +87,7 @@ class TaskFactoryWorker(Worker, ABC):
 
     runner = ASGIAppRunner(self._client, app, self.reg.web_init_descriptor, self.reg.worker_address)
     self.web_server_running.set()
-    await runner.async_start(self._stop_signal)
+    await runner.start()
 
   async def wait_idle(self):
     await self.web_server_running.wait()
@@ -126,23 +125,24 @@ class NodeManagerWorker(Worker):
   def __init__(self, node_id: int):
     super().__init__(node_id)
     self.async_tasks = []
-    self._stop_signal = None
     self._client = None
 
-  async def async_start(self, stop_signal: asyncio.Event):
-    self._stop_signal = stop_signal
-    self._client = Client(await self.create_connection())
-    await asyncio.gather(
-      super().async_start(stop_signal)
-    )
-    for task in self.async_tasks: await task
+  async def start(self):
+    try:
+      self._client = Client(await self.create_connection())
+      await asyncio.gather(
+        super().start()
+      )
+    finally:
+      for task in self.async_tasks: task.cancel()
+
   async def unregister_dashboard(self, key: str):
     self._client.fetch(AddressNames.TASK_MANAGER, TaskFetchDescriptors.UNREGISTER_DASHBOARD, DashboardDeleteMessage(key=key).dict())
   async def register_dashboard(self, label: str, app: ASGIApp):
     id = str(uuid4())
     dashboard = DashboardInfo(label=label, id=id, init_descriptor=f"global_dashboard_${id}", address=self._client.default_address)
     runner = ASGIAppRunner(self._client, app, dashboard.web_init_descriptor, dashboard.address)
-    self.async_tasks.append(asyncio.create_task(runner.async_start(self._stop_signal)))
+    self.async_tasks.append(asyncio.create_task(runner.start()))
     await self._client.fetch(AddressNames.TASK_MANAGER, TaskFetchDescriptors.REGISTER_DASHBOARD, dashboard.dict())
     return id
 
@@ -157,17 +157,20 @@ class TaskManagerWorker(Worker):
     self.dashboard_router = None
     self.task_factory_router = None
 
-  async def async_start(self, stop_signal: asyncio.Event):
-    client = Client(await self.create_connection())
-    self.dashboard_router = ASGIDashboardRouter(client, "/dashboard/")
-    self.task_factory_router = ASGITaskFactoryRouter(client, "/task-factory/")
+  async def start(self):
+    try:
+      client = Client(await self.create_connection())
+      self.dashboard_router = ASGIDashboardRouter(client, "/dashboard/")
+      self.task_factory_router = ASGITaskFactoryRouter(client, "/task-factory/")
 
-    await asyncio.gather(
-      self._setup(client),
-      self._run_web_server(stop_signal, client),
-      self._run_fetch_server(stop_signal, client),
-      super().async_start(stop_signal)
-    )
+      await asyncio.gather(
+        self._setup(client),
+        self._run_web_server(client),
+        self._run_fetch_server(client),
+        super().start()
+      )
+    finally:
+      self.ready.clear()
 
   async def _setup(self, client: Client):
     await self.connected.wait()
@@ -176,7 +179,7 @@ class TaskManagerWorker(Worker):
     self.ready.set()
     await client.register_address_name(AddressNames.TASK_MANAGER)
 
-  async def _run_fetch_server(self, stop_signal: asyncio.Event, client: Client):
+  async def _run_fetch_server(self, client: Client):
     await self.ready.wait()
     server = client.create_fetch_server()
 
@@ -200,9 +203,9 @@ class TaskManagerWorker(Worker):
       dashboard: DashboardDeleteMessage = DashboardDeleteMessage.parse_obj(req.body)
       self.dashboard_router.remove_dashboard(dashboard.id)
 
-    await server.async_start(stop_signal)
+    await server.start()
 
-  async def _run_web_server(self, stop_signal: asyncio.Event, client: Client):
+  async def _run_web_server(self, client: Client):
     await self.ready.wait()
     app = FastAPI()
 

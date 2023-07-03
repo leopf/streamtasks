@@ -9,10 +9,10 @@ class RemoteServerWorker(Worker):
   def __init__(self, node_id: int, bind_address: RemoteAddress):
     super().__init__(node_id, IPCSwitch(bind_address))
 
-  async def async_start(self, stop_signal: asyncio.Event):
+  async def start(self):
     await asyncio.gather(
-      self.switch.start_listening(stop_signal),
-      super().async_start(stop_signal)
+      self.switch.start_listening(),
+      super().start()
     )
 
 class RemoteClientWorker(Worker):
@@ -26,12 +26,12 @@ class RemoteClientWorker(Worker):
     self.connection_cost = connection_cost
     self.remote_conn = None
 
-  async def async_start(self, stop_signal: asyncio.Event):
+  async def start(self):
     await self.connect_to_remote()
-    await super().async_start(stop_signal)
+    await super().start()
 
   async def process(self):
-    await self.connect_to_remote(stop_signal)
+    await self.connect_to_remote()
     await super().process()
 
   async def connect_to_remote(self):

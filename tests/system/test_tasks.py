@@ -22,10 +22,10 @@ class CounterEmitTask(Task):
     assert len(deployment.stream_groups[0].inputs) == 0
     assert len(deployment.stream_groups[0].outputs) == 1
     self.output_stream_id = deployment.stream_groups[0].outputs[0].topic_id
-  async def async_start(self, stop_signal: asyncio.Event):
+  async def start_task(self):
     output_topic_id = self.topic_id_map[self.output_stream_id]
     async with self.client.provide_context([ output_topic_id ]):
-      while not stop_signal.is_set():
+      while True:
         await asyncio.sleep(0.001)
         self.counter += 1
         await self.client.send_stream_data(output_topic_id, MessagePackData({ "count": self.counter }))
@@ -39,13 +39,12 @@ class CounterIncrementTask(Task):
     assert len(deployment.stream_groups[0].outputs) == 1
     self.input_stream_id = deployment.stream_groups[0].inputs[0].topic_id
     self.output_stream_id = deployment.stream_groups[0].outputs[0].topic_id
-  async def async_start(self, stop_signal: asyncio.Event):
+  async def start_task(self):
     input_topic_id = self.topic_id_map[self.input_stream_id]
     output_topic_id = self.topic_id_map[self.output_stream_id]
     async with self.client.provide_context([ output_topic_id ]):
       async with self.client.get_topics_receiver([ input_topic_id ]) as receiver:
-        while not stop_signal.is_set():
-          await asyncio.sleep(0.001)
+        while True:
           topic_id, data, _ = await receiver.recv()
           assert topic_id == input_topic_id
           assert "count" in data.data
@@ -69,28 +68,25 @@ class TestTasks(unittest.IsolatedAsyncioTestCase):
   node: LocalNode
   worker: Worker
 
-  stop_signal: asyncio.Event
   tasks: list[asyncio.Task]
 
   async def asyncSetUp(self):
-    self.stop_signal = asyncio.Event()
     self.tasks = []
     self.node = LocalNode()
 
     dicovery_worker = DiscoveryWorker(0)
     await self.setup_worker(dicovery_worker)
 
-    self.tasks.append(asyncio.create_task(self.node.async_start(self.stop_signal)))
+    self.tasks.append(asyncio.create_task(self.node.start()))
     await asyncio.sleep(0.001)
 
   async def asyncTearDown(self):
-    self.stop_signal.set()
-    for task in self.tasks: await task
+    for task in self.tasks: task.cancel()
 
   async def setup_worker(self, worker: Worker):
     if hasattr(worker, "stop_timeout"): worker.stop_timeout = 0.1
     await worker.set_node_connection(await self.node.create_connection(raw=True))
-    task = asyncio.create_task(worker.async_start(self.stop_signal))
+    task = asyncio.create_task(worker.start())
     self.tasks.append(task)
     await worker.connected.wait()
     return task

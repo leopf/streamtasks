@@ -5,7 +5,6 @@ from streamtasks.client import *
 class TestClient(unittest.IsolatedAsyncioTestCase):
   a: Client
   b: Client
-  stop_signal: asyncio.Event
   tasks: list[asyncio.Task]
   
   async def asyncSetUp(self):
@@ -17,15 +16,13 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     await switch.add_connection(conn2[0])
 
     self.tasks = []
-    self.stop_signal = asyncio.Event()
-    self.tasks.append(create_switch_processing_task(switch, self.stop_signal))
+    self.tasks.append(create_switch_processing_task(switch))
     
     self.a = Client(conn1[1])
     self.b = Client(conn2[1])
 
   async def asyncTearDown(self):
-    self.stop_signal.set()
-    for task in self.tasks: await task
+    for task in self.tasks: task.cancel()
 
   async def test_subscribe(self):
     topic_tracker = self.a.create_provide_tracker()
@@ -33,7 +30,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
     self.assertFalse(topic_tracker.is_subscribed)
     await self.b.subscribe([ 1 ])
-    await asyncio.wait_for(topic_tracker.wait_subscribed(self.stop_signal), 1)
+    await asyncio.wait_for(topic_tracker.wait_subscribed(), 1)
     self.assertTrue(topic_tracker.is_subscribed)
 
   async def test_provide_subscribe(self):

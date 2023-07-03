@@ -130,13 +130,9 @@ class ASGIAppRunner:
 
     self._init_receiver = FetchRequestReceiver(client, init_conn_desc, self._own_address)
 
-  async def async_start(self, stop_signal: asyncio.Event):
+  async def start(self): # TODO: use fetch server
     async with self._init_receiver:
-      while not stop_signal.is_set():
-        if self._init_receiver.empty(): 
-          await asyncio.sleep(0.001)
-          continue
-
+      while True:
         raw_request: FetchRequest = await self._init_receiver.recv()
         init_request = ASGIInitMessage.parse_obj(raw_request.body)
 
@@ -159,8 +155,7 @@ class ASGIAppRunner:
     async def send(event: dict): 
       await sender.send(event)
     async def receive() -> dict: 
-      while recv_queue.empty():
-        if stop_signal.is_set(): raise RuntimeError("Connection closed")
+      while recv_queue.empty() and not stop_signal.is_set():
         data = await receiver.recv()
         for event in data.events: 
           event = MessagePackValueTransformer.deannotate_value(event)

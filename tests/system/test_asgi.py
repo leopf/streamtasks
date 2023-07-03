@@ -13,11 +13,9 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
   client1: Client
   client2: Client
 
-  stop_signal: asyncio.Event
   tasks: list[asyncio.Task]
 
   async def asyncSetUp(self):
-    self.stop_signal = asyncio.Event()
     self.tasks = []
 
     conn1 = create_local_cross_connector(raw=False)
@@ -27,7 +25,7 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
     await switch.add_connection(conn1[0])
     await switch.add_connection(conn2[0])
 
-    self.tasks.append(create_switch_processing_task(switch, self.stop_signal))
+    self.tasks.append(create_switch_processing_task(switch))
 
     self.client1 = Client(conn1[1])
     self.client2 = Client(conn2[1])
@@ -36,12 +34,11 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
     await asyncio.sleep(0.001)
 
   async def asyncTearDown(self):
-    self.stop_signal.set()
-    for task in self.tasks: await task
+    for task in self.tasks: task.cancel()
 
   async def setup_worker(self, worker: Worker):
     await worker.set_node_connection(await self.node.create_connection(raw=True))
-    self.tasks.append(asyncio.create_task(worker.async_start(self.stop_signal)))
+    self.tasks.append(asyncio.create_task(worker.start()))
 
   async def test_transmit(self):
     sender = ASGIEventSender(self.client1, 1337, 1)
@@ -63,7 +60,7 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
     demo_app.add_api_route("/", lambda: { "text": "Hello from FastAPI!" })
 
     runner = ASGIAppRunner(self.client2, demo_app, "demo_app", 1337)
-    self.tasks.append(asyncio.create_task(runner.async_start(self.stop_signal)))
+    self.tasks.append(asyncio.create_task(runner.start()))
 
     proxy_app = ASGIProxyApp(self.client1, 1337, "demo_app", 1338)
     
@@ -79,7 +76,7 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
       await send({"type": "http.response.body", "body": b"Hello world!"})
 
     runner = ASGIAppRunner(self.client2, demo_app, "demo_app", 1337)
-    self.tasks.append(asyncio.create_task(runner.async_start(self.stop_signal)))
+    self.tasks.append(asyncio.create_task(runner.start()))
 
     proxy_app = ASGIProxyApp(self.client1, 1337, "demo_app", 1338)
     

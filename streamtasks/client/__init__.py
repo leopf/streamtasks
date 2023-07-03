@@ -149,7 +149,11 @@ class Client:
   def enable_receiver(self, receiver: Receiver):
     self._receivers.append(receiver)
     self._receive_task = self._receive_task or asyncio.create_task(self._task_receive())
-  def disable_receiver(self, receiver: Receiver): self._receivers.remove(receiver)
+  def disable_receiver(self, receiver: Receiver): 
+    self._receivers.remove(receiver)
+    if len(self._receivers) == 0: 
+      self._receive_task.cancel()
+      self._receive_task = None # NOTE: i think we need this to prevent a race condition
 
   async def _get_address(self, address: Union[int, str]) -> int: return await self.resolve_address_name(address) if isinstance(address, str) else address
   async def _register_address_name(self, name: str, address: Optional[int]):
@@ -160,14 +164,12 @@ class Client:
     else: self._address_map[name] = address
 
   async def _task_receive(self):
-    while len(self._receivers) > 0:
-      message = await self._connection.recv()
-      if message:
+    try:
+      while len(self._receivers) > 0:
+        message = await self._connection.recv()
         if isinstance(message, InTopicsChangedMessage): self._subscribed_provided_topics.change_many(message.add, message.remove)
         if isinstance(message, TopicMessage) and message.topic not in self._subscribing_topics: continue
         if isinstance(message, DataMessage) and message.data.type == SerializationType.CUSTOM: message.data.serializer = self._custom_serializers.get(message.data.content_id, None)
         for receiver in self._receivers:
           receiver.on_message(message)
-      else:
-        await asyncio.sleep(0.001)
-    self._receive_task = None
+    finally: self._receive_task = None

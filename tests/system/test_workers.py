@@ -10,31 +10,27 @@ import asyncio
 class TestWorkers(unittest.IsolatedAsyncioTestCase):
   node: LocalNode
   worker: Worker
-
-  stop_signal: asyncio.Event
   tasks: list[asyncio.Task]
 
   async def asyncSetUp(self):
-    self.stop_signal = asyncio.Event()
     self.tasks = []
     self.node = LocalNode()
 
     self.worker = Worker(1)
     await self.setup_worker(self.worker)
 
-    self.tasks.append(asyncio.create_task(self.node.async_start(self.stop_signal)))
+    self.tasks.append(asyncio.create_task(self.node.start()))
 
     await asyncio.sleep(0.001)
 
   async def wait_for(self, fut): return await asyncio.wait_for(fut, 1000)
 
   async def asyncTearDown(self):
-    self.stop_signal.set()
-    for task in self.tasks: await task
+    for task in self.tasks: task.cancel()
 
   async def setup_worker(self, worker: Worker):
     await worker.set_node_connection(await self.node.create_connection(raw=True))
-    self.tasks.append(asyncio.create_task(worker.async_start(self.stop_signal)))
+    self.tasks.append(asyncio.create_task(worker.start()))
 
   async def test_address_discovery(self):
     discovery_worker = DiscoveryWorker(1)
