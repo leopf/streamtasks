@@ -71,19 +71,27 @@ class Connection(ABC):
     return message
 
   async def _recv_one(self):
+    async def wait_closed():
+      print("waiting closed")
+      await self.closed.wait()
+      print("closed done")
+      return True
+
     tasks = [
-      asyncio.create_task(self.closed.wait()),
+      asyncio.create_task(wait_closed()),
       asyncio.create_task(self._recv())
     ]
     try:
       done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-
+      print("DONE")
       results = [ task.result() for task in done ]
       assert len(results) > 0, "Invalid state"
       if len(results) > 1 or results[0] == True: 
+        print("raising")
         raise Exception("Connection closed")
       return results[0]
     finally:
+      print("CLEANUP")
       for task in tasks: task.cancel()
 
   @abstractmethod
@@ -368,7 +376,7 @@ class Switch:
       while True: 
         message = await connection.recv()
         await self.handle_message(message, connection)
-    except Exception as e: logging.error(f"Error receiving from connection: {e}")
+    except BaseException as e: logging.error(f"Error receiving from connection: {e}")
     finally: 
       await self.remove_connection(connection)
 
