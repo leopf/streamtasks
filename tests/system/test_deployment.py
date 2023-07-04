@@ -30,9 +30,10 @@ class CounterEmitTask(Task):
         self.counter += 1
         await self.client.send_stream_data(output_topic_id, MessagePackData({ "count": self.counter }))
 
-class CounterIncrementTask(Task):
+class CounterMultipyTask(Task):
   def __init__(self, client: Client, deployment: TaskDeployment):
     super().__init__(client)
+    self.multiplier = deployment.config["multiplier"] if "multiplier" in deployment.config else 2
     self.topic_id_map = deployment.topic_id_map
     assert len(deployment.stream_groups) == 1
     assert len(deployment.stream_groups[0].inputs) == 1
@@ -50,7 +51,7 @@ class CounterIncrementTask(Task):
           assert "count" in data.data
           count = data.data["count"]
           assert isinstance(count, int)
-          await self.client.send_stream_data(output_topic_id, MessagePackData({ "count": count + 1 }))
+          await self.client.send_stream_data(output_topic_id, MessagePackData({ "count": count * self.multiplier }))
 
 class TestTaskFactoryWorker(TaskFactoryWorker):
   @property
@@ -59,7 +60,7 @@ class TestTaskFactoryWorker(TaskFactoryWorker):
   def config_script(self): return ""
 
 class CounterIncrementTaskFactory(TestTaskFactoryWorker):
-  async def create_task(self, deployment: TaskDeployment) -> Task: return CounterIncrementTask(await self.create_client(), deployment)
+  async def create_task(self, deployment: TaskDeployment) -> Task: return CounterMultipyTask(await self.create_client(), deployment)
 
 class CounterEmitTaskFactory(TestTaskFactoryWorker):
   async def create_task(self, deployment: TaskDeployment) -> Task: return CounterEmitTask(await self.create_client(), deployment)
@@ -105,6 +106,8 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
     client = Client(await self.node.create_connection())
     await client.request_address()
 
+    multiplier = 42
+
     deployments: list[TaskDeploymentBase] = [
       TaskDeploymentBase(
         task_factory_id=counter_emit_worker.id, 
@@ -115,7 +118,7 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
       TaskDeploymentBase(
         task_factory_id=counter_increment_worker.id,
         label="increment",
-        config={},
+        config={ "multiplier": multiplier },
         stream_groups=[TaskStreamGroup(inputs=[TaskStream(label="value in",topic_id="emit")], outputs=[TaskStream(label="value out",topic_id="increment")])]
       )
     ]
@@ -138,7 +141,7 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
       for _ in range(5):
         topic_id, data, _ = await receiver.recv()
         self.assertEqual(topic_id, result_topic_id)
-        self.assertEqual(data.data["count"], last_value + 1)
+        self.assertEqual(data.data["count"], last_value + multiplier)
         last_value = data.data["count"]
 
 
