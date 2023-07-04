@@ -133,16 +133,16 @@ class IPCConnection(Connection):
     self.connection.close()
 
   async def _send(self, message: Message):
-    self.validate_open()
+    self._validate_open()
     await asyncio.sleep(0)
     self.connection.send(message)
 
   async def _recv(self) -> Optional[Message]:
-    self.validate_open()
+    self._validate_open()
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, self.connection.recv) # TODO: better ipc and using custom serializer + asyncio
 
-  def validate_open(self):
+  def _validate_open(self):
     if self.connection.closed:
       if not self.closed.is_set(): self.close()
       raise Exception("Connection closed")
@@ -163,7 +163,7 @@ class QueueConnection(Connection):
     if not self.close_signal.is_set(): self.close_signal.set()
 
   async def _send(self, message: Message):
-    self.validate_open()
+    self._validate_open()
     await self.out_messages.put(message)
 
   async def _wait_closed(self): 
@@ -173,14 +173,14 @@ class QueueConnection(Connection):
     ], return_when=asyncio.FIRST_COMPLETED)
 
   async def _recv(self) -> Message:
-    self.validate_open()
+    self._validate_open()
     return await self.in_messages.get()
 
   async def _wait_closed_external(self):
     await self.close_signal.wait()
     self.close()
 
-  def validate_open(self):
+  def _validate_open(self):
     if self.close_signal.is_set():
       if not self.closed.is_set(): self.close()
       raise Exception("Connection closed")
@@ -190,11 +190,11 @@ class RawQueueConnection(QueueConnection):
   in_messages: asyncio.Queue[bytes]
 
   async def _send(self, message: Message):
-    self.validate_open()
+    self._validate_open()
     await self.out_messages.put(serialize_message(message))
 
   async def _recv(self) -> Message:
-    self.validate_open()
+    self._validate_open()
     return deserialize_message(await self.in_messages.get())
 
 def create_local_cross_connector(raw: bool = False) -> tuple[Connection, Connection]:
