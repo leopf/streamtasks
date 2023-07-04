@@ -71,28 +71,20 @@ class Connection(ABC):
     return message
 
   async def _recv_one(self):
-    async def wait_closed():
-      print("waiting closed")
-      await self.closed.wait()
-      print("closed done")
-      return True
-
     tasks = [
-      asyncio.create_task(wait_closed()),
+      asyncio.create_task(self._wait_closed()),
       asyncio.create_task(self._recv())
     ]
     try:
       done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-      print("DONE")
       results = [ task.result() for task in done ]
       assert len(results) > 0, "Invalid state"
-      if len(results) > 1 or results[0] == True: 
-        print("raising")
-        raise Exception("Connection closed")
+      if len(results) > 1 or not isinstance(results[0], Message): raise Exception("Connection closed")
       return results[0]
     finally:
-      print("CLEANUP")
       for task in tasks: task.cancel()
+
+  async def _wait_closed(self): await self.closed.wait()
 
   @abstractmethod
   async def _send(self, message: Message):
@@ -174,9 +166,19 @@ class QueueConnection(Connection):
     self.validate_open()
     await self.out_messages.put(message)
 
+  async def _wait_closed(self): 
+    await asyncio.wait([
+      asyncio.create_task(super()._wait_closed()),
+      asyncio.create_task(self._wait_closed_external())
+    ], return_when=asyncio.FIRST_COMPLETED)
+
   async def _recv(self) -> Message:
     self.validate_open()
     return await self.in_messages.get()
+
+  async def _wait_closed_external(self):
+    await self.close_signal.wait()
+    self.close()
 
   def validate_open(self):
     if self.close_signal.is_set():

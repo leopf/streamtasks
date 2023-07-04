@@ -100,12 +100,10 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     self.assertIn(1, received.remove)
     
   async def test_close(self):    
-    print("close a")
     self.a.close()
     await asyncio.sleep(0.001)
     self.assertEqual(len(self.switch.connections), 1)
 
-    print("close b")
     self.b.close()
     await asyncio.sleep(0.001)
     self.assertEqual(len(self.switch.connections), 0)
