@@ -152,7 +152,7 @@ class Client:
     self._receive_task = self._receive_task or asyncio.create_task(self._task_receive())
   async def disable_receiver(self, receiver: Receiver): 
     self._receivers.remove(receiver)
-    if len(self._receivers) == 0: 
+    if len(self._receivers) == 0 and self._receive_task is not None: 
       self._receive_task.cancel()
       try: await self._receive_task
       except: pass

@@ -54,11 +54,13 @@ class ProvideTracker:
   async def pause(self):
     if not self._paused:
       self._paused = True
-      await self._client.send_stream_control(self._topic, TopicControlData(paused=True))
+      if self._topic is not None:
+        await self._client.send_stream_control(self._topic, TopicControlData(paused=True))
   async def resume(self):
     if self._paused:
       self._paused = False
-      await self._client.send_stream_control(self._topic, TopicControlData(paused=False))
+      if self._topic is not None:
+        await self._client.send_stream_control(self._topic, TopicControlData(paused=False))
   @property
   def topic(self): return self._topic
   async def set_topic(self, topic: int):
