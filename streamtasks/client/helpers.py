@@ -44,6 +44,9 @@ class ProvideTracker:
     self._client = client
     self._topic = None
     self._paused = False
+
+  @property
+  def paused(self): return self._paused
   @property
   def is_subscribed(self): return self._client.topic_is_subscribed(self._topic)
   async def wait_subscribed(self, subscribed: bool = True): 
@@ -51,16 +54,12 @@ class ProvideTracker:
     from streamtasks.client.receiver import NoopReceiver
     async with NoopReceiver(self._client):
       return await self._client.wait_topic_subscribed(self._topic, subscribed)
-  async def pause(self):
-    if not self._paused:
-      self._paused = True
-      if self._topic is not None:
-        await self._client.send_stream_control(self._topic, TopicControlData(paused=True))
-  async def resume(self):
-    if self._paused:
-      self._paused = False
-      if self._topic is not None:
-        await self._client.send_stream_control(self._topic, TopicControlData(paused=False))
+  async def set_paused(self, paused: bool): 
+    if self._paused != paused:
+      self._paused = paused
+      if self._topic is not None: await self._client.send_stream_control(self._topic, TopicControlData(paused=paused))
+  async def pause(self): await self.set_paused(True)
+  async def resume(self): await self.set_paused(False)
   @property
   def topic(self): return self._topic
   async def set_topic(self, topic: int):

@@ -123,7 +123,6 @@ class GateTaskFactoryWorker(TaskFactoryWorker):
     task_factory_id=self.id,
     label="Gate",
     hostname=socket.gethostname(),
-    worker_id=self.worker_id,
     stream_groups=[
       TaskStreamFormatGroup(
         inputs=[TaskStreamFormat(label="input"), TaskStreamFormat(label="gate", content_type="number")],    

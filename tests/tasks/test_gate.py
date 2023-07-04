@@ -78,14 +78,12 @@ class TestGate(unittest.IsolatedAsyncioTestCase):
 
   async def send_gate_pause(self, paused: bool):
     self.timestamp += 1
-    if paused: await self.stream_gate_topic.pause()
-    else: await self.stream_gate_topic.resume()
+    await self.stream_gate_topic.set_paused(paused)
     await asyncio.sleep(0.001)
 
   async def send_input_pause(self, paused: bool):
     self.timestamp += 1
-    if paused: await self.stream_in_topic.pause()
-    else: await self.stream_in_topic.resume()
+    await self.stream_in_topic.set_paused(paused)
     await asyncio.sleep(0.001)
 
   async def _test_fail_mode(self, fail_mode: GateFailMode, expected_values: list[float], expected_pauses: list[bool]):
