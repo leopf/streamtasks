@@ -128,7 +128,6 @@ class TopicsReceiver(Receiver):
     if isinstance(message, TopicMessage) and message.topic in topics:
       if isinstance(message, TopicDataMessage):
         sd_message: TopicDataMessage = message
-        print("received topic data", sd_message.topic, sd_message.data.data)
         self._recv_queue.put_nowait((sd_message.topic, sd_message.data, None))
       elif isinstance(message, TopicControlMessage):
         sc_message: TopicControlMessage = message

@@ -83,7 +83,6 @@ class GateTask(Task):
     try:
       timestamp = get_timestamp_from_message(data)
       gate_value = self.gate_value_tracker.pop(timestamp, self.default_gate_value)
-      print("MESSAGE: ", data.data, gate_value)
       if gate_value > 0.5: await self.client.send_stream_data(self.output_topic.topic, data)
       await self.update_stream_states()
     except Exception as e:
@@ -92,7 +91,6 @@ class GateTask(Task):
   async def _process_gate_message(self, data: SerializableData):
     try:
       message: NumberMessage = NumberMessage.parse_obj(data.data)
-      print("GATE: ", message)
       self.gate_value_tracker.add(message.timestamp, message.value)
     except: 
       if self.fail_mode != GateFailMode.PASSIVE: self.gate_value_tracker.set_stale()
@@ -104,7 +102,6 @@ class GateTask(Task):
     if not self.gate_value_tracker.has_value(lambda _, value: value >= 0.5, self.default_gate_value):
       await self.input_topic.unsubscribe()
       await self.output_topic.pause()
-      print("unsubscribe")
     else:
       await self.input_topic.subscribe()
       if not self.input_paused: await self.output_topic.resume()

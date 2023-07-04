@@ -88,216 +88,78 @@ class TestGate(unittest.IsolatedAsyncioTestCase):
     else: await self.stream_in_topic.resume()
     await asyncio.sleep(0.001)
 
-  async def wrap_routine(self, fail_mode: GateFailMode, expected_values: list[float], expected_pauses: list[bool]):
-    # assert False
-    gate = self.start_gate(fail_mode)
-    async with self.client.get_topics_receiver([ self.stream_out_topic ]) as out_reciever:
-      await self.stream_out_topic.subscribe()
-      await self.stream_in_topic.wait_subscribed()
-      await self.stream_gate_topic.wait_subscribed()
+  async def _test_fail_mode(self, fail_mode: GateFailMode, expected_values: list[float], expected_pauses: list[bool]):
+    async with asyncio.timeout(1):
+      gate = self.start_gate(fail_mode)
+      async with self.client.get_topics_receiver([ self.stream_out_topic ]) as out_reciever:
+        await self.stream_out_topic.subscribe()
+        await self.stream_in_topic.wait_subscribed()
+        await self.stream_gate_topic.wait_subscribed()
 
-      print("start")
+        await self.send_input_data(1)
+        if 1 not in expected_values: await self.stream_in_topic.wait_subscribed(subscribed=False)
+        await self.send_gate_data(0)
+        await self.stream_in_topic.wait_subscribed(subscribed=False)
+        await self.send_input_data(2)
+        await self.stream_in_topic.wait_subscribed(subscribed=False)
+        await self.send_gate_data(1)
+        await self.stream_in_topic.wait_subscribed(subscribed=True)
+        await self.send_input_data(3)
+        await self.send_gate_data(0)
+        await self.send_gate_pause(True)
+        await self.send_input_data(4)
+        if 3 not in expected_values: await self.stream_in_topic.wait_subscribed(subscribed=False)
+        await self.send_gate_pause(False)
+        await self.send_gate_data(1)
+        await self.stream_in_topic.wait_subscribed(subscribed=True)
+        await self.send_input_data(5)
+        await self.send_input_pause(True)
+        await self.send_input_pause(False)
+        await self.send_input_data(6)
+        await self.client.send_stream_data(self.stream_gate_topic.topic, MessagePackData({ "value": 0.5 }))
+        await self.send_input_data(7)
+        if 7 not in expected_values: await self.stream_in_topic.wait_subscribed(subscribed=False)
+        await self.send_gate_data(0)
+        await self.client.send_stream_data(self.stream_gate_topic.topic, MessagePackData({ "value": 0.5 }))
+        await self.send_input_data(8)
+        if 8 not in expected_values: await self.stream_in_topic.wait_subscribed(subscribed=False)
+        await self.send_gate_data(1)
 
-      await self.send_input_data(1)
-      await self.send_gate_data(0)
-      await self.send_input_data(2)
-      await self.send_gate_data(1)
-      await self.send_input_data(3)
-      await self.send_gate_data(0)
-      await self.send_gate_pause(True)
-      await self.send_input_data(4)
-      await self.send_gate_pause(False)
-      await self.send_gate_data(1)
-      await self.send_input_data(5)
-      await self.send_input_pause(True)
-      await self.send_input_pause(False)
-      await self.send_input_data(6)
-      await self.client.send_stream_data(self.stream_gate_topic.topic, MessagePackData({ "value": 0.5 }))
-      await self.send_input_data(7)
-      await self.send_gate_data(0)
-      await self.client.send_stream_data(self.stream_gate_topic.topic, MessagePackData({ "value": 0.5 }))
-      await self.send_input_data(8)
-      await self.send_gate_data(1)
+        expected_values = expected_values.copy()
+        expected_pauses = expected_pauses.copy()
 
-      # await asyncio.sleep(0.001)
-      wait_unsubscribed_task = asyncio.create_task(self.stream_in_topic.wait_subscribed(subscribed=False))
-      await self.stream_out_topic.unsubscribe()
-      await asyncio.wait_for(wait_unsubscribed_task, 10000)
-
-      print("got unsubscribed")
-      
-      wait_subscribed_task = asyncio.create_task(self.stream_in_topic.wait_subscribed())
-      await self.stream_out_topic.subscribe()
-      await asyncio.wait_for(wait_subscribed_task, 10000)
-      
-      print("got subscribed")
-
-
-      expected_values = expected_values.copy()
-      expected_pauses = expected_pauses.copy()
-
-      while len(expected_values) > 0 or len(expected_pauses) > 0:
-        topic_id, data, control = await out_reciever.recv()
-        self.assertEqual(topic_id, self.stream_out_topic.topic)
-        if control:
-          print(control.paused, expected_values)
-          # expected_pause = expected_pauses.pop(0)
-          # self.assertEqual(control.paused, expected_pause)
-        if data:
-          value = data.data["value"]
-          print("value: ", value, expected_values)
-          expected_value = expected_values.pop(0)
-          self.assertEqual(value, expected_value)
+        while len(expected_values) > 0 or len(expected_pauses) > 0:
+          topic_id, data, control = await out_reciever.recv()
+          self.assertEqual(topic_id, self.stream_out_topic.topic)
+          if control:
+            expected_pause = expected_pauses.pop(0)
+            self.assertEqual(control.paused, expected_pause)
+          if data:
+            value = data.data["value"]
+            expected_value = expected_values.pop(0)
+            self.assertEqual(value, expected_value)
 
   async def test_gate_fail_open(self):
-    async with asyncio.timeout(1):
-      gate = self.start_gate(GateFailMode.FAIL_OPEN)
-      async with self.client.get_topics_receiver([ self.stream_out_topic ]) as out_reciever:
-        await self.stream_out_topic.subscribe()
-        await self.stream_in_topic.wait_subscribed()
-        await self.stream_gate_topic.wait_subscribed()
-
-        await self.send_input_data(1)
-        await self.send_gate_data(0)
-        await self.stream_in_topic.wait_subscribed(subscribed=False)
-        await self.send_input_data(2)
-        await self.send_gate_data(1)
-        await self.stream_in_topic.wait_subscribed(subscribed=True)
-        await self.send_input_data(3)
-        await self.send_gate_data(0)
-        await self.send_gate_pause(True)
-        await self.send_input_data(4)
-        await self.send_gate_pause(False)
-        await self.send_gate_data(1)
-        await self.stream_in_topic.wait_subscribed(subscribed=True)
-        await self.send_input_data(5)
-        await self.send_input_pause(True)
-        await self.send_input_pause(False)
-        await self.send_input_data(6)
-        await self.client.send_stream_data(self.stream_gate_topic.topic, MessagePackData({ "value": 0.5 }))
-        await self.send_input_data(7)
-        await self.send_gate_data(0)
-        await self.client.send_stream_data(self.stream_gate_topic.topic, MessagePackData({ "value": 0.5 }))
-        await self.send_input_data(8)
-        await self.send_gate_data(1)
-
-        expected_values = [1, 3, 4, 5, 6, 7, 8]
-        expected_pauses = [True, False, True, False]
-
-        while len(expected_values) > 0 or len(expected_pauses) > 0:
-          topic_id, data, control = await out_reciever.recv()
-          self.assertEqual(topic_id, self.stream_out_topic.topic)
-          if control:
-            expected_pause = expected_pauses.pop(0)
-            self.assertEqual(control.paused, expected_pause)
-          if data:
-            value = data.data["value"]
-            expected_value = expected_values.pop(0)
-            self.assertEqual(value, expected_value)
+    await self._test_fail_mode(
+      GateFailMode.FAIL_OPEN,
+      [1, 3, 4, 5, 6, 7, 8],
+      [True, False, True, False]
+    )
 
   async def test_gate_fail_closed(self):
-    async with asyncio.timeout(1):
-      gate = self.start_gate(GateFailMode.FAIL_CLOSED)
-      async with self.client.get_topics_receiver([ self.stream_out_topic ]) as out_reciever:
-        await self.stream_out_topic.subscribe()
-        await self.stream_in_topic.wait_subscribed()
-        await self.stream_gate_topic.wait_subscribed()
-
-        await self.send_input_data(1)
-        await self.stream_in_topic.wait_subscribed(subscribed=False)
-        await self.send_gate_data(0)
-        await self.send_input_data(2)
-        await self.send_gate_data(1)
-        await self.stream_in_topic.wait_subscribed(subscribed=True)
-        await self.send_input_data(3)
-        await self.send_gate_data(0)
-        await self.send_gate_pause(True)
-        await self.send_input_data(4)
-        await self.stream_in_topic.wait_subscribed(subscribed=False)
-        await self.send_gate_pause(False)
-        await self.send_gate_data(1)
-        await self.stream_in_topic.wait_subscribed(subscribed=True)
-        await self.send_input_data(5)
-        await self.send_input_pause(True)
-        await self.send_input_pause(False)
-        await self.send_input_data(6)
-        await self.client.send_stream_data(self.stream_gate_topic.topic, MessagePackData({ "value": 0.5 }))
-        await self.stream_in_topic.wait_subscribed(subscribed=False)
-        await self.send_input_data(7)
-        await self.send_gate_data(0)
-        await self.client.send_stream_data(self.stream_gate_topic.topic, MessagePackData({ "value": 0.5 }))
-        await self.send_input_data(8)
-        await self.send_gate_data(1)
-        await self.stream_in_topic.wait_subscribed(subscribed=True)
-
-        expected_values = [3, 5, 6]
-        expected_pauses = [True, False, True, False, True, False]
-
-        while len(expected_values) > 0 or len(expected_pauses) > 0:
-          topic_id, data, control = await out_reciever.recv()
-          self.assertEqual(topic_id, self.stream_out_topic.topic)
-          if control:
-            expected_pause = expected_pauses.pop(0)
-            print(control.paused, expected_pause, expected_values)
-            print("messages left: ", [ data.data for _, data, _ in out_reciever._recv_queue._queue if data])
-            self.assertEqual(control.paused, expected_pause)
-          if data:
-            value = data.data["value"]
-            print("value: ", value, expected_values)
-            expected_value = expected_values.pop(0)
-            self.assertEqual(value, expected_value)
+    await self._test_fail_mode(
+      GateFailMode.FAIL_CLOSED,
+      [3, 5, 6],
+      [True, False, True, False, True, False]
+    )
 
   async def test_gate_passive(self):
-    async with asyncio.timeout(1):
-      gate = self.start_gate(GateFailMode.PASSIVE)
-      async with self.client.get_topics_receiver([ self.stream_out_topic ]) as out_reciever:
-        await self.stream_out_topic.subscribe()
-        await self.stream_in_topic.wait_subscribed()
-        await self.stream_gate_topic.wait_subscribed()
+    await self._test_fail_mode(
+      GateFailMode.PASSIVE,
+      [1, 3, 5, 6, 7],
+      [True, False, True, False, True, False, True, False]
+    )
 
-        await self.send_input_data(1)
-        await self.send_gate_data(0)
-        await self.stream_in_topic.wait_subscribed(subscribed=False)
-        await self.send_input_data(2)
-        await self.send_gate_data(1)
-        await self.stream_in_topic.wait_subscribed(subscribed=True)
-        await self.send_input_data(3)
-        await self.send_gate_data(0)
-        await self.send_gate_pause(True)
-        await self.send_input_data(4)
-        await self.stream_in_topic.wait_subscribed(subscribed=False)
-        await self.send_gate_pause(False)
-        await self.send_gate_data(1)
-        await self.stream_in_topic.wait_subscribed(subscribed=True)
-        await self.send_input_data(5)
-        await self.send_input_pause(True)
-        await self.send_input_pause(False)
-        await self.send_input_data(6)
-        await self.client.send_stream_data(self.stream_gate_topic.topic, MessagePackData({ "value": 0.5 }))
-        await self.send_input_data(7)
-        await self.send_gate_data(0)
-        await self.client.send_stream_data(self.stream_gate_topic.topic, MessagePackData({ "value": 0.5 }))
-        await self.send_input_data(8)
-        await self.stream_in_topic.wait_subscribed(subscribed=False)
-        await self.send_gate_data(1)
-        await self.stream_in_topic.wait_subscribed(subscribed=True)
-
-        expected_values = [1, 3, 5, 6, 7]
-        expected_pauses = [True, False, True, False, True, False, True, False]
-
-        while len(expected_values) > 0 or len(expected_pauses) > 0:
-          topic_id, data, control = await out_reciever.recv()
-          self.assertEqual(topic_id, self.stream_out_topic.topic)
-          if control:
-            expected_pause = expected_pauses.pop(0)
-            print(control.paused, expected_pause, expected_values)
-            print("messages left: ", [ data.data for _, data, _ in out_reciever._recv_queue._queue if data])
-            self.assertEqual(control.paused, expected_pause)
-          if data:
-            value = data.data["value"]
-            print("value: ", value, expected_values)
-            expected_value = expected_values.pop(0)
-            self.assertEqual(value, expected_value)
   async def test_unsubscribe(self):
     async with asyncio.timeout(1):
       gate = self.start_gate(GateFailMode.PASSIVE)
