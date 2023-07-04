@@ -64,7 +64,7 @@ class CounterIncrementTaskFactory(TestTaskFactoryWorker):
 class CounterEmitTaskFactory(TestTaskFactoryWorker):
   async def create_task(self, deployment: TaskDeployment) -> Task: return CounterEmitTask(await self.create_client(), deployment)
 
-class TestTasks(unittest.IsolatedAsyncioTestCase):
+class TestDeployment(unittest.IsolatedAsyncioTestCase):
   node: LocalNode
   worker: Worker
 
@@ -91,7 +91,7 @@ class TestTasks(unittest.IsolatedAsyncioTestCase):
     await worker.connected.wait()
     return task
 
-  async def test_counter(self):
+  async def test_counter_deploy(self):
     managment_server = ASGITestServer()
     management_worker = TaskManagerWorker(0, managment_server)
     await self.setup_worker(management_worker)
