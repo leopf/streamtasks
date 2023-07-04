@@ -95,11 +95,11 @@ class ASGITaskFactoryRouter(ASGIRouterBase):
     path_pattern = fnmatch.translate(f"{tf_base_url}/**")
     self._task_factory_apps[task_factory.id] = (path_pattern, proxy_app)
     self._task_factories[task_factory.id] = task_factory
-    self._task_facotry_infos[task_factory.id] = TaskFactoryInfo(id=task_factory.id, path=urllib.parse.urljoin(self.base_url, tf_base_url))
+    self._task_facotry_infos[task_factory.id] = TaskFactoryInfo(id=task_factory.id, path=urllib.parse.urljoin(self.base_url, tf_base_url[1:]))
 
   def get_task_factory(self, id: str) -> Optional[TaskFactoryRegistration]: 
     return self._task_factories.get(id, None)
 
-  def list_task_factory_infos(self): return self._task_facotry_infos.values()
+  def list_task_factory_infos(self): return list(self._task_facotry_infos.values())
   def list_apps(self) -> Iterable[tuple[re.Pattern, ASGIApp]]: return self._task_factories.values()
 

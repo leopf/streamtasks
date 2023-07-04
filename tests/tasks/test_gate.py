@@ -8,24 +8,11 @@ from streamtasks.message import NumberMessage, StringMessage, MessagePackData
 import asyncio
 import itertools
 
-class TestGate(unittest.IsolatedAsyncioTestCase):
-  client: Client
-  worker_client: GateTask
-  tasks: list[asyncio.Task]
+from .shared import TaskTestBase
 
+class TestGate(TaskTestBase):
   async def asyncSetUp(self):
-    self.tasks = []
-
-    conn1 = create_local_cross_connector(raw=False)
-    conn2 = create_local_cross_connector(raw=True)
-
-    switch = Switch()
-    await switch.add_connection(conn1[0])
-    await switch.add_connection(conn2[0])
-    self.timestamp = 0
-    self.tasks.append(asyncio.create_task(switch.start()))
-
-    self.client = Client(conn1[1])
+    await super().asyncSetUp()
     self.stream_gate_topic = self.client.create_provide_tracker()
     await self.stream_gate_topic.set_topic(101)
     self.stream_in_topic = self.client.create_provide_tracker()
@@ -33,13 +20,6 @@ class TestGate(unittest.IsolatedAsyncioTestCase):
     self.stream_out_topic = self.client.create_subscription_tracker()
     await self.stream_out_topic.set_topic(102, subscribe=False)
 
-    self.worker_client = Client(conn2[1])
-    await self.client.change_addresses([1338])
-    await asyncio.sleep(0.001)
-
-  async def asyncTearDown(self):
-    for task in self.tasks: task.cancel()
-  
   def get_deployment_config(self, fail_mode: GateFailMode): return TaskDeployment(
       id="test_gate",
       task_factory_id="test_factory",
@@ -172,4 +152,5 @@ class TestGate(unittest.IsolatedAsyncioTestCase):
         await self.stream_gate_topic.wait_subscribed(subscribed=False)
 
 if __name__ == "__main__":
+  setup()
   unittest.main()

@@ -79,7 +79,18 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
     await self.setup_worker(dicovery_worker)
 
     self.tasks.append(asyncio.create_task(self.node.start()))
+
     await asyncio.sleep(0.001)
+
+    self.managment_server = ASGITestServer()
+    self.management_worker = TaskManagerWorker(0, self.managment_server)
+    await self.setup_worker(self.management_worker)
+
+    self.counter_emit_worker = CounterEmitTaskFactory(0)
+    await self.setup_worker(self.counter_emit_worker)
+
+    self.counter_increment_worker = CounterIncrementTaskFactory(0)
+    await self.setup_worker(self.counter_increment_worker)
 
   async def asyncTearDown(self):
     for task in self.tasks: task.cancel()
@@ -92,17 +103,19 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
     await worker.connected.wait()
     return task
 
+  async def test_task_factories_list(self):
+    await self.counter_emit_worker.wait_idle()
+    await self.counter_increment_worker.wait_idle()
+    web_client = await self.managment_server.wait_for_client()
+
+    result = await web_client.get("/api/task-factories")
+    factories = parse_obj_as(list[TaskFactoryInfo], result.json())
+    ids = [ factory.id for factory in factories ]
+    self.assertEqual(len(factories), 2)
+    self.assertIn(self.counter_emit_worker.id, ids)
+    self.assertIn(self.counter_increment_worker.id, ids)
+
   async def test_counter_deploy(self):
-    managment_server = ASGITestServer()
-    management_worker = TaskManagerWorker(0, managment_server)
-    await self.setup_worker(management_worker)
-
-    counter_emit_worker = CounterEmitTaskFactory(0)
-    await self.setup_worker(counter_emit_worker)
-
-    counter_increment_worker = CounterIncrementTaskFactory(0)
-    await self.setup_worker(counter_increment_worker)
-
     client = Client(await self.node.create_connection())
     await client.request_address()
 
@@ -110,22 +123,22 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
 
     deployments: list[TaskDeploymentBase] = [
       TaskDeploymentBase(
-        task_factory_id=counter_emit_worker.id, 
+        task_factory_id=self.counter_emit_worker.id, 
         label="emit counter", 
         config={ "initial_count": 2 }, 
         stream_groups=[TaskStreamGroup(inputs=[],outputs=[TaskStream(label="count",topic_id="emit")])]
       ),
       TaskDeploymentBase(
-        task_factory_id=counter_increment_worker.id,
+        task_factory_id=self.counter_increment_worker.id,
         label="increment",
         config={ "multiplier": multiplier },
         stream_groups=[TaskStreamGroup(inputs=[TaskStream(label="value in",topic_id="emit")], outputs=[TaskStream(label="value out",topic_id="increment")])]
       )
     ]
 
-    await counter_emit_worker.wait_idle()
-    await counter_increment_worker.wait_idle()
-    web_client = await managment_server.wait_for_client()
+    await self.counter_emit_worker.wait_idle()
+    await self.counter_increment_worker.wait_idle()
+    web_client = await self.managment_server.wait_for_client()
 
     result = await web_client.post("/api/deployment", content=json.dumps([ deployment.dict() for deployment in deployments]))
     deployment: Deployment = Deployment.parse_obj(result.json())

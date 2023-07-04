@@ -63,7 +63,7 @@ class PassivizeTask(Task):
         topic_id, data, control = await receiver.recv()
         if data is not None and not self.passive_output_topic.paused and not self.active_output_topic.paused:
           await self.client.send_stream_data(self.active_output_topic.topic, data)
-          await self.client.send_stream_data(self.passive_output_topic.topic, data)
+          if self.passive_output_topic.is_subscribed: await self.client.send_stream_data(self.passive_output_topic.topic, data)
         elif control is not None:
           await self.passive_output_topic.set_paused(control.paused)
           await self.active_output_topic.set_paused(control.paused)

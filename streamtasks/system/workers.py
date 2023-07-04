@@ -212,6 +212,9 @@ class TaskManagerWorker(Worker):
     def list_dashboards(): return self.dashboard_router.list_dashboards()
     app.mount(self.dashboard_router.base_url, self.dashboard_router)
 
+    @app.get("/api/task-factories")
+    def list_task_factories(): return self.task_factory_router.list_task_factory_infos()
+
     @app.get("/api/deployment/{id}/status")
     def get_deployment_status(id: str):
       deployment = self.deployments.get(id, None)
