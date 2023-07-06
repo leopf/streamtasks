@@ -11,12 +11,12 @@ import asyncio
 import logging
 from enum import Enum
 
-class DetectorFailMode(Enum):
+class FlowDetectorFailMode(Enum):
   FAIL_CLOSED = "fail_closed"
   FAIL_OPEN = "fail_open"
   PASSIVE = "passive"
 
-class DetectorTask(Task):
+class FlowDetectorTask(Task):
   def __init__(self, client: Client, deployment: TaskDeployment):
     super().__init__(client)
     self.message_receiver_ready = asyncio.Event()
@@ -24,7 +24,7 @@ class DetectorTask(Task):
     self.current_timestamp = 0
     self.current_value = 0
     self.input_paused = False
-    self.fail_mode = DetectorFailMode.PASSIVE
+    self.fail_mode = FlowDetectorFailMode.PASSIVE
 
     self.input_topic = client.create_subscription_tracker()
     self.output_topic = client.create_provide_tracker()
@@ -44,7 +44,7 @@ class DetectorTask(Task):
       self.current_timestamp = 0
       self.current_value = 0
       self.input_paused = False
-      self.fail_mode = DetectorFailMode.PASSIVE
+      self.fail_mode = FlowDetectorFailMode.PASSIVE
       await self.input_topic.set_topic(None)
       await self.output_topic.set_topic(None)
       await self.signal_topic.set_topic(None)
@@ -83,8 +83,8 @@ class DetectorTask(Task):
       timestamp = get_timestamp_from_message(data)
       self.current_timestamp = timestamp
     except: 
-      if self.fail_mode == DetectorFailMode.FAIL_CLOSED: await self._update_value(0)
-      if self.fail_mode == DetectorFailMode.FAIL_OPEN: await self._update_value(1)
+      if self.fail_mode == FlowDetectorFailMode.FAIL_CLOSED: await self._update_value(0)
+      if self.fail_mode == FlowDetectorFailMode.FAIL_OPEN: await self._update_value(1)
     finally:
       if not self.output_topic.paused: await self.client.send_stream_data(self.output_topic.topic, data)
 
@@ -99,11 +99,11 @@ class DetectorTask(Task):
     await self.input_topic.set_topic(topic_id_map[deployment.stream_groups[0].inputs[0].topic_id])
     await self.output_topic.set_topic(topic_id_map[deployment.stream_groups[0].outputs[0].topic_id])
     await self.signal_topic.set_topic(topic_id_map[deployment.stream_groups[0].outputs[1].topic_id])
-    self.fail_mode = DetectorFailMode(deployment.config["fail_mode"])
+    self.fail_mode = FlowDetectorFailMode(deployment.config["fail_mode"])
     self.deployment = deployment
 
-class DetectorTaskFactoryWorker(TaskFactoryWorker):
-  async def create_task(self, deployment: TaskDeployment): return DetectorTask(await self.create_client(), deployment)
+class FlowDetectorTaskFactoryWorker(TaskFactoryWorker):
+  async def create_task(self, deployment: TaskDeployment): return FlowDetectorTask(await self.create_client(), deployment)
   @property
   def config_script(self): return ""
   @property
