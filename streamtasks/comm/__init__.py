@@ -11,6 +11,7 @@ from typing_extensions import Self
 import logging
 import os
 import asyncio
+import itertools
 
 RemoteAddress = Union[str, tuple[str, int]]
 
@@ -221,6 +222,34 @@ def get_node_socket_path(id: int) -> str:
   else:
       return f'/tmp/streamtasks-{id}.sock'
 
+class ConnectionManager:
+  def __init__(self):
+    self._pending_connections = []
+    self._accepted_connection_tasks = {}
+    self._has_pending_connections = asyncio.Event()
+  @property
+  def all_connections(self): return itertools.chain(self._pending_connections, self.accepted_connections())
+  @property
+  def accepted_connections(self): return self._accepted_connection_tasks.keys()
+  def add_pending_connection(self, connection: Connection): 
+    self._pending_connections.append(connection)
+    self._update_has_pending_connections()
+  def connection_accepted(self, connection: Connection, receiver_task: asyncio.Task):
+    self._accepted_connection_tasks[connection] = receiver_task
+    if connection in self._pending_connections: self._pending_connections.remove(connection)
+    self._update_has_pending_connections()
+  def remove_connection(self, connection: Connection):
+    if connection in self._pending_connections: self._pending_connections.remove(connection)
+    if connection in self._accepted_connection_tasks: self._accepted_connection_tasks.pop(connection).cancel()
+    self._update_has_pending_connections()
+  def cancel_all(self): 
+    for _, task in self._accepted_connection_tasks.items(): task.cancel()
+    self._update_has_pending_connections()
+  async def wait_pending(self): await self._has_pending_connections.wait()
+  def _update_has_pending_connections(self):
+    if len(self._pending_connections) == 0: self._has_pending_connections.clear()
+    else: self._has_pending_connections.set()
+
 class Switch:
   in_topics: IdTracker
   out_topics: PricedIdTracker
@@ -234,6 +263,7 @@ class Switch:
 
   def __init__(self):
     self.connections = []
+    self.connection_manager = ConnectionManager()
     self.pending_connections = []
     self.connection_receiving_tasks = {}
     self.connections_pending = asyncio.Event()
@@ -242,6 +272,8 @@ class Switch:
     self.out_topics = PricedIdTracker()
     self.addresses = PricedIdTracker()
     self.stream_controls = {}
+
+  # async def setup_connection_receive(self, connection: Connection):
 
   async def add_connection(self, connection: Connection):
     self._add_pending_connection(connection)
