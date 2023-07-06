@@ -21,7 +21,6 @@ class PassivizeTask(Task):
     self.active_output_topic = client.create_provide_tracker()
     self.passive_output_topic = client.create_provide_tracker()
     self.deployment = deployment
-    self.input_paused = False
 
   def can_update(self, deployment: TaskDeployment): return True
   async def update(self, deployment: TaskDeployment): await self._apply_deployment(deployment)
@@ -33,7 +32,6 @@ class PassivizeTask(Task):
         self._process_subscription_status(),
       )
     finally:    
-      self.input_paused = False
       await self.input_topic.set_topic(None)
       await self.active_output_topic.set_topic(None)
       await self.passive_output_topic.set_topic(None)
@@ -86,8 +84,8 @@ class PassivizeTaskFactoryWorker(TaskFactoryWorker):
     hostname=socket.gethostname(),
     stream_groups=[
       TaskStreamFormatGroup(
-        inputs=[TaskStreamFormat(label="input"), TaskStreamFormat(label="gate", content_type="number")],    
-        outputs=[TaskStreamFormat(label="output")]      
+        inputs=[TaskStreamFormat(label="input")],    
+        outputs=[TaskStreamFormat(label="active output"), TaskStreamFormat(label="passive output")]      
       )
     ]
   )

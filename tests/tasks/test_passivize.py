@@ -26,8 +26,8 @@ class TestPassivize(TaskTestBase):
       TaskStreamGroup(
         inputs=[ TaskStream(topic_id="input", label="input") ],
         outputs=[
-          TaskStream(topic_id="active_output", label="active_output"),
-          TaskStream(topic_id="passive_output", label="passive_output")
+          TaskStream(topic_id="active_output", label="active output"),
+          TaskStream(topic_id="passive_output", label="passive output")
         ]
       )
     ],
