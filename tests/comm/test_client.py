@@ -16,7 +16,6 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     await self.switch.add_connection(conn2[0])
 
     self.tasks = []
-    self.tasks.append(asyncio.create_task(self.switch.start()))
     
     self.a = Client(conn1[1])
     self.b = Client(conn2[1])
@@ -24,6 +23,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     await asyncio.sleep(0.001)
 
   async def asyncTearDown(self):
+    self.switch.close_all_connections()
     for task in self.tasks: task.cancel()
 
   async def test_subscribe(self):

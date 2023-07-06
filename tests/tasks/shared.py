@@ -18,7 +18,6 @@ class TaskTestBase(unittest.IsolatedAsyncioTestCase):
     await switch.add_connection(conn1[0])
     await switch.add_connection(conn2[0])
     self.timestamp = 0
-    self.tasks.append(asyncio.create_task(switch.start()))
 
     self.client = Client(conn1[1])
     self.worker_client = Client(conn2[1])

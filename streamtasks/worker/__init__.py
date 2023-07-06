@@ -28,12 +28,11 @@ class Worker:
     return connector[1]
 
   async def start(self):
-    await self.connect_to_node()
-    self.connected.set()
-    return await asyncio.gather(
-      self._run_connect_to_node(), 
-      self.switch.start()
-    )
+    try:
+      await self.connect_to_node()
+      self.connected.set()
+      return await self._run_connect_to_node()
+    finally: self.switch.close_all_connections()
 
   async def _run_connect_to_node(self):
     try:

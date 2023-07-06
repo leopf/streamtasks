@@ -15,13 +15,14 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     self.switch = Switch()
     await self.switch.add_connection(conn1[0])
     await self.switch.add_connection(conn2[0])
-    
+
+    self.switch_connections = [ conn1[0], conn2[0] ]
     self.a = conn1[1]
     self.b = conn2[1]
-
-    self.tasks = [ asyncio.create_task(self.switch.start()) ]
+    self.tasks = []
 
   async def asyncTearDown(self):
+    self.switch.close_all_connections()
     for task in self.tasks: task.cancel()
 
   async def test_standard_workflow(self):
@@ -29,12 +30,12 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
 
     await self.b.recv() # receive and ignore provides message
 
-    self.assertIn(1, self.switch.connections[0].out_topics)
+    self.assertIn(1, self.switch_connections[0].out_topics)
 
     await self.b.send(InTopicsChangedMessage(set([1]), set()))
     await self.a.recv()
 
-    self.assertIn(1, self.switch.connections[1].in_topics)
+    self.assertIn(1, self.switch_connections[1].in_topics)
     self.assertIn(1, self.switch.in_topics)
 
     await self.a.send(TopicDataMessage(1, TextData("Hello")))
@@ -46,7 +47,7 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     await self.a.recv()
 
     self.assertNotIn(1, self.switch.in_topics)
-    self.assertNotIn(1, self.switch.connections[1].in_topics)
+    self.assertNotIn(1, self.switch_connections[1].in_topics)
   
   async def test_provider_added(self):
     await self.b.send(InTopicsChangedMessage(set([1]), set()))
@@ -102,11 +103,11 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
   async def test_close(self):    
     self.a.close()
     await asyncio.sleep(0.001)
-    self.assertEqual(len(self.switch.connections), 1)
+    self.assertEqual(len(self.switch.cm.connections), 1)
 
     self.b.close()
     await asyncio.sleep(0.001)
-    self.assertEqual(len(self.switch.connections), 0)
+    self.assertEqual(len(self.switch.cm.connections), 0)
     
 if __name__ == '__main__':
   unittest.main()

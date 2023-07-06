@@ -13,8 +13,9 @@ class NodeBase(ABC):
   async def start(self):
     try:
       self.running = True
-      await self.switch.start()
+      await asyncio.Future() # wait for cancellation
     finally:
+      self.switch.close_all_connections()
       self.running = False
 
 class LocalNode(NodeBase):

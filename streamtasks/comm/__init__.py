@@ -223,61 +223,32 @@ def get_node_socket_path(id: int) -> str:
       return f'/tmp/streamtasks-{id}.sock'
 
 class ConnectionManager:
-  def __init__(self):
-    self._pending_connections = []
-    self._accepted_connection_tasks = {}
-    self._has_pending_connections = asyncio.Event()
+  def __init__(self): self._connection_tasks = {}
   @property
-  def all_connections(self): return itertools.chain(self._pending_connections, self.accepted_connections())
-  @property
-  def accepted_connections(self): return self._accepted_connection_tasks.keys()
-  def add_pending_connection(self, connection: Connection): 
-    self._pending_connections.append(connection)
-    self._update_has_pending_connections()
-  def connection_accepted(self, connection: Connection, receiver_task: asyncio.Task):
-    self._accepted_connection_tasks[connection] = receiver_task
-    if connection in self._pending_connections: self._pending_connections.remove(connection)
-    self._update_has_pending_connections()
+  def connections(self): return self._connection_tasks.keys()  
+  def has_connection(self, connection: Connection): return connection in self._connection_tasks
+  def accept_connection(self, connection: Connection, receiver_task: asyncio.Task): self._connection_tasks[connection] = receiver_task
   def remove_connection(self, connection: Connection):
-    if connection in self._pending_connections: self._pending_connections.remove(connection)
-    if connection in self._accepted_connection_tasks: self._accepted_connection_tasks.pop(connection).cancel()
-    self._update_has_pending_connections()
+    if connection in self._connection_tasks: self._connection_tasks.pop(connection).cancel()
   def cancel_all(self): 
-    for _, task in self._accepted_connection_tasks.items(): task.cancel()
-    self._update_has_pending_connections()
-  async def wait_pending(self): await self._has_pending_connections.wait()
-  def _update_has_pending_connections(self):
-    if len(self._pending_connections) == 0: self._has_pending_connections.clear()
-    else: self._has_pending_connections.set()
+    for task in self._connection_tasks.values(): task.cancel()
+    self._connection_tasks.clear()
 
 class Switch:
   in_topics: IdTracker
   out_topics: PricedIdTracker
   addresses: PricedIdTracker
-
   stream_controls: dict[int, TopicControlData]
-  connections: list[Connection]
-  pending_connections: list[Connection]
-  connection_receiving_tasks: dict[Connection, asyncio.Task]
-  connections_pending: asyncio.Event
 
   def __init__(self):
-    self.connections = []
-    self.connection_manager = ConnectionManager()
-    self.pending_connections = []
-    self.connection_receiving_tasks = {}
-    self.connections_pending = asyncio.Event()
-
+    self.cm = ConnectionManager()
     self.in_topics = IdTracker()
     self.out_topics = PricedIdTracker()
     self.addresses = PricedIdTracker()
     self.stream_controls = {}
-
-  # async def setup_connection_receive(self, connection: Connection):
+  def __del__(self): self.cm.cancel_all()
 
   async def add_connection(self, connection: Connection):
-    self._add_pending_connection(connection)
-
     switch_out_topics = set(self.out_topics.items())
     if len(switch_out_topics) > 0: await connection.send(OutTopicsChangedMessage(switch_out_topics, set()))
 
@@ -293,12 +264,10 @@ class Switch:
     added_in_topics = self.in_topics.add_many(connection.in_topics)
     if len(added_in_topics) > 0: await self.request_in_topics_change(added_in_topics, set())
 
-    self.connections.append(connection)
+    self.cm.accept_connection(connection, asyncio.create_task(self._run_connection_receiving(connection)))
   
   async def remove_connection(self, connection: Connection):
-    if connection in self.connections: self.connections.remove(connection)
-    self._remove_pending_connection(connection)
-    if connection in self.connection_receiving_tasks: self.connection_receiving_tasks[connection].cancel()
+    self.cm.remove_connection(connection)
 
     recv_topics = connection.recv_topics
     removed_topics, updated_topics = self.out_topics.remove_many(connection.get_priced_out_topics())
@@ -314,25 +283,26 @@ class Switch:
     if len(removed_addresses) > 0 or len(updated_addresses) > 0:
       await self.broadcast(AddressesChangedMessage(updated_addresses, removed_addresses))
 
+  def close_all_connections(self): self.cm.cancel_all()
   async def send_to(self, message: Message, connections: list[Connection]): 
     for connection in connections: await connection.send(message)
-  async def broadcast(self, message: Message): await self.send_to(message, self.connections)
+  async def broadcast(self, message: Message): await self.send_to(message, self.cm.connections)
   
   async def send_remove_in_topic(self, topic: int):
-    await self.send_to(InTopicsChangedMessage(set(), set([topic])), [ conn for conn in self.connections if topic in conn.recv_topics ])
+    await self.send_to(InTopicsChangedMessage(set(), set([topic])), [ conn for conn in self.cm.connections if topic in conn.recv_topics ])
 
   async def request_in_topics_change(self, add_topics: set[int], remove_topics: set[int]):
     remove_topics_set = set(remove_topics)
     change_map: dict[Connection, InTopicsChangedMessage] = {}
 
     for topic in add_topics:
-      best_connection = min(self.connections, key=lambda connection: connection.out_topics.get(topic, float('inf')))
+      best_connection = min(self.cm.connections, key=lambda connection: connection.out_topics.get(topic, float('inf')))
       if topic not in best_connection.out_topics: continue
       if best_connection not in change_map: change_map[best_connection] = InTopicsChangedMessage(set(), set())
       change_map[best_connection].add.add(topic)
     
     if len(remove_topics_set) > 0:
-      for conn in self.connections:
+      for conn in self.cm.connections:
         remove_sub = conn.recv_topics.intersection(remove_topics_set)
         if len(remove_sub) > 0:
           if conn not in change_map: change_map[conn] = InTopicsChangedMessage(set(), set())
@@ -353,21 +323,21 @@ class Switch:
   async def on_addressed_message(self, message: AddressedMessage, origin: Connection):
     if message.address not in self.addresses: return
     address_cost = self.addresses.get(message.address)
-    found_conn = next(( conn for conn in self.connections if conn.addresses.get(message.address, -1) == address_cost ), None)
+    found_conn = next(( conn for conn in self.cm.connections if conn.addresses.get(message.address, -1) == address_cost ), None)
     if found_conn is not None: await found_conn.send(message)
 
   async def on_stream_message(self, message: TopicMessage, origin: Connection):
-    await self.send_to(message, [ connection for connection in self.connections if connection != origin and message.topic in connection.in_topics])
+    await self.send_to(message, [ connection for connection in self.cm.connections if connection != origin and message.topic in connection.in_topics])
 
   async def on_out_topics_changed(self, message: OutTopicsChangedRecvMessage, origin: Connection):
     out_topics_added, out_topics_removed = self.out_topics.change_many(message.add, message.remove)
     if len(out_topics_added) > 0 or len(out_topics_removed) > 0:
-      await self.send_to(OutTopicsChangedMessage(out_topics_added, out_topics_removed), [ conn for conn in self.connections if conn != origin ])
+      await self.send_to(OutTopicsChangedMessage(out_topics_added, out_topics_removed), [ conn for conn in self.cm.connections if conn != origin ])
 
     resub_topics = set()
     for pt in message.add:
       if pt.id in self.in_topics:
-        topic_provider = next((conn for conn in self.connections if pt.id in conn.recv_topics), None)
+        topic_provider = next((conn for conn in self.cm.connections if pt.id in conn.recv_topics), None)
         if topic_provider is None or topic_provider.out_topics[pt.id] > pt.cost: 
           resub_topics.add(pt.id)
     await self.request_in_topics_change(resub_topics, resub_topics) # resub to the better providers
@@ -375,7 +345,7 @@ class Switch:
   async def on_addresses_changed(self, message: AddressesChangedRecvMessage, origin: Connection):
     addresses_added, addresses_removed = self.addresses.change_many(message.add, message.remove)
     if len(addresses_added) > 0 or len(addresses_removed) > 0:
-      await self.send_to(AddressesChangedMessage(addresses_added, addresses_removed), [ conn for conn in self.connections if conn != origin ])
+      await self.send_to(AddressesChangedMessage(addresses_added, addresses_removed), [ conn for conn in self.cm.connections if conn != origin ])
 
   async def handle_message(self, message: Message, origin: Connection):
     if isinstance(message, TopicMessage):
@@ -394,17 +364,6 @@ class Switch:
       assert type(message) not in [ OutTopicsChangedMessage, AddressesChangedMessage ], "Message type should never be received (sender only)!"
       logging.warning(f"Unhandled message {message}")
 
-  async def start(self):
-    assert len(self.connections) == len(self.pending_connections), "Switch has non receiving connection!"
-    try:
-      while True:
-        await self.connections_pending.wait()
-        connection = self.pending_connections[0]
-        self.connection_receiving_tasks[connection] = asyncio.create_task(self._run_connection_receiving(connection))
-        self._remove_pending_connection(connection)
-    finally:
-      for connection in self.connections: await self.remove_connection(connection)
-
   async def _run_connection_receiving(self, connection: Connection):
     try: 
       while True: 
@@ -413,13 +372,6 @@ class Switch:
     except BaseException as e: logging.error(f"Error receiving from connection: {e}")
     finally: 
       await self.remove_connection(connection)
-
-  def _add_pending_connection(self, connection: Connection):
-    self.pending_connections.append(connection)
-    self.connections_pending.set()
-  def _remove_pending_connection(self, connection: Connection):
-    if connection in self.pending_connections: self.pending_connections.remove(connection)
-    if len(self.pending_connections) == 0: self.connections_pending.clear()
 
 class IPCSwitch(Switch):
   bind_address: RemoteAddress
