@@ -68,7 +68,6 @@ class Connection(ABC):
     while message is None:
       message = await self._recv_one()
       message = self._process_recv_message(message)
-
     return message
 
   async def _recv_one(self):

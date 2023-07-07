@@ -1,5 +1,6 @@
 from typing import Iterable
 import asyncio
+import time
 
 class IdTracker:
   _map: dict[int, int]
@@ -61,3 +62,13 @@ class AwaitableIdTracker(IdTracker):
   async def wait_for_id_removed(self, id: int):
     if id not in self._waiting_ids_removed: self._waiting_ids_removed[id] = asyncio.Event()
     return await self._waiting_ids_removed[id].wait()
+
+def get_timestamp_ms(): return int(time.time() * 1000)
+
+class TimeSynchronizer:
+  def __init__(self):
+    self._time_offset = 0
+  @property
+  def time(self) -> int: return get_timestamp_ms() + self._time_offset
+  def set_time(self, timestamp): self._time_offset = timestamp - get_timestamp_ms()
+  def reset(self): self._time_offset = 0

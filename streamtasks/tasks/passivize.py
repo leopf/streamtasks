@@ -26,7 +26,7 @@ class PassivizeTask(Task):
   async def update(self, deployment: TaskDeployment): await self._apply_deployment(deployment)
   async def start_task(self):
     try:
-      return asyncio.gather(
+      return await asyncio.gather(
         self._setup(),
         self._process_messages(),
         self._process_subscription_status(),
