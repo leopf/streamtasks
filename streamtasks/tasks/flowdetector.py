@@ -130,7 +130,7 @@ class FlowDetectorTaskFactoryWorker(TaskFactoryWorker):
   @property
   def task_format(self): return TaskFormat(
     task_factory_id=self.id,
-    label="Passivize",
+    label="Flow Detector",
     hostname=socket.gethostname(),
     stream_groups=[
       TaskStreamFormatGroup(
