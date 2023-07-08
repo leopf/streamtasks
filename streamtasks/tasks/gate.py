@@ -4,7 +4,7 @@ from streamtasks.system.types import TaskDeployment, TaskFormat, TaskStreamForma
 from streamtasks.client import Client
 from streamtasks.client.receiver import NoopReceiver
 from streamtasks.message import NumberMessage, get_timestamp_from_message, SerializableData
-from streamtasks.streams.helpers import StreamValueTracker
+from streamtasks.streams import StreamValueTracker, StreamSynchronizer, SynchronizedStreamController
 import socket
 from pydantic import BaseModel
 import asyncio
@@ -25,12 +25,17 @@ class GateTask(Task):
     self.deployment = deployment
     self.gate_value_tracker = StreamValueTracker()
     self.fail_mode = GateFailMode.PASSIVE
+
     self.message_receiver_ready = asyncio.Event()
     self.subscribe_receiver_ready = asyncio.Event()
+    self.setup_done = asyncio.Event()
+
+    stream_sync = StreamSynchronizer()
+    self.input_stream = SynchronizedStreamController(stream_sync)
+    self.gate_stream = SynchronizedStreamController(stream_sync)
+
     self.input_paused = False
 
-  def can_update(self, deployment: TaskDeployment): return True
-  async def update(self, deployment: TaskDeployment): await self._apply_deployment(deployment)
   async def start_task(self):
     try:
       return await asyncio.gather(
@@ -48,7 +53,14 @@ class GateTask(Task):
   async def _setup(self):
     await self.message_receiver_ready.wait()
     await self.subscribe_receiver_ready.wait()
-    await self._apply_deployment(self.deployment)
+
+    topic_id_map = self.deployment.topic_id_map
+    await self.input_topic.set_topic(topic_id_map[self.deployment.stream_groups[0].inputs[0].topic_id])
+    await self.gate_topic.set_topic(topic_id_map[self.deployment.stream_groups[0].inputs[1].topic_id])
+    await self.output_topic.set_topic(topic_id_map[self.deployment.stream_groups[0].outputs[0].topic_id])
+    self.fail_mode = GateFailMode(self.deployment.config.get("fail_mode", GateFailMode.PASSIVE.value))
+
+    self.setup_done.set()
   
   @property
   def default_gate_value(self): return 0 if self.fail_mode == GateFailMode.FAIL_CLOSED else 1
@@ -56,6 +68,7 @@ class GateTask(Task):
   async def _process_subscription_status(self):
     async with NoopReceiver(self.client):
       self.subscribe_receiver_ready.set()
+      await self.setup_done.wait()
       while True:
         await self.output_topic.wait_subscribed(False)
         await self.output_topic.pause()
@@ -67,6 +80,7 @@ class GateTask(Task):
   async def _process_messages(self):
     async with self.client.get_topics_receiver([ self.input_topic, self.gate_topic ]) as receiver:
       self.message_receiver_ready.set()
+      await self.setup_done.wait()
       while True:
         topic_id, data, control = await receiver.recv()
         if data is not None:
@@ -105,14 +119,6 @@ class GateTask(Task):
     else:
       await self.input_topic.subscribe()
       if not self.input_paused: await self.output_topic.resume()
-
-  async def _apply_deployment(self, deployment: TaskDeployment):
-    topic_id_map = deployment.topic_id_map
-    await self.input_topic.set_topic(topic_id_map[deployment.stream_groups[0].inputs[0].topic_id])
-    await self.gate_topic.set_topic(topic_id_map[deployment.stream_groups[0].inputs[1].topic_id])
-    await self.output_topic.set_topic(topic_id_map[deployment.stream_groups[0].outputs[0].topic_id])
-    self.fail_mode = GateFailMode(deployment.config.get("fail_mode", GateFailMode.PASSIVE.value))
-    self.deployment = deployment
 
 class GateTaskFactoryWorker(TaskFactoryWorker):
   async def create_task(self, deployment: TaskDeployment): return GateTask(await self.create_client(), deployment)

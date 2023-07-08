@@ -107,7 +107,7 @@ class AddressNameAssignedReceiver(Receiver):
 class TopicsReceiver(Receiver):
   _topics: set[int]
   _control_data: dict[int, TopicControlData]
-  _recv_queue: asyncio.Queue[tuple[int, Optional[Any], Optional[TopicControlData]]]
+  _recv_queue: asyncio.Queue[tuple[int, Optional[SerializableData], Optional[TopicControlData]]]
 
   def __init__(self, client: 'Client', topics: Iterable[Union[int, 'SubscribeTracker']], subscribe: bool = True):
     super().__init__(client)

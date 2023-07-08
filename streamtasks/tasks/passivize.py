@@ -4,7 +4,7 @@ from streamtasks.system.types import TaskDeployment, TaskFormat, TaskStreamForma
 from streamtasks.client import Client
 from streamtasks.client.receiver import NoopReceiver
 from streamtasks.message import NumberMessage, get_timestamp_from_message, SerializableData
-from streamtasks.streams.helpers import StreamValueTracker
+from streamtasks.streams import StreamValueTracker
 import socket
 from pydantic import BaseModel
 import asyncio
