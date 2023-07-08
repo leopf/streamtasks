@@ -116,6 +116,8 @@ class TopicsReceiver(Receiver):
     self._control_data = {}
     self._subscribe = subscribe
     
+  @property
+  def topics(self): return itertools.chain(self._topics, (t.topic for t in self._tracked_topics))
   def get_control_data(self, topic: int): return self._control_data.get(topic, None)
 
   async def _on_start_recv(self): 
@@ -124,8 +126,7 @@ class TopicsReceiver(Receiver):
     if self._subscribe and len(self._topics) > 0: await self._client.unsubscribe(self._topics)
 
   def on_message(self, message: Message):
-    topics = itertools.chain(self._topics, (t.topic for t in self._tracked_topics))
-    if isinstance(message, TopicMessage) and message.topic in topics:
+    if isinstance(message, TopicMessage) and message.topic in self.topics:
       if isinstance(message, TopicDataMessage):
         sd_message: TopicDataMessage = message
         self._recv_queue.put_nowait((sd_message.topic, sd_message.data, None))

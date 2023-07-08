@@ -32,6 +32,17 @@ class StreamValueTracker:
     if len(self.values) == 1 and self._stale and self._in_timeframe: return predicate(self.values[0][0], default_value)
     return any(predicate(*entry) for entry in self.values)
 
+
+class SynchronizedMessage:
+  def __init__(self, controller: 'SynchronizedStreamController', timestamp: int, data: Optional[SerializableData], control: Optional[TopicControlData]):
+    self.timestamp = timestamp
+    self.data = data
+    self.control = control
+    self.controller = controller
+  def __enter__(self): return self
+  def __exit__(self, exc_type, exc_value, traceback): self.done()
+  def done(self): self.controller.message_done()
+
 class SynchronizedStreamController:
   def __init__(self, sync: 'StreamSynchronizer'):
     self.message_queue = []
@@ -44,14 +55,18 @@ class SynchronizedStreamController:
   @property
   def timestamp(self): return self.message_queue[0][0] if len(self.message_queue) > 0 else 0
   @property
-  def has_messages_available(self): self.timestamp <= self.sync.sync_timestamp
+  def has_messages_available(self): return self.timestamp <= self.sync.sync_timestamp and not self.is_empty
   
-  async def pop(self):
-    await self._messages_available.wait()
+  def message_done(self):
+    assert len(self.message_queue) > 0, "Cannot call message_done when there are no messages in the queue"
     timestamp, data, paused = self.message_queue.pop(0)
     if paused is not None: self.is_paused = paused
     self.sync.update_sync_timestamp()
-    return data, None if paused is None else TopicControlData(paused)
+
+  async def next(self):
+    await self._messages_available.wait()
+    timestamp, data, paused = self.message_queue[0]
+    return SynchronizedMessage(self, timestamp, data, paused)
 
   def add(self, data: Optional[SerializableData], control: Optional[TopicControlData], suppress_error: bool = True):
     try: 
@@ -61,14 +76,19 @@ class SynchronizedStreamController:
       else: raise e
     finally: 
       if control is not None: self._add_control(control)
-      self.sync.update_sync_timestamp()
 
-  def update(self): self._messages_available.set() if self.has_messages_available else self._messages_available.clear()
-  
+  def update(self): 
+    if self.has_messages_available: self._messages_available.set()
+    else: self._messages_available.clear()
+
   def _add_data(self, data: SerializableData):
     timestamp = get_timestamp_from_message(data)
+    changed_ts = timestamp < self.timestamp
     self.message_queue.append((timestamp, data, None))
-    self._sort_action_queue()
+
+    if len(self.message_queue) > 1: self._sort_action_queue() 
+    if len(self.message_queue) > 1 or changed_ts: self.sync.update_sync_timestamp()
+
   def _add_control(self, control: TopicControlData):
     paused = control.paused
     if len(self.message_queue) == 0: self.message_queue.append((self.sync.sync_timestamp, None, True))
@@ -80,21 +100,23 @@ class SynchronizedStreamController:
 class SynchronizedStream:
   def __init__(self, sync: 'StreamSynchronizer', receiver: TopicsReceiver):
     assert isinstance(receiver, TopicsReceiver)
-    assert len(receiver.topics) == 1, "The behavior of a synchronized stream is undefined when multiple topics are subscribed to"
+    assert len(list(receiver.topics)) == 1, "The behavior of a synchronized stream is undefined when multiple topics are subscribed to"
     self.sync = sync
     self.receiver = receiver
     self.controller = sync.create_stream_controller()
 
   async def recv(self):
     recv_task = asyncio.create_task(self._run_receiver())
-    data, control = await self.controller.pop()
+    message = await self.controller.next()
     recv_task.cancel()
-    return data, control
+    return message
 
   async def _run_receiver(self):
-    while True:
-      _, data, control = await self.receiver.get()
-      self.controller.add(data, control)
+    try:
+      while True:
+        _, data, control = await self.receiver.get()
+        self.controller.add(data, control)
+    except asyncio.CancelledError: pass
 
 class StreamSynchronizer:
   def __init__(self):
