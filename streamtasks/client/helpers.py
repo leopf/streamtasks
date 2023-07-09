@@ -23,6 +23,9 @@ class SubscribeTracker:
     self._client = client
     self._topic = None
     self._subscribed = False
+  async def set_subscribed(self, subscribed: bool):
+    if subscribed: await self.subscribe()
+    else: await self.unsubscribe()
   async def subscribe(self): 
     if not self._subscribed and self._topic is not None: 
       self._subscribed = True
@@ -49,6 +52,7 @@ class ProvideTracker:
   def paused(self): return self._paused
   @property
   def is_subscribed(self): return self._client.topic_is_subscribed(self._topic)
+  async def wait_subscribed_change(self): return await self.wait_subscribed(not self.is_subscribed)
   async def wait_subscribed(self, subscribed: bool = True): 
     if self.is_subscribed == subscribed: return # pre check, maybe we can avoid the async context
     from streamtasks.client.receiver import NoopReceiver

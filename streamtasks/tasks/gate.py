@@ -4,12 +4,27 @@ from streamtasks.system.types import TaskDeployment, TaskFormat, TaskStreamForma
 from streamtasks.client import Client
 from streamtasks.client.receiver import NoopReceiver
 from streamtasks.message import NumberMessage, get_timestamp_from_message, SerializableData
-from streamtasks.streams import StreamValueTracker, StreamSynchronizer, SynchronizedStreamController
+from streamtasks.streams import StreamValueTracker, StreamSynchronizer, SynchronizedStream
 import socket
 from pydantic import BaseModel
 import asyncio
 import logging
 from enum import Enum
+
+"""
+States:
+Input paused: yes | no
+Gate Value > 0.5: yes | no
+Gate Value invalid / Gate paused: yes | no
+Gate fail mode: open | closed | passive
+output subscribed: yes | no
+
+
+Actions:
+Input subscribed: yes | no
+Gate subscribed: yes | no
+output paused: yes | no
+"""
 
 class GateFailMode(Enum):
   FAIL_CLOSED = "fail_closed"
@@ -19,106 +34,79 @@ class GateFailMode(Enum):
 class GateTask(Task):
   def __init__(self, client: Client, deployment: TaskDeployment):
     super().__init__(client)
+    self.deployment = deployment
+
     self.input_topic = client.create_subscription_tracker()
     self.gate_topic = client.create_subscription_tracker()
     self.output_topic = client.create_provide_tracker()
-    self.deployment = deployment
-    self.gate_value_tracker = StreamValueTracker()
-    self.fail_mode = GateFailMode.PASSIVE
-
-    self.message_receiver_ready = asyncio.Event()
-    self.subscribe_receiver_ready = asyncio.Event()
-    self.setup_done = asyncio.Event()
 
     stream_sync = StreamSynchronizer()
-    self.input_stream = SynchronizedStreamController(stream_sync)
-    self.gate_stream = SynchronizedStreamController(stream_sync)
-
-    self.input_paused = False
+    self.input_stream = SynchronizedStream(stream_sync, client.get_topics_receiver([ self.input_topic ]))
+    self.gate_stream = SynchronizedStream(stream_sync, client.get_topics_receiver([ self.gate_topic ]))
 
   async def start_task(self):
     try:
+      await self._setup()
       return await asyncio.gather(
-        self._setup(),
-        self._process_messages(),
+        self._process_gate_stream(),
+        self._process_input_stream(),
         self._process_subscription_status(),
       )
     finally:    
       self.input_paused = False
-      self.gate_value_tracker.reset()
+      self.gate_open = self.default_gate_open
       await self.input_topic.set_topic(None)
       await self.gate_topic.set_topic(None)
       await self.output_topic.set_topic(None)
   
   async def _setup(self):
-    await self.message_receiver_ready.wait()
-    await self.subscribe_receiver_ready.wait()
-
     topic_id_map = self.deployment.topic_id_map
     await self.input_topic.set_topic(topic_id_map[self.deployment.stream_groups[0].inputs[0].topic_id])
     await self.gate_topic.set_topic(topic_id_map[self.deployment.stream_groups[0].inputs[1].topic_id])
     await self.output_topic.set_topic(topic_id_map[self.deployment.stream_groups[0].outputs[0].topic_id])
     self.fail_mode = GateFailMode(self.deployment.config.get("fail_mode", GateFailMode.PASSIVE.value))
-
-    self.setup_done.set()
+    self.gate_open = self.default_gate_open
+    self.input_paused = False
   
   @property
-  def default_gate_value(self): return 0 if self.fail_mode == GateFailMode.FAIL_CLOSED else 1
+  def default_gate_open(self): return False if self.fail_mode == GateFailMode.FAIL_CLOSED else True
   
   async def _process_subscription_status(self):
     async with NoopReceiver(self.client):
-      self.subscribe_receiver_ready.set()
-      await self.setup_done.wait()
       while True:
-        await self.output_topic.wait_subscribed(False)
-        await self.output_topic.pause()
-        await self.input_topic.unsubscribe()
-        await self.gate_topic.unsubscribe()
-        await self.output_topic.wait_subscribed()
-        await self.update_stream_states()
+        await self.output_topic.wait_subscribed_change()
+        await self.on_state_change()
 
-  async def _process_messages(self):
-    async with self.client.get_topics_receiver([ self.input_topic, self.gate_topic ]) as receiver:
-      self.message_receiver_ready.set()
-      await self.setup_done.wait()
+  async def _process_gate_stream(self):
+    async with self.gate_stream:
       while True:
-        topic_id, data, control = await receiver.recv()
-        if data is not None:
-          if topic_id == self.gate_topic.topic: await self._process_gate_message(data)
-          elif topic_id == self.input_topic.topic: await self._process_input_message(data)
-        elif control is not None:
-          if topic_id == self.input_topic.topic: 
-            self.input_paused = control.paused
-            await self.update_stream_states()
-          if topic_id == self.gate_topic.topic and self.fail_mode != GateFailMode.PASSIVE: 
-            if control.paused: self.gate_value_tracker.set_stale()
+        with await self.gate_stream.recv() as message:
+          print("gate: ", message.data.data if message.data else None, message.control)
+          if message.data is not None: 
+            try:
+              nmessage = NumberMessage.parse_obj(message.data.data)
+              self.gate_open = float(nmessage.value) > 0.5
+            except:
+              if self.fail_mode != GateFailMode.PASSIVE: self.gate_open = self.default_gate_open
+          if message.control is not None and message.control.paused and self.fail_mode != GateFailMode.PASSIVE: 
+            self.gate_open = self.default_gate_open 
+          await self.on_state_change()
+
+  async def _process_input_stream(self):
+    async with self.input_stream:
+      while True:
+        with await self.input_stream.recv() as message:
+          print("input: ", message.data.data if message.data else None, message.control)
+          print("GATE OPEN: ", self.gate_open)
+          if message.data is not None and self.gate_open: 
+            print("sending data")
+            await self.client.send_stream_data(self.output_topic.topic, message.data)
+          if message.control is not None: self.input_paused = message.control.paused
+          await self.on_state_change()
   
-  async def _process_input_message(self, data: SerializableData):
-    try:
-      timestamp = get_timestamp_from_message(data)
-      gate_value = self.gate_value_tracker.pop(timestamp, self.default_gate_value)
-      if gate_value > 0.5: await self.client.send_stream_data(self.output_topic.topic, data)
-      await self.update_stream_states()
-    except Exception as e:
-      logging.error(f"error processing input message: {e}")
-  
-  async def _process_gate_message(self, data: SerializableData):
-    try:
-      message: NumberMessage = NumberMessage.parse_obj(data.data)
-      self.gate_value_tracker.add(message.timestamp, message.value)
-    except: 
-      if self.fail_mode != GateFailMode.PASSIVE: self.gate_value_tracker.set_stale()
-    finally: await self.update_stream_states()
-  
-  async def update_stream_states(self):
-    await self.gate_topic.subscribe()
-    if self.input_paused: await self.output_topic.pause()
-    if not self.gate_value_tracker.has_value(lambda _, value: value >= 0.5, self.default_gate_value):
-      await self.input_topic.unsubscribe()
-      await self.output_topic.pause()
-    else:
-      await self.input_topic.subscribe()
-      if not self.input_paused: await self.output_topic.resume()
+  async def on_state_change(self):
+    await self.input_topic.set_subscribed(self.output_topic.is_subscribed)
+    await self.output_topic.set_paused(self.input_paused or not self.gate_open)
 
 class GateTaskFactoryWorker(TaskFactoryWorker):
   async def create_task(self, deployment: TaskDeployment): return GateTask(await self.create_client(), deployment)

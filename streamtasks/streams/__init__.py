@@ -66,7 +66,7 @@ class SynchronizedStreamController:
   async def next(self):
     await self._messages_available.wait()
     timestamp, data, paused = self.message_queue[0]
-    return SynchronizedMessage(self, timestamp, data, paused)
+    return SynchronizedMessage(self, timestamp, data, TopicControlData(paused=paused) if paused is not None else None)
 
   def add(self, data: Optional[SerializableData], control: Optional[TopicControlData], suppress_error: bool = True):
     try: 
@@ -104,7 +104,11 @@ class SynchronizedStream:
     self.sync = sync
     self.receiver = receiver
     self.controller = sync.create_stream_controller()
-
+  async def __aenter__(self): 
+    await self.receiver.__aenter__()
+    return self
+  async def __aexit__(self, exc_type, exc_value, traceback): await self.receiver.__aexit__(exc_type, exc_value, traceback)
+  
   async def recv(self):
     recv_task = asyncio.create_task(self._run_receiver())
     message = await self.controller.next()
