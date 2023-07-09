@@ -4,7 +4,7 @@ from streamtasks.system.types import TaskDeployment, TaskFormat, TaskStreamForma
 from streamtasks.client import Client
 from streamtasks.client.receiver import NoopReceiver
 from streamtasks.message import NumberMessage, get_timestamp_from_message, SerializableData, MessagePackData
-from streamtasks.streams import StreamValueTracker, StreamSynchronizer, SynchronizedStream
+from streamtasks.streams import StreamSynchronizer, SynchronizedStream
 from streamtasks.helpers import TimeSynchronizer
 from streamtasks.comm.types import TopicControlMessage
 import socket

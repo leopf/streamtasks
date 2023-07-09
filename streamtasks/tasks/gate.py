@@ -4,27 +4,11 @@ from streamtasks.system.types import TaskDeployment, TaskFormat, TaskStreamForma
 from streamtasks.client import Client
 from streamtasks.client.receiver import NoopReceiver
 from streamtasks.message import NumberMessage, get_timestamp_from_message, SerializableData
-from streamtasks.streams import StreamValueTracker, StreamSynchronizer, SynchronizedStream
+from streamtasks.streams import StreamSynchronizer, SynchronizedStream
 import socket
-from pydantic import BaseModel
 import asyncio
 import logging
 from enum import Enum
-
-"""
-States:
-Input paused: yes | no
-Gate Value > 0.5: yes | no
-Gate Value invalid / Gate paused: yes | no
-Gate fail mode: open | closed | passive
-output subscribed: yes | no
-
-
-Actions:
-Input subscribed: yes | no
-Gate subscribed: yes | no
-output paused: yes | no
-"""
 
 class GateFailMode(Enum):
   FAIL_CLOSED = "fail_closed"
