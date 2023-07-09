@@ -4,7 +4,7 @@ from streamtasks.system.types import TaskDeployment, TaskFormat, TaskStreamForma
 from streamtasks.client import Client
 from streamtasks.client.receiver import NoopReceiver
 from streamtasks.message import NumberMessage, get_timestamp_from_message, SerializableData, MessagePackData
-from streamtasks.streams import StreamValueTracker
+from streamtasks.streams import StreamValueTracker, StreamSynchronizer, SynchronizedStream
 from streamtasks.helpers import TimeSynchronizer
 from streamtasks.comm.types import TopicControlMessage
 import socket
@@ -108,6 +108,16 @@ def variable_name_is_valid(name: str) -> bool:
   if name in CalculatorEvalContext.default_input_map: return False
   return True
 
+def validate_formula(formula_ast, input_var_names):
+  for var_name in input_var_names: 
+    if not variable_name_is_valid(var_name): raise Exception(f"Invalid variable name: {var_name}, must be CNAME and not in {CalculatorEvalContext.default_input_map.keys()}")
+  extractor = CalculatorNameExtractor()
+  extractor.transform(formula_ast)
+  all_var_names = set(itertools.chain(input_var_names, CalculatorEvalContext.default_input_map.keys()))
+  if not extractor.var_names.issubset(all_var_names): raise Exception(f"Invalid variable names: {used_var_names - all_var_names}")
+  available_func_names = CalculatorEvalContext.__dict__.keys()
+  if not extractor.func_names.issubset(available_func_names): raise Exception(f"Invalid function names: {used_func_names - available_func_names}")
+
 # takes an input map and transforms bools to floats. Any float > 0.5 is considered True, otherwise False
 class CalculatorEvalTransformer(Transformer):
   def __init__(self, context: CalculatorEvalContext):
@@ -151,81 +161,63 @@ class CalculatorNameExtractor(Transformer):
 
 class CalculatorInputConfig(BaseModel):
   name: str
-  default_value: Optional[float]
+  fallback_value: Optional[float]
 
 class CalculatorTask(Task):
   def __init__(self, client: Client, deployment: TaskDeployment):
     super().__init__(client)
-    self.setup_done = asyncio.Event()
     self.deployment = deployment
 
   async def start_task(self):
     try:
-      return await asyncio.gather(
-        self._setup(),
-        self._run_receiver()
+      topic_id_map = self.deployment.topic_id_map
+      
+      self.input_map = {}
+      self.output_topic = self.client.create_provide_tracker()
+      await self.output_topic.set_topic(topic_id_map[self.deployment.stream_groups[0].outputs[0].topic_id])
+      self.input_paused_count = 0
+      self.formula_ast = CalculatorGrammar.parse(self.deployment.config["formula"]) 
+      self.input_topic_ids = [ topic_id_map[input.topic_id] for input in self.deployment.stream_groups[0].inputs]
+      input_configs = [ CalculatorInputConfig.parse_obj(config) for config in self.deployment.config["input_configs"] ]
+      validate_formula(self.formula_ast, [ config.name for config in input_configs ])
+
+      sync = StreamSynchronizer()
+      input_streams = [ SynchronizedStream(sync, self.client.get_topics_receiver([ input_topic_id ])) for input_topic_id in self.input_topic_ids ]
+      input_recv_tasks = [ asyncio.create_task(self._run_receive_input(stream, config.name, config.fallback_value)) for stream, config in zip(input_streams, input_configs) ]
+    
+      return asyncio.gather(
+        self._process_subscription_status(),
+        *input_recv_tasks
       )
     finally:
-      await self.output_tracker.set_topic(None)
-      for input_tracker in self.input_trackers: await input_tracker.set_topic(None)
-  
-  async def _setup(self):
-    await self._setup_deployment()
-    self.setup_done.set()
+      await self.output_topic.set_topic(None)
+      for recv_task in input_recv_tasks: recv_task.cancel()
 
-  async def _run_receiver(self):
-    await self.setup_done.wait()
-    async with self.client.provide_context([self.output_topic_id]):
-      async with self.client.get_topics_receiver(self.input_topic_ids) as input_recv:
-        async for topic_id, data, control in input_recv:
-          value_tracker = self.input_value_trackers.get(topic_id, None)
-          if value_tracker is None: continue
-          if control is not None: self._process_control(topic_id, control)
-          elif data is not None: self._process_data(topic_id, data)
-            
-  async def _process_control(self, topic_id: int, control: TopicControlMessage):
-    tracker: StreamValueTracker = self.input_value_trackers.get(topic_id, None)
-    if tracker is None: return
-    if control.paused: tracker.set_stale()
+  async def _process_subscription_status(self):
+    async with NoopReceiver(self.client):
+      while True:
+        await self.output_topic.wait_subscribed_change()
+        if self.output_topic.is_subscribed: await self.client.subscribe(self.input_topic_ids)
+        else: await self.client.unsubscribe(self.input_topic_ids)
 
-  async def _process_data(self, topic_id: int, data: SerializableData):
-    tracker: StreamValueTracker = self.input_value_trackers.get(topic_id, None)
-    if tracker is None: return
-    try:
-      message: NumberMessage = NumberMessage.parse_obj(data.data)
-      tracker.add(message.timestamp, message.value)
-      await self._send_calculated_output(message.timestamp)
-    except: logging.error(f"Failed to parse data from topic {topic_id}")
+  async def _run_receive_input(self, stream: SynchronizedStream, var_name: str, fallback_value: float):
+    async with stream:
+      paused = False
+      while True:
+        with await stream.recv() as message:
+          if message.data is not None:
+            nmessage = NumberMessage.parse_obj(message.data.data)
+            self.input_map[var_name] = nmessage.value
+            await self._send_calculated_output(message.timestamp)
+          if message.control is not None and message.control.paused != paused:
+            paused = message.control.paused
+            self.input_paused_count += 1 if message.control.paused else -1
+            if message.control.paused: self.input_map[var_name] = fallback_value
+            await self.output_topic.set_paused(self.input_paused_count == len(self.input_topic_ids))
 
   async def _send_calculated_output(self, timestamp: int):
-    input_map = {}
-    for topic_id, input_config in self.input_configs:
-      if topic_id in self.input_value_trackers: value = self.input_value_trackers[topic_id].pop(timestamp, input_config.default_value)
-      else: value = input_config.default_value
-      input_map[input_config.name] = value
-    output_value = CalculatorEvalTransformer(CalculatorEvalContext(input_map)).transform(self.formula_ast)
-    await self.client.send_stream_data(self.output_topic_id, NumberMessage(timestamp=timestamp, value=output_value))
-
-  async def _setup_deployment(self):
-    topic_id_map = self.deployment.topic_id_map
-    
-    input_configs = self.deployment.config["input_configs"]
-    self.input_topic_ids = [ topic_id_map[input.topic_id] for input in self.deployment.stream_groups[0].inputs]
-    self.input_value_trackers = { topic_id: StreamValueTracker() for topic_id in self.input_topic_ids }
-    self.input_configs = [ (topic_id, CalculatorInputConfig.parse_obj(config)) for topic_id, config in zip(self.input_topic_ids, input_configs) ]
-    self.output_topic_id = topic_id_map[self.deployment.stream_groups[0].outputs[0].topic_id]
-    self.formula_ast = CalculatorGrammar.parse(self.deployment.config["formula"]) 
-
-    # validate input configs
-    var_names = [ input_config.name for input_config in self.input_configs ]
-    for var_name in var_names: 
-      if not variable_name_is_valid(var_name): raise Exception(f"Invalid variable name: {var_name}, must be CNAME and not in {CalculatorEvalContext.default_input_map.keys()}")
-    extractor = CalculatorNameExtractor()
-    extractor.transform(self.formula_ast)
-    all_var_names = set(itertools.chain(var_names, CalculatorEvalContext.default_input_map.keys()))
-    if not extractor.var_names.issubset(all_var_names): raise Exception(f"Invalid variable names: {used_var_names - all_var_names}")
-    available_func_names = CalculatorEvalContext.__dict__.keys()
-    if not extractor.func_names.issubset(available_func_names): raise Exception(f"Invalid function names: {used_func_names - available_func_names}")
+    output_value = CalculatorEvalTransformer(CalculatorEvalContext(self.input_map)).transform(self.formula_ast)
+    await self.client.send_stream_data(self.output_topic.topic, NumberMessage(timestamp=timestamp, value=output_value))
 
 class CalculatorTaskFactoryWorker(TaskFactoryWorker):
   async def create_task(self, deployment: TaskDeployment): return CalculatorTask(await self.create_client(), deployment)
