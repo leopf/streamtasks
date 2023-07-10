@@ -12,10 +12,13 @@
   "license": "ISC",
   "dependencies": {
     "@types/node": "^20.4.1",
+    "@types/object-hash": "^3.0.2",
     "@types/react": "^18.2.14",
     "@types/react-dom": "^18.2.6",
     "esbuild": "^0.18.11",
     "http-proxy": "^1.18.1",
+    "object-hash": "^3.0.0",
+    "pixi-viewport": "^5.0.1",
     "pixi.js": "^7.2.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

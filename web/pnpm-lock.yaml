@@ -8,6 +8,9 @@ dependencies:
   '@types/node':
     specifier: ^20.4.1
     version: 20.4.1
+  '@types/object-hash':
+    specifier: ^3.0.2
+    version: 3.0.2
   '@types/react':
     specifier: ^18.2.14
     version: 18.2.14
@@ -20,6 +23,12 @@ dependencies:
   http-proxy:
     specifier: ^1.18.1
     version: 1.18.1
+  object-hash:
+    specifier: ^3.0.0
+    version: 3.0.0
+  pixi-viewport:
+    specifier: ^5.0.1
+    version: 5.0.1
   pixi.js:
     specifier: ^7.2.4
     version: 7.2.4(@pixi/utils@7.2.4)
@@ -596,6 +605,10 @@ packages:
     resolution: {integrity: sha512-JIzsAvJeA/5iY6Y/OxZbv1lUcc8dNSE77lb2gnBH+/PJ3lFR1Ccvgwl5JWnHAkNHcRsT0TbpVOsiMKZ1F/yyJg==}
     dev: false
 
+  /@types/object-hash@3.0.2:
+    resolution: {integrity: sha512-tfyXl1JPCf2hzIDK29gO7qGqJjThKBzg/Cn3bA68R9NmWdOx+f7k5mm4to/n43BHspCwcoUC6FU4NpUoK/h9bQ==}
+    dev: false
+
   /@types/offscreencanvas@2019.7.0:
     resolution: {integrity: sha512-PGcyveRIpL1XIqK8eBsmRBt76eFgtzuPiSTyKHZxnGemp2yzGzWpjYKAfK3wIMiU7eH+851yEpiuP8JZerTmWg==}
     dev: false
@@ -741,8 +754,17 @@ packages:
       js-tokens: 4.0.0
     dev: false
 
+  /object-hash@3.0.0:
+    resolution: {integrity: sha512-RSn9F68PjH9HqtltsSnqYC1XXoWe9Bju5+213R98cNGttag9q9yAOTzdbsqvIa7aNm5WffBZFpWYr2aWrklWAw==}
+    engines: {node: '>= 6'}
+    dev: false
+
   /object-inspect@1.12.3:
     resolution: {integrity: sha512-geUvdk7c+eizMNUDkRpW1wJwgfOiOeHbxBR/hLXK1aT6zmVSO0jsQcs7fj6MGw89jC/cjGfLcNOrtMYtGqm81g==}
+    dev: false
+
+  /pixi-viewport@5.0.1:
+    resolution: {integrity: sha512-fIILU9xztqGnhGF5SYfjn1Rir/7asWkJ8zSUay2hwzPrdGTWFtB4yiIlZDeFaLf7KHA04RRb2kI01Sy1kNksAw==}
     dev: false
 
   /pixi.js@7.2.4(@pixi/utils@7.2.4):
