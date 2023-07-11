@@ -18,9 +18,14 @@ export interface Point {
     y: number;
 }
 
+export type ConnectResult = false | true | string;
+
 export interface Node {
     id: string;
-    setPosition(x: number, y: number): void;
-    getPosition(): { x: number, y: number };
-    getConnectionGroups(): ConnectionGroup[];
+    getName: () => string;
+    setPosition: (x: number, y: number) => void;
+    getPosition: () => { x: number, y: number };
+    getConnectionGroups: () => ConnectionGroup[];
+    connect: (inputId: string, outputConnection: Connection) => ConnectResult;
+    onUpdated?: (cb: () => void) => void;
 }

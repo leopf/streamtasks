@@ -1,7 +1,7 @@
 import * as PIXI from 'pixi.js';
 import objectHash from "object-hash";
 import { Viewport } from 'pixi-viewport'
-import { Point, Connection, Node } from "./types";
+import { Point, Connection, Node, ConnectResult } from "./types";
 
 const streamsTopOffset = 25;
 const streamsBottomOffset = streamsTopOffset;
@@ -15,66 +15,81 @@ const minLabelSpace = 20;
 
 export class NodeRenderer {
     private group: PIXI.Container;
-    private task: Node;
-    private streamLabelTextStyle: PIXI.TextStyle;
+    private node: Node;
+    private editor: NodeEditorRenderer;
+    
+    private _relConnectorPositions = new Map<string, Point>();
+    private _absuluteConnectorPositions = new Map<string, Point>();
+    private connectorPositionsOutdated = true;
 
-    constructor(task: Node) {
-        this.task = task;
-        this.group = new PIXI.Container();
-        this.streamLabelTextStyle = new PIXI.TextStyle({
-            fontFamily: 'Arial',
-            fontSize: 13,
-            fill: '#000000',
-            wordWrap: false
-        });
+    private connectionLabelTextStyle = new PIXI.TextStyle({
+        fontFamily: 'Arial',
+        fontSize: 13,
+        fill: '#000000',
+        wordWrap: false
+    });
+
+    public get id() {
+        return this.node.id;
     }
 
-    public init(container: Viewport) {
-        container.addChild(this.group);
+    public get connectorPositions() {
+        if (this.connectorPositionsOutdated) {
+            this._absuluteConnectorPositions.clear();
+            for (const [refId, relPos] of this._relConnectorPositions) {
+                this._absuluteConnectorPositions.set(refId, {
+                    x: relPos.x + this.group.position.x,
+                    y: relPos.y + this.group.position.y
+                });
+            }
+            this.connectorPositionsOutdated = false;
+        }
+        return this._absuluteConnectorPositions;
+    }
+    
+    public get inputs() {
+        return this.node.getConnectionGroups().map(cg => cg.inputs).reduce((a, b) => a.concat(b), []);
+    }
+    public get outputs() {
+        return this.node.getConnectionGroups().map(cg => cg.outputs).reduce((a, b) => a.concat(b), []);
+    }
+
+    constructor(editor: NodeEditorRenderer, node: Node) {
+        this.node = node;
+        this.node.onUpdated?.call(this.node, () => this.editor.updateNode(this.id));
+        this.editor = editor;
+
+        this.group = new PIXI.Container();
         this.group.interactive = true;
 
-        let pointerDown = false;
-        const resumeDrag = () => {
-            if (pointerDown) {
-                container.plugins.resume('drag');
-                pointerDown = false;
-            }
-        }
-        this.group.on('pointerdown', (e) => {
-            pointerDown = true;
-            container.plugins.pause('drag');
-        });
-        this.group.on('pointerout', resumeDrag);
-        this.group.on('pointerup', resumeDrag);
-        
-        // allow moving the task
-        this.group.on('pointermove', (e) => {
-            if (pointerDown) {
-                const currentPosition = this.task.getPosition();
-                const newPosition = {
-                    x: currentPosition.x + e.movementX / container.scale.x,
-                    y: currentPosition.y + e.movementY / container.scale.y
-                };
-                this.task.setPosition(newPosition.x, newPosition.y);
-                this.group.position.set(newPosition.x, newPosition.y);
-            }
-        });
+        this.group.on('pointerdown', () => this.editor.onPressNode(this.node.id));
+
+        this.editor.viewport.addChild(this.group);
+    }
+
+    public connect(inputConnectionId: string, outputConnection: Connection): ConnectResult {
+        return this.node.connect(inputConnectionId, outputConnection);
+    }
+
+    public move(x: number, y: number) {
+        const currentPosition = this.node.getPosition();
+        const newX = currentPosition.x + x;
+        const newY = currentPosition.y + y;
+        this.node.setPosition(newX, newY);
+        this.group.position.set(newX, newY);
+        this.connectorPositionsOutdated = true;
     }
 
     public render() {
-        const pos = this.task.getPosition();
+        this.group.removeChildren();
+        this._relConnectorPositions.clear();
+        this.connectorPositionsOutdated = true;
+
+        const pos = this.node.getPosition();
         this.group.position.set(pos.x, pos.y);
 
-        const streamLabelTextStyle = new PIXI.TextStyle({
-            fontFamily: 'Arial',
-            fontSize: 12,
-            fill: '#000000',
-            // disable wrapping
-            wordWrap: false
-        });
-
         // rect width and height
-        const streamGroups = this.task.getConnectionGroups();
+        const streamGroups = this.node.getConnectionGroups();
         const ioHeight = streamGroups.map(sg => Math.max(sg.inputs.length, sg.outputs.length)).reduce((a, b) => a + b, 0);
         const rectHeight = ioHeight * streamHeight + streamsBottomOffset + streamsTopOffset;
 
@@ -99,11 +114,12 @@ export class NodeRenderer {
                 const yOffsetCenter = (heightIndex + i + 0.5) * streamHeight + streamsTopOffset;
 
                 // draw a circle on the edge of the rect
-                const circle = this.createStreamCircle(stream);
+                const circle = this.createConnectionCircle(stream);
                 circle.position.set(xOffset, yOffsetCenter);
+                this._relConnectorPositions.set(stream.refId, circle.position);
 
                 // draw the stream label
-                const label = new PIXI.Text(stream.label, streamLabelTextStyle);
+                const label = new PIXI.Text(stream.label, this.connectionLabelTextStyle);
                 label.position.set(xOffset + labelEdgeOffset, yOffsetCenter - label.height / 2);
                 label.resolution = 2;
 
@@ -114,11 +130,12 @@ export class NodeRenderer {
                 const stream = streamGroup.outputs[i];
                 const yOffsetCenter = (heightIndex + i + 0.5) * streamHeight + streamsTopOffset;
 
-                const circle = this.createStreamCircle(stream);
+                const circle = this.createConnectionCircle(stream);
                 circle.position.set(xOffset + rectWidth, yOffsetCenter);
+                this._relConnectorPositions.set(stream.refId, circle.position);
 
                 // draw the stream label
-                const label = new PIXI.Text(stream.label, streamLabelTextStyle);
+                const label = new PIXI.Text(stream.label, this.connectionLabelTextStyle);
                 label.position.set(xOffset + rectWidth - labelEdgeOffset - label.width, yOffsetCenter - label.height / 2);
                 label.resolution = 2;
 
@@ -129,12 +146,18 @@ export class NodeRenderer {
         }
     }
 
-    private createStreamCircle(stream: Connection) {
+    private createConnectionCircle(connection: Connection) {
         const circle = new PIXI.Graphics();
         circle.lineStyle(outlineWidth, outlineColor);
-        circle.beginFill(this.getStreamColor(stream));
+        circle.beginFill(this.getStreamColor(connection));
         circle.drawCircle(0, 0, streamCircleRadius);
         circle.endFill();
+
+        circle.interactive = true;
+
+        circle.on('pointerdown', () => this.editor.onSelectStartConnection(connection.refId));
+        circle.on('pointerup', () => this.editor.onSelectEndConnection(this.node.id, connection.refId));
+
         return circle;
     }
 
@@ -142,7 +165,7 @@ export class NodeRenderer {
         let maxWidth = 0;
         let maxHeight = 0;
         for (const stream of streams) {
-            const size = PIXI.TextMetrics.measureText(stream.label, this.streamLabelTextStyle);
+            const size = PIXI.TextMetrics.measureText(stream.label, this.connectionLabelTextStyle);
             if (size.width > maxWidth) {
                 maxWidth = size.width;
             }
@@ -169,43 +192,242 @@ export class NodeRenderer {
     }
 }
 
-export class NodeEditorRenderer {
-    private viewport?: Viewport;
-    private app?: PIXI.Application;
+type NodeConnection = {
+    inputId: string;
+    inputNodeId: string;
+    outputId: string;
+    outputNodeId: string;
+    rendered?: PIXI.DisplayObject
+};
 
-    public addTask(task: Node) {
-        const taskRenderer = new NodeRenderer(task);
-        taskRenderer.init(this.viewport!);
-        taskRenderer.render();
+export class NodeEditorRenderer {
+    public viewport: Viewport;
+    private app: PIXI.Application;
+    private connectionLayer = new PIXI.Container();
+    private nodeRenderers = new Map<string, NodeRenderer>();
+    private connections: NodeConnection[] = [];
+    
+    private pressActive = false;
+    private selectedNodeId?: string;
+
+    private selectedConnectionId?: string;
+    private currentConnectionLine?: PIXI.Graphics;
+
+    private get selectedNode() {
+        if (!this.selectedNodeId) {
+            return undefined;
+        }
+        return this.nodeRenderers.get(this.selectedNodeId);
+    }
+    private get selectedConnectionPosition() {
+        if (!this.selectedConnectionId) {
+            return undefined;
+        }
+        return this.selectedNode?.connectorPositions.get(this.selectedConnectionId);
     }
 
-    public mount(container: HTMLElement) {
+    constructor() {
         this.app = new PIXI.Application({
-            width: container.clientWidth,
-            height: container.clientHeight,
+            width: 1,
+            height: 1,
             backgroundColor: 0xeeeeee,
             antialias: true,
             autoDensity: true,
         });
-        
         this.viewport = new Viewport({
             worldWidth: 1000,
             worldHeight: 1000,
             events: this.app.renderer.events,
         });
+        this.viewport.addChild(this.connectionLayer);
+        this.viewport.on("pointermove", (e) => {
+            if (!this.pressActive || !this.selectedNodeId) return;
+            const selectedConnectionPosition = this.selectedConnectionPosition;
+            if (!selectedConnectionPosition) {
+                this.selectedNode?.move(e.movementX / this.viewport.scale.x, e.movementY / this.viewport.scale.y);
+                this.updateNodeConnections(this.selectedNodeId);
+            }
+            else {
+                if (this.currentConnectionLine) {
+                    this.currentConnectionLine?.removeFromParent();
+                }
+
+                this.currentConnectionLine = this.drawConnectionLine(selectedConnectionPosition, this.viewport.toWorld(e.x, e.y));
+            }
+        })
+        this.viewport.on("pointerup", () => this.onReleaseNode())
+
         this.viewport
             .drag()
             .pinch()
             .wheel()
             .decelerate()
+    }
 
-        this.app.stage.addChild(this.viewport);
-        
+    public addNode(node: Node) {
+        const taskRenderer = new NodeRenderer(this, node);
+        taskRenderer.render();
+        this.nodeRenderers.set(node.id, taskRenderer);
+        this.updateNodeConnections(node.id);
+    }
+    public deleteNode(id: string) {
+        const node = this.nodeRenderers.get(id);
+        if (!node) return;
+
+        const connections = this.connections.filter(c => c.inputNodeId === id || c.outputNodeId === id);
+        for (const connection of connections) {
+            connection.rendered?.removeFromParent();
+            this.connections.splice(this.connections.indexOf(connection), 1);
+        }
+    }
+    public updateNode(nodeId: string) {
+        const node = this.nodeRenderers.get(nodeId);
+        if (!node) return;
+        node.render();
+        this.reconnectNodeOutputs(nodeId);
+        this.updateNodeConnections(nodeId);
+    }
+
+    public onSelectStartConnection(connectionId: string) {
+        this.selectedConnectionId = connectionId;
+    }
+    public onSelectEndConnection(nodeId: string, connectionId: string) {
+        const aConnectionId = this.selectedConnectionId;
+        const bConnectionId = connectionId;
+        if (!aConnectionId || !bConnectionId) return;
+
+        const aNode = this.selectedNode;
+        const bNode = this.nodeRenderers.get(nodeId);
+        if (!aNode || !bNode) return;
+
+        const aInputConnection = aNode.inputs.find(c => c.refId === aConnectionId);
+        const bInputConnection = bNode.inputs.find(c => c.refId === bConnectionId);
+        const aOutputConnection = aNode.outputs.find(c => c.refId === aConnectionId);
+        const bOutputConnection = bNode.outputs.find(c => c.refId === bConnectionId);
+
+        if ((!aInputConnection && !bInputConnection) || (!aOutputConnection && !bOutputConnection)) return;
+
+        const inputNode = aInputConnection ? aNode : bNode;
+        const outputNode = aOutputConnection ? aNode : bNode;
+        const inputConnection = (aInputConnection ?? bInputConnection)!;
+        const outputConnection = (aOutputConnection ?? bOutputConnection)!;
+
+        const result = inputNode.connect(inputConnection.refId, outputConnection);
+        if (!this.handleConnectionResult(result)) return;
+
+        const connection: NodeConnection = {
+            inputId: inputConnection.refId,
+            inputNodeId: inputNode.id,
+            outputId: outputConnection.refId,
+            outputNodeId: outputNode.id,
+        };
+        this.connections.push(connection);
+        this.updateNodeConnection(connection);
+    }
+
+    public onPressNode(id: string) {
+        this.selectedNodeId = id;
+        this.pressActive = true;
+        this.viewport.plugins.pause('drag');
+    }
+    public onReleaseNode() {
+        if (this.pressActive) {
+            this.pressActive = false;
+            this.selectedConnectionId = undefined;
+            this.currentConnectionLine?.removeFromParent();
+            this.viewport.plugins.resume('drag');
+        }
+    }
+    public mount(container: HTMLElement) {
+        const resizeApp = () => {
+            this.app.renderer.resize(container.clientWidth, container.clientHeight);
+            this.viewport.resize(container.clientWidth, container.clientHeight, 1000, 1000);
+        };
+
         container.appendChild(this.app.view as HTMLCanvasElement);
-        const hostResizeObserver = new ResizeObserver(() => {
-            this.app?.renderer.resize(container.clientWidth, container.clientHeight);
-            this.viewport?.resize(container.clientWidth, container.clientHeight, 1000, 1000);
-        });
+        this.app.stage.addChild(this.viewport);
+
+        resizeApp();
+        const hostResizeObserver = new ResizeObserver(resizeApp);
         hostResizeObserver.observe(container);
+    }
+
+    private handleConnectionResult(result: ConnectResult): boolean {
+        if (result === false) {
+            console.log('Connection failed');
+            return false;
+        }
+        else if (result === true) {
+            return true;
+        }
+        else {
+            console.error(result);
+            return false;
+        }
+    }
+
+    private updateNodeConnections(nodeId: string) {
+        const node = this.nodeRenderers.get(nodeId);
+        if (!node) return;
+
+        const removeConnections = this.connections.filter(c => c.inputNodeId === nodeId || c.outputNodeId === nodeId).filter(c => !this.updateNodeConnection(c));
+        for (const connection of removeConnections) {
+            this.connections.splice(this.connections.indexOf(connection), 1);
+        }
+    }
+
+    private reconnectNodeOutputs(nodeId: string) {
+        const node = this.nodeRenderers.get(nodeId);
+        if (!node) return;
+
+        const outputConnectionMap = new Map<string, Connection>(node.outputs.map(c => [c.refId, c]));
+
+        const removeConnections = [];
+        for (const connection of this.connections.filter(c => c.outputNodeId === nodeId)) {
+            const inputNode = this.nodeRenderers.get(connection.inputNodeId);
+            const outputConnection = outputConnectionMap.get(connection.outputId);
+
+            if (!inputNode || !outputConnection) {
+                removeConnections.push(connection);
+                continue;
+            }
+
+
+            const result = inputNode.connect(connection.inputId, outputConnection);
+            if (!this.handleConnectionResult(result)) {
+                removeConnections.push(connection);
+            }
+        }
+        for (const connection of removeConnections) {
+            this.connections.splice(this.connections.indexOf(connection), 1);
+        }
+    }
+
+    private updateNodeConnection(connection: NodeConnection) {
+        if (connection.rendered) {
+            connection.rendered.removeFromParent();
+        }
+
+        const inputNode = this.nodeRenderers.get(connection.inputNodeId);
+        const outputNode = this.nodeRenderers.get(connection.outputNodeId);
+        if (!inputNode || !outputNode) return false;
+
+        const inputPosition = inputNode.connectorPositions.get(connection.inputId);
+        const outputPosition = outputNode.connectorPositions.get(connection.outputId);
+
+        if (!inputPosition || !outputPosition) return false;
+
+        connection.rendered = this.drawConnectionLine(inputPosition, outputPosition);
+
+        return true;
+    }
+
+    private drawConnectionLine(a: Point, b: Point) {
+        const line = new PIXI.Graphics();
+        line.lineStyle(outlineWidth, outlineColor);
+        line.moveTo(a.x, a.y);
+        line.lineTo(b.x, b.y);
+        this.connectionLayer.addChild(line);
+        return line;
     }
 }
