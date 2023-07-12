@@ -10,11 +10,11 @@ const streamsBottomOffset = paddingVertical;
 const streamHeight = 30;
 const streamCircleRadius = 8;
 const outlineColor = 0x333333;
-const selectedOutlineColor = 0x999999;
 const outlineWidth = 2;
-const xOffset = streamCircleRadius;
+const xOffset = streamCircleRadius +  outlineWidth / 2;
 const labelEdgeOffset = streamCircleRadius + 5;
 const minLabelSpace = 20;
+const selectedNodeFillColor = 0xf0f6ff;
 
 export class NodeRenderer {
     private group: PIXI.Container;
@@ -47,8 +47,8 @@ export class NodeRenderer {
     private get isSelected() {
         return this.editor?.selectedNode === this;
     }
-    private get outlineColor() {
-        return this.isSelected ? selectedOutlineColor : outlineColor;
+    private get fillColor() {
+        return this.isSelected ? selectedNodeFillColor : 0xffffff;
     }
 
     public get connectorPositions() {
@@ -133,8 +133,8 @@ export class NodeRenderer {
 
         // gray rect with rounded corners
         const containerRect = new PIXI.Graphics();
-        containerRect.lineStyle(outlineWidth, this.outlineColor);
-        containerRect.beginFill(0xffffff);
+        containerRect.lineStyle(outlineWidth, outlineColor);
+        containerRect.beginFill(this.fillColor);
         containerRect.drawRoundedRect(xOffset, 0, rectWidth, rectHeight, streamCircleRadius);
         containerRect.endFill();
         this.group.addChild(containerRect);
@@ -182,7 +182,7 @@ export class NodeRenderer {
 
     private createConnectionCircle(connection: Connection) {
         const circle = new PIXI.Graphics();
-        circle.lineStyle(outlineWidth, this.outlineColor);
+        circle.lineStyle(outlineWidth, outlineColor);
         circle.beginFill(this.getStreamColor(connection));
         circle.drawCircle(0, 0, streamCircleRadius);
         circle.endFill();
