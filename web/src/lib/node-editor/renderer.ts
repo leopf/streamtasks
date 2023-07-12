@@ -350,6 +350,9 @@ export class NodeEditorRenderer {
     private selectedConnectionId?: string;
     private editingLinkLine?: PIXI.Graphics;
 
+    private container?: HTMLElement;
+    private containerResizeObserver?: ResizeObserver;
+
     public get selectedNode(): NodeRenderer | undefined {
         if (!this.selectedNodeId) {
             return undefined;
@@ -383,6 +386,7 @@ export class NodeEditorRenderer {
             worldHeight: 1000,
             events: this.app.renderer.events,
         });
+        this.app.stage.addChild(this.viewport);
         this.viewport.addChild(this.connectionLayer);
         this.viewport.on("pointermove", (e) => {
             if (!this.pressActive || !this.selectedNodeId) return;
@@ -396,7 +400,6 @@ export class NodeEditorRenderer {
             }
         })
         this.viewport.on("pointerup", () => this.onReleaseNode())
-
         this.viewport
             .drag()
             .pinch()
@@ -486,20 +489,28 @@ export class NodeEditorRenderer {
             this.viewport.plugins.resume('drag');
         }
     }
+    public unmount() {
+        if (!this.container) return;
+        this.containerResizeObserver?.disconnect();
+        this.containerResizeObserver = undefined;
+        while (this.container.firstChild) {
+            this.container.removeChild(this.container.firstChild);
+        }
+    }
     public mount(container: HTMLElement) {
-        const resizeApp = () => {
-            this.app.renderer.resize(container.clientWidth, container.clientHeight);
-            this.viewport.resize(container.clientWidth, container.clientHeight, 1000, 1000);
-        };
-
+        this.unmount();
         container.appendChild(this.app.view as HTMLCanvasElement);
-        this.app.stage.addChild(this.viewport);
 
-        resizeApp();
-        const hostResizeObserver = new ResizeObserver(resizeApp);
-        hostResizeObserver.observe(container);
+        this.resize()
+        this.containerResizeObserver = new ResizeObserver(this.resize.bind(this));
+        this.containerResizeObserver.observe(container);
     }
 
+    private resize() {
+        if (!this.container) return;
+        this.app.renderer.resize(this.container.clientWidth, this.container.clientHeight);
+        this.viewport.resize(this.container.clientWidth, this.container.clientHeight, 1000, 1000);
+    }
     private createLinksFromOutputConnections(nodeId: string, outputConnections: Connection[]) {
         const outputConnectionIdsSet = new Set(outputConnections.map(c => c.refId));
 
