@@ -91,12 +91,19 @@ export class NodeRenderer {
 
     public move(x: number, y: number) {
         const currentPosition = this.node.getPosition();
-        const newX = currentPosition.x + x;
-        const newY = currentPosition.y + y;
-        this.node.setPosition(newX, newY);
-        this.group.position.set(newX, newY);
+        this.position = { x: currentPosition.x + x, y: currentPosition.y + y };
+    }
+
+    public get position() {
+        return this.node.getPosition();
+    }
+
+    public set position(pos: Point) {
+        this.node.setPosition(pos.x, pos.y);
+        this.group.position.set(pos.x, pos.y);
         this.connectorPositionsOutdated = true;
     }
+
 
     public remove() {
         this.group.removeFromParent();
@@ -388,7 +395,7 @@ export class NodeEditorRenderer {
             .wheel()
     }
 
-    public addNode(node: Node) {
+    public addNode(node: Node, center: boolean = false) {
         const nodeRenderer = new NodeRenderer(node, this);
 
         this.nodeRenderers.set(node.id, nodeRenderer);
@@ -398,6 +405,16 @@ export class NodeEditorRenderer {
         ];
         links.filter(c => this.connectLinkToInput(c)).forEach(c => this.links.add(c));
         this.renderNode(node.id);
+
+        if (center) {
+            const xOffset = nodeRenderer.container.width / 2;
+            const yOffset = nodeRenderer.container.height / 2;
+            nodeRenderer.position = {
+                x: this.viewport.center.x - xOffset,
+                y: this.viewport.center.y - yOffset
+            }
+            this.renderNode(node.id);
+        }
     }
     public deleteNode(id: string) {
         this.nodeRenderers.get(id)?.remove();

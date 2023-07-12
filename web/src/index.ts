@@ -163,3 +163,7 @@ renderer.addNode(new GateTask({ x: 100, y: 100 }))
 renderer.addNode(new GateTask({ x: 300, y: 300 }))
 renderer.addNode(new GateTask({ x: 700, y: 700 }))
 renderer.addNode(new NumberGeneratorTask({ x: 400, y: 400 }))
+
+setTimeout(() => {
+    renderer.addNode(new GateTask({ x: 0, y: 0 }), true)
+}, 3000);
