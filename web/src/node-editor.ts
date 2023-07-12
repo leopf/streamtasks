@@ -260,13 +260,19 @@ export class NodeEditorRenderer {
     private selectedNodeId?: string;
 
     private selectedConnectionId?: string;
-    private currentConnectionLine?: PIXI.Graphics;
+    private editingLinkLine?: PIXI.Graphics;
 
     public get selectedNode(): NodeRenderer | undefined {
         if (!this.selectedNodeId) {
             return undefined;
         }
         return this.nodeRenderers.get(this.selectedNodeId);
+    }
+    private get selectedConnectionIsInput() {
+        if (!this.selectedConnectionId) {
+            return false;
+        }
+        return this.selectedNode?.inputs.find(c => c.refId === this.selectedConnectionId) !== undefined;
     }
     private get selectedConnectionPosition() {
         if (!this.selectedConnectionId) {
@@ -297,11 +303,7 @@ export class NodeEditorRenderer {
                 this.renderNodeLinks(this.selectedNodeId);
             }
             else {
-                if (this.currentConnectionLine) {
-                    this.currentConnectionLine?.removeFromParent();
-                }
-
-                this.currentConnectionLine = this.drawConnectionLine(selectedConnectionPosition, this.viewport.toWorld(e.x, e.y));
+                this.renderEditingLink(this.viewport.toWorld(e.x, e.y))
             }
         })
         this.viewport.on("pointerup", () => this.onReleaseNode())
@@ -339,15 +341,10 @@ export class NodeEditorRenderer {
     public onSelectStartConnection(connectionId: string) {
         this.selectedConnectionId = connectionId;
 
-        // check if is input
-        const node = this.selectedNode;
-        if (!node) return;
-        const foundInput = node.inputs.find(c => c.refId === connectionId);
-        if (!foundInput) return;
-
-        // remove input connection
-        if (this.connectConnectionToInput(node.id, connectionId)) {
-            this.removeLinks(this.links.values.filter(c => c.inputNodeId === this.selectedNodeId && c.inputId === connectionId));
+        if (this.selectedConnectionIsInput) {
+            if (this.connectConnectionToInput(this.selectedNodeId!, connectionId)) {
+                this.removeLinks(this.links.values.filter(c => c.inputNodeId === this.selectedNodeId && c.inputId === connectionId));
+            }
         }
     }
     public onSelectEndConnection(nodeId: string, connectionId: string) {
@@ -386,7 +383,7 @@ export class NodeEditorRenderer {
         if (this.pressActive) {
             this.pressActive = false;
             this.selectedConnectionId = undefined;
-            this.currentConnectionLine?.removeFromParent();
+            this.editingLinkLine?.removeFromParent();
             this.viewport.plugins.resume('drag');
         }
     }
@@ -501,6 +498,17 @@ export class NodeEditorRenderer {
         }
     }
 
+    private renderEditingLink(pos: Point) {
+        if (this.editingLinkLine) {
+            this.editingLinkLine?.removeFromParent();
+        }
+        const selectedConnectionIsInput = this.selectedConnectionIsInput;
+        const inputPos = selectedConnectionIsInput ? this.selectedConnectionPosition : pos;
+        const outputPos = selectedConnectionIsInput ? pos : this.selectedConnectionPosition;
+        if (!inputPos || !outputPos) return;
+        this.editingLinkLine = this.drawConnectionLine(inputPos, outputPos);
+    }
+
     private renderNode(nodeId: string) {
         const node = this.nodeRenderers.get(nodeId);
         if (!node) return;
@@ -553,10 +561,20 @@ export class NodeEditorRenderer {
     }
 
     private drawConnectionLine(inputPoint: Point, outputPoint: Point) {
+        let cpYOffset = Math.max(150 - Math.abs(inputPoint.y - outputPoint.y), 0);
+        if (outputPoint.y >= inputPoint.y) {
+            cpYOffset *= -1;
+        }
+        if (inputPoint.x > outputPoint.x) {
+            cpYOffset = 0;
+        }
+
+        const dist = Math.sqrt(Math.pow(inputPoint.x - outputPoint.x, 2) + Math.pow(inputPoint.y - outputPoint.y, 2));
+        const cpXOffset = Math.min(150, dist / 2);
         const line = new PIXI.Graphics();
         line.lineStyle(outlineWidth, outlineColor);
         line.moveTo(inputPoint.x, inputPoint.y);
-        line.lineTo(outputPoint.x, outputPoint.y);
+        line.bezierCurveTo(inputPoint.x - cpXOffset, inputPoint.y + cpYOffset, outputPoint.x + cpXOffset, outputPoint.y + cpYOffset, outputPoint.x, outputPoint.y);
         this.connectionLayer.addChild(line);
         return line;
     }
