@@ -1,8 +1,5 @@
-import * as PIXI from 'pixi.js';
 import objectHash from "object-hash";
-import { Viewport } from 'pixi-viewport'
-import { Point, Node, ConnectResult, Connection, ConnectionGroup } from './types';
-import { NodeDisplayRenderer, NodeEditorRenderer, NodeRenderer } from './node-editor';
+import { Point, Node, Connection, ConnectionGroup, NodeEditorRenderer, NodeDisplayRenderer } from './lib/node-editor';
 import deepEqual from 'deep-equal';
 import { v4 as uuidv4 } from "uuid";
 
