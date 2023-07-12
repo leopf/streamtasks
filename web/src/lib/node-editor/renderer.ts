@@ -499,6 +499,7 @@ export class NodeEditorRenderer {
     }
     public mount(container: HTMLElement) {
         this.unmount();
+        this.container = container;
         container.appendChild(this.app.view as HTMLCanvasElement);
 
         this.resize()
