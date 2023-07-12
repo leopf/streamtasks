@@ -2,7 +2,7 @@ import * as PIXI from 'pixi.js';
 import objectHash from "object-hash";
 import { Viewport } from 'pixi-viewport'
 import { Point, Node, ConnectResult, Connection, ConnectionGroup } from './types';
-import { NodeEditorRenderer, NodeRenderer } from './node-editor';
+import { NodeDisplayRenderer, NodeEditorRenderer, NodeRenderer } from './node-editor';
 import deepEqual from 'deep-equal';
 import { v4 as uuidv4 } from "uuid";
 
@@ -154,10 +154,12 @@ if (!hostEl) {
     throw new Error('Root element not found');
 }
 
-const renderer = new NodeEditorRenderer()
-renderer.mount(hostEl);
+const display = new NodeDisplayRenderer(new GateTask({ x: 100, y: 100 }), hostEl)
 
-renderer.addNode(new GateTask({ x: 100, y: 100 }))
-renderer.addNode(new GateTask({ x: 300, y: 300 }))
-renderer.addNode(new GateTask({ x: 700, y: 700 }))
-renderer.addNode(new NumberGeneratorTask({ x: 400, y: 400 }))
+// const renderer = new NodeEditorRenderer()
+// renderer.mount(hostEl);
+
+// renderer.addNode(new GateTask({ x: 100, y: 100 }))
+// renderer.addNode(new GateTask({ x: 300, y: 300 }))
+// renderer.addNode(new GateTask({ x: 700, y: 700 }))
+// renderer.addNode(new NumberGeneratorTask({ x: 400, y: 400 }))

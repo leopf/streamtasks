@@ -3,22 +3,23 @@ import objectHash from "object-hash";
 import { Viewport } from 'pixi-viewport'
 import { Point, Connection, Node, ConnectResult, InputConnection } from "./types";
 
+const appBackgroundColor = 0xeeeeee;
 const paddingVertical = 10;
 const nodeLabelHPadding = 20;
 const streamsBottomOffset = paddingVertical;
 const streamHeight = 30;
-const xOffset = streamHeight / 2;
 const streamCircleRadius = 8;
 const outlineColor = 0x333333;
 const selectedOutlineColor = 0x999999;
 const outlineWidth = 2;
+const xOffset = streamCircleRadius;
 const labelEdgeOffset = streamCircleRadius + 5;
 const minLabelSpace = 20;
 
 export class NodeRenderer {
     private group: PIXI.Container;
     private node: Node;
-    private editor: NodeEditorRenderer;
+    private editor?: NodeEditorRenderer;
     
     private _relConnectorPositions = new Map<string, Point>();
     private _absuluteConnectorPositions = new Map<string, Point>();
@@ -40,8 +41,11 @@ export class NodeRenderer {
     public get id() {
         return this.node.id;
     }
+    public get container() {
+        return this.group;
+    }
     private get isSelected() {
-        return this.editor.selectedNode === this;
+        return this.editor?.selectedNode === this;
     }
     private get outlineColor() {
         return this.isSelected ? selectedOutlineColor : outlineColor;
@@ -68,17 +72,17 @@ export class NodeRenderer {
         return this.node.getConnectionGroups().map(cg => cg.outputs).reduce((a, b) => a.concat(b), []);
     }
 
-    constructor(editor: NodeEditorRenderer, node: Node) {
+    constructor(node: Node, editor?: NodeEditorRenderer) {
         this.node = node;
-        this.node.onUpdated?.call(this.node, () => this.editor.updateNode(this.id));
+        this.node.onUpdated?.call(this.node, () => this.editor?.updateNode(this.id));
         this.editor = editor;
 
         this.group = new PIXI.Container();
         this.group.interactive = true;
 
-        this.group.on('pointerdown', () => this.editor.onPressNode(this.node.id));
+        this.group.on('pointerdown', () => this.editor?.onPressNode(this.node.id));
 
-        this.editor.viewport.addChild(this.group);
+        this.editor?.viewport.addChild(this.group);
     }
 
     public connect(inputConnectionId: string, outputConnection?: Connection): ConnectResult {
@@ -185,8 +189,8 @@ export class NodeRenderer {
 
         circle.interactive = true;
 
-        circle.on('pointerdown', () => this.editor.onSelectStartConnection(connection.refId));
-        circle.on('pointerup', () => this.editor.onSelectEndConnection(this.node.id, connection.refId));
+        circle.on('pointerdown', () => this.editor?.onSelectStartConnection(connection.refId));
+        circle.on('pointerup', () => this.editor?.onSelectEndConnection(this.node.id, connection.refId));
 
         return circle;
     }
@@ -249,6 +253,75 @@ class ConnectionLinkCollection {
     }
 }
 
+export class NodeDisplayRenderer {
+    private app: PIXI.Application;
+    private nodeRenderer: NodeRenderer;
+    private resizeObserver: ResizeObserver;
+    private _perfectWidth: number = 0;
+    private _perfectHeight: number = 0;
+    
+    public padding: number = 20;
+
+    public get perfectWidth() {
+        return this._perfectWidth;
+    }
+    public get perfectHeight() {
+        return this._perfectHeight;
+    }
+
+    constructor(node: Node, hostEl: HTMLElement) {
+        this.nodeRenderer = new NodeRenderer(node);
+        this.app = new PIXI.Application({
+            width: hostEl.clientWidth,
+            height: hostEl.clientHeight,
+            backgroundColor: appBackgroundColor,
+            antialias: true,
+            autoDensity: true,
+            autoStart: false,
+        });
+        this.app.stage.addChild(this.nodeRenderer.container);
+
+        hostEl.appendChild(this.app.view as HTMLCanvasElement);
+
+        this.resizeObserver = new ResizeObserver(() => {
+            this.app.renderer.resize(hostEl.clientWidth, hostEl.clientHeight);
+            this.update();
+        });
+        this.resizeObserver.observe(hostEl);
+    }
+
+    public update() {
+        this.nodeRenderer.render();
+
+        const containerWidth = this.nodeRenderer.container.width / this.nodeRenderer.container.scale.x;
+        const containerHeight = this.nodeRenderer.container.height / this.nodeRenderer.container.scale.y;
+        
+        const widthScale = (this.app.renderer.width - this.padding * 2) / containerWidth;
+        const heightScale = (this.app.renderer.height - this.padding * 2) / containerHeight;
+        const scale = Math.min(widthScale, heightScale);
+
+        const newWidth = containerWidth * scale;
+        const newHeight = containerHeight * scale;
+
+        this.nodeRenderer.container.transform.scale.set(scale, scale);
+        this.nodeRenderer.container.position.set(
+            (this.app.renderer.width - newWidth) / 2,
+            (this.app.renderer.height - newHeight) / 2
+        );
+
+        this._perfectWidth = heightScale * containerWidth + this.padding * 2;
+        this._perfectHeight = widthScale * containerHeight + this.padding * 2;
+
+        this.app.render();
+    }
+
+    public destroy() {
+        this.nodeRenderer.remove();
+        this.app.destroy();
+        this.resizeObserver.disconnect();
+    }
+}
+
 export class NodeEditorRenderer {
     public viewport: Viewport;
     private app: PIXI.Application;
@@ -285,10 +358,11 @@ export class NodeEditorRenderer {
         this.app = new PIXI.Application({
             width: 1,
             height: 1,
-            backgroundColor: 0xeeeeee,
+            backgroundColor: appBackgroundColor,
             antialias: true,
             autoDensity: true,
         });
+        this.app.ticker.maxFPS = 60;
         this.viewport = new Viewport({
             worldWidth: 1000,
             worldHeight: 1000,
@@ -315,7 +389,7 @@ export class NodeEditorRenderer {
     }
 
     public addNode(node: Node) {
-        const nodeRenderer = new NodeRenderer(this, node);
+        const nodeRenderer = new NodeRenderer(node, this);
 
         const links = [
             ...this.createLinksFromInputConnections(nodeRenderer.id, nodeRenderer.inputs),
