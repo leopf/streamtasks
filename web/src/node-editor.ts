@@ -315,7 +315,12 @@ export class NodeEditorRenderer {
     public addNode(node: Node) {
         const nodeRenderer = new NodeRenderer(this, node);
 
+        const links = [
+            ...this.createLinksFromInputConnections(nodeRenderer.id, nodeRenderer.inputs),
+            ...this.createLinksFromOutputConnections(nodeRenderer.id, nodeRenderer.outputs)
+        ];
         this.nodeRenderers.set(node.id, nodeRenderer);
+        links.filter(c => this.connectLinkToInput(c)).forEach(c => this.links.add(c));
         this.renderNode(node.id);
     }
     public deleteNode(id: string) {
@@ -444,20 +449,20 @@ export class NodeEditorRenderer {
         return newLinks;
     }
 
-    private connectLinkToInput(link: ConnectionLink, suppressErrorMessage = false) {
+    private connectLinkToInput(link: ConnectionLink) {
         const outputNode = this.nodeRenderers.get(link.outputNodeId);
         if (!outputNode) return;
         const outputConnection = outputNode.outputs.find(c => c.refId === link.outputId);
         if (!outputConnection) return false;
-        return this.connectConnectionToInput(link.inputNodeId, link.inputId, outputConnection, suppressErrorMessage)
+        return this.connectConnectionToInput(link.inputNodeId, link.inputId, outputConnection)
     }
 
-    private connectConnectionToInput(inputNodeId: string, inputConnectionId: string, outputConnection?: Connection, suppressErrorMessage = false) {
+    private connectConnectionToInput(inputNodeId: string, inputConnectionId: string, outputConnection?: Connection) {
         const inputNode = this.nodeRenderers.get(inputNodeId);
         if (!inputNode) return false;
 
         const result = inputNode.connect(inputConnectionId, outputConnection);
-        if (!this.handleConnectionResult(result, suppressErrorMessage)) return false;
+        if (!this.handleConnectionResult(result)) return false;
         return true;
     }
 
@@ -482,7 +487,7 @@ export class NodeEditorRenderer {
         }
     }
 
-    private handleConnectionResult(result: ConnectResult, suppressErrorMessage = false): boolean {
+    private handleConnectionResult(result: ConnectResult): boolean {
         if (result === false) {
             console.log('Connection failed');
             return false;

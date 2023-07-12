@@ -2,7 +2,7 @@ import * as PIXI from 'pixi.js';
 import objectHash from "object-hash";
 import { Viewport } from 'pixi-viewport'
 import { Point, Node, ConnectResult, Connection, ConnectionGroup } from './types';
-import { NodeEditorRenderer, NodeRenderer } from './renderer';
+import { NodeEditorRenderer, NodeRenderer } from './node-editor';
 import deepEqual from 'deep-equal';
 import { v4 as uuidv4 } from "uuid";
 
@@ -17,7 +17,7 @@ class NumberGeneratorTask implements Node {
             inputs: [],
             outputs: [
                 {
-                    refId: uuidv4(),
+                    refId: "1",
                     label: 'Output Stream',
                     config: { content_type: 'number' }
                 }
@@ -66,6 +66,7 @@ class GateTask implements Node {
                 {
                     refId: uuidv4(),
                     label: 'Gate Value',
+                    linkedStreamId: "1",
                     config: { content_type: 'number' }
                 }
             ],
