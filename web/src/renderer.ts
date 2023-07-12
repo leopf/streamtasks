@@ -230,12 +230,31 @@ type ConnectionLink = {
     rendered?: PIXI.DisplayObject
 };
 
+class ConnectionLinkCollection {
+    private map = new Map<string, ConnectionLink>();
+
+    public get values() {
+        return Array.from(this.map.values());
+    }
+
+    public add(link: ConnectionLink) {
+        this.map.set(this.getKey(link), link);
+    }
+    public remove(link: ConnectionLink) {
+        this.map.delete(this.getKey(link));
+    }
+
+    private getKey(link: ConnectionLink) {
+        return objectHash([ link.inputId, link.outputId ])
+    }
+}
+
 export class NodeEditorRenderer {
     public viewport: Viewport;
     private app: PIXI.Application;
     private connectionLayer = new PIXI.Container();
     private nodeRenderers = new Map<string, NodeRenderer>();
-    private links: ConnectionLink[] = [];
+    private links = new ConnectionLinkCollection();
     
     private pressActive = false;
     private selectedNodeId?: string;
@@ -302,7 +321,7 @@ export class NodeEditorRenderer {
     public deleteNode(id: string) {
         this.nodeRenderers.get(id)?.remove();
         this.nodeRenderers.delete(id);
-        this.removeLinks(this.links.filter(c => c.inputNodeId === id || c.outputNodeId === id));
+        this.removeLinks(this.links.values.filter(c => c.inputNodeId === id || c.outputNodeId === id));
     }
     public updateNode(nodeId: string) {
         const node = this.nodeRenderers.get(nodeId);
@@ -323,7 +342,7 @@ export class NodeEditorRenderer {
 
         // remove input connection
         if (this.connectConnectionToInput(node.id, connectionId)) {
-            this.removeLinks(this.links.filter(c => c.inputNodeId === this.selectedNodeId && c.inputId === connectionId));
+            this.removeLinks(this.links.values.filter(c => c.inputNodeId === this.selectedNodeId && c.inputId === connectionId));
         }
     }
     public onSelectEndConnection(nodeId: string, connectionId: string) {
@@ -331,7 +350,7 @@ export class NodeEditorRenderer {
         if (!connection) return;
 
         if (this.connectLinkToInput(connection)) {
-            this.links.push(connection);
+            this.links.add(connection);
             this.renderLink(connection);
             this.renderInputLinks(connection.inputNodeId, connection.inputId);
         }
@@ -485,7 +504,7 @@ export class NodeEditorRenderer {
     }
 
     private reconnectNodeOutputs(nodeId: string) {
-        this.removeLinks(this.links.filter(c => c.outputNodeId === nodeId).filter(c => !this.connectLinkToInput(c)))
+        this.removeLinks(this.links.values.filter(c => c.outputNodeId === nodeId).filter(c => !this.connectLinkToInput(c)))
     }
 
     private renderInputLinks(nodeId: string, connectionId: string) {
@@ -493,13 +512,13 @@ export class NodeEditorRenderer {
         if (!node) return;
         const foundInput = node.inputs.find(c => c.refId === connectionId);
         if (!foundInput) return;
-        this.removeLinks(this.links.filter(c => c.inputNodeId === nodeId && c.inputId === connectionId && c.outputId !== foundInput.linkedStreamId));
+        this.removeLinks(this.links.values.filter(c => c.inputNodeId === nodeId && c.inputId === connectionId && c.outputId !== foundInput.linkedStreamId));
     }
 
     private renderNodeLinks(nodeId: string) {
         const node = this.nodeRenderers.get(nodeId);
         if (!node) return;
-        this.links.filter(c => c.inputNodeId === nodeId || c.outputNodeId === nodeId).forEach(c => this.renderLink(c));
+        this.links.values.filter(c => c.inputNodeId === nodeId || c.outputNodeId === nodeId).forEach(c => this.renderLink(c));
     }
 
     private renderLink(link: ConnectionLink) {
@@ -524,7 +543,7 @@ export class NodeEditorRenderer {
     private removeLinks(links: ConnectionLink[]) {
         for (const link of links) {
             link.rendered?.removeFromParent();
-            this.links.splice(this.links.indexOf(link), 1);
+            this.links.remove(link);
         }
     }
 
