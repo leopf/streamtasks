@@ -3,12 +3,14 @@ import objectHash from "object-hash";
 import { Viewport } from 'pixi-viewport'
 import { Point, Connection, Node, ConnectResult } from "./types";
 
-const streamsTopOffset = 25;
-const streamsBottomOffset = streamsTopOffset;
+const paddingVertical = 10;
+const nodeLabelHPadding = 20;
+const streamsBottomOffset = paddingVertical;
 const streamHeight = 30;
 const xOffset = streamHeight / 2;
 const streamCircleRadius = 8;
 const outlineColor = 0x333333;
+const selectedOutlineColor = 0x999999;
 const outlineWidth = 2;
 const labelEdgeOffset = streamCircleRadius + 5;
 const minLabelSpace = 20;
@@ -28,9 +30,21 @@ export class NodeRenderer {
         fill: '#000000',
         wordWrap: false
     });
+    private nodeLabelTextStyle = new PIXI.TextStyle({
+        fontFamily: 'Arial',
+        fontSize: 15,
+        fill: '#000000',
+        wordWrap: false
+    });
 
     public get id() {
         return this.node.id;
+    }
+    private get isSelected() {
+        return this.editor.selectedNode === this;
+    }
+    private get outlineColor() {
+        return this.isSelected ? selectedOutlineColor : outlineColor;
     }
 
     public get connectorPositions() {
@@ -67,7 +81,7 @@ export class NodeRenderer {
         this.editor.viewport.addChild(this.group);
     }
 
-    public connect(inputConnectionId: string, outputConnection: Connection): ConnectResult {
+    public connect(inputConnectionId: string, outputConnection?: Connection): ConnectResult {
         return this.node.connect(inputConnectionId, outputConnection);
     }
 
@@ -80,6 +94,10 @@ export class NodeRenderer {
         this.connectorPositionsOutdated = true;
     }
 
+    public remove() {
+        this.group.removeFromParent();
+    }
+
     public render() {
         this.group.removeChildren();
         this._relConnectorPositions.clear();
@@ -87,6 +105,11 @@ export class NodeRenderer {
 
         const pos = this.node.getPosition();
         this.group.position.set(pos.x, pos.y);
+
+        const nodeLabel = new PIXI.Text(this.node.getName(), this.nodeLabelTextStyle);
+        nodeLabel.resolution = 2;
+        const streamsTopOffset = paddingVertical * 2 + nodeLabel.height;
+
 
         // rect width and height
         const streamGroups = this.node.getConnectionGroups();
@@ -96,15 +119,22 @@ export class NodeRenderer {
         const inputLabelMaxSize = this.measureStreamLabelSizes(streamGroups.map(sg => sg.inputs).reduce((a, b) => a.concat(b), []));
         const outputLabelMaxSize = this.measureStreamLabelSizes(streamGroups.map(sg => sg.outputs).reduce((a, b) => a.concat(b), []));
 
-        const rectWidth = inputLabelMaxSize.width + outputLabelMaxSize.width + minLabelSpace + labelEdgeOffset * 2;
+        const rectWidth = Math.max(
+            inputLabelMaxSize.width + outputLabelMaxSize.width + minLabelSpace + labelEdgeOffset * 2,
+            nodeLabel.width + nodeLabelHPadding * 2
+        );
+
+        // set label position
+        nodeLabel.position.set(xOffset + (rectWidth - nodeLabel.width) / 2, paddingVertical);
 
         // gray rect with rounded corners
         const containerRect = new PIXI.Graphics();
-        containerRect.lineStyle(outlineWidth, outlineColor);
+        containerRect.lineStyle(outlineWidth, this.outlineColor);
         containerRect.beginFill(0xffffff);
         containerRect.drawRoundedRect(xOffset, 0, rectWidth, rectHeight, streamCircleRadius);
         containerRect.endFill();
         this.group.addChild(containerRect);
+        this.group.addChild(nodeLabel);
 
         // draw streams
         let heightIndex = 0;
@@ -148,7 +178,7 @@ export class NodeRenderer {
 
     private createConnectionCircle(connection: Connection) {
         const circle = new PIXI.Graphics();
-        circle.lineStyle(outlineWidth, outlineColor);
+        circle.lineStyle(outlineWidth, this.outlineColor);
         circle.beginFill(this.getStreamColor(connection));
         circle.drawCircle(0, 0, streamCircleRadius);
         circle.endFill();
@@ -192,7 +222,7 @@ export class NodeRenderer {
     }
 }
 
-type NodeConnection = {
+type ConnectionLink = {
     inputId: string;
     inputNodeId: string;
     outputId: string;
@@ -205,7 +235,7 @@ export class NodeEditorRenderer {
     private app: PIXI.Application;
     private connectionLayer = new PIXI.Container();
     private nodeRenderers = new Map<string, NodeRenderer>();
-    private connections: NodeConnection[] = [];
+    private links: ConnectionLink[] = [];
     
     private pressActive = false;
     private selectedNodeId?: string;
@@ -213,7 +243,7 @@ export class NodeEditorRenderer {
     private selectedConnectionId?: string;
     private currentConnectionLine?: PIXI.Graphics;
 
-    private get selectedNode() {
+    public get selectedNode(): NodeRenderer | undefined {
         if (!this.selectedNodeId) {
             return undefined;
         }
@@ -245,7 +275,7 @@ export class NodeEditorRenderer {
             const selectedConnectionPosition = this.selectedConnectionPosition;
             if (!selectedConnectionPosition) {
                 this.selectedNode?.move(e.movementX / this.viewport.scale.x, e.movementY / this.viewport.scale.y);
-                this.updateNodeConnections(this.selectedNodeId);
+                this.renderNodeLinks(this.selectedNodeId);
             }
             else {
                 if (this.currentConnectionLine) {
@@ -261,74 +291,73 @@ export class NodeEditorRenderer {
             .drag()
             .pinch()
             .wheel()
-            .decelerate()
     }
 
     public addNode(node: Node) {
-        const taskRenderer = new NodeRenderer(this, node);
-        taskRenderer.render();
-        this.nodeRenderers.set(node.id, taskRenderer);
-        this.updateNodeConnections(node.id);
+        const nodeRenderer = new NodeRenderer(this, node);
+        this.nodeRenderers.set(node.id, nodeRenderer);
+
+        nodeRenderer.render();
+        this.renderNodeLinks(node.id);
     }
     public deleteNode(id: string) {
-        const node = this.nodeRenderers.get(id);
-        if (!node) return;
-
-        const connections = this.connections.filter(c => c.inputNodeId === id || c.outputNodeId === id);
-        for (const connection of connections) {
-            connection.rendered?.removeFromParent();
-            this.connections.splice(this.connections.indexOf(connection), 1);
-        }
+        this.nodeRenderers.get(id)?.remove();
+        this.nodeRenderers.delete(id);
+        this.removeLinks(this.links.filter(c => c.inputNodeId === id || c.outputNodeId === id));
     }
     public updateNode(nodeId: string) {
         const node = this.nodeRenderers.get(nodeId);
         if (!node) return;
         node.render();
         this.reconnectNodeOutputs(nodeId);
-        this.updateNodeConnections(nodeId);
+        this.renderNodeLinks(nodeId);
     }
 
     public onSelectStartConnection(connectionId: string) {
         this.selectedConnectionId = connectionId;
+
+        // check if is input
+        const node = this.selectedNode;
+        if (!node) return;
+        const foundInput = node.inputs.find(c => c.refId === connectionId);
+        if (!foundInput) return;
+
+        // remove input connection
+        if (this.connectConnectionToInput(node.id, connectionId)) {
+            this.removeLinks(this.links.filter(c => c.inputNodeId === this.selectedNodeId && c.inputId === connectionId));
+        }
     }
     public onSelectEndConnection(nodeId: string, connectionId: string) {
-        const aConnectionId = this.selectedConnectionId;
-        const bConnectionId = connectionId;
-        if (!aConnectionId || !bConnectionId) return;
+        const connection: ConnectionLink | undefined= this.createConnectionLink(this.selectedNodeId, this.selectedConnectionId, nodeId, connectionId);
+        if (!connection) return;
 
-        const aNode = this.selectedNode;
-        const bNode = this.nodeRenderers.get(nodeId);
-        if (!aNode || !bNode) return;
-
-        const aInputConnection = aNode.inputs.find(c => c.refId === aConnectionId);
-        const bInputConnection = bNode.inputs.find(c => c.refId === bConnectionId);
-        const aOutputConnection = aNode.outputs.find(c => c.refId === aConnectionId);
-        const bOutputConnection = bNode.outputs.find(c => c.refId === bConnectionId);
-
-        if ((!aInputConnection && !bInputConnection) || (!aOutputConnection && !bOutputConnection)) return;
-
-        const inputNode = aInputConnection ? aNode : bNode;
-        const outputNode = aOutputConnection ? aNode : bNode;
-        const inputConnection = (aInputConnection ?? bInputConnection)!;
-        const outputConnection = (aOutputConnection ?? bOutputConnection)!;
-
-        const result = inputNode.connect(inputConnection.refId, outputConnection);
-        if (!this.handleConnectionResult(result)) return;
-
-        const connection: NodeConnection = {
-            inputId: inputConnection.refId,
-            inputNodeId: inputNode.id,
-            outputId: outputConnection.refId,
-            outputNodeId: outputNode.id,
-        };
-        this.connections.push(connection);
-        this.updateNodeConnection(connection);
+        if (this.connectLinkToInput(connection)) {
+            this.links.push(connection);
+            this.renderLink(connection);
+            this.renderInputLinks(connection.inputNodeId, connection.inputId);
+        }
     }
 
+    public unselectNode() {
+        if (this.selectedNodeId === undefined) return;
+        const nodeId = this.selectedNodeId;
+        this.selectedNodeId = undefined;
+        this.renderNode(nodeId);
+    }
     public onPressNode(id: string) {
+        const oldNodeId = this.selectedNodeId;
+
         this.selectedNodeId = id;
+        if (oldNodeId !== undefined && oldNodeId !== id) {
+            this.renderNode(oldNodeId)
+        }
+
         this.pressActive = true;
         this.viewport.plugins.pause('drag');
+
+        this.renderNode(id);
+        this.selectedNode?.render();
+        this.renderNodeLinks(id);
     }
     public onReleaseNode() {
         if (this.pressActive) {
@@ -352,7 +381,45 @@ export class NodeEditorRenderer {
         hostResizeObserver.observe(container);
     }
 
-    private handleConnectionResult(result: ConnectResult): boolean {
+    private connectLinkToInput(link: ConnectionLink, suppressErrorMessage = false) {
+        const outputNode = this.nodeRenderers.get(link.outputNodeId);
+        if (!outputNode) return;
+        const outputConnection = outputNode.outputs.find(c => c.refId === link.outputId);
+        if (!outputConnection) return false;
+        return this.connectConnectionToInput(link.inputNodeId, link.inputId, outputConnection, suppressErrorMessage)
+    }
+
+    private connectConnectionToInput(inputNodeId: string, inputConnectionId: string, outputConnection?: Connection, suppressErrorMessage = false) {
+        const inputNode = this.nodeRenderers.get(inputNodeId);
+        if (!inputNode) return false;
+
+        const result = inputNode.connect(inputConnectionId, outputConnection);
+        if (!this.handleConnectionResult(result, suppressErrorMessage)) return false;
+        return true;
+    }
+
+    private createConnectionLink(aNodeId: string | undefined, aConnectionId: string | undefined, bNodeId: string | undefined, bConnectionId: string | undefined) : ConnectionLink | undefined {
+        if (!aConnectionId || !bConnectionId || !aNodeId || !bNodeId) return;
+        const aNode = this.nodeRenderers.get(aNodeId);
+        const bNode = this.nodeRenderers.get(bNodeId);
+        if (!aNode || !bNode) return;
+
+        const aInputConnection = aNode.inputs.find(c => c.refId === aConnectionId);
+        const bInputConnection = bNode.inputs.find(c => c.refId === bConnectionId);
+        const aOutputConnection = aNode.outputs.find(c => c.refId === aConnectionId);
+        const bOutputConnection = bNode.outputs.find(c => c.refId === bConnectionId);
+
+        if ((!aInputConnection && !bInputConnection) || (!aOutputConnection && !bOutputConnection)) return;
+
+        return {
+            inputId: aInputConnection ? aConnectionId : bConnectionId,
+            inputNodeId: aInputConnection ? aNodeId : bNodeId,
+            outputId: aOutputConnection ? aConnectionId : bConnectionId,
+            outputNodeId: aOutputConnection ? aNodeId : bNodeId,
+        }
+    }
+
+    private handleConnectionResult(result: ConnectResult, suppressErrorMessage = false): boolean {
         if (result === false) {
             console.log('Connection failed');
             return false;
@@ -366,67 +433,62 @@ export class NodeEditorRenderer {
         }
     }
 
-    private updateNodeConnections(nodeId: string) {
+    private renderNode(nodeId: string) {
         const node = this.nodeRenderers.get(nodeId);
         if (!node) return;
-
-        const removeConnections = this.connections.filter(c => c.inputNodeId === nodeId || c.outputNodeId === nodeId).filter(c => !this.updateNodeConnection(c));
-        for (const connection of removeConnections) {
-            this.connections.splice(this.connections.indexOf(connection), 1);
-        }
+        node.render();
+        this.renderNodeLinks(nodeId);
     }
 
     private reconnectNodeOutputs(nodeId: string) {
+        this.removeLinks(this.links.filter(c => c.outputNodeId === nodeId).filter(c => !this.connectLinkToInput(c)))
+    }
+
+    private renderInputLinks(nodeId: string, connectionId: string) {
         const node = this.nodeRenderers.get(nodeId);
         if (!node) return;
-
-        const outputConnectionMap = new Map<string, Connection>(node.outputs.map(c => [c.refId, c]));
-
-        const removeConnections = [];
-        for (const connection of this.connections.filter(c => c.outputNodeId === nodeId)) {
-            const inputNode = this.nodeRenderers.get(connection.inputNodeId);
-            const outputConnection = outputConnectionMap.get(connection.outputId);
-
-            if (!inputNode || !outputConnection) {
-                removeConnections.push(connection);
-                continue;
-            }
-
-
-            const result = inputNode.connect(connection.inputId, outputConnection);
-            if (!this.handleConnectionResult(result)) {
-                removeConnections.push(connection);
-            }
-        }
-        for (const connection of removeConnections) {
-            this.connections.splice(this.connections.indexOf(connection), 1);
-        }
+        const foundInput = node.inputs.find(c => c.refId === connectionId);
+        if (!foundInput) return;
+        this.removeLinks(this.links.filter(c => c.inputNodeId === nodeId && c.inputId === connectionId && c.outputId !== foundInput.linkedStreamId));
     }
 
-    private updateNodeConnection(connection: NodeConnection) {
-        if (connection.rendered) {
-            connection.rendered.removeFromParent();
+    private renderNodeLinks(nodeId: string) {
+        const node = this.nodeRenderers.get(nodeId);
+        if (!node) return;
+        this.links.filter(c => c.inputNodeId === nodeId || c.outputNodeId === nodeId).forEach(c => this.renderLink(c));
+    }
+
+    private renderLink(link: ConnectionLink) {
+        if (link.rendered) {
+            link.rendered.removeFromParent();
         }
 
-        const inputNode = this.nodeRenderers.get(connection.inputNodeId);
-        const outputNode = this.nodeRenderers.get(connection.outputNodeId);
+        const inputNode = this.nodeRenderers.get(link.inputNodeId);
+        const outputNode = this.nodeRenderers.get(link.outputNodeId);
         if (!inputNode || !outputNode) return false;
 
-        const inputPosition = inputNode.connectorPositions.get(connection.inputId);
-        const outputPosition = outputNode.connectorPositions.get(connection.outputId);
+        const inputPosition = inputNode.connectorPositions.get(link.inputId);
+        const outputPosition = outputNode.connectorPositions.get(link.outputId);
 
-        if (!inputPosition || !outputPosition) return false;
+        if (!inputPosition || !outputPosition) return;
 
-        connection.rendered = this.drawConnectionLine(inputPosition, outputPosition);
+        link.rendered = this.drawConnectionLine(inputPosition, outputPosition);
 
-        return true;
+        return;
     }
 
-    private drawConnectionLine(a: Point, b: Point) {
+    private removeLinks(links: ConnectionLink[]) {
+        for (const link of links) {
+            link.rendered?.removeFromParent();
+            this.links.splice(this.links.indexOf(link), 1);
+        }
+    }
+
+    private drawConnectionLine(inputPoint: Point, outputPoint: Point) {
         const line = new PIXI.Graphics();
         line.lineStyle(outlineWidth, outlineColor);
-        line.moveTo(a.x, a.y);
-        line.lineTo(b.x, b.y);
+        line.moveTo(inputPoint.x, inputPoint.y);
+        line.lineTo(outputPoint.x, outputPoint.y);
         this.connectionLayer.addChild(line);
         return line;
     }

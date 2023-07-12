@@ -4,6 +4,7 @@ import { Viewport } from 'pixi-viewport'
 import { Point, Node, ConnectResult, Connection, ConnectionGroup } from './types';
 import { NodeEditorRenderer, NodeRenderer } from './renderer';
 import deepEqual from 'deep-equal';
+import { v4 as uuidv4 } from "uuid";
 
 interface TaskStreamConfig {
     content_type?: string
@@ -16,7 +17,7 @@ class NumberGeneratorTask implements Node {
             inputs: [],
             outputs: [
                 {
-                    refId: 'output1',
+                    refId: uuidv4(),
                     label: 'Output Stream',
                     config: { content_type: 'number' }
                 }
@@ -48,7 +49,7 @@ class NumberGeneratorTask implements Node {
         return this.connectionGroups;
     }
 
-    public connect(inputId: string, outputConnection: Connection) {
+    public connect(inputId: string, outputConnection?: Connection) {
         return false;
     }
 }
@@ -58,19 +59,19 @@ class GateTask implements Node {
         {
             inputs: [
                 {
-                    refId: 'input1',
+                    refId: uuidv4(),
                     label: 'Input Stream',
                     config: {}
                 },
                 {
-                    refId: 'input2',
+                    refId: uuidv4(),
                     label: 'Gate Value',
                     config: { content_type: 'number' }
                 }
             ],
             outputs: [
                 {
-                    refId: 'output1',
+                    refId: uuidv4(),
                     label: 'Output Stream',
                     config: {}
                 }
@@ -99,12 +100,22 @@ class GateTask implements Node {
         return 'Gate';
     }
 
-    public connect(inputId: string, outputConnection: Connection) {
+    public connect(inputId: string, outputConnection?: Connection) {
         if (this.connectionGroups[0].inputs[0].refId === inputId) {
+            if (!outputConnection) {
+                this.connectionGroups[0].inputs[0].linkedStreamId = undefined;
+                return true;
+            }
+            this.connectionGroups[0].inputs[0].linkedStreamId = outputConnection.refId;
             this.setInputConfig(outputConnection.config);
             return true;
         }
         else if (this.connectionGroups[0].inputs[1].refId === inputId) {
+            if (!outputConnection) {
+                this.connectionGroups[0].inputs[1].linkedStreamId = undefined;
+                return true;
+            }
+
             const newConfig: TaskStreamConfig = outputConnection.config;
             if (newConfig.content_type !== 'number') {
                 return 'Gate value must be a number';
@@ -147,4 +158,5 @@ renderer.mount(hostEl);
 
 renderer.addNode(new GateTask({ x: 100, y: 100 }))
 renderer.addNode(new GateTask({ x: 300, y: 300 }))
+renderer.addNode(new GateTask({ x: 700, y: 700 }))
 renderer.addNode(new NumberGeneratorTask({ x: 400, y: 400 }))
