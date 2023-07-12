@@ -391,11 +391,11 @@ export class NodeEditorRenderer {
     public addNode(node: Node) {
         const nodeRenderer = new NodeRenderer(node, this);
 
+        this.nodeRenderers.set(node.id, nodeRenderer);
         const links = [
             ...this.createLinksFromInputConnections(nodeRenderer.id, nodeRenderer.inputs),
             ...this.createLinksFromOutputConnections(nodeRenderer.id, nodeRenderer.outputs)
         ];
-        this.nodeRenderers.set(node.id, nodeRenderer);
         links.filter(c => this.connectLinkToInput(c)).forEach(c => this.links.add(c));
         this.renderNode(node.id);
     }
