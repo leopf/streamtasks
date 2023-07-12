@@ -1,7 +1,7 @@
 import * as PIXI from 'pixi.js';
 import objectHash from "object-hash";
 import { Viewport } from 'pixi-viewport'
-import { Point, Connection, Node, ConnectResult } from "./types";
+import { Point, Connection, Node, ConnectResult, InputConnection } from "./types";
 
 const paddingVertical = 10;
 const nodeLabelHPadding = 20;
@@ -295,10 +295,9 @@ export class NodeEditorRenderer {
 
     public addNode(node: Node) {
         const nodeRenderer = new NodeRenderer(this, node);
-        this.nodeRenderers.set(node.id, nodeRenderer);
 
-        nodeRenderer.render();
-        this.renderNodeLinks(node.id);
+        this.nodeRenderers.set(node.id, nodeRenderer);
+        this.renderNode(node.id);
     }
     public deleteNode(id: string) {
         this.nodeRenderers.get(id)?.remove();
@@ -379,6 +378,51 @@ export class NodeEditorRenderer {
         resizeApp();
         const hostResizeObserver = new ResizeObserver(resizeApp);
         hostResizeObserver.observe(container);
+    }
+
+    private createLinksFromOutputConnections(nodeId: string, outputConnections: Connection[]) {
+        const outputConnectionIdsSet = new Set(outputConnections.map(c => c.refId));
+
+        const newLinks: ConnectionLink[] = [];
+        for (const nodeRenderer of this.nodeRenderers.values()) {
+            for (const input of nodeRenderer.inputs) {
+                if (input.linkedStreamId && outputConnectionIdsSet.has(input.linkedStreamId)) {
+                    newLinks.push({
+                        inputId: input.refId,
+                        inputNodeId: nodeRenderer.id,
+                        outputId: input.linkedStreamId,
+                        outputNodeId: nodeId
+                    })
+                }
+            }
+        }
+
+        return newLinks;
+    }
+    private createLinksFromInputConnections(nodeId: string, inputConnections: InputConnection[]) {
+        const inputConnectionIdMap = new Map<string, string>();
+        for (const input of inputConnections) {
+            if (input.linkedStreamId) {
+                inputConnectionIdMap.set(input.linkedStreamId, input.refId);
+            }
+        }
+
+
+        const newLinks: ConnectionLink[] = [];
+        for (const nodeRenderer of this.nodeRenderers.values()) {
+            for (const output of nodeRenderer.outputs) {
+                if (inputConnectionIdMap.has(output.refId)) {
+                    newLinks.push({
+                        inputId: inputConnectionIdMap.get(output.refId)!,
+                        inputNodeId: nodeId,
+                        outputId: output.refId,
+                        outputNodeId: nodeRenderer.id
+                    })
+                }
+            }
+        }
+
+        return newLinks;
     }
 
     private connectLinkToInput(link: ConnectionLink, suppressErrorMessage = false) {
