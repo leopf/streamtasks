@@ -3,7 +3,7 @@ import http from "http";
 import httpProxy from "http-proxy";
 
 const ctx = await esbuild.context({
-    entryPoints: ["src/index.ts"],
+    entryPoints: ["src/index.tsx"],
     bundle: true,
     minify: true,
     sourcemap: true,

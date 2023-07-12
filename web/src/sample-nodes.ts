@@ -1,5 +1,5 @@
+import { Connection, ConnectionGroup, Node, Point } from "./lib/node-editor";
 import objectHash from "object-hash";
-import { Point, Node, Connection, ConnectionGroup, NodeEditorRenderer, NodeDisplayRenderer } from './lib/node-editor';
 import deepEqual from 'deep-equal';
 import { v4 as uuidv4 } from "uuid";
 
@@ -8,7 +8,7 @@ interface TaskStreamConfig {
     encoding?: string  
 }
 
-class NumberGeneratorTask implements Node {
+export class NumberGeneratorTask implements Node {
     private connectionGroups: ConnectionGroup[] = [
         {
             inputs: [],
@@ -51,7 +51,7 @@ class NumberGeneratorTask implements Node {
     }
 }
 
-class GateTask implements Node {
+export class GateTask implements Node {
     private connectionGroups: ConnectionGroup[] = [
         {
             inputs: [
@@ -143,24 +143,3 @@ class GateTask implements Node {
         }
     }
 }
-
-// Create a Pixi Application in #root element
-
-const hostEl = document.getElementById('root');
-if (!hostEl) {
-    throw new Error('Root element not found');
-}
-
-// const display = new NodeDisplayRenderer(new GateTask({ x: 100, y: 100 }), hostEl)
-
-const renderer = new NodeEditorRenderer()
-renderer.mount(hostEl);
-
-renderer.addNode(new GateTask({ x: 100, y: 100 }))
-renderer.addNode(new GateTask({ x: 300, y: 300 }))
-renderer.addNode(new GateTask({ x: 700, y: 700 }))
-renderer.addNode(new NumberGeneratorTask({ x: 400, y: 400 }))
-
-setTimeout(() => {
-    renderer.addNode(new GateTask({ x: 0, y: 0 }), true)
-}, 3000);

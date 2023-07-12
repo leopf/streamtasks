@@ -266,6 +266,7 @@ export class NodeDisplayRenderer {
     private resizeObserver: ResizeObserver;
     private _perfectWidth: number = 0;
     private _perfectHeight: number = 0;
+    private updateHandlers: (() => void)[] = [];
     
     public padding: number = 20;
 
@@ -297,6 +298,10 @@ export class NodeDisplayRenderer {
         this.resizeObserver.observe(hostEl);
     }
 
+    public onUpdated(callback: () => void) {
+        this.updateHandlers.push(callback);
+    }
+
     public update() {
         this.nodeRenderer.render();
 
@@ -320,12 +325,15 @@ export class NodeDisplayRenderer {
         this._perfectHeight = widthScale * containerHeight + this.padding * 2;
 
         this.app.render();
+
+        this.updateHandlers.forEach(h => h());
     }
 
     public destroy() {
         this.nodeRenderer.remove();
         this.app.destroy();
         this.resizeObserver.disconnect();
+        this.updateHandlers = [];
     }
 }
 
