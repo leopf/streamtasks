@@ -218,7 +218,35 @@ export class NodeRenderer {
     }
 
     private getStreamColor(stream: Connection) {
+        const samples = [
+            0x6528F7,
+            0xA076F9,
+            0xFFE300,
+            0xFF7800,
+            0x0CCA98,
+            0x00FFCC,
+            0xF9A828,
+            0xEEB76B,
+            0xADE498,
+            0xEDE682,
+            0x91CA62,
+            0xF1EBBB,
+            0xF8B500,
+            0xAA14F0,
+            0xBC8CF2,
+            0x6D67E4,
+            0xFFC5A1,
+            0xEF3F61,
+            0xDF8931,
+            0x85EF47,
+            0xF9FD50
+        ]
+
+        
         const hash = objectHash(["5", stream.config]);
+        const n = parseInt(hash.substr(0, 2), 16) % samples.length;
+        return samples[n];
+
         let r = parseInt(hash.substr(0, 2), 16) / 255;
         let g = parseInt(hash.substr(2, 2), 16) / 255;
         let b = parseInt(hash.substr(4, 2), 16) / 255;
