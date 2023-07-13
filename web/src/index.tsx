@@ -6,12 +6,22 @@ import { NodeEditorRenderer } from "./lib/node-editor";
 import { NodeEditor } from "./components/stateless/NodeEditor";
 import { createServer } from "miragejs"
 import { App } from "./App";
-import { Task } from "./lib/task";
+import { Deployment, Task } from "./lib/task";
 import { v4 as uuidv4 } from "uuid";
 
 createServer({
     routes() {
         this.namespace = "api"
+
+        this.post("/deployment", () => {
+            const deployment: Deployment = {
+                id: uuidv4(),
+                label: 'New Deployment',
+                status: 'offline',
+                tasks: [],
+            };
+            return deployment;
+        })
 
         this.get("/task-templates", () => {
             const tasks: Task[] = [

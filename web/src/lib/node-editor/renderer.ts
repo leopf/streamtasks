@@ -278,12 +278,13 @@ export class NodeDisplayRenderer {
         return this._perfectHeight;
     }
 
-    constructor(node: Node, hostEl: HTMLElement) {
+    constructor(node: Node, hostEl: HTMLElement, options: { padding?: number, backgroundColor?:string } = {}) {
         this.nodeRenderer = new NodeRenderer(node);
+        this.padding = options.padding ?? this.padding;
         this.app = new PIXI.Application({
             width: hostEl.clientWidth,
             height: hostEl.clientHeight,
-            backgroundColor: appBackgroundColor,
+            backgroundColor: options.backgroundColor ?? appBackgroundColor,
             antialias: true,
             autoDensity: true,
             autoStart: false,
@@ -380,6 +381,7 @@ export class NodeEditorRenderer {
             backgroundColor: appBackgroundColor,
             antialias: true,
             autoDensity: true,
+            autoStart: false,
         });
         this.app.ticker.maxFPS = 60;
         this.viewport = new Viewport({
@@ -440,6 +442,12 @@ export class NodeEditorRenderer {
         this.reconnectNodeOutputs(nodeId);
         this.renderNodeLinks(nodeId);
     }
+    public clear() {
+        this.nodeRenderers.forEach(node => node.remove());
+        this.nodeRenderers.clear();
+        this.links.values.forEach(link => link.rendered?.removeFromParent());
+        this.links = new ConnectionLinkCollection();
+    }
 
     public onSelectStartConnection(connectionId: string) {
         this.selectedConnectionId = connectionId;
@@ -492,6 +500,7 @@ export class NodeEditorRenderer {
     }
     public unmount() {
         if (!this.container) return;
+        this.app.stop();
         this.containerResizeObserver?.disconnect();
         this.containerResizeObserver = undefined;
         while (this.container.firstChild) {
@@ -502,10 +511,15 @@ export class NodeEditorRenderer {
         this.unmount();
         this.container = container;
         container.appendChild(this.app.view as HTMLCanvasElement);
+        this.app.start();
 
         this.resize()
         this.containerResizeObserver = new ResizeObserver(this.resize.bind(this));
         this.containerResizeObserver.observe(container);
+    }
+    public destroy() {
+        this.unmount();
+        this.app.destroy();
     }
 
     private resize() {

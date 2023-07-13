@@ -1,35 +1,51 @@
-import { Box, Button, Card, CardActions, CardContent, Stack } from "@mui/material";
+import { Box, Button, Card, CardActions, CardContent, Divider, Stack, Typography } from "@mui/material";
 import { observer } from "mobx-react";
 import React, { useMemo } from "react";
 import { Task, taskToTemplateNode } from "../../lib/task";
 import { NodeDisplay } from "../stateless/NodeDisplay";
 import { state } from "../../state";
-import { toJS } from "mobx";
 
 export const TaskTemplateItem = observer((props: { item: Task }) => {
-    console.log("TaskTemplateItem",  toJS(props.item));
     const node = useMemo(() => taskToTemplateNode(props.item), [props.item]);
-    console.log("TaskTemplateItem",  toJS(node.getConnectionGroups()));
-
+    const description = props.item.config.description || "This is a node that you can use to do something.";
 
     return (
-        <Card sx={{ width: "300px" }}>
-            <CardContent>
-                <Box width={300} height={300}>
-                    <NodeDisplay node={node}/>
-                </Box>
-            </CardContent>
-            <CardActions>
-                <Button size="small">add</Button>
-            </CardActions>
-        </Card>
+        <Stack direction="column" padding={1} sx={{
+            "cursor": "pointer",
+            "position": "relative",
+        }}>
+            <Box sx={{
+                "position": "absolute",
+                "top": 0,
+                "right": 0,
+                "bottom": 0,
+                "left": 0,
+                "zIndex": 1,
+                "backgroundColor": "#0000",
+                ":hover": {
+                    backgroundColor: "#0001"
+                }
+            }} />
+            <Box maxWidth={"100%"} width={"100%"}>
+                <NodeDisplay resizeHeight padding={5} backgroundColor={"#fff0"} node={node}/>
+            </Box>
+            <Typography variant="caption">
+                {description}
+            </Typography>
+        </Stack>
     );
 
 });
 
 export const TaskTemplateList = observer(() => {
     return (
-        <Stack direction="column" spacing={2}>
+        <Stack direction="column" flex={1} spacing={4} sx={{ "overflowY": "auto", height: "100%" }}>
+            {state.taskTemplates.map((item) => <TaskTemplateItem key={item.id} item={item}/>)}
+            {state.taskTemplates.map((item) => <TaskTemplateItem key={item.id} item={item}/>)}
+            {state.taskTemplates.map((item) => <TaskTemplateItem key={item.id} item={item}/>)}
+            {state.taskTemplates.map((item) => <TaskTemplateItem key={item.id} item={item}/>)}
+            {state.taskTemplates.map((item) => <TaskTemplateItem key={item.id} item={item}/>)}
+            {state.taskTemplates.map((item) => <TaskTemplateItem key={item.id} item={item}/>)}
             {state.taskTemplates.map((item) => <TaskTemplateItem key={item.id} item={item}/>)}
         </Stack>
     )

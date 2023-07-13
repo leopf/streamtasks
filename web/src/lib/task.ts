@@ -22,7 +22,16 @@ export interface Task {
     id: string;
     task_factory_id: string;
     config: Record<string, any>;
+    status?: string;
+    error?: string;
     stream_groups: TaskStreamGroup[];
+}
+
+export interface Deployment {
+    tasks: Task[];
+    id: string;
+    label: string;
+    status: "offline" | "running" | "error";
 }
 
 export interface TaskNode {
