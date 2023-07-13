@@ -1,5 +1,5 @@
 import cloneDeep from "clone-deep";
-import { observable } from "mobx";
+import { makeAutoObservable, observable, reaction } from "mobx";
 import { NodeEditorRenderer } from "../lib/node-editor";
 import { Task, Deployment, taskToTemplateNode, taskToMockNode } from "../lib/task";
 import { v4 as uuidv4 } from 'uuid';
@@ -30,17 +30,24 @@ export class DeploymentState {
         };
     }
 
+    private reactionDisposers: (() => void)[] = [];
+
     constructor(deployment: Deployment) {
+        makeAutoObservable(this);
         this.id = deployment.id;
         this.tasks = deployment.tasks;
         this.label = deployment.label;
         this._status = deployment.status;
 
+        this.reactionDisposers.push(reaction(() => this.status, () => {
+            this.editor.readOnly = this.status === 'running';
+        }));
         this.editor = new NodeEditorRenderer();
         this.tasks.forEach(task => this.addTaskToEditor(task));
     }
 
     public destroy() {
+        this.reactionDisposers.forEach(disposer => disposer());
         this.editor.destroy();
     }
 

@@ -381,6 +381,15 @@ export class NodeEditorRenderer {
 
     private container?: HTMLElement;
     private containerResizeObserver?: ResizeObserver;
+    
+    private _readOnly: boolean = false;
+    public get readOnly() {
+        return this._readOnly;
+    }
+    public set readOnly(value: boolean) {
+        this._readOnly = value;
+        this.editingLinkLine?.removeFromParent();
+    }
 
     public get selectedNode(): NodeRenderer | undefined {
         if (!this.selectedNodeId) {
@@ -419,7 +428,7 @@ export class NodeEditorRenderer {
         this.app.stage.addChild(this.viewport);
         this.viewport.addChild(this.connectionLayer);
         this.viewport.on("pointermove", (e) => {
-            if (!this.pressActive || !this.selectedNodeId) return;
+            if (!this.pressActive || !this.selectedNodeId || this._readOnly) return;
             const selectedConnectionPosition = this.selectedConnectionPosition;
             if (!selectedConnectionPosition) {
                 this.selectedNode?.move(e.movementX / this.viewport.scale.x, e.movementY / this.viewport.scale.y);
@@ -478,6 +487,7 @@ export class NodeEditorRenderer {
 
     public onSelectStartConnection(connectionId: string) {
         this.selectedConnectionId = connectionId;
+        if (this._readOnly) return;
 
         if (this.selectedConnectionIsInput) {
             if (this.connectConnectionToInput(this.selectedNodeId!, connectionId)) {
@@ -486,6 +496,8 @@ export class NodeEditorRenderer {
         }
     }
     public onSelectEndConnection(nodeId: string, connectionId: string) {
+        if (this._readOnly) return;
+
         const connection: ConnectionLink | undefined= this.createConnectionLink(this.selectedNodeId, this.selectedConnectionId, nodeId, connectionId);
         if (!connection) return;
 

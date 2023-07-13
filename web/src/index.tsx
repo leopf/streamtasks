@@ -8,6 +8,12 @@ import { createServer } from "miragejs"
 import { App } from "./App";
 import { Deployment, Task } from "./lib/task";
 import { v4 as uuidv4 } from "uuid";
+import { configure  } from "mobx";
+
+configure({
+    observableRequiresReaction: false,
+    enforceActions: "never",
+})
 
 createServer({
     routes() {
