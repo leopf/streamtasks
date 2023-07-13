@@ -32,6 +32,18 @@ createServer({
             return deployment;
         })
 
+        this.post("/deployment/:id/start", async () => {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            return {
+                status: Math.random() > 0.1 ? "running" : "error"
+            };
+        });
+        this.post("/deployment/:id/stop", async () => {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            return {
+                status: "offline"
+            };
+        });
         this.get("/task-templates", () => {
             const tasks: Task[] = [
                 {

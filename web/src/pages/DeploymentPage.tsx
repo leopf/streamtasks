@@ -1,15 +1,50 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DeploymentState } from "../state/deployment";
 import { state } from "../state";
 import { observer } from "mobx-react";
 import { useParams, useNavigate } from "react-router-dom";
 import React from "react";
-import { AppBar, Box, IconButton, Stack, Typography } from "@mui/material";
-import { Edit as EditIcon } from "@mui/icons-material";
+import { AppBar, Box, Button, Icon, IconButton, Stack, SxProps, Theme, Typography } from "@mui/material";
+import { Edit as EditIcon, PlayArrow as PlayIcon, Pause as PauseIcon, Cached as ReloadIcon } from "@mui/icons-material";
 import { TaskTemplateList } from "../components/stateful/TaskTemplateList";
 import { NodeEditor } from "../components/stateless/NodeEditor";
 import { TitleBar } from "../components/stateful/TitleBar";
 import { DeploymentLabelEditor } from "../components/stateless/DeploymentLabelEditor";
+import {LoadingButton} from '@mui/lab';
+
+const statusButtonStyles: SxProps<Theme> = {
+    backgroundColor: "#eee",
+    color: "#000",
+    ":hover": {
+        backgroundColor: "#ddd"
+    },
+    ":disabled": {
+        backgroundColor: "#ccc",
+        color: "#555"
+    }
+};
+
+const DeploymentStatusButton = observer((props: { deployment: DeploymentState }) => {
+    const [isLoading, setLoading] = useState<boolean>(false);
+
+    const text = `${props.deployment.status === "running" ? "stop" : "start"} (${props.deployment.status})`;
+    const icon = props.deployment.status === "running" ? <PauseIcon /> : <PlayIcon />;
+
+    return (
+        <LoadingButton sx={statusButtonStyles} size="small" variant="contained" startIcon={icon} loadingPosition="start" loading={isLoading} onClick={async () => {
+            setLoading(true);
+            if (props.deployment.status === "running") {
+                await props.deployment.stop();
+            }
+            else {
+                await props.deployment.start();
+            }
+            setLoading(false);
+        }}>
+            {text}
+        </LoadingButton>
+    )
+})
 
 export const DeploymentPage = observer((props: {}) => {
     const [deployment, setDeployment] = useState<DeploymentState | undefined>()
@@ -40,10 +75,10 @@ export const DeploymentPage = observer((props: {}) => {
     }
 
     return (
-        <Stack direction="column">
+        <Stack direction="column" height={"100%"} maxHeight={"100%"}>
             <DeploymentLabelEditor open={editLabel} value={deployment.label} onChange={(v) => deployment.label = v} onClose={() => setEditLabel(false)} />
             <TitleBar>
-                <Stack height="100%" direction="row" alignItems="center">
+                <Stack height="100%" direction="row" alignItems="center" paddingY={0.35} boxSizing="border-box">
                     <Typography sx={{
                         lineHeight: 1,
                         cursor: "text",
@@ -56,14 +91,22 @@ export const DeploymentPage = observer((props: {}) => {
                             backgroundColor: "rgba(0, 0, 0, 0.2)"
                         }
                     }} fontSize={18} onClick={() => setEditLabel(true)} >{deployment.label}</Typography>
+                    <IconButton sx={{ marginLeft: 1 }} size="small" onClick={() => deployment.reload()}>
+                        <ReloadIcon htmlColor="#fff" />
+                    </IconButton>
+                    <Box flex={1} />
+                    <DeploymentStatusButton deployment={deployment} />
+                    <Box width={"5px"}/>
                 </Stack>
             </TitleBar>
-            <Stack direction="row">
-                <TaskTemplateList />
-                <Box flex={6} height={"100%"}>
-                    <NodeEditor editor={deployment.editor} />
-                </Box>
-            </Stack>
+            <Box flex={1} sx={{ overflowY: "hidden" }} width="100%">
+                <Stack direction="row" height="100%" maxHeight="100%" maxWidth="100%">
+                    <TaskTemplateList />
+                    <Box flex={6} height={"100%"}>
+                        <NodeEditor editor={deployment.editor} />
+                    </Box>
+                </Stack>
+            </Box>
         </Stack>
     );
 });

@@ -5,6 +5,7 @@ import React from "react";
 import { Route, RouterProvider, createBrowserRouter, createRoutesFromElements } from "react-router-dom";
 import { DeploymentPage } from "./pages/DeploymentPage";
 import { NewDeploymentPage } from "./pages/NewDeploymentPage";
+import { ThemeProvider, createTheme } from "@mui/material";
 
 const router = createBrowserRouter([
     {
@@ -17,8 +18,9 @@ const router = createBrowserRouter([
     }
 ]);
 
-{/* <Route path="/deployment/view/:id" element={<DeploymentPage/>}/>,
-<Route path="/deployment/new" element={<NewDeploymentPage/>}/> */}
+const theme = createTheme({
+    
+});
 
 export const App = observer(() => {
     useEffect(() => {
@@ -29,5 +31,7 @@ export const App = observer(() => {
         return <div>Loading...</div>;
     }
 
-    return <RouterProvider router={router}/>;
+    return (
+        <RouterProvider router={router}/>
+    )
 })

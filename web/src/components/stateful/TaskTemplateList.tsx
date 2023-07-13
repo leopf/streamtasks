@@ -39,7 +39,7 @@ export const TaskTemplateItem = observer((props: { item: Task }) => {
 
 export const TaskTemplateList = observer(() => {
     return (
-        <Stack direction="column" flex={1} spacing={4} sx={{ "overflowY": "auto", height: "100%" }}>
+        <Stack boxSizing="border-box" direction="column" flex={1} spacing={4} sx={{ "overflowY": "auto", height: "100%" }}>
             {state.taskTemplates.map((item) => <TaskTemplateItem key={item.id} item={item}/>)}
             {state.taskTemplates.map((item) => <TaskTemplateItem key={item.id} item={item}/>)}
             {state.taskTemplates.map((item) => <TaskTemplateItem key={item.id} item={item}/>)}
