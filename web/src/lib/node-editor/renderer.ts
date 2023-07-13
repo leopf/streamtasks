@@ -194,7 +194,6 @@ export class NodeRenderer {
         circle.beginFill(this.getStreamColor(connection));
         circle.drawCircle(0, 0, streamCircleRadius);
         circle.endFill();
-
         circle.interactive = true;
 
         circle.on('pointerdown', () => this.editor?.onSelectStartConnection(connection.refId));
