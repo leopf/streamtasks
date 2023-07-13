@@ -381,6 +381,8 @@ export class NodeEditorRenderer {
 
     private container?: HTMLElement;
     private containerResizeObserver?: ResizeObserver;
+    private _updatedHandlers: ((nodeId: string) => void)[] = [];
+    private _selectedHandlers: ((nodeId?: string) => void)[] = [];
     
     private _readOnly: boolean = false;
     public get readOnly() {
@@ -445,6 +447,17 @@ export class NodeEditorRenderer {
             .wheel()
     }
 
+    public on(event: "updated", callback: (nodeId: string) => void): void;
+    public on(event: "selected", callback: (nodeId?: string) => void): void;
+    public on(event: "updated" | "selected", callback: ((nodeId: string) => void) | ((nodeId?: string) => void)) {
+        if (event === "updated") {
+            this._updatedHandlers.push(callback);
+        }
+        else if (event === "selected") {
+            this._selectedHandlers.push(callback as any);
+        }
+    }
+
     public addNode(node: Node, center: boolean = false) {
         const nodeRenderer = new NodeRenderer(node, this);
 
@@ -477,6 +490,7 @@ export class NodeEditorRenderer {
         node.render();
         this.reconnectNodeOutputs(nodeId);
         this.renderNodeLinks(nodeId);
+        this.emitUpdated(nodeId);
     }
     public clear() {
         this.nodeRenderers.forEach(node => node.remove());
@@ -492,6 +506,7 @@ export class NodeEditorRenderer {
         if (this.selectedConnectionIsInput) {
             if (this.connectConnectionToInput(this.selectedNodeId!, connectionId)) {
                 this.removeLinks(this.links.values.filter(c => c.inputNodeId === this.selectedNodeId && c.inputId === connectionId));
+                this.emitUpdated(this.selectedNodeId!);
             }
         }
     }
@@ -505,11 +520,15 @@ export class NodeEditorRenderer {
             this.links.add(connection);
             this.renderLink(connection);
             this.renderInputLinks(connection.inputNodeId, connection.inputId);
+
+            this.emitUpdated(connection.inputNodeId);
+            this.emitUpdated(connection.outputNodeId);
         }
     }
 
     public unselectNode() {
         if (this.selectedNodeId === undefined) return;
+        this.emitSelected();
         const nodeId = this.selectedNodeId;
         this.selectedNodeId = undefined;
         this.renderNode(nodeId);
@@ -521,7 +540,7 @@ export class NodeEditorRenderer {
         if (oldNodeId !== undefined && oldNodeId !== id) {
             this.renderNode(oldNodeId)
         }
-
+        this.emitSelected(id);
         this.pressActive = true;
         this.viewport.plugins.pause('drag');
 
@@ -559,6 +578,13 @@ export class NodeEditorRenderer {
     public destroy() {
         this.unmount();
         this.app.destroy();
+    }
+
+    private emitUpdated(nodeId: string) {
+        this._updatedHandlers.forEach(h => h(nodeId));
+    }
+    private emitSelected(nodeId?: string) {
+        this._selectedHandlers.forEach(h => h(nodeId));
     }
 
     private resize() {

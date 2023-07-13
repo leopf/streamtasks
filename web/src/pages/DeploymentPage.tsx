@@ -4,15 +4,15 @@ import { state } from "../state";
 import { observer } from "mobx-react";
 import { useParams, useNavigate } from "react-router-dom";
 import React from "react";
-import { AppBar, Box, Button, Icon, IconButton, Stack, SxProps, Theme, Tooltip, Typography } from "@mui/material";
-import { Edit as EditIcon, PlayArrow as PlayIcon, Pause as PauseIcon, Cached as ReloadIcon, ReceiptLong as LogsIcon } from "@mui/icons-material";
+import { Box, Divider, IconButton, Stack, SxProps, Theme, Tooltip, Typography } from "@mui/material";
+import { Clear as ClearIcon, PlayArrow as PlayIcon, Pause as PauseIcon, Cached as ReloadIcon, ReceiptLong as LogsIcon } from "@mui/icons-material";
 import { TaskTemplateList } from "../components/stateful/TaskTemplateList";
 import { NodeEditor } from "../components/stateless/NodeEditor";
 import { TitleBar } from "../components/stateful/TitleBar";
 import { DeploymentLabelEditor } from "../components/stateless/DeploymentLabelEditor";
 import { LoadingButton } from '@mui/lab';
-import { AppModal } from "../components/stateless/AppModel";
 import { SystemLogDisplay } from "../components/stateful/SystemLogDisplay";
+import { Task } from "../lib/task";
 
 const statusButtonStyles: SxProps<Theme> = {
     backgroundColor: "#eee",
@@ -48,10 +48,51 @@ const DeploymentStatusButton = observer((props: { deployment: DeploymentState })
     )
 })
 
+const TaskEditor = observer((props: { task: Task, deployment: DeploymentState, onUnselect: () => void }) => {
+    return (
+        <div>hi</div>
+    );
+});
+
+function TaskEditorOverlay(props: { children: React.ReactNode, onClose?: () => void }) {
+    return (
+        <Box sx={{
+            position: "absolute",
+            top: 5,
+            right: 5,
+            width: "30%",
+            maxHeight: "calc(100% - 10px)",
+            backgroundColor: "#fff",
+            boxShadow: "0px 0px 10px 0px rgba(0,0,0,0.3)",
+            borderRadius: 1,
+        }}>
+            <Stack direction="column" height={"100%"} width={"100%"} maxHeight={"100%"}>
+                <Stack direction="row" alignItems={"center"}>
+                    <Box flex={1} />
+                    <Box sx={{
+                        borderRadius: "50%",
+                        cursor: "pointer",
+                        userSelect: "none",
+                        padding: "1px",
+                        ":hover": {
+                            backgroundColor: "#eee"
+                        }
+                    }} onClick={props.onClose}>
+                        <ClearIcon sx={{ display: "block" }} width={"8px"} height={"8px"}/>
+                    </Box>
+                </Stack>
+                <Divider />
+                <Box flex={1} overflow="hidden">{props.children}</Box>
+            </Stack>
+        </Box>
+    );
+}
+
 export const DeploymentPage = observer((props: {}) => {
     const [deployment, setDeployment] = useState<DeploymentState | undefined>()
     const [editLabel, setEditLabel] = useState<boolean>(false)
     const [logsOpen, setLogsOpen] = useState<boolean>(false)
+    const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(undefined)
     const params = useParams<"id">();
     const navigate = useNavigate();
 
@@ -72,6 +113,24 @@ export const DeploymentPage = observer((props: {}) => {
             return;
         }
     }, [params.id])
+
+    useEffect(() => {
+        if (!deployment) {
+            return;
+        }
+
+        deployment.editor.on("selected", id => {
+            console.log("selected", id);
+            setSelectedTaskId(id)
+        });
+    }, [deployment])
+
+    const selectedTask = useMemo(() => {
+        if (!deployment || !selectedTaskId) {
+            return undefined;
+        }
+        return deployment.getTaskById(selectedTaskId);
+    }, [deployment, selectedTaskId])
 
     if (!deployment) {
         return <div>Loading...</div>
@@ -111,8 +170,15 @@ export const DeploymentPage = observer((props: {}) => {
             <Box flex={1} sx={{ overflowY: "hidden" }} width="100%">
                 <Stack direction="row" height="100%" maxHeight="100%" maxWidth="100%">
                     <TaskTemplateList onSelect={(t) => deployment.createTaskFromTemplate(t)} />
-                    <Box flex={6} height={"100%"}>
+                    <Box flex={6} height={"100%"} sx={{
+                        position: "relative",
+                    }}>
                         <NodeEditor editor={deployment.editor} />
+                        {!!selectedTask && (
+                            <TaskEditorOverlay onClose={() => setSelectedTaskId(undefined)}>
+                                <TaskEditor deployment={deployment} task={selectedTask} onUnselect={() => setSelectedTaskId(undefined)} />
+                            </TaskEditorOverlay>
+                        )}
                     </Box>
                 </Stack>
             </Box>

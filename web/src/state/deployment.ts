@@ -1,5 +1,6 @@
 import cloneDeep from "clone-deep";
 import { makeAutoObservable, observable, reaction } from "mobx";
+import { createTransformer } from "mobx-utils";
 import { NodeEditorRenderer } from "../lib/node-editor";
 import { Task, Deployment, taskToTemplateNode, taskToMockNode } from "../lib/task";
 import { v4 as uuidv4 } from 'uuid';
@@ -46,6 +47,8 @@ export class DeploymentState {
         this.tasks.forEach(task => this.addTaskToEditor(task));
     }
 
+    public getTaskById = createTransformer((id: string) => this.tasks.find(t => t.id === id));
+
     public destroy() {
         this.reactionDisposers.forEach(disposer => disposer());
         this.editor.destroy();
@@ -69,6 +72,7 @@ export class DeploymentState {
             });
         });
         
+        this.tasks.push(task);
         this.addTaskToEditor(task);
     }
     public async start() {
