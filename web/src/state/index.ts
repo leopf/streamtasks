@@ -1,6 +1,7 @@
 import { computed, makeAutoObservable, observable } from "mobx";
 import { Deployment, Task } from "../lib/task";
 import { DeploymentState } from "./deployment";
+import { LogEntry } from "../model";
 
 export class RootState {
     @observable
@@ -16,7 +17,19 @@ export class RootState {
     @observable
     private _initialized = false;
 
+    @observable
+    public logs: LogEntry[] = [];
+
     constructor() {
+        if (process.env.NODE_ENV === 'development') {
+            for (let i = 0; i < 100; i++) {
+                this.logs.push({
+                    level: 'info',
+                    message: 'Hello world',
+                    timestamp: new Date()
+                });
+            }
+        }
         makeAutoObservable(this);
     }
 

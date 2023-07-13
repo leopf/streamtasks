@@ -5,12 +5,14 @@ import { observer } from "mobx-react";
 import { useParams, useNavigate } from "react-router-dom";
 import React from "react";
 import { AppBar, Box, Button, Icon, IconButton, Stack, SxProps, Theme, Typography } from "@mui/material";
-import { Edit as EditIcon, PlayArrow as PlayIcon, Pause as PauseIcon, Cached as ReloadIcon } from "@mui/icons-material";
+import { Edit as EditIcon, PlayArrow as PlayIcon, Pause as PauseIcon, Cached as ReloadIcon, ReceiptLong as LogsIcon } from "@mui/icons-material";
 import { TaskTemplateList } from "../components/stateful/TaskTemplateList";
 import { NodeEditor } from "../components/stateless/NodeEditor";
 import { TitleBar } from "../components/stateful/TitleBar";
 import { DeploymentLabelEditor } from "../components/stateless/DeploymentLabelEditor";
-import {LoadingButton} from '@mui/lab';
+import { LoadingButton } from '@mui/lab';
+import { AppModal } from "../components/stateless/AppModel";
+import { SystemLogDisplay } from "../components/stateful/SystemLogDisplay";
 
 const statusButtonStyles: SxProps<Theme> = {
     backgroundColor: "#eee",
@@ -49,6 +51,7 @@ const DeploymentStatusButton = observer((props: { deployment: DeploymentState })
 export const DeploymentPage = observer((props: {}) => {
     const [deployment, setDeployment] = useState<DeploymentState | undefined>()
     const [editLabel, setEditLabel] = useState<boolean>(false)
+    const [logsOpen, setLogsOpen] = useState<boolean>(false)
     const params = useParams<"id">();
     const navigate = useNavigate();
 
@@ -77,6 +80,7 @@ export const DeploymentPage = observer((props: {}) => {
     return (
         <Stack direction="column" height={"100%"} maxHeight={"100%"}>
             <DeploymentLabelEditor open={editLabel} value={deployment.label} onChange={(v) => deployment.label = v} onClose={() => setEditLabel(false)} />
+            <SystemLogDisplay open={logsOpen} onClose={() => setLogsOpen(false)} />
             <TitleBar>
                 <Stack height="100%" direction="row" alignItems="center" paddingY={0.35} boxSizing="border-box">
                     <Typography sx={{
@@ -95,13 +99,16 @@ export const DeploymentPage = observer((props: {}) => {
                         <ReloadIcon htmlColor="#fff" />
                     </IconButton>
                     <Box flex={1} />
+                    <IconButton size="small" sx={{ marginRight: 1 }} onClick={() => setLogsOpen(v => !v)}>
+                        <LogsIcon htmlColor="#fff"/>
+                    </IconButton>
                     <DeploymentStatusButton deployment={deployment} />
-                    <Box width={"5px"}/>
+                    <Box width={"5px"} />
                 </Stack>
             </TitleBar>
             <Box flex={1} sx={{ overflowY: "hidden" }} width="100%">
                 <Stack direction="row" height="100%" maxHeight="100%" maxWidth="100%">
-                    <TaskTemplateList />
+                    <TaskTemplateList onSelect={(t) => deployment.createTaskFromTemplate(t)} />
                     <Box flex={6} height={"100%"}>
                         <NodeEditor editor={deployment.editor} />
                     </Box>

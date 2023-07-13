@@ -1,7 +1,7 @@
 import cloneDeep from "clone-deep";
 import { observable } from "mobx";
 import { NodeEditorRenderer } from "../lib/node-editor";
-import { Task, Deployment, taskToTemplateNode } from "../lib/task";
+import { Task, Deployment, taskToTemplateNode, taskToMockNode } from "../lib/task";
 import { v4 as uuidv4 } from 'uuid';
 
 export class DeploymentState {
@@ -102,7 +102,7 @@ export class DeploymentState {
         this._status = json.status;
     }
     private async addTaskToEditor(task: Task) {
-        const node = taskToTemplateNode(task);
-        this.editor.addNode(node);
+        const node = taskToMockNode(task);
+        this.editor.addNode(node, true);
     }
 }

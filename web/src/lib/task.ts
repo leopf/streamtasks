@@ -57,7 +57,7 @@ function streamGroupToConnectionGroup(group: TaskStreamGroup): ConnectionGroup {
         inputs: group.inputs.map(input => (<InputConnection>{
             refId: input.ref_id,
             label: input.label,
-            linkedStreamId: input.topic_id,
+            linkedStreamId: input.topic_id ?? undefined,
             config: {
                 contentType: input.content_type,
                 encoding: input.encoding,
@@ -81,6 +81,27 @@ export function taskToTemplateNode(task: Task): Node {
         getName: () => task.config.label,
         getPosition: () => ({ x: 0, y: 0 }),
         setPosition: () => { },
+        getConnectionGroups: () => task.stream_groups.map(streamGroupToConnectionGroup),
+    };
+}
+
+export function taskToMockNode(task: Task): Node {
+    return {
+        getId: () => task.id,
+        getName: () => task.config.label,
+        getPosition: () => task.config.position ?? ({ x: 0, y: 0 }),
+        setPosition: (x, y) => { task.config.position = { x, y } },
+        connect: (inputId, connection) => {
+            for (const group of task.stream_groups) {
+                for (const input of group.inputs) {
+                    if (input.ref_id === inputId) {
+                        input.topic_id = connection?.refId ?? "";
+                        return true;
+                    }
+                }
+            }
+            return false;
+        },
         getConnectionGroups: () => task.stream_groups.map(streamGroupToConnectionGroup),
     };
 }

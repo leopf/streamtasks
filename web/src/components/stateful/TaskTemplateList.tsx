@@ -5,12 +5,12 @@ import { Task, taskToTemplateNode } from "../../lib/task";
 import { NodeDisplay } from "../stateless/NodeDisplay";
 import { state } from "../../state";
 
-export const TaskTemplateItem = observer((props: { item: Task }) => {
+export const TaskTemplateItem = observer((props: { item: Task, onClick: () => void }) => {
     const node = useMemo(() => taskToTemplateNode(props.item), [props.item]);
     const description = props.item.config.description || "This is a node that you can use to do something.";
 
     return (
-        <Stack direction="column" padding={1} sx={{
+        <Stack onClick={props.onClick} direction="column" padding={1} sx={{
             "cursor": "pointer",
             "position": "relative",
         }}>
@@ -37,16 +37,10 @@ export const TaskTemplateItem = observer((props: { item: Task }) => {
 
 });
 
-export const TaskTemplateList = observer(() => {
+export const TaskTemplateList = observer((props: { onSelect: (task: Task) => void }) => {
     return (
         <Stack boxSizing="border-box" direction="column" flex={1} spacing={4} sx={{ "overflowY": "auto", height: "100%" }}>
-            {state.taskTemplates.map((item) => <TaskTemplateItem key={item.id} item={item}/>)}
-            {state.taskTemplates.map((item) => <TaskTemplateItem key={item.id} item={item}/>)}
-            {state.taskTemplates.map((item) => <TaskTemplateItem key={item.id} item={item}/>)}
-            {state.taskTemplates.map((item) => <TaskTemplateItem key={item.id} item={item}/>)}
-            {state.taskTemplates.map((item) => <TaskTemplateItem key={item.id} item={item}/>)}
-            {state.taskTemplates.map((item) => <TaskTemplateItem key={item.id} item={item}/>)}
-            {state.taskTemplates.map((item) => <TaskTemplateItem key={item.id} item={item}/>)}
+            {state.taskTemplates.map((item) => <TaskTemplateItem key={item.id} item={item} onClick={() => props.onSelect(item)}/>)}
         </Stack>
     )
 });

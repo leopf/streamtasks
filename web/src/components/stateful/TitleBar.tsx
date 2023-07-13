@@ -5,7 +5,7 @@ import React from "react";
 
 export const TitleBar = observer((props: { children?: React.ReactNode }) => {
     return (
-        <AppBar position="static">
+        <AppBar position="static" sx={{ boxShadow: "none" }}>
             <Stack direction="row">
                 <IconButton size="small">
                     <MenuIcon htmlColor="#fff" />
