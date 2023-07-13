@@ -28,13 +28,13 @@ export class NodeRenderer {
 
     private connectionLabelTextStyle = new PIXI.TextStyle({
         fontFamily: 'Arial',
-        fontSize: 13,
+        fontSize: 16,
         fill: '#000000',
         wordWrap: false
     });
     private nodeLabelTextStyle = new PIXI.TextStyle({
         fontFamily: 'Arial',
-        fontSize: 15,
+        fontSize: 18,
         fill: '#000000',
         wordWrap: false
     });
@@ -246,18 +246,6 @@ export class NodeRenderer {
         const hash = objectHash(["5", stream.config]);
         const n = parseInt(hash.substr(0, 2), 16) % samples.length;
         return samples[n];
-
-        let r = parseInt(hash.substr(0, 2), 16) / 255;
-        let g = parseInt(hash.substr(2, 2), 16) / 255;
-        let b = parseInt(hash.substr(4, 2), 16) / 255;
-
-        // brighten the color to be at least 0.5
-        const brighten = 0.6 / ((r+g+b) / 3);
-        r = Math.min(1, r * brighten);
-        g = Math.min(1, g * brighten);
-        b = Math.min(1, b * brighten);
-
-        return (r * 255) << 16 ^ (g * 255) << 8 ^ (b * 255) << 0;
     }
 }
 
