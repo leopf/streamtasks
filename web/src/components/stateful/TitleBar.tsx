@@ -8,7 +8,7 @@ export const TitleBar = observer((props: { children?: React.ReactNode }) => {
         <AppBar position="static">
             <Stack direction="row">
                 <IconButton size="small">
-                    <MenuIcon />
+                    <MenuIcon htmlColor="#fff" />
                 </IconButton>
                 <Box flex={1}>
                     {props.children}

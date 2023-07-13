@@ -33,9 +33,13 @@ export class RootState {
         if (!deployment) return undefined;
         return new DeploymentState(deployment);
     }
-    public async createDeployment() {
+    public async createDeployment(label: string) {
         const res = await fetch('/api/deployment', {
             method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ label })
         });
         const json = await res.json();
         const deployment: Deployment = json;

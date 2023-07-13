@@ -13,7 +13,14 @@ createServer({
     routes() {
         this.namespace = "api"
 
-        this.get("/deployments", () => [])
+        this.get("/deployments", () => [
+            {
+                id: "abc",
+                label: 'New Deployment',
+                status: 'offline',
+                tasks: [],
+            }
+        ])
 
         this.post("/deployment", () => {
             const deployment: Deployment = {

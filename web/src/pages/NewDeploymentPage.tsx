@@ -19,7 +19,10 @@ export const NewDeploymentPage = observer((props: { }) => {
             <TitleBar>
                 Hello
             </TitleBar>
-            <DeploymentLabelEditor open={true} value={label} onChange={v => setLabel(v)} onClose={() => {}}/>
+            <DeploymentLabelEditor open={true} value={label} onChange={v => setLabel(v)} onClose={async () => {
+                const newDeployment = await state.createDeployment(label);
+                navigate(`/deployment/view/${newDeployment.id}`);
+            }}/>
         </Stack>
     );
 });

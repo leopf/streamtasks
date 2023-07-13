@@ -11,33 +11,36 @@ const ctx = await esbuild.context({
     outfile: "dist/js/main.js",
 })
 
-const { port, host } = await ctx.serve({ servedir: "dist",  })
+const { port, host } = await ctx.serve({ servedir: "dist", })
 
-const frontendServer = `http://${host}:${port}`; 
-const backendServers = [ frontendServer ]
-
-const proxy = httpProxy.createProxyServer({
-    changeOrigin: true
-});
+const frontendServer = `http://${host}:${port}`;
 
 http.createServer(async (req, res) => {
-    let serverIndex = 0;
-    function proxyRequest() {
-        proxy.web(req, res, { target: backendServers[serverIndex],  }, (err) => {
-            serverIndex++;
-            if (serverIndex < backendServers.length) {
-                proxyRequest();
-            }
-            else {
-                console.log("hi")
-                res.writeHead(500, { 'Content-Type': 'text/plain' });
-                res.end('Something went wrong. And we are reporting a custom error message.');
-                // // send request "/" to frontend server
-                // proxy.web(req, res, { target: frontendServer, ignorePath: true, prependPath: false });
-            }
-        });
-    }
+    const forwardRequest = (path) => {
+        const options = {
+            hostname: host,
+            port,
+            path,
+            method: req.method,
+            headers: req.headers,
+        };
 
-    proxyRequest();
+        const proxyReq = http.request(options, (proxyRes) => {
+            if (proxyRes.statusCode === 404) {
+                // If esbuild 404s the request, assume it's a route needing to
+                // be handled by the JS bundle, so forward a second attempt to `/`.
+                return forwardRequest("/");
+            }
+
+            // Otherwise esbuild handled it like a champ, so proxy the response back.
+            res.writeHead(proxyRes.statusCode, proxyRes.headers);
+            proxyRes.pipe(res, { end: true });
+        });
+
+        req.pipe(proxyReq, { end: true });
+    };
+
+    // When we're called pass the request right through to esbuild.
+    forwardRequest(req.url);
 }).listen(8001, host)
 console.log(`Serving on http://${host}:${8001}`)
