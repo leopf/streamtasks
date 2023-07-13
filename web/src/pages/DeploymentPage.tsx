@@ -4,7 +4,7 @@ import { state } from "../state";
 import { observer } from "mobx-react";
 import { useParams, useNavigate } from "react-router-dom";
 import React from "react";
-import { AppBar, Box, Button, Icon, IconButton, Stack, SxProps, Theme, Typography } from "@mui/material";
+import { AppBar, Box, Button, Icon, IconButton, Stack, SxProps, Theme, Tooltip, Typography } from "@mui/material";
 import { Edit as EditIcon, PlayArrow as PlayIcon, Pause as PauseIcon, Cached as ReloadIcon, ReceiptLong as LogsIcon } from "@mui/icons-material";
 import { TaskTemplateList } from "../components/stateful/TaskTemplateList";
 import { NodeEditor } from "../components/stateless/NodeEditor";
@@ -99,9 +99,11 @@ export const DeploymentPage = observer((props: {}) => {
                         <ReloadIcon htmlColor="#fff" />
                     </IconButton>
                     <Box flex={1} />
-                    <IconButton size="small" sx={{ marginRight: 1 }} onClick={() => setLogsOpen(v => !v)}>
-                        <LogsIcon htmlColor="#fff"/>
-                    </IconButton>
+                    <Tooltip title="logs">
+                        <IconButton size="small" sx={{ marginRight: 1 }} onClick={() => setLogsOpen(v => !v)}>
+                            <LogsIcon htmlColor="#fff" />
+                        </IconButton>
+                    </Tooltip>
                     <DeploymentStatusButton deployment={deployment} />
                     <Box width={"5px"} />
                 </Stack>
