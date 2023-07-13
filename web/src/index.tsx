@@ -13,6 +13,8 @@ createServer({
     routes() {
         this.namespace = "api"
 
+        this.get("/deployments", () => [])
+
         this.post("/deployment", () => {
             const deployment: Deployment = {
                 id: uuidv4(),

@@ -399,7 +399,7 @@ export class NodeEditorRenderer {
                 this.renderNodeLinks(this.selectedNodeId);
             }
             else {
-                this.renderEditingLink(this.viewport.toWorld(e.x, e.y))
+                this.renderEditingLink(e.getLocalPosition(this.viewport))
             }
         })
         this.viewport.on("pointerup", () => this.onReleaseNode())
@@ -687,7 +687,9 @@ export class NodeEditorRenderer {
     }
 
     private drawConnectionLine(inputPoint: Point, outputPoint: Point) {
-        let cpYOffset = Math.max(150 - Math.abs(inputPoint.y - outputPoint.y), 0);
+        const dist = Math.sqrt(Math.pow(inputPoint.x - outputPoint.x, 2) + Math.pow(inputPoint.y - outputPoint.y, 2));
+
+        let cpYOffset = Math.min(150, dist);
         if (outputPoint.y >= inputPoint.y) {
             cpYOffset *= -1;
         }
@@ -695,7 +697,6 @@ export class NodeEditorRenderer {
             cpYOffset = 0;
         }
 
-        const dist = Math.sqrt(Math.pow(inputPoint.x - outputPoint.x, 2) + Math.pow(inputPoint.y - outputPoint.y, 2));
         const cpXOffset = Math.min(150, dist / 2);
         const line = new PIXI.Graphics();
         line.lineStyle(outlineWidth, outlineColor);

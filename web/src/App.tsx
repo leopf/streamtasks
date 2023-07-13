@@ -7,6 +7,11 @@ import { TaskTemplateList } from "./components/stateful/TaskTemplateList";
 import { NodeEditorRenderer } from "./lib/node-editor";
 import { GateTask, NumberGeneratorTask } from "./sample-nodes";
 import { NodeEditor } from "./components/stateless/NodeEditor";
+import { Route, createBrowserRouter, createRoutesFromElements } from "react-router-dom";
+
+// const router = createBrowserRouter(createRoutesFromElements(
+//     <Route path="/" element={<App/>}/>
+// ))
 
 export const App = observer(() => {
     useEffect(() => {

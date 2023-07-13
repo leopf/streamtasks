@@ -9,19 +9,9 @@ export class RootState {
     public get initialized() {
         return this._initialized;
     }
-    public get deployments() {
-        return this._deployments.slice();
-    }
-    @computed
-    public get selectedDeployment() {
-        return this._deployments.find(d => d.id === this.selectedDeploymentId);
-    }
 
     @observable
-    private _deployments: DeploymentState[] = [];
-
-    @observable
-    private selectedDeploymentId?: string;
+    private deployments: Deployment[] = [];
 
     @observable
     private _initialized = false;
@@ -38,21 +28,24 @@ export class RootState {
         this._initialized = true;
     }
 
+    public getDeployment(id: string) {
+        const deployment = this.deployments.find(d => d.id === id);
+        if (!deployment) return undefined;
+        return new DeploymentState(deployment);
+    }
     public async createDeployment() {
         const res = await fetch('/api/deployment', {
             method: 'POST',
         });
         const json = await res.json();
         const deployment: Deployment = json;
-        this._deployments.push(new DeploymentState(deployment));
-        this.selectedDeploymentId = deployment.id;
+        this.deployments.push(deployment);
+        return deployment;
     }
 
     public async loadDeployments() {
         const res = await fetch('/api/deployments');
-        const deployments: Deployment[] = await res.json();
-        const loadedDeployments = new Set(this._deployments.map(d => d.id));
-        this._deployments.push(...deployments.filter(d => !loadedDeployments.has(d.id)).map(d => new DeploymentState(d)));
+        this.deployments = await res.json();;
     }
 
     private async loadTaskTemplates() {
