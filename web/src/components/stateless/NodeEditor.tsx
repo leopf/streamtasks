@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
-import { NodeEditorRenderer } from "../lib/node-editor";
+import { NodeEditorRenderer } from "../../lib/node-editor";
+import { Box } from "@mui/material";
 
 export function NodeEditor(props: { editor: NodeEditorRenderer }) {
     const containerRef = React.useRef<HTMLDivElement>(null);
@@ -9,5 +10,5 @@ export function NodeEditor(props: { editor: NodeEditorRenderer }) {
         return () => props.editor.unmount();
     }, [props.editor]);
 
-    return <div style={{ width: "100%", height: "100%" }} ref={containerRef}></div>
+    return <Box sx={{ width: "100%", height: "100%" }} ref={containerRef}/>
 }

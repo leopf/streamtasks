@@ -37,13 +37,11 @@ class TaskStream(TaskStreamFormat):
 
 class TaskStreamFormatGroup(BaseModel):
   label: Optional[str]
-  placeholder: Optional[bool]
   inputs: list[TaskStreamFormat]
   outputs: list[TaskStreamFormat]
 
 class TaskStreamGroup(BaseModel):
   label: Optional[str]
-  placeholder: Optional[bool]
   inputs: list[TaskStream]
   outputs: list[TaskStream]
 

@@ -29,6 +29,10 @@ export class NumberGeneratorTask implements Node {
         this.id = objectHash(initialPosition);
     }
 
+    public getId() {
+        return this.id;
+    }
+
     public setPosition(x: number, y: number) {
         this.position.x = x;
         this.position.y = y;
@@ -96,6 +100,10 @@ export class GateTask implements Node {
 
     public getName() {
         return 'Gate';
+    }
+
+    public getId() {
+        return this.id;
     }
 
     public connect(inputId: string, outputConnection?: Connection) {

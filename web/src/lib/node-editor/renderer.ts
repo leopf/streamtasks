@@ -1,7 +1,8 @@
 import * as PIXI from 'pixi.js';
 import objectHash from "object-hash";
 import { Viewport } from 'pixi-viewport'
-import { Point, Connection, Node, ConnectResult, InputConnection } from "./types";
+import { Connection, Node, ConnectResult, InputConnection } from "./types";
+import { Point } from '../../model';
 
 const appBackgroundColor = 0xeeeeee;
 const paddingVertical = 10;
@@ -39,7 +40,7 @@ export class NodeRenderer {
     });
 
     public get id() {
-        return this.node.id;
+        return this.node.getId();
     }
     public get container() {
         return this.group;
@@ -80,7 +81,7 @@ export class NodeRenderer {
         this.group = new PIXI.Container();
         this.group.interactive = true;
 
-        this.group.on('pointerdown', () => this.editor?.onPressNode(this.node.id));
+        this.group.on('pointerdown', () => this.editor?.onPressNode(this.id));
 
         this.editor?.viewport.addChild(this.group);
     }
@@ -197,7 +198,7 @@ export class NodeRenderer {
         circle.interactive = true;
 
         circle.on('pointerdown', () => this.editor?.onSelectStartConnection(connection.refId));
-        circle.on('pointerup', () => this.editor?.onSelectEndConnection(this.node.id, connection.refId));
+        circle.on('pointerup', () => this.editor?.onSelectEndConnection(this.id, connection.refId));
 
         return circle;
     }
@@ -409,13 +410,13 @@ export class NodeEditorRenderer {
     public addNode(node: Node, center: boolean = false) {
         const nodeRenderer = new NodeRenderer(node, this);
 
-        this.nodeRenderers.set(node.id, nodeRenderer);
+        this.nodeRenderers.set(node.getId(), nodeRenderer);
         const links = [
             ...this.createLinksFromInputConnections(nodeRenderer.id, nodeRenderer.inputs),
             ...this.createLinksFromOutputConnections(nodeRenderer.id, nodeRenderer.outputs)
         ];
         links.filter(c => this.connectLinkToInput(c)).forEach(c => this.links.add(c));
-        this.renderNode(node.id);
+        this.renderNode(node.getId());
 
         if (center) {
             const xOffset = nodeRenderer.container.width / 2;
@@ -424,7 +425,7 @@ export class NodeEditorRenderer {
                 x: this.viewport.center.x - xOffset,
                 y: this.viewport.center.y - yOffset
             }
-            this.renderNode(node.id);
+            this.renderNode(node.getId());
         }
     }
     public deleteNode(id: string) {

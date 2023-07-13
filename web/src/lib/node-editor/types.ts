@@ -12,16 +12,10 @@ export interface ConnectionGroup {
     outputs: Connection[];
     inputs: InputConnection[];
 }
-
-export interface Point {
-    x: number;
-    y: number;
-}
-
 export type ConnectResult = false | true | string;
 
 export interface Node {
-    id: string;
+    getId: () => string;
     getName: () => string;
     setPosition: (x: number, y: number) => void;
     getPosition: () => { x: number, y: number };
