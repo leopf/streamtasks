@@ -7,6 +7,7 @@ import { App } from "./App";
 import { Deployment, Task } from "./lib/task";
 import { v4 as uuidv4 } from "uuid";
 import { configure  } from "mobx";
+import { Dashboard } from "./types";
 
 configure({
     observableRequiresReaction: false,
@@ -25,6 +26,22 @@ createServer({
                 tasks: [],
             }
         ])
+
+        this.get("/dashboards", () => {
+            const dashboards: Dashboard[] = [
+                {
+                    id: uuidv4(),
+                    label: "Dashboard 1",
+                    url: "https://www.google.com"
+                },
+                {
+                    id: uuidv4(),
+                    label: "Dashboard 2",
+                    url: "https://www.bing.com"
+                }
+            ];
+            return dashboards;
+        })
 
         this.post("/deployment", () => {
             const deployment: Deployment = {

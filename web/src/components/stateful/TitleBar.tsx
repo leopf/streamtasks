@@ -9,7 +9,20 @@ const DeploymentList = observer(() => {
     const navigate = useNavigate();
 
     return (
-        <List subheader={<ListSubheader>Deployments</ListSubheader>}>
+        <List subheader={
+            <Stack direction="row" alignItems="center">
+                <ListSubheader>Deployments</ListSubheader>
+                <Box flex={1} minWidth={"1.5rem"} />
+                <Box paddingRight={1}>
+                    <IconButton size="small" onClick={async () => {
+                        const deployment = await state.createDeployment("New Deployment");
+                        navigate(`/deployment/view/${deployment.id}`);
+                    }}>
+                        <AddIcon />
+                    </IconButton>
+                </Box>
+            </Stack>
+        }>
             {state.deployments.map(deployment => (
                 <ListItem disablePadding>
                     <ListItemButton href={`/deployment/view/${deployment.id}`}>
@@ -17,17 +30,6 @@ const DeploymentList = observer(() => {
                     </ListItemButton>
                 </ListItem>
             ))}
-            <ListItem disablePadding>
-                <ListItemButton onClick={async () => {
-                    const deployment = await state.createDeployment("New Deployment");
-                    navigate(`/deployment/view/${deployment.id}`);
-                }}>
-                    <ListItemIcon>
-                        <AddIcon />
-                    </ListItemIcon>
-                    <ListItemText primary="Create Deployment" />
-                </ListItemButton>
-            </ListItem>
         </List>
     );
 });
@@ -39,33 +41,36 @@ export const TitleBar = observer((props: { children?: React.ReactNode }) => {
     return (
         <>
             <Drawer anchor="left" open={open} onClose={() => setOpen(false)}>
-                <List>
-                    <ListItem disablePadding>
-                        <ListItemButton href="/">
-                            <ListItemIcon>
-                                <HomeIcon />
-                            </ListItemIcon>
-                            <ListItemText primary={"Home"} />
-                        </ListItemButton>
-                    </ListItem>
-                </List>
-                <DeploymentList />
-                <List subheader={<ListSubheader>Dashboards</ListSubheader>}>
-                    {state.deployments.map(deployment => (
+                <Box minWidth={"20vw"} paddingRight={1}>
+
+                    <List>
                         <ListItem disablePadding>
-                            <ListItemButton>
-                                <ListItemText primary={deployment.label} />
+                            <ListItemButton href="/">
+                                <ListItemIcon>
+                                    <HomeIcon />
+                                </ListItemIcon>
+                                <ListItemText primary={"Home"} />
                             </ListItemButton>
                         </ListItem>
-                    ))}
-                </List>
+                    </List>
+                    <DeploymentList />
+                    <List subheader={<ListSubheader>Dashboards</ListSubheader>}>
+                        {state.dashboards.map(dashboard => (
+                            <ListItem disablePadding>
+                                <ListItemButton href={`/dashboard/${dashboard.id}`}>
+                                    <ListItemText primary={dashboard.label} />
+                                </ListItemButton>
+                            </ListItem>
+                        ))}
+                    </List>
+                </Box>
             </Drawer>
             <AppBar position="static" sx={{ boxShadow: "none" }}>
                 <Stack direction="row" paddingY={0.35}>
                     <IconButton size="small" onClick={() => setOpen(v => !v)}>
                         <MenuIcon htmlColor="#fff" />
                     </IconButton>
-                    <Box flex={1}>
+                    <Box flex={1} paddingLeft={1}>
                         {props.children}
                     </Box>
                 </Stack>

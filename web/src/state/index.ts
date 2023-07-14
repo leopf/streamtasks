@@ -2,6 +2,8 @@ import { computed, makeAutoObservable, observable } from "mobx";
 import { Deployment, Task } from "../lib/task";
 import { DeploymentState } from "./deployment";
 import { LogEntry } from "../model";
+import { Dashboard } from "../types";
+import { createTransformer } from "mobx-utils";
 
 export class RootState {
     @observable
@@ -13,6 +15,9 @@ export class RootState {
 
     @observable
     private _deployments: Deployment[] = [];
+
+    @observable
+    private _dashboards: Dashboard[] = [];
 
     @observable
     private _initialized = false;
@@ -28,6 +33,11 @@ export class RootState {
         return [...this._deployments];
     }
 
+    @computed
+    public get dashboards() {
+        return [...this._dashboards];
+    }
+
     constructor() {
         if (process.env.NODE_ENV === 'development') {
             for (let i = 0; i < 100; i++) {
@@ -41,10 +51,13 @@ export class RootState {
         makeAutoObservable(this);
     }
 
+    public getDashboard = createTransformer((id: string) => this._dashboards.find(d => d.id === id));
+
     public async init() {
         await Promise.all([
             this.loadTaskTemplates(),
-            this.loadDeployments()
+            this.loadDeployments(),
+            this.loadDashboards()
         ])
         this._initialized = true;
     }
@@ -71,6 +84,11 @@ export class RootState {
     public async loadDeployments() {
         const res = await fetch('/api/deployments');
         this._deployments = await res.json();;
+    }
+
+    public async loadDashboards() {
+        const res = await fetch('/api/dashboards');
+        this._dashboards = await res.json();;
     }
 
     private async loadTaskTemplates() {

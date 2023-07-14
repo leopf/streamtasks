@@ -7,11 +7,16 @@ import { DeploymentPage } from "./pages/DeploymentPage";
 import { LinkProps, ThemeProvider, createTheme } from "@mui/material";
 import { SystemLogModal } from "./components/stateful/SystemLogModal";
 import { HomePage } from "./pages/HomePage";
+import { DashboardPage } from "./pages/DashboardPage";
 
 const router = createBrowserRouter([
     {
         path: "/deployment/view/:id",
         element: <DeploymentPage />
+    },
+    {
+        path: "/dashboard/:id",
+        element: <DashboardPage />
     },
     {
         path: "/",

@@ -44,7 +44,7 @@ const DeploymentStatusButton = observer((props: { deployment: DeploymentState })
             }
             setLoading(false);
         }}>
-            {text}
+            <Box marginBottom={"-1px"}>{text}</Box>
         </LoadingButton>
     )
 })
