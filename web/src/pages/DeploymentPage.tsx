@@ -120,7 +120,6 @@ export const DeploymentPage = observer((props: {}) => {
         }
 
         deployment.editor.on("selected", id => {
-            console.log("selected", id);
             setSelectedTaskId(id)
         });
     }, [deployment])
@@ -169,7 +168,12 @@ export const DeploymentPage = observer((props: {}) => {
             </TitleBar>
             <Box flex={1} sx={{ overflowY: "hidden" }} width="100%">
                 <Stack direction="row" height="100%" maxHeight="100%" maxWidth="100%">
-                    <TaskTemplateList onSelect={(t) => deployment.createTaskFromTemplate(t)} />
+                    <Box flex={{
+                        xs: 1,
+                        md: 1.5,
+                    }}>
+                        <TaskTemplateList onSelect={(t) => deployment.createTaskFromTemplate(t)} />
+                    </Box>
                     <Box flex={6} height={"100%"} sx={{
                         position: "relative",
                     }}>

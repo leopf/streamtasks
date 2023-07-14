@@ -428,7 +428,6 @@ export class NodeImageRenderer {
 }
 
 export async function renderNodeToImage(node: Node, options: NodeRenderOptions) {
-    console.log("render!")
     const hostEl = document.createElement('div');
     if (options.width) {
         hostEl.style.width = options.width + 'px';

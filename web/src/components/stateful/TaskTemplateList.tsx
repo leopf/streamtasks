@@ -7,7 +7,8 @@ import { state } from "../../state";
 
 export const TaskTemplateItem = observer((props: { item: Task, onClick: () => void }) => {
     const node = useMemo(() => taskToTemplateNode(props.item), [props.item]);
-    const description = props.item.config.description || "This is a node that you can use to do something.";
+    const description = props.item.config.description || "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam euismod, nisl eget aliquam ultricies, nunc nisl aliquet nunc, nec aliquam";
+    const hostname = props.item.config.hostname || "localhost";
 
     return (
         <Stack onClick={props.onClick} direction="column" padding={2} sx={{
@@ -26,12 +27,17 @@ export const TaskTemplateItem = observer((props: { item: Task, onClick: () => vo
                     backgroundColor: "#0001"
                 }
             }} />
-            <Box maxWidth={"100%"} width={"100%"}>
-                <NodeDisplay node={node}/>
+            <Box maxWidth={"100%"} width={"100%"} marginBottom={1}>
+                <NodeDisplay node={node} />
             </Box>
-            <Typography variant="caption">
-                {description}
+            <Typography variant="caption" color="GrayText" lineHeight={1.25}>
+                host: {hostname}
             </Typography>
+            {description && (
+                <Typography variant="caption"  lineHeight={1} marginTop={0.5}>
+                    {description}
+                </Typography>
+            )}
         </Stack>
     );
 
@@ -39,12 +45,12 @@ export const TaskTemplateItem = observer((props: { item: Task, onClick: () => vo
 
 export const TaskTemplateList = observer((props: { onSelect: (task: Task) => void }) => {
     return (
-        <Box sx={{ "overflowY": "auto", height: "100%" }} flex={1} >
+        <Box sx={{ "overflowY": "auto", height: "100%", width: "100%" }} >
             <Typography variant="h6" padding={2}>
                 Task Templates
             </Typography>
-            <Stack boxSizing="border-box" direction="column" spacing={4}>
-                {state.taskTemplates.map((item) => <TaskTemplateItem key={item.id} item={item} onClick={() => props.onSelect(item)}/>)}
+            <Stack boxSizing="border-box" direction="column" spacing={2}>
+                {state.taskTemplates.map((item) => <TaskTemplateItem key={item.id} item={item} onClick={() => props.onSelect(item)} />)}
             </Stack>
         </Box>
     )

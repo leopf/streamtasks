@@ -10,5 +10,9 @@ export function NodeEditor(props: { editor: NodeEditorRenderer }) {
         return () => props.editor.unmount();
     }, [props.editor]);
 
-    return <Box sx={{ width: "100%", height: "100%" }} ref={containerRef}/>
+    return (
+        <Box sx={{ width: "100%", height: "100%", position: "relative" }}>
+            <Box sx={{ position: "absolute", width: "100%", height: "100%" }} ref={containerRef}/>
+        </Box>
+    )
 }
