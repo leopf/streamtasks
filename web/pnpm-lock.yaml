@@ -53,6 +53,9 @@ dependencies:
   http-proxy:
     specifier: ^1.18.1
     version: 1.18.1
+  lru-cache:
+    specifier: ^10.0.0
+    version: 10.0.0
   mobx:
     specifier: ^6.9.1
     version: 6.9.1
@@ -1718,6 +1721,11 @@ packages:
     hasBin: true
     dependencies:
       js-tokens: 4.0.0
+    dev: false
+
+  /lru-cache@10.0.0:
+    resolution: {integrity: sha512-svTf/fzsKHffP42sujkO/Rjs37BCIsQVRCeNYIm9WN8rgT7ffoUnRtZCqU+6BqcSBdv8gwJeTz8knJpgACeQMw==}
+    engines: {node: 14 || >=16.14}
     dev: false
 
   /miragejs@0.1.47:

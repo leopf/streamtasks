@@ -84,6 +84,10 @@ createServer({
                 }
             ]
 
+            for (let i = 0; i< 3; i++) {
+                tasks.push(...tasks);
+            }
+
             return tasks
         })
     }

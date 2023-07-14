@@ -27,6 +27,7 @@
     "deep-equal": "^2.2.2",
     "esbuild": "^0.18.11",
     "http-proxy": "^1.18.1",
+    "lru-cache": "^10.0.0",
     "mobx": "^6.9.1",
     "mobx-react": "^9.0.0",
     "mobx-utils": "^6.0.7",

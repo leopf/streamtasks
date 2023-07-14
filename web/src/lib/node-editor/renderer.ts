@@ -1,8 +1,10 @@
 import * as PIXI from 'pixi.js';
 import objectHash from "object-hash";
-import { Viewport } from 'pixi-viewport'
-import { Connection, Node, ConnectResult, InputConnection } from "./types";
+import { Viewport } from 'pixi-viewport';
+import { LRUCache } from 'lru-cache';
+import { Connection, Node, ConnectResult, InputConnection, NodeDisplayOptions, NodeRenderOptions } from "./types";
 import { Point } from '../../model';
+import { Lock, createNodeDisplayHash } from './utils';
 
 const appBackgroundColor = 0xeeeeee;
 const paddingVertical = 10;
@@ -12,7 +14,7 @@ const streamHeight = 30;
 const streamCircleRadius = 8;
 const outlineColor = 0x333333;
 const outlineWidth = 2;
-const xOffset = streamCircleRadius +  outlineWidth / 2;
+const xOffset = streamCircleRadius + outlineWidth / 2;
 const labelEdgeOffset = streamCircleRadius + 5;
 const minLabelSpace = 20;
 const selectedNodeFillColor = 0xf0f6ff;
@@ -21,7 +23,7 @@ export class NodeRenderer {
     private group: PIXI.Container;
     private node: Node;
     private editor?: NodeEditorRenderer;
-    
+
     private _relConnectorPositions = new Map<string, Point>();
     private _absuluteConnectorPositions = new Map<string, Point>();
     private connectorPositionsOutdated = true;
@@ -65,7 +67,7 @@ export class NodeRenderer {
         }
         return this._absuluteConnectorPositions;
     }
-    
+
     public get inputs() {
         return this.node.getConnectionGroups().map(cg => cg.inputs).reduce((a, b) => a.concat(b), []);
     }
@@ -242,7 +244,7 @@ export class NodeRenderer {
             0xF9FD50
         ]
 
-        
+
         const hash = objectHash(["5", stream.config]);
         const n = parseInt(hash.substr(0, 2), 16) % samples.length;
         return samples[n];
@@ -272,7 +274,7 @@ class ConnectionLinkCollection {
     }
 
     private getKey(link: ConnectionLink) {
-        return objectHash([ link.inputId, link.outputId ])
+        return objectHash([link.inputId, link.outputId])
     }
 }
 
@@ -283,7 +285,8 @@ export class NodeDisplayRenderer {
     private _perfectWidth: number = 0;
     private _perfectHeight: number = 0;
     private updateHandlers: (() => void)[] = [];
-    
+    private hostEl: HTMLElement;
+
     public padding: number = 20;
 
     public get perfectWidth() {
@@ -293,30 +296,40 @@ export class NodeDisplayRenderer {
         return this._perfectHeight;
     }
 
-    constructor(node: Node, hostEl: HTMLElement, options: { padding?: number, backgroundColor?:string } = {}) {
+    constructor(node: Node, hostEl: HTMLElement, options: NodeDisplayOptions = {}) {
+        this.hostEl = hostEl;
         this.nodeRenderer = new NodeRenderer(node);
-        this.padding = options.padding ?? this.padding;
+        this.padding = options.padding !== undefined ? options.padding : this.padding;
         this.app = new PIXI.Application({
-            width: hostEl.clientWidth,
-            height: hostEl.clientHeight,
+            width: this.hostEl.clientWidth,
+            height: this.hostEl.clientHeight,
             backgroundColor: options.backgroundColor ?? appBackgroundColor,
             antialias: true,
             autoDensity: true,
             autoStart: false,
         });
         this.app.stage.addChild(this.nodeRenderer.container);
-
-        hostEl.appendChild(this.app.view as HTMLCanvasElement);
+        this.hostEl.appendChild(this.app.view as HTMLCanvasElement);
 
         this.resizeObserver = new ResizeObserver(() => {
-            this.app.renderer.resize(hostEl.clientWidth, hostEl.clientHeight);
+            this.resize();
             this.update();
         });
-        this.resizeObserver.observe(hostEl);
+        if (!options.disableAutoResize) {
+            this.resizeObserver.observe(this.hostEl);
+        }
+    }
+
+    public resize() {
+        this.app.renderer.resize(this.hostEl.clientWidth, this.hostEl.clientHeight);
     }
 
     public onUpdated(callback: () => void) {
         this.updateHandlers.push(callback);
+    }
+
+    public toDataUrl() {
+        return this.app.renderer.extract.base64();
     }
 
     public update() {
@@ -324,19 +337,21 @@ export class NodeDisplayRenderer {
 
         const containerWidth = this.nodeRenderer.container.width / this.nodeRenderer.container.scale.x;
         const containerHeight = this.nodeRenderer.container.height / this.nodeRenderer.container.scale.y;
-        
-        const widthScale = (this.app.renderer.width - this.padding * 2) / containerWidth;
-        const heightScale = (this.app.renderer.height - this.padding * 2) / containerHeight;
+
+        const widthScale = (this.hostEl.clientWidth - this.padding * 2) / containerWidth;
+        const heightScale = (this.hostEl.clientHeight - this.padding * 2) / containerHeight;
         const scale = Math.min(widthScale, heightScale);
 
-        const newWidth = containerWidth * scale;
-        const newHeight = containerHeight * scale;
+        if (scale > 0) {
+            const newWidth = containerWidth * scale;
+            const newHeight = containerHeight * scale;
 
-        this.nodeRenderer.container.transform.scale.set(scale, scale);
-        this.nodeRenderer.container.position.set(
-            (this.app.renderer.width - newWidth) / 2,
-            (this.app.renderer.height - newHeight) / 2
-        );
+            this.nodeRenderer.container.transform.scale.set(scale, scale);
+            this.nodeRenderer.container.position.set(
+                (this.app.renderer.width - newWidth) / 2,
+                (this.app.renderer.height - newHeight) / 2
+            );
+        }
 
         this._perfectWidth = heightScale * containerWidth + this.padding * 2;
         this._perfectHeight = widthScale * containerHeight + this.padding * 2;
@@ -354,13 +369,100 @@ export class NodeDisplayRenderer {
     }
 }
 
+export class NodeImageRenderer {
+    private options: NodeRenderOptions;
+    private renderResolvers = new Map<string, ((dataUrl: string) => void)[]>();
+    private cache: LRUCache<string, string>;
+
+    constructor(options: NodeRenderOptions, cacheSize: number = 10 * 1024 * 1024) {
+        this.options = options;
+        this.cache = new LRUCache<string, string>({
+            sizeCalculation: (value: string, key: string) => value.length + key.length,
+            maxSize: cacheSize,
+        });
+    }
+
+    public async render(node: Node) {
+        const nodeHash = createNodeDisplayHash(node);
+        if (this.cache.has(nodeHash)) {
+            return this.cache.get(nodeHash)!;
+        }
+        
+        let result: string | undefined;
+        let resolver: ((dataUrl: string) => void) | undefined;
+        let handler = (dataUrl: string) => {
+            if (resolver) {
+                resolver(dataUrl);
+            }
+            else {
+                result = dataUrl;
+            }
+        };
+
+        if (!this.renderResolvers.has(nodeHash)) {
+            this.renderResolvers.set(nodeHash, [handler]);
+            this.renderNode(node);
+        }
+        else {
+            this.renderResolvers.get(nodeHash)?.push(handler);
+        }
+
+        return await new Promise<string>(resolve => {
+            if (result) {
+                resolve(result);
+            }
+            else {
+                resolver = resolve;
+            }
+        });
+    }
+
+    private async renderNode(node: Node) {
+        const nodeHash = createNodeDisplayHash(node);
+        const dataUrl = await renderNodeToImage(node, this.options);
+        this.cache.set(nodeHash, dataUrl);
+        const handlers = this.renderResolvers.get(nodeHash);
+        this.renderResolvers.delete(nodeHash);
+        handlers?.forEach(h => h.call(null, dataUrl));
+    }
+}
+
+export async function renderNodeToImage(node: Node, options: NodeRenderOptions) {
+    console.log("render!")
+    const hostEl = document.createElement('div');
+    if (options.width) {
+        hostEl.style.width = options.width + 'px';
+    }
+    else if (options.height) {
+        hostEl.style.height = options.height + 'px';
+    }
+    hostEl.style.visibility = 'hidden';
+    document.body.appendChild(hostEl);
+
+    const renderer = new NodeDisplayRenderer(node, hostEl, { ...options, disableAutoResize: true });
+    renderer.update();
+    if (options.width) {
+        hostEl.style.height = renderer.perfectHeight + 'px';
+    }
+    else if (options.height) {
+        hostEl.style.width = renderer.perfectWidth + 'px';
+    }
+    renderer.resize();
+    renderer.update();
+    const dataUrl = await renderer.toDataUrl();
+    renderer.destroy();
+    hostEl.remove();
+
+    return dataUrl;
+}
+
 export class NodeEditorRenderer {
     public viewport: Viewport;
     private app: PIXI.Application;
     private connectionLayer = new PIXI.Container();
     private nodeRenderers = new Map<string, NodeRenderer>();
     private links = new ConnectionLinkCollection();
-    
+
     private pressActive = false;
     private selectedNodeId?: string;
 
@@ -371,7 +473,7 @@ export class NodeEditorRenderer {
     private containerResizeObserver?: ResizeObserver;
     private _updatedHandlers: ((nodeId: string) => void)[] = [];
     private _selectedHandlers: ((nodeId?: string) => void)[] = [];
-    
+
     private _readOnly: boolean = false;
     public get readOnly() {
         return this._readOnly;
@@ -501,7 +603,7 @@ export class NodeEditorRenderer {
     public onSelectEndConnection(nodeId: string, connectionId: string) {
         if (this._readOnly) return;
 
-        const connection: ConnectionLink | undefined= this.createConnectionLink(this.selectedNodeId, this.selectedConnectionId, nodeId, connectionId);
+        const connection: ConnectionLink | undefined = this.createConnectionLink(this.selectedNodeId, this.selectedConnectionId, nodeId, connectionId);
         if (!connection) return;
 
         if (this.connectLinkToInput(connection)) {
@@ -642,7 +744,7 @@ export class NodeEditorRenderer {
         return true;
     }
 
-    private createConnectionLink(aNodeId: string | undefined, aConnectionId: string | undefined, bNodeId: string | undefined, bConnectionId: string | undefined) : ConnectionLink | undefined {
+    private createConnectionLink(aNodeId: string | undefined, aConnectionId: string | undefined, bNodeId: string | undefined, bConnectionId: string | undefined): ConnectionLink | undefined {
         if (!aConnectionId || !bConnectionId || !aNodeId || !bNodeId) return;
         const aNode = this.nodeRenderers.get(aNodeId);
         const bNode = this.nodeRenderers.get(bNodeId);

@@ -1,23 +1,35 @@
 import React, { useEffect } from "react";
 import { Box } from "@mui/material";
-import { Node, NodeDisplayRenderer } from "../../lib/node-editor";
+import { Node, NodeDisplayRenderer, NodeImageRenderer, renderNodeToImage } from "../../lib/node-editor";
 
-export function NodeDisplay(props: { node: Node, backgroundColor?: string, padding?: number, resizeHeight?: boolean }) {
-    const containerRef = React.useRef<HTMLDivElement>(null);
+const renderer = new NodeImageRenderer({
+    backgroundColor: "#fff0",
+    padding: 0,
+    width: 750,
+})
+
+export function NodeDisplay(props: { node: Node }) {
+    const [ imageDataUrl, setImageDataUrl ] = React.useState<string | null>(null);
 
     useEffect(() => {
-        const display = new NodeDisplayRenderer(props.node, containerRef.current!, {
-            backgroundColor: props.backgroundColor,
-            padding: props.padding
-        });
-        display.onUpdated(() => {
-            if (props.resizeHeight) {
-                containerRef.current!.style.height = `${display.perfectHeight}px`;
+        let cancelled = false;
+        renderer.render(props.node).then((dataUrl) => {
+            if (!cancelled) {
+                setImageDataUrl(dataUrl);
             }
         });
+        return () => {
+            cancelled = true;
+        }
+    }, [props.node]);
 
-        return () => display.destroy();
-    }, [props.node, props.backgroundColor, props.padding, props.resizeHeight]);
-
-    return <Box sx={{ width: "100%", height: "100%" }} ref={containerRef}/>
+    if (imageDataUrl === null) {
+        return null;
+    }
+    else {
+        return (<img src={imageDataUrl} style={{
+            width: "100%",
+            display: "block",
+        }}/>)
+    }
 }

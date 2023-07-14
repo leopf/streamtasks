@@ -10,7 +10,7 @@ export const TaskTemplateItem = observer((props: { item: Task, onClick: () => vo
     const description = props.item.config.description || "This is a node that you can use to do something.";
 
     return (
-        <Stack onClick={props.onClick} direction="column" padding={1} sx={{
+        <Stack onClick={props.onClick} direction="column" padding={2} sx={{
             "cursor": "pointer",
             "position": "relative",
         }}>
@@ -27,7 +27,7 @@ export const TaskTemplateItem = observer((props: { item: Task, onClick: () => vo
                 }
             }} />
             <Box maxWidth={"100%"} width={"100%"}>
-                <NodeDisplay resizeHeight padding={5} backgroundColor={"#fff0"} node={node}/>
+                <NodeDisplay node={node}/>
             </Box>
             <Typography variant="caption">
                 {description}
@@ -39,8 +39,13 @@ export const TaskTemplateItem = observer((props: { item: Task, onClick: () => vo
 
 export const TaskTemplateList = observer((props: { onSelect: (task: Task) => void }) => {
     return (
-        <Stack boxSizing="border-box" direction="column" flex={1} spacing={4} sx={{ "overflowY": "auto", height: "100%" }}>
-            {state.taskTemplates.map((item) => <TaskTemplateItem key={item.id} item={item} onClick={() => props.onSelect(item)}/>)}
-        </Stack>
+        <Box sx={{ "overflowY": "auto", height: "100%" }} flex={1} >
+            <Typography variant="h6" padding={2}>
+                Task Templates
+            </Typography>
+            <Stack boxSizing="border-box" direction="column" spacing={4}>
+                {state.taskTemplates.map((item) => <TaskTemplateItem key={item.id} item={item} onClick={() => props.onSelect(item)}/>)}
+            </Stack>
+        </Box>
     )
 });

@@ -23,3 +23,11 @@ export interface Node {
     connect: (inputId: string, outputConnection?: Connection) => ConnectResult;
     onUpdated?: (cb: () => void) => void;
 }
+
+export type NodeDisplayOptions = {
+    padding?: number;
+    backgroundColor?: string;
+    disableAutoResize?: boolean;
+}
+
+export type NodeRenderOptions = ({ width: number, height?: never } | { height: number, width?: never }) & NodeDisplayOptions;
