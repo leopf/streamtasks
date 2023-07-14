@@ -1,5 +1,5 @@
 import cloneDeep from "clone-deep";
-import { makeAutoObservable, observable, reaction } from "mobx";
+import { computed, makeAutoObservable, observable, reaction } from "mobx";
 import { createTransformer } from "mobx-utils";
 import { NodeEditorRenderer } from "../lib/node-editor";
 import { Task, Deployment, taskToTemplateNode, taskToMockNode } from "../lib/task";
@@ -17,6 +17,11 @@ export class DeploymentState {
 
     public get status() {
         return this._status;
+    }
+
+    @computed
+    public get readOnly() {
+        return this.status === 'running';
     }
 
     @observable
@@ -40,8 +45,8 @@ export class DeploymentState {
         this.label = deployment.label;
         this._status = deployment.status;
 
-        this.reactionDisposers.push(reaction(() => this.status, () => {
-            this.editor.readOnly = this.status === 'running';
+        this.reactionDisposers.push(reaction(() => this.readOnly, () => {
+            this.editor.readOnly = this.readOnly;
         }));
         this.editor = new NodeEditorRenderer();
         this.tasks.forEach(task => this.addTaskToEditor(task));

@@ -1,53 +1,14 @@
-import { PointModel } from "../model";
-import { Connection, ConnectionGroup, InputConnection, Node } from "./node-editor";
 import { z } from "zod";
-
-export interface TaskStream {
-    label: string;
-    topic_id: string;
-    content_type?: string;
-    encoding?: string;
-}
-
-export interface TaskInputStream extends TaskStream {
-    ref_id: string;
-}
-
-export interface TaskStreamGroup {
-    inputs: TaskInputStream[];
-    outputs: TaskStream[];
-}
-
-export interface Task {
-    id: string;
-    task_factory_id: string;
-    config: Record<string, any>;
-    status?: string;
-    error?: string;
-    stream_groups: TaskStreamGroup[];
-}
-
-export interface Deployment {
-    tasks: Task[];
-    id: string;
-    label: string;
-    status: "offline" | "running" | "error";
-}
-
-export interface TaskNode {
-    getId: () => string;
-    setConfig: (key: string, value: any) => void;
-    getConfig: (key: string) => any;
-    getStreamGroups: () => TaskStreamGroup[];
-    onUpdated?: (cb: () => void) => void;
-    connect: (inputRefId: string, stream?: TaskStream) => boolean | string;
-}
+import { PointModel } from "../../model";
+import { Connection, ConnectionGroup, InputConnection, Node } from "../node-editor";
+import { TaskStream, TaskStreamGroup, Task, TaskNode } from "./types";
 
 function streamFromConnection(connection: Connection): TaskStream {
     return {
         label: connection.label,
         content_type: connection.config.contentType,
         encoding: connection.config.encoding,
+        extra: connection.config.extra,
         topic_id: connection.refId
     }
 }
@@ -61,6 +22,7 @@ function streamGroupToConnectionGroup(group: TaskStreamGroup): ConnectionGroup {
             config: {
                 contentType: input.content_type,
                 encoding: input.encoding,
+                extra: input.extra,
             }
         })),
         outputs: group.outputs.map(output => (<Connection>{
@@ -69,6 +31,7 @@ function streamGroupToConnectionGroup(group: TaskStreamGroup): ConnectionGroup {
             config: {
                 contentType: output.content_type,
                 encoding: output.encoding,
+                extra: output.extra,
             }
         })),
     }
@@ -83,6 +46,16 @@ export function taskToTemplateNode(task: Task): Node {
         setPosition: () => { },
         getConnectionGroups: () => task.stream_groups.map(streamGroupToConnectionGroup),
     };
+}
+
+export function streamToString(stream: TaskStream): string {
+    const format = [stream.content_type, stream.encoding].filter(x => x).join('/');
+    if (format) {
+        return `${stream.label} (${format})`;
+    }
+    else {
+        return stream.label;
+    }
 }
 
 export function taskToMockNode(task: Task): Node {

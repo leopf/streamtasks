@@ -4,7 +4,7 @@ import { state } from "../state";
 import { observer } from "mobx-react";
 import { useParams, useNavigate } from "react-router-dom";
 import React from "react";
-import { Box, Divider, IconButton, Stack, SxProps, Theme, Tooltip, Typography } from "@mui/material";
+import { Box, Divider, IconButton, Stack, SxProps, Table, TableBody, TableCell, TableContainer, TableRow, Theme, Tooltip, Typography } from "@mui/material";
 import { Clear as ClearIcon, PlayArrow as PlayIcon, Pause as PauseIcon, Cached as ReloadIcon, ReceiptLong as LogsIcon } from "@mui/icons-material";
 import { TaskTemplateList } from "../components/stateful/TaskTemplateList";
 import { NodeEditor } from "../components/stateless/NodeEditor";
@@ -12,7 +12,7 @@ import { TitleBar } from "../components/stateful/TitleBar";
 import { DeploymentLabelEditor } from "../components/stateless/DeploymentLabelEditor";
 import { LoadingButton } from '@mui/lab';
 import { SystemLogDisplay } from "../components/stateful/SystemLogDisplay";
-import { Task } from "../lib/task";
+import { TaskEditor } from "../components/stateful/TaskEditor";
 
 const statusButtonStyles: SxProps<Theme> = {
     backgroundColor: "#eee",
@@ -48,11 +48,6 @@ const DeploymentStatusButton = observer((props: { deployment: DeploymentState })
     )
 })
 
-const TaskEditor = observer((props: { task: Task, deployment: DeploymentState, onUnselect: () => void }) => {
-    return (
-        <div>hi</div>
-    );
-});
 
 function TaskEditorOverlay(props: { children: React.ReactNode, onClose?: () => void }) {
     return (
@@ -78,7 +73,7 @@ function TaskEditorOverlay(props: { children: React.ReactNode, onClose?: () => v
                             backgroundColor: "#eee"
                         }
                     }} onClick={props.onClose}>
-                        <ClearIcon sx={{ display: "block" }} width={"8px"} height={"8px"}/>
+                        <ClearIcon sx={{ display: "block" }} width={"8px"} height={"8px"} />
                     </Box>
                 </Stack>
                 <Divider />

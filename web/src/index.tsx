@@ -77,6 +77,14 @@ createServer({
                                 {
                                     topic_id: uuidv4(),
                                     label: "Output Stream",
+                                    content_type: "video",
+                                    encoding: "h264",
+                                    extra: {
+                                        width: 1920,
+                                        height: 1080,
+                                        framerate: 30,
+                                        bitrate: 1000000,
+                                    }
                                 }
                             ]
                         }
