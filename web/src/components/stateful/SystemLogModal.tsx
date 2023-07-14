@@ -5,15 +5,15 @@ import { AppModal } from "../stateless/AppModel";
 import React, { useEffect, useRef, useState } from "react";
 import { reaction } from "mobx";
 
-export const SystemLogDisplay = observer((props: { open: boolean, onClose: () => void }) => {
+export const SystemLogModal = observer((props: { }) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
 
     const scrollToEnd = () => containerRef.current?.scrollTo(0, containerRef.current.scrollHeight)
     useEffect(() => reaction(() => state.logs.length, scrollToEnd), [containerRef.current]);
-    useEffect(scrollToEnd, [props.open, containerRef]);
+    useEffect(scrollToEnd, [state.systemLogOpen, containerRef]);
 
     return (
-        <AppModal open={props.open} onClose={props.onClose} title="System logs">
+        <AppModal open={state.systemLogOpen} onClose={() => state.systemLogOpen = false} title="System logs">
             <Stack spacing={2} padding={2} ref={(e) => {
                 if (e !== containerRef.current) {
                     containerRef.current = e as HTMLDivElement;
@@ -24,7 +24,7 @@ export const SystemLogDisplay = observer((props: { open: boolean, onClose: () =>
                 overflowY: "auto",
                 maxHeight: "100%"
             }}>
-                {props.open && (
+                {state.systemLogOpen && (
                     state.logs.map((log, i) => {
                         return (<Box key={i}>{`[${log.timestamp.toLocaleString()}] ${log.level}: ${log.message}`}</Box>)
                     })

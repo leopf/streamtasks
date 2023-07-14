@@ -12,13 +12,21 @@ export class RootState {
     }
 
     @observable
-    private deployments: Deployment[] = [];
+    private _deployments: Deployment[] = [];
 
     @observable
     private _initialized = false;
 
     @observable
     public logs: LogEntry[] = [];
+
+    @observable
+    public systemLogOpen = false;
+
+    @computed
+    public get deployments() {
+        return [...this._deployments];
+    }
 
     constructor() {
         if (process.env.NODE_ENV === 'development') {
@@ -42,7 +50,7 @@ export class RootState {
     }
 
     public getDeployment(id: string) {
-        const deployment = this.deployments.find(d => d.id === id);
+        const deployment = this._deployments.find(d => d.id === id);
         if (!deployment) return undefined;
         return new DeploymentState(deployment);
     }
@@ -56,13 +64,13 @@ export class RootState {
         });
         const json = await res.json();
         const deployment: Deployment = json;
-        this.deployments.push(deployment);
+        this._deployments.push(deployment);
         return deployment;
     }
 
     public async loadDeployments() {
         const res = await fetch('/api/deployments');
-        this.deployments = await res.json();;
+        this._deployments = await res.json();;
     }
 
     private async loadTaskTemplates() {

@@ -1,9 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom";
-import { NodeDisplay } from "./components/stateless/NodeDisplay";
 import { GateTask, NumberGeneratorTask } from "./sample-nodes";
 import { NodeEditorRenderer } from "./lib/node-editor";
-import { NodeEditor } from "./components/stateless/NodeEditor";
 import { createServer } from "miragejs"
 import { App } from "./App";
 import { Deployment, Task } from "./lib/task";

@@ -2,24 +2,44 @@ import { observer } from "mobx-react";
 import { useEffect } from "react";
 import { state } from "./state";
 import React from "react";
-import { Route, RouterProvider, createBrowserRouter, createRoutesFromElements } from "react-router-dom";
+import { Route, RouterProvider, createBrowserRouter, Link as RouterLink, LinkProps as RouterLinkProps } from "react-router-dom";
 import { DeploymentPage } from "./pages/DeploymentPage";
-import { NewDeploymentPage } from "./pages/NewDeploymentPage";
-import { ThemeProvider, createTheme } from "@mui/material";
+import { LinkProps, ThemeProvider, createTheme } from "@mui/material";
+import { SystemLogModal } from "./components/stateful/SystemLogModal";
+import { HomePage } from "./pages/HomePage";
 
 const router = createBrowserRouter([
     {
         path: "/deployment/view/:id",
-        element: <DeploymentPage/>
+        element: <DeploymentPage />
     },
     {
-        path: "/deployment/new",
-        element: <NewDeploymentPage/>
+        path: "/",
+        element: <HomePage />
     }
 ]);
 
+const LinkBehavior = React.forwardRef<
+    HTMLAnchorElement,
+    Omit<RouterLinkProps, 'to'> & { href: RouterLinkProps['to'] }
+>((props, ref) => {
+    const { href, ...other } = props;
+    return <RouterLink ref={ref} to={href} {...other} />;
+});
+
 const theme = createTheme({
-    
+    components: {
+        MuiLink: {
+            defaultProps: {
+                component: LinkBehavior,
+            } as LinkProps,
+        },
+        MuiButtonBase: {
+            defaultProps: {
+                LinkComponent: LinkBehavior,
+            },
+        },
+    },
 });
 
 export const App = observer(() => {
@@ -32,6 +52,11 @@ export const App = observer(() => {
     }
 
     return (
-        <RouterProvider router={router}/>
+        <ThemeProvider theme={theme}>
+            <>
+                <SystemLogModal/>
+                <RouterProvider router={router} />
+            </>
+        </ThemeProvider>
     )
 })

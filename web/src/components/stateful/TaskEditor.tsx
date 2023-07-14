@@ -22,7 +22,6 @@ const TaskStreamDisplay = (props: { stream: TaskStream }) => {
     )
 };
 
-
 export const TaskEditor = observer((props: { task: Task, deployment: DeploymentState, onUnselect: () => void }) => {
     const mappedStreams = useMemo(() => {
         const streams: [(TaskStream | undefined), (TaskStream | undefined)][] = [];
@@ -52,7 +51,7 @@ export const TaskEditor = observer((props: { task: Task, deployment: DeploymentS
                         {mappedStreams.map(([input, output], i) => (
                             <TableRow>
                                 <TableCell padding="none" align="left">{input ? <TaskStreamDisplay stream={input} /> : <Box height={1} />}</TableCell>
-                                <TableCell padding="none" align="right">{output ? <TaskStreamDisplay stream={output} /> : <Box height={1} />}</TableCell>
+                                <TableCell padding="none" align="left">{output ? <TaskStreamDisplay stream={output} /> : <Box height={1} />}</TableCell>
                             </TableRow>
                         ))}
                     </TableBody>

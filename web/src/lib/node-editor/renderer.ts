@@ -457,7 +457,7 @@ export async function renderNodeToImage(node: Node, options: NodeRenderOptions) 
 
 export class NodeEditorRenderer {
     public viewport: Viewport;
-    private app: PIXI.Application;
+    private app?: PIXI.Application;
     private connectionLayer = new PIXI.Container();
     private nodeRenderers = new Map<string, NodeRenderer>();
     private links = new ConnectionLinkCollection();
@@ -647,7 +647,7 @@ export class NodeEditorRenderer {
     }
     public unmount() {
         if (!this.container) return;
-        this.app.stop();
+        this.app?.stop();
         this.containerResizeObserver?.disconnect();
         this.containerResizeObserver = undefined;
         while (this.container.firstChild) {
@@ -656,6 +656,7 @@ export class NodeEditorRenderer {
     }
     public mount(container: HTMLElement) {
         this.unmount();
+        if (!this.app) return;
         this.container = container;
         container.appendChild(this.app.view as HTMLCanvasElement);
         this.app.start();
@@ -666,7 +667,8 @@ export class NodeEditorRenderer {
     }
     public destroy() {
         this.unmount();
-        this.app.destroy();
+        this.app?.destroy();
+        this.app = undefined;
     }
 
     private emitUpdated(nodeId: string) {
@@ -678,7 +680,7 @@ export class NodeEditorRenderer {
 
     private resize() {
         if (!this.container) return;
-        this.app.renderer.resize(this.container.clientWidth, this.container.clientHeight);
+        this.app?.renderer.resize(this.container.clientWidth, this.container.clientHeight);
         this.viewport.resize(this.container.clientWidth, this.container.clientHeight, 1000, 1000);
     }
     private createLinksFromOutputConnections(nodeId: string, outputConnections: Connection[]) {
