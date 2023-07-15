@@ -66,7 +66,7 @@ class TaskFactoryWorker(Worker, ABC):
 
     @server.route(TaskFetchDescriptors.DEPLOY_TASK)
     async def deploy_task(req: FetchRequest):
-      deployment: TaskDeployment = TaskDeployment.parse_obj(req.body)
+      deployment: DeploymentTaskFull = DeploymentTaskFull.parse_obj(req.body)
       status = await self.deploy_task(deployment)
       await req.respond(status.dict())
 
@@ -98,7 +98,7 @@ class TaskFactoryWorker(Worker, ABC):
     await task.stop(self.stop_timeout)
     del self.tasks[deployment.id]
     return task.get_deployment_status()
-  async def deploy_task(self, deployment: TaskDeployment):
+  async def deploy_task(self, deployment: DeploymentTaskFull):
     if deployment.id in self.tasks:
       task: Task = self.tasks[deployment.id]
       if task.can_update(deployment): 
@@ -113,11 +113,11 @@ class TaskFactoryWorker(Worker, ABC):
     return task.get_deployment_status()
   async def create_client(self) -> Client: return Client(await self.create_connection())
   @abstractproperty
-  def task_format(self) -> TaskFormat: pass
+  def task_format(self) -> DeploymentTask: pass
   @abstractproperty
   def config_script(self) -> str: pass
   @abstractmethod
-  async def create_task(self, deployment: TaskDeployment) -> Task: pass
+  async def create_task(self, deployment: DeploymentTaskFull) -> Task: pass
 
 # TODO: this needs the actual dashboard
 class NodeManagerWorker(Worker):
@@ -250,23 +250,23 @@ class TaskManagerWorker(Worker):
       return deployment.dict()
 
     @app.post("/api/deployment")
-    async def create_deployment(tasks: list[TaskDeploymentBase]):
+    async def create_deployment(tasks: list[DeploymentTask]):
       topic_str_ids = set(itertools.chain.from_iterable(task.get_topic_ids() for task in tasks))
       topic_int_ids = await client.request_topic_ids(len(topic_str_ids))
       topic_id_map = { topic_str_id: topic_int_id for topic_str_id, topic_int_id in zip(topic_str_ids, topic_int_ids) }
-      deployment = Deployment(id=str(uuid4()), status="offline", tasks=[ TaskDeployment(
-        id=str(uuid4()),
-        topic_id_map={ k: topic_id_map[k] for k in set(deployment.get_topic_ids()) },
-        **deployment.dict()
-      ) for deployment in tasks ])
+      deployment = Deployment(id=str(uuid4()), status="offline", tasks=[ DeploymentTaskFull(**{
+        **deployment.dict(),
+        "topic_id_map":{ k: topic_id_map[k] for k in set(deployment.get_topic_ids()) },
+        "id":str(uuid4()),
+      }) for deployment in tasks ])
 
       self.deployments[deployment.id] = deployment
       return deployment.dict()
     
     await self.asgi_server.serve(app)
 
-  async def _stop_task_deployments(self, client: Client, tasks: list[TaskDeployment]):
-    async def delete_task(task: TaskDeployment):
+  async def _stop_task_deployments(self, client: Client, tasks: list[DeploymentTaskFull]):
+    async def delete_task(task: DeploymentTaskFull):
       factory: TaskFactoryRegistration = self.task_factory_router.get_task_factory(task.task_factory_id)
       if factory is None: 
         logging.error(f"task factory {task.task_factory_id} not found while stopping deployment {task.id}")
@@ -287,7 +287,7 @@ class TaskManagerWorker(Worker):
     deployed_tasks = []
     deployment_failed = False
 
-    async def deploy_task(task: TaskDeployment):
+    async def deploy_task(task: DeploymentTaskFull):
       try:
         factory: TaskFactoryRegistration = self.task_factory_router.get_task_factory(task.task_factory_id)
         if factory is None: raise RuntimeError(f"task factory {task.task_factory_id} not found!")

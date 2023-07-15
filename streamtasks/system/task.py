@@ -1,4 +1,4 @@
-from streamtasks.system.types import TaskDeployment, TaskDeploymentStatus
+from streamtasks.system.types import DeploymentTaskFull, TaskDeploymentStatus
 from streamtasks.system.helpers import asgi_app_not_found
 from abc import ABC, abstractmethod
 import asyncio
@@ -16,8 +16,8 @@ class Task(ABC):
       running=self._task is not None and not self._task.done(),
       error=str(error) if error is not None else None)
 
-  def can_update(self, deployment: TaskDeployment): return False
-  async def update(self, deployment: TaskDeployment): pass
+  def can_update(self, deployment: DeploymentTaskFull): return False
+  async def update(self, deployment: DeploymentTaskFull): pass
   async def stop(self, timeout: float = None): 
     if self._task is None: raise RuntimeError("Task not started")
     self._task.cancel()

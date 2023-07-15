@@ -1,7 +1,7 @@
 import unittest
 from .shared import TaskTestBase
 from streamtasks.tasks.passivize import PassivizeTask
-from streamtasks.system.types import TaskDeployment, TaskStream, TaskStreamGroup
+from streamtasks.system.types import DeploymentTaskFull, TaskInputStream, TaskOutputStream, TaskStreamGroup
 from streamtasks.message import JsonData, NumberMessage
 import asyncio
 
@@ -17,17 +17,17 @@ class TestPassivize(TaskTestBase):
     await self.stream_passive_out_topic.set_topic(102)
 
 
-  def get_deployment_config(self): return TaskDeployment(
+  def get_deployment_config(self): return DeploymentTaskFull(
     id="test_passivize",
     task_factory_id="test_factory",
     label="test passivize",
     config={},
     stream_groups=[
       TaskStreamGroup(
-        inputs=[ TaskStream(topic_id="input", label="input") ],
+        inputs=[ TaskInputStream(ref_id="in1", topic_id="input", label="input") ],
         outputs=[
-          TaskStream(topic_id="active_output", label="active output"),
-          TaskStream(topic_id="passive_output", label="passive output")
+          TaskOutputStream(topic_id="active_output", label="active output"),
+          TaskOutputStream(topic_id="passive_output", label="passive output")
         ]
       )
     ],

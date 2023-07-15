@@ -1,6 +1,6 @@
 from streamtasks.system.task import Task
 from streamtasks.system.workers import TaskFactoryWorker
-from streamtasks.system.types import TaskDeployment, TaskFormat, TaskStreamFormatGroup, TaskStreamFormat
+from streamtasks.system.types import DeploymentTaskFull, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
 from streamtasks.client import Client
 from streamtasks.client.receiver import NoopReceiver
 from streamtasks.message import NumberMessage, get_timestamp_from_message, SerializableData
@@ -16,7 +16,7 @@ class GateFailMode(Enum):
   PASSIVE = "passive"
 
 class GateTask(Task):
-  def __init__(self, client: Client, deployment: TaskDeployment):
+  def __init__(self, client: Client, deployment: DeploymentTaskFull):
     super().__init__(client)
     self.deployment = deployment
 
@@ -93,18 +93,19 @@ class GateTask(Task):
     await self.output_topic.set_paused(self.input_paused or not self.gate_open)
 
 class GateTaskFactoryWorker(TaskFactoryWorker):
-  async def create_task(self, deployment: TaskDeployment): return GateTask(await self.create_client(), deployment)
+  async def create_task(self, deployment: DeploymentTaskFull): return GateTask(await self.create_client(), deployment)
   @property
   def config_script(self): return ""
   @property
-  def task_format(self): return TaskFormat(
+  def task_format(self): return DeploymentTask(
+    id="gate",
     task_factory_id=self.id,
     label="Gate",
     hostname=socket.gethostname(),
     stream_groups=[
-      TaskStreamFormatGroup(
-        inputs=[TaskStreamFormat(label="input"), TaskStreamFormat(label="gate", content_type="number")],    
-        outputs=[TaskStreamFormat(label="output")]      
+      TaskStreamGroup(
+        inputs=[TaskInputStream(ref_id="in1", label="input"), TaskInputStream(ref_id="in2", label="gate", content_type="number")],    
+        outputs=[TaskOutputStream(topic_id="out1", label="output")]      
       )
     ]
   )

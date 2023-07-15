@@ -1,6 +1,6 @@
 from streamtasks.system.task import Task
 from streamtasks.system.workers import TaskFactoryWorker
-from streamtasks.system.types import TaskDeployment, TaskFormat, TaskStreamFormatGroup, TaskStreamFormat
+from streamtasks.system.types import DeploymentTaskFull, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
 from streamtasks.client import Client
 from streamtasks.client.receiver import NoopReceiver
 from streamtasks.message import NumberMessage, get_timestamp_from_message, SerializableData, MessagePackData
@@ -164,7 +164,7 @@ class CalculatorInputConfig(BaseModel):
   fallback_value: Optional[float]
 
 class CalculatorTask(Task):
-  def __init__(self, client: Client, deployment: TaskDeployment):
+  def __init__(self, client: Client, deployment: DeploymentTaskFull):
     super().__init__(client)
     self.deployment = deployment
 
@@ -220,18 +220,19 @@ class CalculatorTask(Task):
     await self.client.send_stream_data(self.output_topic.topic, NumberMessage(timestamp=timestamp, value=output_value))
 
 class CalculatorTaskFactoryWorker(TaskFactoryWorker):
-  async def create_task(self, deployment: TaskDeployment): return CalculatorTask(await self.create_client(), deployment)
+  async def create_task(self, deployment: DeploymentTaskFull): return CalculatorTask(await self.create_client(), deployment)
   @property
   def config_script(self): return ""
   @property
-  def task_format(self): return TaskFormat(
+  def task_format(self): return DeploymentTask(
+    id="calculator",
     task_factory_id=self.id,
     label="Calculator",
     hostname=socket.gethostname(),
     stream_groups=[
-      TaskStreamFormatGroup(
-        inputs=[TaskStreamFormat(label="x"), TaskStreamFormat(label="y")],    
-        outputs=[TaskStreamFormat(label="output")]      
+      TaskStreamGroup(
+        inputs=[TaskInputStream(ref_id="in1", label="x"), TaskInputStream(ref_id="in2", label="y")],    
+        outputs=[TaskOutputStream(topic_id="out1", label="output")]      
       )
     ]
   )

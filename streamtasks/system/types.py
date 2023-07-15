@@ -27,31 +27,25 @@ class TaskFactoryRegistration(BaseModel):
 class TaskFactoryDeleteMessage(BaseModel):
   id: str
 
-class TaskStreamFormat(BaseModel):
+class TaskStreamBase(BaseModel):
   label: str
   content_type: Optional[str]
   encoding: Optional[str]
+  extra: Optional[dict[str, Any]]
 
-class TaskStream(TaskStreamFormat):
+class TaskInputStream(TaskStreamBase):
+  topic_id: Optional[str]
+  ref_id: str
+
+class TaskOutputStream(TaskStreamBase):
   topic_id: str
 
-class TaskStreamFormatGroup(BaseModel):
-  label: Optional[str]
-  inputs: list[TaskStreamFormat]
-  outputs: list[TaskStreamFormat]
-
 class TaskStreamGroup(BaseModel):
-  label: Optional[str]
-  inputs: list[TaskStream]
-  outputs: list[TaskStream]
+  inputs: list[TaskInputStream]
+  outputs: list[TaskOutputStream]
 
-class TaskFormat(BaseModel):
-  task_factory_id: str
-  label: str
-  hostname: str
-  stream_groups: list[TaskStreamFormatGroup]
-
-class TaskDeploymentBase(BaseModel):
+class DeploymentTask(BaseModel):
+  id: str
   task_factory_id: str
   label: str
   config: dict[str, Any]
@@ -60,11 +54,12 @@ class TaskDeploymentBase(BaseModel):
   def get_topic_ids(self) -> set[str]:
     for stream_group in self.stream_groups:
       for stream in itertools.chain(stream_group.inputs, stream_group.outputs):
-        yield stream.topic_id
+        if stream.topic_id is not None:
+          yield stream.topic_id
 
-class TaskDeployment(TaskDeploymentBase):
-  id: str
+class DeploymentTaskFull(DeploymentTask):
   topic_id_map: dict[str, int]
+_on_state_change
 
 class TaskDeploymentStatus(BaseModel):
   running: bool
@@ -80,7 +75,7 @@ class TaskDeploymentDeleteMessage(BaseModel):
 
 class Deployment(BaseModel):
   id: str
-  tasks: list[TaskDeployment]
+  tasks: list[DeploymentTaskFull]
   status: str 
 
 class TaskFetchDescriptors:

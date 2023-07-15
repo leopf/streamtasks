@@ -1,6 +1,6 @@
 from streamtasks.system.task import Task
 from streamtasks.system.workers import TaskFactoryWorker
-from streamtasks.system.types import TaskDeployment, TaskFormat, TaskStreamFormatGroup, TaskStreamFormat
+from streamtasks.system.types import DeploymentTaskFull, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
 from streamtasks.client import Client
 from streamtasks.client.receiver import NoopReceiver
 from streamtasks.message import NumberMessage, get_timestamp_from_message, SerializableData
@@ -11,7 +11,7 @@ import logging
 from enum import Enum
 
 class PassivizeTask(Task):
-  def __init__(self, client: Client, deployment: TaskDeployment):
+  def __init__(self, client: Client, deployment: DeploymentTaskFull):
     super().__init__(client)
     self.message_receiver_ready = asyncio.Event()
     self.subscribe_receiver_ready = asyncio.Event()
@@ -21,8 +21,8 @@ class PassivizeTask(Task):
     self.passive_output_topic = client.create_provide_tracker()
     self.deployment = deployment
 
-  def can_update(self, deployment: TaskDeployment): return True
-  async def update(self, deployment: TaskDeployment): await self._apply_deployment(deployment)
+  def can_update(self, deployment: DeploymentTaskFull): return True
+  async def update(self, deployment: DeploymentTaskFull): await self._apply_deployment(deployment)
   async def start_task(self):
     try:
       return await asyncio.gather(
@@ -65,7 +65,7 @@ class PassivizeTask(Task):
           await self.passive_output_topic.set_paused(control.paused)
           await self.active_output_topic.set_paused(control.paused)
 
-  async def _apply_deployment(self, deployment: TaskDeployment):
+  async def _apply_deployment(self, deployment: DeploymentTaskFull):
     topic_id_map = deployment.topic_id_map
     await self.input_topic.set_topic(topic_id_map[deployment.stream_groups[0].inputs[0].topic_id])
     await self.active_output_topic.set_topic(topic_id_map[deployment.stream_groups[0].outputs[0].topic_id])
@@ -73,18 +73,19 @@ class PassivizeTask(Task):
     self.deployment = deployment
 
 class PassivizeTaskFactoryWorker(TaskFactoryWorker):
-  async def create_task(self, deployment: TaskDeployment): return PassivizeTask(await self.create_client(), deployment)
+  async def create_task(self, deployment: DeploymentTaskFull): return PassivizeTask(await self.create_client(), deployment)
   @property
   def config_script(self): return ""
   @property
-  def task_format(self): return TaskFormat(
+  def task_format(self): return DeploymentTask(
+    id="passivize",
     task_factory_id=self.id,
     label="Passivize",
     hostname=socket.gethostname(),
     stream_groups=[
-      TaskStreamFormatGroup(
-        inputs=[TaskStreamFormat(label="input")],    
-        outputs=[TaskStreamFormat(label="active output"), TaskStreamFormat(label="passive output")]      
+      TaskStreamGroup(
+        inputs=[TaskInputStream(ref_id="in1", label="input")],    
+        outputs=[TaskOutputStream(topic_id="out1", label="active output"), TaskOutputStream(topic_id="out2", label="passive output")]      
       )
     ]
   )
