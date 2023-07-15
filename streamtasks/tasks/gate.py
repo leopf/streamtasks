@@ -97,7 +97,7 @@ class GateTaskFactoryWorker(TaskFactoryWorker):
   @property
   def config_script(self): return ""
   @property
-  def task_format(self): return DeploymentTask(
+  def task_template(self): return DeploymentTask(
     id="gate",
     task_factory_id=self.id,
     label="Gate",

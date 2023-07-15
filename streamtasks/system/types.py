@@ -59,7 +59,6 @@ class DeploymentTask(BaseModel):
 
 class DeploymentTaskFull(DeploymentTask):
   topic_id_map: dict[str, int]
-_on_state_change
 
 class TaskDeploymentStatus(BaseModel):
   running: bool

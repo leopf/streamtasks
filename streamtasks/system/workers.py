@@ -82,7 +82,7 @@ class TaskFactoryWorker(Worker, ABC):
     async def config_js(): return PlainTextResponse(self.config_script, media_type="application/javascript")
 
     @app.get("/task-format.json")
-    async def task_format(): return self.task_format.dict()
+    async def task_template(): return self.task_template.dict()
 
     runner = ASGIAppRunner(self._client, app, self.reg.web_init_descriptor, self.reg.worker_address)
     self.web_server_running.set()
@@ -113,7 +113,7 @@ class TaskFactoryWorker(Worker, ABC):
     return task.get_deployment_status()
   async def create_client(self) -> Client: return Client(await self.create_connection())
   @abstractproperty
-  def task_format(self) -> DeploymentTask: pass
+  def task_template(self) -> DeploymentTask: pass
   @abstractproperty
   def config_script(self) -> str: pass
   @abstractmethod

@@ -55,7 +55,7 @@ class CounterMultipyTask(Task):
 
 class TestTaskFactoryWorker(TaskFactoryWorker):
   @property
-  def task_format(self): return None
+  def task_template(self): return None
   @property
   def config_script(self): return ""
 

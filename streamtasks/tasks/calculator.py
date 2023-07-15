@@ -224,7 +224,7 @@ class CalculatorTaskFactoryWorker(TaskFactoryWorker):
   @property
   def config_script(self): return ""
   @property
-  def task_format(self): return DeploymentTask(
+  def task_template(self): return DeploymentTask(
     id="calculator",
     task_factory_id=self.id,
     label="Calculator",
