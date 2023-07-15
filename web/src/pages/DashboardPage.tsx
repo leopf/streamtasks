@@ -5,6 +5,7 @@ import { TitleBar } from "../components/stateful/TitleBar";
 import { ShowSystemLogsButton } from "../components/stateful/ShowSystemLogsButton";
 import { useNavigate, useParams } from "react-router-dom";
 import { state } from "../state";
+import { ErrorScreen } from "../components/stateless/ErrorScreen";
 
 export const DashboardPage = observer((props: {}) => {
     const params = useParams<{id: string}>();
@@ -18,7 +19,7 @@ export const DashboardPage = observer((props: {}) => {
     }, [dashboard]);
 
     if (!dashboard) {
-        return <div>Error...</div>
+        return <ErrorScreen/>;
     }
 
     return (

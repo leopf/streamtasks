@@ -2,12 +2,13 @@ import { observer } from "mobx-react";
 import { useEffect } from "react";
 import { state } from "./state";
 import React from "react";
-import { Route, RouterProvider, createBrowserRouter, Link as RouterLink, LinkProps as RouterLinkProps } from "react-router-dom";
+import { RouterProvider, createBrowserRouter, Link as RouterLink, LinkProps as RouterLinkProps } from "react-router-dom";
 import { DeploymentPage } from "./pages/DeploymentPage";
 import { LinkProps, ThemeProvider, createTheme } from "@mui/material";
 import { SystemLogModal } from "./components/stateful/SystemLogModal";
 import { HomePage } from "./pages/HomePage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { LoadingScreen } from "./components/stateless/LoadingScreen";
 
 const router = createBrowserRouter([
     {
@@ -53,7 +54,7 @@ export const App = observer(() => {
     }, []);
 
     if (!state.initialized) {
-        return <div>Loading...</div>;
+        return <LoadingScreen/>;
     }
 
     return (

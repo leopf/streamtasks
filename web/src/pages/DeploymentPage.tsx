@@ -13,6 +13,7 @@ import { DeploymentLabelEditor } from "../components/stateless/DeploymentLabelEd
 import { LoadingButton } from '@mui/lab';
 import { TaskEditor } from "../components/stateful/TaskEditor";
 import { ShowSystemLogsButton } from "../components/stateful/ShowSystemLogsButton";
+import { ErrorScreen } from "../components/stateless/ErrorScreen";
 
 const statusButtonStyles: SxProps<Theme> = {
     backgroundColor: "#eee",
@@ -120,7 +121,7 @@ export const DeploymentPage = observer((props: {}) => {
     }, [deployment, selectedTaskId])
 
     if (!deployment) {
-        return <div>Error...</div>
+        return <ErrorScreen/>;
     }
 
     return (
