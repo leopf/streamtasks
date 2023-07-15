@@ -272,6 +272,9 @@ class ConnectionLinkCollection {
     public remove(link: ConnectionLink) {
         this.map.delete(this.getKey(link));
     }
+    public has(link: ConnectionLink) {
+        return this.map.has(this.getKey(link));
+    }
 
     private getKey(link: ConnectionLink) {
         return objectHash([link.inputId, link.outputId])
@@ -609,6 +612,7 @@ export class NodeEditorRenderer {
 
         const connection: ConnectionLink | undefined = this.createConnectionLink(this.selectedNodeId, this.selectedConnectionId, nodeId, connectionId);
         if (!connection) return;
+        if (this.links.has(connection)) return;
 
         if (await this.connectLinkToInput(connection)) {
             this.links.add(connection);

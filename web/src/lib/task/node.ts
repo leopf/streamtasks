@@ -2,7 +2,6 @@ import cloneDeep from "clone-deep";
 import { Connection, Node } from "../node-editor";
 import { Task, TaskOutputStream } from "./types";
 import { connectionToOutputStream, streamGroupToConnectionGroup } from "./utils";
-import { detailedDiff } from 'deep-object-diff';
 import objectPath from 'object-path';
 import deepEqual from "deep-equal";
 
@@ -23,7 +22,7 @@ function taskRequiresUpdate(oldTask: Task, newTask: Task) {
         "config.position",
         "stream_groups",
     ];
-    
+
     return updatePaths.some(path => !deepEqual(objectPath(oldTask).get(path), objectPath(newTask).get(path)));
 }
 
@@ -85,9 +84,13 @@ export class TaskNode implements Node {
                     group.inputs.forEach(input => {
                         if (input.ref_id === inputId) {
                             input.topic_id = stream?.topic_id;
+                            if (input.topic_id === undefined) {
+                                delete input.topic_id;
+                            }
                         }
                     });
                 });
+
                 Object.assign(this.task, data.task);
                 if (taskRequiresUpdate(cloned, data.task)) {
                     console.log("update")
