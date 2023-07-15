@@ -1,6 +1,6 @@
 import unittest
 from streamtasks.tasks.gate import GateTask, GateFailMode
-from streamtasks.system.types import DeploymentTaskFull, TaskInputStream, TaskOutputStream, TaskStreamGroup
+from streamtasks.system.types import DeploymentTask, TaskInputStream, TaskOutputStream, TaskStreamGroup
 from streamtasks.client import Client
 from streamtasks.comm import Switch, create_local_cross_connector
 from streamtasks.comm.types import TopicControlData
@@ -20,7 +20,7 @@ class TestGate(TaskTestBase):
     self.stream_out_topic = self.client.create_subscription_tracker()
     await self.stream_out_topic.set_topic(102, subscribe=False)
 
-  def get_deployment_config(self, fail_mode: GateFailMode): return DeploymentTaskFull(
+  def get_deployment_config(self, fail_mode: GateFailMode): return DeploymentTask(
       id="test_gate",
       task_factory_id="test_factory",
       label="test gate",
@@ -28,8 +28,8 @@ class TestGate(TaskTestBase):
       stream_groups=[
         TaskStreamGroup(
           inputs=[ 
-            TaskInputStream(ref_id="in", topic_id="input", label="input"),
-            TaskInputStream(ref_id="gate", topic_id="gate", label="gate")
+            TaskInputStream(topic_id="input", label="input"),
+            TaskInputStream(topic_id="gate", label="gate")
           ],
           outputs=[ TaskOutputStream(topic_id="output", label="output") ]
         )

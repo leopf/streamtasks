@@ -1,6 +1,9 @@
-from pydantic import BaseModel
-from typing import Optional, Any, Union
+from pydantic import BaseModel, Field
+from typing import Optional, Any, Union, Literal
+from uuid import uuid4
 import itertools
+
+def uuid4_str() -> str: return str(uuid4())
 
 class DashboardRegistration(BaseModel):
   label: str
@@ -26,30 +29,28 @@ class TaskStreamBase(BaseModel):
 
 class TaskInputStream(TaskStreamBase):
   topic_id: Optional[str]
-  ref_id: str
+  ref_id: str = Field(default_factory=uuid4_str)
 
 class TaskOutputStream(TaskStreamBase):
-  topic_id: str
+  topic_id: str = Field(default_factory=uuid4_str)
 
 class TaskStreamGroup(BaseModel):
   inputs: list[TaskInputStream]
   outputs: list[TaskOutputStream]
 
 class DeploymentTask(BaseModel):
-  id: str
+  id: str = Field(default_factory=uuid4_str)
   task_factory_id: str
   label: str
-  config: dict[str, Any]
+  config: dict[str, Any] = {}
   stream_groups: list[TaskStreamGroup]
+  topic_id_map: dict[str, int] = {}
 
   def get_topic_ids(self) -> set[str]:
     for stream_group in self.stream_groups:
       for stream in itertools.chain(stream_group.inputs, stream_group.outputs):
         if stream.topic_id is not None:
           yield stream.topic_id
-
-class DeploymentTaskFull(DeploymentTask):
-  topic_id_map: dict[str, int]
 
 class TaskDeploymentStatus(BaseModel):
   running: bool
@@ -75,9 +76,13 @@ class TaskFactoryDeleteMessage(BaseModel):
   id: str
 
 class Deployment(BaseModel):
-  id: str
-  tasks: list[DeploymentTaskFull]
-  status: str 
+  id: str = Field(default_factory=uuid4_str)
+  tasks: list[DeploymentTask]
+  status: Literal[("running", "offline", "errored", "failed")]
+
+class DeploymentStatus(BaseModel):
+  status: Literal[("running", "offline", "errored", "failed")]
+  started: bool
 
 class TaskFetchDescriptors:
   REGISTER_TASK_FACTORY = "register_task_factory"

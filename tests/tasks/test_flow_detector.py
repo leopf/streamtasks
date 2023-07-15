@@ -1,7 +1,7 @@
 import unittest
 from .shared import TaskTestBase
 from streamtasks.tasks.flowdetector import FlowDetectorTask, FlowDetectorFailMode
-from streamtasks.system.types import DeploymentTaskFull, TaskInputStream, TaskOutputStream, TaskStreamGroup
+from streamtasks.system.types import DeploymentTask, TaskInputStream, TaskOutputStream, TaskStreamGroup
 from streamtasks.message import JsonData, NumberMessage
 from streamtasks.helpers import get_timestamp_ms
 import asyncio
@@ -18,8 +18,7 @@ class TestFlowDetector(TaskTestBase):
     await self.stream_signal_topic.set_topic(102)
 
 
-  def get_deployment_config(self, fail_mode: FlowDetectorFailMode): return DeploymentTaskFull(
-    id="test_flow_detector",
+  def get_deployment_config(self, fail_mode: FlowDetectorFailMode): return DeploymentTask(
     task_factory_id="test_factory",
     label="test flow detector",
     config={
@@ -28,7 +27,7 @@ class TestFlowDetector(TaskTestBase):
     },
     stream_groups=[
       TaskStreamGroup(
-        inputs=[ TaskInputStream(ref_id="in", topic_id="input", label="input") ],
+        inputs=[ TaskInputStream(topic_id="input", label="input") ],
         outputs=[
           TaskOutputStream(topic_id="output", label="output"),
           TaskOutputStream(topic_id="signal", label="signal")

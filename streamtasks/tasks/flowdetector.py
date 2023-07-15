@@ -1,6 +1,6 @@
 from streamtasks.system.task import Task
 from streamtasks.system.workers import TaskFactoryWorker
-from streamtasks.system.types import DeploymentTaskFull, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
+from streamtasks.system.types import DeploymentTask, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
 from streamtasks.client import Client
 from streamtasks.client.receiver import NoopReceiver
 from streamtasks.message import NumberMessage, get_timestamp_from_message, SerializableData, MessagePackData
@@ -17,7 +17,7 @@ class FlowDetectorFailMode(Enum):
   FAIL_OPEN = "fail_open"
 
 class FlowDetectorTask(Task):
-  def __init__(self, client: Client, deployment: DeploymentTaskFull):
+  def __init__(self, client: Client, deployment: DeploymentTask):
     super().__init__(client)    
     self.time_sync = TimeSynchronizer()
     self.setup_done = asyncio.Event()
@@ -94,19 +94,18 @@ class FlowDetectorTask(Task):
       await self.client.send_stream_data(self.signal_topic.topic, MessagePackData(message.dict()))
 
 class FlowDetectorTaskFactoryWorker(TaskFactoryWorker):
-  async def create_task(self, deployment: DeploymentTaskFull): return FlowDetectorTask(await self.create_client(), deployment)
+  async def create_task(self, deployment: DeploymentTask): return FlowDetectorTask(await self.create_client(), deployment)
   @property
   def config_script(self): return ""
   @property
   def task_template(self): return DeploymentTask(
-    id="flow_detector",
     task_factory_id=self.id,
     label="Flow Detector",
     hostname=socket.gethostname(),
     stream_groups=[
       TaskStreamGroup(
-        inputs=[TaskInputStream(ref_id="in1", label="input")],    
-        outputs=[TaskOutputStream(topic_id="out1", label="output"), TaskOutputStream(topic_id="out2", label="signal")]      
+        inputs=[TaskInputStream(label="input")],    
+        outputs=[TaskOutputStream(label="output"), TaskOutputStream(label="signal")]      
       )
     ]
   )

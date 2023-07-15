@@ -14,7 +14,7 @@ from pydantic import parse_obj_as
 import json
 
 class CounterEmitTask(Task):
-  def __init__(self, client: Client, deployment: DeploymentTaskFull):
+  def __init__(self, client: Client, deployment: DeploymentTask):
     super().__init__(client)
     self.counter = deployment.config["initial_count"] if "initial_count" in deployment.config else 0
     self.topic_id_map = deployment.topic_id_map
@@ -31,7 +31,7 @@ class CounterEmitTask(Task):
         await self.client.send_stream_data(output_topic_id, MessagePackData({ "count": self.counter }))
 
 class CounterMultipyTask(Task):
-  def __init__(self, client: Client, deployment: DeploymentTaskFull):
+  def __init__(self, client: Client, deployment: DeploymentTask):
     super().__init__(client)
     self.multiplier = deployment.config["multiplier"] if "multiplier" in deployment.config else 2
     self.topic_id_map = deployment.topic_id_map
@@ -58,7 +58,7 @@ class TestTaskFactoryWorker(TaskFactoryWorker):
   def config_script(self): return ""
 
 class CounterIncrementTaskFactory(TestTaskFactoryWorker):
-  async def create_task(self, deployment: DeploymentTaskFull) -> Task: return CounterMultipyTask(await self.create_client(), deployment)
+  async def create_task(self, deployment: DeploymentTask) -> Task: return CounterMultipyTask(await self.create_client(), deployment)
   @property
   def task_template(self): return DeploymentTask(
     id="counter_increment",
@@ -70,7 +70,7 @@ class CounterIncrementTaskFactory(TestTaskFactoryWorker):
 
 
 class CounterEmitTaskFactory(TestTaskFactoryWorker):
-  async def create_task(self, deployment: DeploymentTaskFull) -> Task: return CounterEmitTask(await self.create_client(), deployment)
+  async def create_task(self, deployment: DeploymentTask) -> Task: return CounterEmitTask(await self.create_client(), deployment)
   
   @property
   def task_template(self): return DeploymentTask(
@@ -143,18 +143,16 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
 
       deployments: list[DeploymentTask] = [
         DeploymentTask(
-          id="task1",
           task_factory_id=self.counter_emit_worker.id, 
           label="emit counter", 
           config={ "initial_count": 2 }, 
           stream_groups=[TaskStreamGroup(inputs=[],outputs=[TaskOutputStream(label="count",topic_id="emit")])]
         ),
         DeploymentTask(
-          id="task2",
           task_factory_id=self.counter_increment_worker.id,
           label="increment",
           config={ "multiplier": multiplier },
-          stream_groups=[TaskStreamGroup(inputs=[TaskInputStream(ref_id="in1", label="value in",topic_id="emit")], outputs=[TaskOutputStream(label="value out",topic_id="increment")])]
+          stream_groups=[TaskStreamGroup(inputs=[TaskInputStream(label="value in",topic_id="emit")], outputs=[TaskOutputStream(label="value out",topic_id="increment")])]
         )
       ]
 

@@ -34,7 +34,7 @@ class TaskFactoryStore:
   @property
   def task_templates(self): return [ tf.task_template for tf in self._task_factories.values() ]
 
-  async def start_task(self, task: DeploymentTaskFull):
+  async def start_task(self, task: DeploymentTask):
     factory = self._task_factories.get(task.task_factory_id, None)
     if factory is None: raise RuntimeError(f"Task factory with id {task_factory_id} not found")
     response = await self.client.fetch(factory.worker_address, TaskFetchDescriptors.DEPLOY_TASK, task.dict())
@@ -54,3 +54,37 @@ class TaskFactoryStore:
   def remove_task_factory(self, id: str): 
     self.router.remove_app(id)
     self._task_factories.pop(id, None)
+
+class DeploymentStore:
+  def __init__(self):
+    self._deployments = {}
+    self._started_deployments = {}
+  
+  def has_deployment(self, id: str) -> bool: return id in self._deployments
+  def set_deployment_started(self, deployment: Deployment):
+    self._started_deployments[deployment.id] = deployment.copy(deep=True)
+
+  def set_deployment_stopped(self, deployment: Deployment):
+    self._started_deployments.pop(deployment.id, None)
+  
+  def get_deployment_status(self, id: str) -> DeploymentStatus:
+    started_deployment = self.get_started_deployment(id)
+    if started_deployment is not None: return DeploymentStatus(status=started_deployment.status, started=True)
+    deployment = self.get_deployment(id)
+    if deployment is None: raise RuntimeError(f"Deployment with id {id} not found")
+    return DeploymentStatus(status=deployment.status, started=False)
+
+  def get_started_deployment(self, id: str) -> Optional[Deployment]:
+    return self._started_deployments.get(id, None)
+
+  def get_deployment(self, id: str) -> Optional[Deployment]:
+    return self._deployments.get(id, None)
+
+  def deployment_was_started(self, id: str) -> bool:
+    return id in self._started_deployments
+
+  def add_deployment(self, deployment: Deployment):
+    self._deployments[deployment.id] = deployment
+
+  def remove_deployment(self, id: str):
+    self._deployments.pop(id, None)

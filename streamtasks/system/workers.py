@@ -15,7 +15,7 @@ from streamtasks.system.store import *
 from uuid import uuid4
 import urllib.parse
 from fastapi.responses import PlainTextResponse
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 import itertools
 
 
@@ -71,7 +71,7 @@ class TaskFactoryWorker(Worker, ABC):
 
     @server.route(TaskFetchDescriptors.DEPLOY_TASK)
     async def deploy_task(req: FetchRequest):
-      deployment: DeploymentTaskFull = DeploymentTaskFull.parse_obj(req.body)
+      deployment: DeploymentTask = DeploymentTask.parse_obj(req.body)
       status = await self.deploy_task(deployment)
       await req.respond(status.dict())
 
@@ -103,7 +103,7 @@ class TaskFactoryWorker(Worker, ABC):
     await task.stop(self.stop_timeout)
     del self.tasks[deployment.id]
     return task.get_deployment_status()
-  async def deploy_task(self, deployment: DeploymentTaskFull):
+  async def deploy_task(self, deployment: DeploymentTask):
     if deployment.id in self.tasks:
       task: Task = self.tasks[deployment.id]
       if task.can_update(deployment): 
@@ -122,7 +122,7 @@ class TaskFactoryWorker(Worker, ABC):
   @abstractproperty
   def config_script(self) -> str: pass
   @abstractmethod
-  async def create_task(self, deployment: DeploymentTaskFull) -> Task: pass
+  async def create_task(self, deployment: DeploymentTask) -> Task: pass
 
 # TODO: this needs the actual dashboard
 class NodeManagerWorker(Worker):
@@ -156,8 +156,7 @@ class TaskManagerWorker(Worker):
     self.ready = asyncio.Event()
     self.asgi_server = asgi_server
 
-    self.deployments = {}
-
+    self.deployments = DeploymentStore()
     self.dashboards = None
     self.task_factories = None
 
@@ -221,48 +220,45 @@ class TaskManagerWorker(Worker):
     def list_task_factories(): return self.task_factories.task_templates
 
     @app.get("/api/deployment/{id}/status")
-    def get_deployment_status(id: str):
-      deployment = self.deployments.get(id, None)
-      if deployment is None: raise HTTPException(status_code=404, detail="not found")
-      return deployment.status
+    def get_deployment_status(id: str): return self._respond_deployment_status(id)
 
     @app.post("/api/deployment/{id}/stop")
     async def stop_deployment(id: str):
-      deployment = self.deployments.get(id, None)
-      if deployment is None: raise HTTPException(status_code=404, detail="not found")
+      deployment = self.deployments.get_started_deployment(id)
+      if deployment is None: self._deployment_not_found(id)
       asyncio.create_task(self.stop_deployment(client, deployment))
-      return deployment.dict()
+      return self._respond_deployment_status(id)
 
     @app.post("/api/deployment/{id}/start")
     async def start_deployment(id: str):
-      deployment = self.deployments.get(id, None)
-      if deployment is None: raise HTTPException(status_code=404, detail="not found")
+      deployment = self.deployments.get_deployment(id)
+      if deployment is None: self._deployment_not_found(id)
+      if self.deployments.deployment_was_started(id): raise HTTPException(status_code=400, detail="deployment already started")
       asyncio.create_task(self.start_deployment(client, deployment))
-      return deployment.dict()
+      return self._respond_deployment_status(id)
 
     @app.delete("/api/deployment/{id}")
     async def delete_deployment(id: str):
-      deployment = self.deployments.get(id, None)
-      if deployment is None: raise HTTPException(status_code=404, detail="not found")
-      asyncio.create_task(self.stop_deployment(client, deployment))
-      del self.deployments[id]
-      return deployment.dict()
+      if not self.deployments.has_deployment(id): self._deployment_not_found(id)
+      if self.deployments.deployment_was_started(id): raise HTTPException(status_code=400, detail="deployment is running")
+      self.deployments.remove_deployment(id)
+      return { "success": True }
 
     @app.get("/api/deployment/{id}")
     async def get_deployment(id: str):
       deployment = self.deployments.get(id, None)
-      if deployment is None: raise HTTPException(status_code=404, detail="not found")
-      return deployment.dict()
+      if deployment is None: self._deployment_not_found(id)
+      return deployment
 
     @app.post("/api/deployment")
     async def create_deployment(tasks: list[DeploymentTask]):
       topic_str_ids = set(itertools.chain.from_iterable(task.get_topic_ids() for task in tasks))
       topic_int_ids = await client.request_topic_ids(len(topic_str_ids))
       topic_id_map = { topic_str_id: topic_int_id for topic_str_id, topic_int_id in zip(topic_str_ids, topic_int_ids) }
-      deployment = Deployment(id=str(uuid4()), status="offline", tasks=[ DeploymentTaskFull(**{
+      deployment = Deployment(status="offline", tasks=[ DeploymentTask(**{
         **deployment.dict(),
         "topic_id_map":{ k: topic_id_map[k] for k in set(deployment.get_topic_ids()) },
-        "id":str(uuid4()),
+          "id":str(uuid4()),
       }) for deployment in tasks ])
 
       self.deployments[deployment.id] = deployment
@@ -270,8 +266,13 @@ class TaskManagerWorker(Worker):
     
     await self.asgi_server.serve(app)
 
-  async def _stop_task_deployments(self, client: Client, tasks: list[DeploymentTaskFull]):
-    async def delete_task(task: DeploymentTaskFull):
+  def _deployment_not_found(self, id: str): raise HTTPException(status_code=404, detail=f"Deployment with id {id} not found!")
+  def _respond_deployment_status(self, id: str):
+    try: return self.deployments.get_deployment_status(id)
+    except: self._deployment_not_found(id)
+
+  async def _stop_task_deployments(self, client: Client, tasks: list[DeploymentTask]):
+    async def delete_task(task: DeploymentTask):
       try:
         status = await self.task_factories.delete_task(task.task_factory_id, task.id)
         status.validate_running(False)
@@ -292,7 +293,7 @@ class TaskManagerWorker(Worker):
     deployed_tasks = []
     deployment_failed = False
 
-    async def deploy_task(task: DeploymentTaskFull):
+    async def deploy_task(task: DeploymentTask):
       try:
         status = await self.task_factories.start_task(task)
         status.validate_running(True)

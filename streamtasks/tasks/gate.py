@@ -1,6 +1,6 @@
 from streamtasks.system.task import Task
 from streamtasks.system.workers import TaskFactoryWorker
-from streamtasks.system.types import DeploymentTaskFull, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
+from streamtasks.system.types import DeploymentTask, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
 from streamtasks.client import Client
 from streamtasks.client.receiver import NoopReceiver
 from streamtasks.message import NumberMessage, get_timestamp_from_message, SerializableData
@@ -16,7 +16,7 @@ class GateFailMode(Enum):
   PASSIVE = "passive"
 
 class GateTask(Task):
-  def __init__(self, client: Client, deployment: DeploymentTaskFull):
+  def __init__(self, client: Client, deployment: DeploymentTask):
     super().__init__(client)
     self.deployment = deployment
 
@@ -89,7 +89,7 @@ class GateTask(Task):
     await self.output_topic.set_paused(self.input_paused or not self.gate_open)
 
 class GateTaskFactoryWorker(TaskFactoryWorker):
-  async def create_task(self, deployment: DeploymentTaskFull): return GateTask(await self.create_client(), deployment)
+  async def create_task(self, deployment: DeploymentTask): return GateTask(await self.create_client(), deployment)
   @property
   def config_script(self): return ""
   @property
@@ -100,8 +100,8 @@ class GateTaskFactoryWorker(TaskFactoryWorker):
     hostname=socket.gethostname(),
     stream_groups=[
       TaskStreamGroup(
-        inputs=[TaskInputStream(ref_id="in1", label="input"), TaskInputStream(ref_id="in2", label="gate", content_type="number")],    
-        outputs=[TaskOutputStream(topic_id="out1", label="output")]      
+        inputs=[TaskInputStream(label="input"), TaskInputStream(label="gate", content_type="number")],    
+        outputs=[TaskOutputStream(label="output")]      
       )
     ]
   )
