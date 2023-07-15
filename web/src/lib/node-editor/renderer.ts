@@ -77,7 +77,7 @@ export class NodeRenderer {
 
     constructor(node: Node, editor?: NodeEditorRenderer) {
         this.node = node;
-        this.node.onUpdated?.call(this.node, () => this.editor?.updateNode(this.id));
+        this.node.onUpdated?.call(this.node, async () => await this.editor?.updateNode(this.id));
         this.editor = editor;
 
         this.group = new PIXI.Container();
@@ -88,8 +88,8 @@ export class NodeRenderer {
         this.editor?.viewport.addChild(this.group);
     }
 
-    public connect(inputConnectionId: string, outputConnection?: Connection): ConnectResult {
-        return this.node.connect(inputConnectionId, outputConnection);
+    public async connect(inputConnectionId: string, outputConnection?: Connection) {
+        return await this.node.connect(inputConnectionId, outputConnection);
     }
 
     public move(x: number, y: number) {
@@ -198,8 +198,8 @@ export class NodeRenderer {
         circle.endFill();
         circle.interactive = true;
 
-        circle.on('pointerdown', () => this.editor?.onSelectStartConnection(connection.refId));
-        circle.on('pointerup', () => this.editor?.onSelectEndConnection(this.id, connection.refId));
+        circle.on('pointerdown', async () => await this.editor?.onSelectStartConnection(connection.refId));
+        circle.on('pointerup', async () => await this.editor?.onSelectEndConnection(this.id, connection.refId));
 
         return circle;
     }
@@ -547,7 +547,7 @@ export class NodeEditorRenderer {
         }
     }
 
-    public addNode(node: Node, center: boolean = false) {
+    public async addNode(node: Node, center: boolean = false) {
         const nodeRenderer = new NodeRenderer(node, this);
 
         this.nodeRenderers.set(node.getId(), nodeRenderer);
@@ -555,7 +555,12 @@ export class NodeEditorRenderer {
             ...this.createLinksFromInputConnections(nodeRenderer.id, nodeRenderer.inputs),
             ...this.createLinksFromOutputConnections(nodeRenderer.id, nodeRenderer.outputs)
         ];
-        links.filter(c => this.connectLinkToInput(c)).forEach(c => this.links.add(c));
+        for (const link of links) {
+            if (await this.connectLinkToInput(link)) {
+                this.links.add(link)
+            }
+        }
+
         this.renderNode(node.getId());
 
         if (center) {
@@ -573,11 +578,11 @@ export class NodeEditorRenderer {
         this.nodeRenderers.delete(id);
         this.removeLinks(this.links.values.filter(c => c.inputNodeId === id || c.outputNodeId === id));
     }
-    public updateNode(nodeId: string) {
+    public async updateNode(nodeId: string) {
         const node = this.nodeRenderers.get(nodeId);
         if (!node) return;
         node.render();
-        this.reconnectNodeOutputs(nodeId);
+        await this.reconnectNodeOutputs(nodeId);
         this.renderNodeLinks(nodeId);
         this.emitUpdated(nodeId);
     }
@@ -588,24 +593,24 @@ export class NodeEditorRenderer {
         this.links = new ConnectionLinkCollection();
     }
 
-    public onSelectStartConnection(connectionId: string) {
+    public async onSelectStartConnection(connectionId: string) {
         this.selectedConnectionId = connectionId;
         if (this._readOnly) return;
 
         if (this.selectedConnectionIsInput) {
-            if (this.connectConnectionToInput(this.selectedNodeId!, connectionId)) {
+            if (await this.connectConnectionToInput(this.selectedNodeId!, connectionId)) {
                 this.removeLinks(this.links.values.filter(c => c.inputNodeId === this.selectedNodeId && c.inputId === connectionId));
                 this.emitUpdated(this.selectedNodeId!);
             }
         }
     }
-    public onSelectEndConnection(nodeId: string, connectionId: string) {
+    public async onSelectEndConnection(nodeId: string, connectionId: string) {
         if (this._readOnly) return;
 
         const connection: ConnectionLink | undefined = this.createConnectionLink(this.selectedNodeId, this.selectedConnectionId, nodeId, connectionId);
         if (!connection) return;
 
-        if (this.connectLinkToInput(connection)) {
+        if (await this.connectLinkToInput(connection)) {
             this.links.add(connection);
             this.renderLink(connection);
             this.renderInputLinks(connection.inputNodeId, connection.inputId);
@@ -728,19 +733,19 @@ export class NodeEditorRenderer {
         return newLinks;
     }
 
-    private connectLinkToInput(link: ConnectionLink) {
+    private async connectLinkToInput(link: ConnectionLink) {
         const outputNode = this.nodeRenderers.get(link.outputNodeId);
         if (!outputNode) return;
         const outputConnection = outputNode.outputs.find(c => c.refId === link.outputId);
         if (!outputConnection) return false;
-        return this.connectConnectionToInput(link.inputNodeId, link.inputId, outputConnection)
+        return await this.connectConnectionToInput(link.inputNodeId, link.inputId, outputConnection)
     }
 
-    private connectConnectionToInput(inputNodeId: string, inputConnectionId: string, outputConnection?: Connection) {
+    private async connectConnectionToInput(inputNodeId: string, inputConnectionId: string, outputConnection?: Connection) {
         const inputNode = this.nodeRenderers.get(inputNodeId);
         if (!inputNode) return false;
 
-        const result = inputNode.connect(inputConnectionId, outputConnection);
+        const result = await inputNode.connect(inputConnectionId, outputConnection);
         if (!this.handleConnectionResult(result)) return false;
         return true;
     }
@@ -798,8 +803,14 @@ export class NodeEditorRenderer {
         this.renderNodeLinks(nodeId);
     }
 
-    private reconnectNodeOutputs(nodeId: string) {
-        this.removeLinks(this.links.values.filter(c => c.outputNodeId === nodeId).filter(c => !this.connectLinkToInput(c)))
+    private async reconnectNodeOutputs(nodeId: string) {
+        const removeLinks = [];
+        for (const link of this.links.values) {
+            if (link.outputNodeId === nodeId && !(await this.connectLinkToInput(link))) {
+                removeLinks.push(link);
+            }
+        }
+        this.removeLinks(removeLinks);
     }
 
     private renderInputLinks(nodeId: string, connectionId: string) {

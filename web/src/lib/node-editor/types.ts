@@ -20,7 +20,7 @@ export interface Node {
     setPosition: (x: number, y: number) => void;
     getPosition: () => { x: number, y: number };
     getConnectionGroups: () => ConnectionGroup[];
-    connect: (inputId: string, outputConnection?: Connection) => ConnectResult;
+    connect: (inputId: string, outputConnection?: Connection) => Promise<ConnectResult>;
     onUpdated?: (cb: () => void) => void;
 }
 

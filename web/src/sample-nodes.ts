@@ -1,7 +1,8 @@
-import { Connection, ConnectionGroup, Node, Point } from "./lib/node-editor";
+import { Connection, ConnectionGroup, Node } from "./lib/node-editor";
 import objectHash from "object-hash";
 import deepEqual from 'deep-equal';
 import { v4 as uuidv4 } from "uuid";
+import { Point } from "./model";
 
 interface TaskStreamConfig {
     content_type?: string
@@ -50,7 +51,7 @@ export class NumberGeneratorTask implements Node {
         return this.connectionGroups;
     }
 
-    public connect(inputId: string, outputConnection?: Connection) {
+    public async connect(inputId: string, outputConnection?: Connection) {
         return false;
     }
 }
@@ -106,7 +107,7 @@ export class GateTask implements Node {
         return this.id;
     }
 
-    public connect(inputId: string, outputConnection?: Connection) {
+    public async connect(inputId: string, outputConnection?: Connection) {
         if (this.connectionGroups[0].inputs[0].refId === inputId) {
             if (!outputConnection) {
                 this.connectionGroups[0].inputs[0].linkedStreamId = undefined;

@@ -39,7 +39,7 @@ function streamGroupToConnectionGroup(group: TaskStreamGroup): ConnectionGroup {
 
 export function taskToTemplateNode(task: Task): Node {
     return {
-        connect: () => false,
+        connect: async () => false,
         getId: () => task.id,
         getName: () => task.config.label,
         getPosition: () => ({ x: 0, y: 0 }),
@@ -64,7 +64,7 @@ export function taskToMockNode(task: Task): Node {
         getName: () => task.config.label,
         getPosition: () => task.config.position ?? ({ x: 0, y: 0 }),
         setPosition: (x, y) => { task.config.position = { x, y } },
-        connect: (inputId, connection) => {
+        connect: async (inputId, connection) => {
             for (const group of task.stream_groups) {
                 for (const input of group.inputs) {
                     if (input.ref_id === inputId) {
@@ -91,7 +91,7 @@ export function wrapTaskInNode(task: TaskNode): Node {
                 return '<unnamed>';
             }
         },
-        connect: (inputId: string, outputConnection?: Connection) => {
+        connect: async (inputId: string, outputConnection?: Connection) => {
             return task.connect(inputId, outputConnection ? streamFromConnection(outputConnection) : undefined);
         },
         onUpdated: task.onUpdated,

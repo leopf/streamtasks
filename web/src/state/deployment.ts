@@ -119,6 +119,6 @@ export class DeploymentState {
     }
     private async addTaskToEditor(task: Task) {
         const node = taskToMockNode(task);
-        this.editor.addNode(node, true);
+        await this.editor.addNode(node, true);
     }
 }
