@@ -18,7 +18,7 @@ configure({
 createServer({
     routes() {
         this.namespace = "api"
-        this.timing = 5000;
+        this.timing = 100;
 
         this.get("/deployments", () => [
             {

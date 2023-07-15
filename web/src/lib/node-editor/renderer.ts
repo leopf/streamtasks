@@ -467,8 +467,9 @@ export class NodeEditorRenderer {
 
     private pressActive = false;
     private selectedNodeId?: string;
-
+    
     private selectedConnectionId?: string;
+    private keepEditingLinkLine = false;
     private editingLinkLine?: PIXI.Graphics;
 
     private container?: HTMLElement;
@@ -613,14 +614,20 @@ export class NodeEditorRenderer {
         const connection: ConnectionLink | undefined = this.createConnectionLink(this.selectedNodeId, this.selectedConnectionId, nodeId, connectionId);
         if (!connection) return;
         if (this.links.has(connection)) return;
-
-        if (await this.connectLinkToInput(connection)) {
-            this.links.add(connection);
-            this.renderLink(connection);
-            this.renderInputLinks(connection.inputNodeId, connection.inputId);
-
-            this.emitUpdated(connection.inputNodeId);
-            this.emitUpdated(connection.outputNodeId);
+        this.keepEditingLinkLine = true;
+        try {
+            if (await this.connectLinkToInput(connection)) {
+                this.links.add(connection);
+                this.renderLink(connection);
+                this.renderInputLinks(connection.inputNodeId, connection.inputId);
+    
+                this.emitUpdated(connection.inputNodeId);
+                this.emitUpdated(connection.outputNodeId);
+            }
+        }
+        finally {
+            this.editingLinkLine?.removeFromParent();
+            this.keepEditingLinkLine = false;
         }
     }
 
@@ -650,7 +657,9 @@ export class NodeEditorRenderer {
         if (this.pressActive) {
             this.pressActive = false;
             this.selectedConnectionId = undefined;
-            this.editingLinkLine?.removeFromParent();
+            if (!this.keepEditingLinkLine) {
+                this.editingLinkLine?.removeFromParent();
+            }
             this.viewport.plugins.resume('drag');
         }
     }
