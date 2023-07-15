@@ -11,6 +11,7 @@ from streamtasks.worker import Worker
 from streamtasks.system.task import Task
 from streamtasks.system.types import *
 from streamtasks.system.helpers import *
+from streamtasks.system.store import *
 from uuid import uuid4
 import urllib.parse
 from fastapi.responses import PlainTextResponse
@@ -49,7 +50,11 @@ class TaskFactoryWorker(Worker, ABC):
     await self.connected.wait()
     await self._client.request_address()
     await self._client.wait_for_address_name(AddressNames.TASK_MANAGER)
-    self.reg = TaskFactoryRegistration(id=self.id, worker_address=self._client.default_address)
+    self.reg = TaskFactoryRegistration(
+      id=self.id, 
+      worker_address=self._client.default_address,
+      task_template=self.task_template.dict()
+    )
     await self._client.fetch(AddressNames.TASK_MANAGER, TaskFetchDescriptors.REGISTER_TASK_FACTORY, self.reg.dict())
     self.setup_done.set()
 
@@ -139,7 +144,7 @@ class NodeManagerWorker(Worker):
     self._client.fetch(AddressNames.TASK_MANAGER, TaskFetchDescriptors.UNREGISTER_DASHBOARD, DashboardDeleteMessage(key=key).dict())
   async def register_dashboard(self, label: str, app: ASGIApp):
     id = str(uuid4())
-    dashboard = DashboardInfo(label=label, id=id, init_descriptor=f"global_dashboard_${id}", address=self._client.default_address)
+    dashboard = DashboardRegistration(label=label, id=id, init_descriptor=f"global_dashboard_${id}", address=self._client.default_address)
     runner = ASGIAppRunner(self._client, app, dashboard.web_init_descriptor, dashboard.address)
     self.async_tasks.append(asyncio.create_task(runner.start()))
     await self._client.fetch(AddressNames.TASK_MANAGER, TaskFetchDescriptors.REGISTER_DASHBOARD, dashboard.dict())
@@ -153,14 +158,14 @@ class TaskManagerWorker(Worker):
 
     self.deployments = {}
 
-    self.dashboard_router = None
-    self.task_factory_router = None
+    self.dashboards = None
+    self.task_factories = None
 
   async def start(self):
     try:
       client = Client(await self.create_connection())
-      self.dashboard_router = ASGIDashboardRouter(client, "/dashboard/")
-      self.task_factory_router = ASGITaskFactoryRouter(client, "/task-factory/")
+      self.dashboards = DashboardStore(client, "/dashboard/")
+      self.task_factories = TaskFactoryStore(client, "/task-factory/")
 
       await asyncio.gather(
         self._setup(client),
@@ -185,22 +190,22 @@ class TaskManagerWorker(Worker):
     @server.route(TaskFetchDescriptors.REGISTER_TASK_FACTORY)
     async def register_task_factory(req: FetchRequest):
       registration: TaskFactoryRegistration = TaskFactoryRegistration.parse_obj(req.body)
-      self.task_factory_router.add_task_factory(registration)
+      self.task_factories.add_task_factory(registration)
 
     @server.route(TaskFetchDescriptors.UNREGISTER_TASK_FACTORY)
     async def unregister_task_factory(req: FetchRequest):
       registration: TaskFactoryDeleteMessage = TaskFactoryDeleteMessage.parse_obj(req.body)
-      self.task_factory_router.remove_task_factory(registration.id)
+      self.task_factories.remove_task_factory(registration.id)
 
     @server.route(TaskFetchDescriptors.REGISTER_DASHBOARD)
     async def register_dashboard(req: FetchRequest):
-      dashboard: DashboardInfo = DashboardInfo.parse_obj(req.body)
-      self.dashboard_router.add_dashboard(dashboard)
+      dashboard: DashboardRegistration = DashboardRegistration.parse_obj(req.body)
+      self.dashboards.add_dashboard(dashboard)
 
     @server.route(TaskFetchDescriptors.UNREGISTER_DASHBOARD)
     async def unregister_dashboard(req: FetchRequest):
       dashboard: DashboardDeleteMessage = DashboardDeleteMessage.parse_obj(req.body)
-      self.dashboard_router.remove_dashboard(dashboard.id)
+      self.dashboards.remove_dashboard(dashboard.id)
 
     await server.start()
 
@@ -209,11 +214,11 @@ class TaskManagerWorker(Worker):
     app = FastAPI()
 
     @app.get("/dashboards")
-    def list_dashboards(): return self.dashboard_router.list_dashboards()
-    app.mount(self.dashboard_router.base_url, self.dashboard_router)
+    def list_dashboards(): return self.dashboards.dashboards
+    app.mount(self.dashboards.base_url, self.dashboards.router)
 
-    @app.get("/api/task-factories")
-    def list_task_factories(): return self.task_factory_router.list_task_factory_infos()
+    @app.get("/api/task-templates")
+    def list_task_factories(): return self.task_factories.task_templates
 
     @app.get("/api/deployment/{id}/status")
     def get_deployment_status(id: str):
@@ -267,12 +272,12 @@ class TaskManagerWorker(Worker):
 
   async def _stop_task_deployments(self, client: Client, tasks: list[DeploymentTaskFull]):
     async def delete_task(task: DeploymentTaskFull):
-      factory: TaskFactoryRegistration = self.task_factory_router.get_task_factory(task.task_factory_id)
-      if factory is None: 
-        logging.error(f"task factory {task.task_factory_id} not found while stopping deployment {task.id}")
-        return
-      response = await client.fetch(factory.worker_address, TaskFetchDescriptors.DELETE_TASK, TaskDeploymentDeleteMessage(id=task.id).dict())
-      TaskDeploymentStatus.parse_obj(response).validate_running(False)
+      try:
+        status = await self.task_factories.delete_task(task.task_factory_id, task.id)
+        status.validate_running(False)
+      except Exception as e:
+        logging.error(f"failed to stop deployment {task.id}: {e}")
+        raise e
     try:
       await asyncio.wait([ asyncio.create_task(delete_task(task)) for task in tasks ])
     except Exception as e:
@@ -289,10 +294,8 @@ class TaskManagerWorker(Worker):
 
     async def deploy_task(task: DeploymentTaskFull):
       try:
-        factory: TaskFactoryRegistration = self.task_factory_router.get_task_factory(task.task_factory_id)
-        if factory is None: raise RuntimeError(f"task factory {task.task_factory_id} not found!")
-        response = await client.fetch(factory.worker_address, TaskFetchDescriptors.DEPLOY_TASK, task.dict())
-        TaskDeploymentStatus.parse_obj(response).validate_running(True)
+        status = await self.task_factories.start_task(task)
+        status.validate_running(True)
         deployed_tasks.append(task)
       except Exception as e:
         deployment_failed = True

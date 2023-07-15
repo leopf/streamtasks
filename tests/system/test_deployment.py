@@ -55,15 +55,31 @@ class CounterMultipyTask(Task):
 
 class TestTaskFactoryWorker(TaskFactoryWorker):
   @property
-  def task_template(self): return None
-  @property
   def config_script(self): return ""
 
 class CounterIncrementTaskFactory(TestTaskFactoryWorker):
   async def create_task(self, deployment: DeploymentTaskFull) -> Task: return CounterMultipyTask(await self.create_client(), deployment)
+  @property
+  def task_template(self): return DeploymentTask(
+    id="counter_increment",
+    task_factory_id=self.id,
+    label="increment",
+    config={ },
+    stream_groups=[TaskStreamGroup(inputs=[TaskInputStream(ref_id="in1", label="value in",topic_id="emit")], outputs=[TaskOutputStream(label="value out",topic_id="increment")])]
+  )
+
 
 class CounterEmitTaskFactory(TestTaskFactoryWorker):
   async def create_task(self, deployment: DeploymentTaskFull) -> Task: return CounterEmitTask(await self.create_client(), deployment)
+  
+  @property
+  def task_template(self): return DeploymentTask(
+    id="counter_emit",
+    task_factory_id=self.id, 
+    label="counter emit", 
+    config={}, 
+    stream_groups=[TaskStreamGroup(inputs=[],outputs=[TaskOutputStream(label="count",topic_id="emit")])]
+  )
 
 class TestDeployment(unittest.IsolatedAsyncioTestCase):
   node: LocalNode
@@ -93,7 +109,9 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
     await self.setup_worker(self.counter_increment_worker)
 
   async def asyncTearDown(self):
-    for task in self.tasks: task.cancel()
+    for task in self.tasks:
+      if task.done(): await task
+      else: task.cancel()
 
   async def setup_worker(self, worker: Worker):
     if hasattr(worker, "stop_timeout"): worker.stop_timeout = 0.1
@@ -103,61 +121,63 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
     await worker.connected.wait()
     return task
 
-  async def test_task_factories_list(self):
-    await self.counter_emit_worker.wait_idle()
-    await self.counter_increment_worker.wait_idle()
-    web_client = await self.managment_server.wait_for_client()
+  async def test_task_templates_list(self):
+    async with asyncio.timeout(1):
+      await self.counter_emit_worker.wait_idle()
+      await self.counter_increment_worker.wait_idle()
+      web_client = await self.managment_server.wait_for_client()
 
-    result = await web_client.get("/api/task-factories")
-    factories = parse_obj_as(list[TaskFactoryInfo], result.json())
-    ids = [ factory.id for factory in factories ]
-    self.assertEqual(len(factories), 2)
-    self.assertIn(self.counter_emit_worker.id, ids)
-    self.assertIn(self.counter_increment_worker.id, ids)
+      result = await web_client.get("/api/task-templates")
+      tasks: list[DeploymentTask] = parse_obj_as(list[DeploymentTask], result.json())
+      ids = [ task.task_factory_id for task in tasks ]
+      self.assertEqual(len(tasks), 2)
+      self.assertIn(self.counter_emit_worker.id, ids)
+      self.assertIn(self.counter_increment_worker.id, ids)
 
   async def test_counter_deploy(self):
-    client = Client(await self.node.create_connection())
-    await client.request_address()
+    async with asyncio.timeout(1):
+      client = Client(await self.node.create_connection())
+      await client.request_address()
 
-    multiplier = 42
+      multiplier = 42
 
-    deployments: list[DeploymentTask] = [
-      DeploymentTask(
-        id="task1",
-        task_factory_id=self.counter_emit_worker.id, 
-        label="emit counter", 
-        config={ "initial_count": 2 }, 
-        stream_groups=[TaskStreamGroup(inputs=[],outputs=[TaskOutputStream(label="count",topic_id="emit")])]
-      ),
-      DeploymentTask(
-        id="task2",
-        task_factory_id=self.counter_increment_worker.id,
-        label="increment",
-        config={ "multiplier": multiplier },
-        stream_groups=[TaskStreamGroup(inputs=[TaskInputStream(ref_id="in1", label="value in",topic_id="emit")], outputs=[TaskOutputStream(label="value out",topic_id="increment")])]
-      )
-    ]
+      deployments: list[DeploymentTask] = [
+        DeploymentTask(
+          id="task1",
+          task_factory_id=self.counter_emit_worker.id, 
+          label="emit counter", 
+          config={ "initial_count": 2 }, 
+          stream_groups=[TaskStreamGroup(inputs=[],outputs=[TaskOutputStream(label="count",topic_id="emit")])]
+        ),
+        DeploymentTask(
+          id="task2",
+          task_factory_id=self.counter_increment_worker.id,
+          label="increment",
+          config={ "multiplier": multiplier },
+          stream_groups=[TaskStreamGroup(inputs=[TaskInputStream(ref_id="in1", label="value in",topic_id="emit")], outputs=[TaskOutputStream(label="value out",topic_id="increment")])]
+        )
+      ]
 
-    await self.counter_emit_worker.wait_idle()
-    await self.counter_increment_worker.wait_idle()
-    web_client = await self.managment_server.wait_for_client()
+      await self.counter_emit_worker.wait_idle()
+      await self.counter_increment_worker.wait_idle()
+      web_client = await self.managment_server.wait_for_client()
 
-    result = await web_client.post("/api/deployment", content=json.dumps([ deployment.dict() for deployment in deployments]))
-    deployment: Deployment = Deployment.parse_obj(result.json())
-    self.assertEqual(len(deployment.tasks), 2)
-    self.assertEqual(deployment.tasks[0].label, "emit counter")
-    self.assertEqual(deployment.tasks[1].label, "increment")
+      result = await web_client.post("/api/deployment", content=json.dumps([ deployment.dict() for deployment in deployments]))
+      deployment: Deployment = Deployment.parse_obj(result.json())
+      self.assertEqual(len(deployment.tasks), 2)
+      self.assertEqual(deployment.tasks[0].label, "emit counter")
+      self.assertEqual(deployment.tasks[1].label, "increment")
 
-    result_topic_id = deployment.tasks[1].topic_id_map["increment"]
-    async with client.get_topics_receiver([ result_topic_id ]) as receiver:
-      await web_client.post(f"/api/deployment/{deployment.id}/start")
-      topic_id, data, _ = await receiver.recv()
-      last_value = data.data["count"]
-      for _ in range(5):
+      result_topic_id = deployment.tasks[1].topic_id_map["increment"]
+      async with client.get_topics_receiver([ result_topic_id ]) as receiver:
+        await web_client.post(f"/api/deployment/{deployment.id}/start")
         topic_id, data, _ = await receiver.recv()
-        self.assertEqual(topic_id, result_topic_id)
-        self.assertEqual(data.data["count"], last_value + multiplier)
         last_value = data.data["count"]
+        for _ in range(5):
+          topic_id, data, _ = await receiver.recv()
+          self.assertEqual(topic_id, result_topic_id)
+          self.assertEqual(data.data["count"], last_value + multiplier)
+          last_value = data.data["count"]
 
 
 if __name__ == "__main__":

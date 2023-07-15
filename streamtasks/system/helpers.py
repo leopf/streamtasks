@@ -3,7 +3,7 @@ from typing import Iterable
 from streamtasks.asgi import ASGIApp
 from streamtasks.client import Client
 from streamtasks.system.protocols import *
-from streamtasks.system.types import TaskFactoryRegistration, DashboardInfo, TaskFactoryInfo
+from streamtasks.system.types import TaskFactoryRegistration, DashboardRegistration, DashboardInfo
 from streamtasks.asgi import *
 import fnmatch
 import urllib.parse
@@ -16,20 +16,31 @@ async def asgi_app_not_found(scope, receive, send):
   await send({"type": "http.response.start", "status": 404})
   await send({"type": "http.response.body", "body": b"404 Not Found"})
 
-class ASGIRouterBase(ABC):
-  def __init__(self, base_url: str):
-    self.base_url = base_url
+class ASGIIDRouter:
+  def __init__(self):
+    self._apps = {}
 
-  @abstractmethod
-  def list_apps(self) -> Iterable[tuple[re.Pattern, ASGIApp]]: pass
-
+  def add_app(self, id: str, app: ASGIApp):
+    self._apps[id] = app
+  def remove_app(self, id: str):
+    self._apps.pop(id, None)
+  
   async def __call__(self, scope, receive, send):
     if "path" in scope: 
       req_path = scope["path"].decode("utf-8")
-      found_app = next((app for (path_pattern, app) in self.list_apps() if path_pattern.match(req_path)), None)
+      id = req_path[1:].split("/")[0]
+      found_app = self._apps.get(id, None)
+      new_scope = dict(scope)
+      new_scope["path"] = req_path[len(id)+1:].encode("utf-8")
       if found_app:
-        return await found_app(scope, receive, send)
+        return await found_app(new_scope, receive, send)
     await asgi_app_not_found(scope, receive, send)
+
+  def get_path_to_id(self, id: str, base_path: str) -> str:
+    return urllib.parse.urljoin(base_path, self._sanitize_id(id))
+
+  def _sanitize_id(self, id: str) -> str:
+    return urllib.parse.quote(id)
 
 class ASGIServer(ABC):
   @abstractmethod
@@ -57,49 +68,3 @@ class UvicornASGIServer(ASGIServer):
     config = uvicorn.Config(app, port=self.port, host=self.host)
     server = uvicorn.Server(config)
     await server.serve()
-
-class ASGIDashboardRouter(ASGIRouterBase):
-  def __init__(self, client: Client, base_url: str):
-    super().__init__(base_url)
-    self.client = client
-    self._dashboards = {}
-
-  def remove_dashboard(self, id: str): self._dashboards.pop(id, None)
-  def add_dashboard(self, dashboard: DashboardInfo):
-    proxy_app = ASGIProxyApp(self.client, dashboard.address, dashboard.web_init_descriptor, self.client.default_address)
-    db_base_url = f"/{urllib.parse.quote(dashboard.id)}"
-    path_pattern = fnmatch.translate(f"{db_base_url}/**") # TODO: is this good enough?
-    self._dashboards[dashboard.id] = (path_pattern, proxy_app, db_base_url, dashboard.label)
-
-  def list_dashboards(self):
-    return [ { "key": key, "path": urllib.parse.urljoin(self.base_url, data[2]), "label": data[3] } for key, data in self._dashboards.items()]
-  def list_apps(self) -> Iterable[tuple[re.Pattern, ASGIApp]]:
-    return [(path_pattern, app) for (path_pattern, app, _, _) in self._dashboards.values()]
-
-class ASGITaskFactoryRouter(ASGIRouterBase):
-  def __init__(self, client: Client, base_url: str):
-    super().__init__(base_url)
-    self.client = client
-    self._task_factory_apps = {}
-    self._task_factories = {}
-    self._task_facotry_infos = {}
-
-  def remove_task_factory(self, id: str): 
-    self._task_factories.pop(id, None)
-    self._task_facotry_infos.pop(id, None)
-    self._task_factory_apps.pop(id, None)
-
-  def add_task_factory(self, task_factory: TaskFactoryRegistration):
-    proxy_app = ASGIProxyApp(self.client, task_factory.worker_address, task_factory.web_init_descriptor, self.client.default_address)
-    tf_base_url = f"/{urllib.parse.quote(task_factory.id)}"
-    path_pattern = fnmatch.translate(f"{tf_base_url}/**")
-    self._task_factory_apps[task_factory.id] = (path_pattern, proxy_app)
-    self._task_factories[task_factory.id] = task_factory
-    self._task_facotry_infos[task_factory.id] = TaskFactoryInfo(id=task_factory.id, path=urllib.parse.urljoin(self.base_url, tf_base_url[1:]))
-
-  def get_task_factory(self, id: str) -> Optional[TaskFactoryRegistration]: 
-    return self._task_factories.get(id, None)
-
-  def list_task_factory_infos(self): return list(self._task_facotry_infos.values())
-  def list_apps(self) -> Iterable[tuple[re.Pattern, ASGIApp]]: return self._task_factories.values()
-

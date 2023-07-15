@@ -102,8 +102,6 @@ class TestGate(TaskTestBase):
 
         while len(expected_values) > 0 or len(expected_pauses) > 0:
           topic_id, data, control = await out_reciever.recv()
-          print("RECV: ", data.data if data else None, control, expected_values, expected_pauses)
-          # continue
           self.assertEqual(topic_id, self.stream_out_topic.topic)
           if control:
             expected_pause = expected_pauses.pop(0)

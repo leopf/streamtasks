@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from typing import Optional, Any, Union
 import itertools
 
-class DashboardInfo(BaseModel):
+class DashboardRegistration(BaseModel):
   label: str
   id: str
   address: int
@@ -13,19 +13,10 @@ class DashboardInfo(BaseModel):
 class DashboardDeleteMessage(BaseModel):
   id: str
 
-class TaskFactoryInfo(BaseModel):
+class DashboardInfo(BaseModel):
   id: str
   path: str
-
-class TaskFactoryRegistration(BaseModel):
-  id: str
-  worker_address: int
-
-  @property
-  def web_init_descriptor(self) -> str: return f"task_factory_{self.id}_web"
-
-class TaskFactoryDeleteMessage(BaseModel):
-  id: str
+  label: str
 
 class TaskStreamBase(BaseModel):
   label: str
@@ -70,6 +61,17 @@ class TaskDeploymentStatus(BaseModel):
     if not running and self.running: raise Exception("task running but should not be")
 
 class TaskDeploymentDeleteMessage(BaseModel):
+  id: str
+
+class TaskFactoryRegistration(BaseModel):
+  id: str
+  worker_address: int
+  task_template: DeploymentTask
+
+  @property
+  def web_init_descriptor(self) -> str: return f"task_factory_{self.id}_web"
+
+class TaskFactoryDeleteMessage(BaseModel):
   id: str
 
 class Deployment(BaseModel):

@@ -65,7 +65,6 @@ class GateTask(Task):
     async with self.gate_stream:
       while True:
         with await self.gate_stream.recv() as message:
-          print("gate: ", message.data.data if message.data else None, message.control)
           if message.data is not None: 
             try:
               nmessage = NumberMessage.parse_obj(message.data.data)
@@ -80,10 +79,7 @@ class GateTask(Task):
     async with self.input_stream:
       while True:
         with await self.input_stream.recv() as message:
-          print("input: ", message.data.data if message.data else None, message.control)
-          print("GATE OPEN: ", self.gate_open)
           if message.data is not None and self.gate_open: 
-            print("sending data")
             await self.client.send_stream_data(self.output_topic.topic, message.data)
           if message.control is not None: self.input_paused = message.control.paused
           await self.on_state_change()
