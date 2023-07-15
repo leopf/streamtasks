@@ -25,4 +25,6 @@ class TaskTestBase(unittest.IsolatedAsyncioTestCase):
     await asyncio.sleep(0.001)
 
   async def asyncTearDown(self):
-    for task in self.tasks: task.cancel()
+    for task in self.tasks:
+      if task.done(): await task
+      else: task.cancel()

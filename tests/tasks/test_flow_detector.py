@@ -76,6 +76,7 @@ class TestFlowDetector(TaskTestBase):
           message = NumberMessage.parse_obj(data.data)
           value = message.value
           expected_value = expected_values.pop(0)
+          print(f"expected: {expected_value}, got: {value}")
           self.assertEqual(value, expected_value)
 
   async def test_fail_open(self):

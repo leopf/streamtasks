@@ -88,7 +88,7 @@ class FlowDetectorTask(Task):
     if timestamp is not None: self.time_sync.set_time(timestamp)
     await self.input_topic.set_subscribed(self.output_topic.is_subscribed)
     await self.output_topic.set_paused(self.input_paused)
-    is_active = self.output_topic.is_subscribed and not self.input_paused and not self.failing or self.fail_mode == FlowDetectorFailMode.FAIL_OPEN
+    is_active = self.output_topic.is_subscribed and not self.input_paused and (not self.failing or self.fail_mode == FlowDetectorFailMode.FAIL_OPEN)
     message = NumberMessage(timestamp=self.time_sync.time if timestamp is None else timestamp, value=float(is_active))
     if self.signal_topic.topic is not None: 
       await self.client.send_stream_data(self.signal_topic.topic, MessagePackData(message.dict()))
