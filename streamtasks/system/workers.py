@@ -234,26 +234,32 @@ class TaskManagerWorker(Worker):
       deployment = self.deployments.get_deployment(id)
       if deployment is None: self._deployment_not_found(id)
       if self.deployments.deployment_was_started(id): raise HTTPException(status_code=400, detail="deployment already started")
-      self._assign_topic_ids(deployment)
+      await self._assign_topic_ids(client, deployment)
       asyncio.create_task(self.start_deployment(client, self.deployments.set_deployment_started(deployment)))
       return self._respond_deployment_status(id)
 
     @app.post("/api/deployment")
-    async def create_deployment():
-      deployment = Deployment()
-      self.deployments.add_deployment(deployment)
+    async def create_deployment(tasks: list[DeploymentTask] = []):
+      deployment = Deployment(tasks=tasks)
+      self.deployments.store_deployment(deployment)
       return deployment
 
     @app.get("/api/deployment/{id}")
     async def get_deployment(id: str):
-      deployment = self.deployments.get(id, None)
+      deployment = self.deployments.get_deployment(id)
       if deployment is None: self._deployment_not_found(id)
+      return deployment
+
+    @app.get("/api/deployment/{id}/started")
+    def get_started_deployment(id: str): 
+      deployment = self.deployments.get_started_deployment(id)
+      if deployment is None: raise HTTPException(status_code=404, detail=f"Started deployment with id {id} not found! Maybe it hasn't been started yet?")
       return deployment
 
     @app.put("/api/deployment")
     async def update_deployment(deployment: Deployment):
       if not self.deployments.has_deployment(deployment.id): self._deployment_not_found(deployment.id)
-      self.deployments.update_deployment(deployment)
+      self.deployments.store_deployment(deployment)
       return deployment
 
     @app.delete("/api/deployment/{id}")
@@ -265,9 +271,9 @@ class TaskManagerWorker(Worker):
 
     await self.asgi_server.serve(app)
 
-  def _assign_topic_ids(self, deployment: Deployment):
+  async def _assign_topic_ids(self, client: Client, deployment: Deployment):
     topic_str_ids = set(itertools.chain.from_iterable(task.get_topic_ids() for task in deployment.tasks))
-    topic_int_ids = await self._client.request_topic_ids(len(topic_str_ids))
+    topic_int_ids = await client.request_topic_ids(len(topic_str_ids))
     topic_id_map = { topic_str_id: topic_int_id for topic_str_id, topic_int_id in zip(topic_str_ids, topic_int_ids) }
     for task in deployment.tasks:
       task.topic_id_map = { k: topic_id_map[k] for k in set(task.get_topic_ids()) }

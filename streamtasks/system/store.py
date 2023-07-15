@@ -85,11 +85,8 @@ class DeploymentStore:
   def deployment_was_started(self, id: str) -> bool:
     return id in self._started_deployments
 
-  def add_deployment(self, deployment: Deployment):
+  def store_deployment(self, deployment: Deployment):
     self._deployments[deployment.id] = deployment
 
   def remove_deployment(self, id: str):
     self._deployments.pop(id, None)
-
-  def update_deployment(self, deployment: Deployment):
-    self._deployments[deployment.id] = deployment

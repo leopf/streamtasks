@@ -166,9 +166,11 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
       self.assertEqual(deployment.tasks[0].label, "emit counter")
       self.assertEqual(deployment.tasks[1].label, "increment")
 
+      await web_client.post(f"/api/deployment/{deployment.id}/start")
+      result = await web_client.get(f"/api/deployment/{deployment.id}/started")
+      deployment: Deployment = Deployment.parse_obj(result.json())
       result_topic_id = deployment.tasks[1].topic_id_map["increment"]
       async with client.get_topics_receiver([ result_topic_id ]) as receiver:
-        await web_client.post(f"/api/deployment/{deployment.id}/start")
         topic_id, data, _ = await receiver.recv()
         last_value = data.data["count"]
         for _ in range(5):
