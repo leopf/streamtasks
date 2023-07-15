@@ -1,10 +1,11 @@
 import { TableContainer, Table, TableBody, TableRow, TableCell, Box, Stack, Typography, Divider } from "@mui/material";
 import { observer } from "mobx-react";
 import React, { useMemo } from "react";
-import { Task, TaskStream, streamToString } from "../../lib/task";
+import { Task, TaskStreamBase, streamToString } from "../../lib/task";
 import { DeploymentState } from "../../state/deployment";
+import { TaskNode } from "../../lib/task/node";
 
-const TaskStreamDisplay = (props: { stream: TaskStream }) => {
+const TaskStreamDisplay = (props: { stream: TaskStreamBase }) => {
     const valueToString = (value: any) => {
         if (typeof value === "boolean") {
             return value ? "yes" : "no";
@@ -22,28 +23,28 @@ const TaskStreamDisplay = (props: { stream: TaskStream }) => {
     )
 };
 
-export const TaskEditor = observer((props: { task: Task, deployment: DeploymentState, onUnselect: () => void }) => {
+export const TaskEditor = observer((props: { taskNode: TaskNode, deployment: DeploymentState, onUnselect: () => void }) => {
     const mappedStreams = useMemo(() => {
-        const streams: [(TaskStream | undefined), (TaskStream | undefined)][] = [];
+        const streams: [(TaskStreamBase | undefined), (TaskStreamBase | undefined)][] = [];
 
-        for (let i = 0; i < props.task.stream_groups.length; i++) {
-            const group = props.task.stream_groups[i];
+        for (let i = 0; i < props.taskNode.task.stream_groups.length; i++) {
+            const group = props.taskNode.task.stream_groups[i];
 
             for (let j = 0; j < Math.max(group.inputs.length, group.outputs.length); j++) {
                 streams.push([group.inputs.at(j), group.outputs.at(j)]);
             }
 
-            if (i + 1 !== props.task.stream_groups.length) {
+            if (i + 1 !== props.taskNode.task.stream_groups.length) {
                 streams.push([undefined, undefined]);
             }
         }
 
         return streams;
-    }, [props.task])
+    }, [props.taskNode])
 
     return (
         <Stack direction="column" padding={2}>
-            <Typography variant="subtitle1" gutterBottom>{props.task.config.label}</Typography>
+            <Typography variant="subtitle1" gutterBottom>{props.taskNode.getName()}</Typography>
             <Divider sx={{ width: "100%" }} />
             <TableContainer>
                 <Table size="small">

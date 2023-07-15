@@ -12,7 +12,7 @@ export interface ConnectionGroup {
     outputs: Connection[];
     inputs: InputConnection[];
 }
-export type ConnectResult = false | true | string;
+export type ConnectResult = boolean | string;
 
 export interface Node {
     getId: () => string;

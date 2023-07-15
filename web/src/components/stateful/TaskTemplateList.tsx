@@ -1,12 +1,12 @@
-import { Box, Button, Card, CardActions, CardContent, Divider, Stack, Typography } from "@mui/material";
+import { Box, Stack, Typography } from "@mui/material";
 import { observer } from "mobx-react";
 import React, { useMemo } from "react";
-import { Task, taskToTemplateNode } from "../../lib/task";
+import { Task, taskToDisplayNode } from "../../lib/task";
 import { NodeDisplay } from "../stateless/NodeDisplay";
 import { state } from "../../state";
 
 export const TaskTemplateItem = observer((props: { item: Task, onClick: () => void }) => {
-    const node = useMemo(() => taskToTemplateNode(props.item), [props.item]);
+    const node = useMemo(() => taskToDisplayNode(props.item), [props.item]);
     const description = props.item.config.description || "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam euismod, nisl eget aliquam ultricies, nunc nisl aliquet nunc, nec aliquam";
     const hostname = props.item.config.hostname || "localhost";
 

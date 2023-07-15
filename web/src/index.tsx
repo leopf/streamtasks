@@ -4,10 +4,11 @@ import { GateTask, NumberGeneratorTask } from "./sample-nodes";
 import { NodeEditorRenderer } from "./lib/node-editor";
 import { createServer } from "miragejs"
 import { App } from "./App";
-import { Deployment, Task } from "./lib/task";
+import { Deployment, Task, cloneTask } from "./lib/task";
 import { v4 as uuidv4 } from "uuid";
 import { configure  } from "mobx";
 import { Dashboard } from "./types";
+import { RPCTaskConnectRequest, RPCTaskConnectResponse } from "./lib/task/node";
 
 configure({
     observableRequiresReaction: false,
@@ -17,6 +18,7 @@ configure({
 createServer({
     routes() {
         this.namespace = "api"
+        this.timing = 2000;
 
         this.get("/deployments", () => [
             {
@@ -65,11 +67,25 @@ createServer({
                 status: "offline"
             };
         });
+        this.post("/task-factory/:id/rpc/connect", async (schema, req) => {
+            const request: RPCTaskConnectRequest = JSON.parse(req.requestBody);
+            request.task.stream_groups.forEach((stream_group) => {
+                stream_group.inputs.forEach((input) => {
+                    if (input.ref_id === request.input_id) {
+                        input.topic_id = request.output_stream?.topic_id;
+                    }
+                })
+            })
+            const response: RPCTaskConnectResponse = {
+                task: request.task, 
+            };
+            return response;
+        });
         this.get("/task-templates", () => {
             const tasks: Task[] = [
                 {
                     id: uuidv4(),
-                    task_factory_id: uuidv4(),
+                    task_factory_id: "a",
                     config: {
                         label: "Gate",
                     },
@@ -111,7 +127,7 @@ createServer({
                 tasks.push(...tasks);
             }
 
-            return tasks
+            return tasks.map(t => cloneTask(t))
         })
     }
 })

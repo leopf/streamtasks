@@ -2,8 +2,9 @@ import cloneDeep from "clone-deep";
 import { computed, makeAutoObservable, observable, reaction } from "mobx";
 import { createTransformer } from "mobx-utils";
 import { NodeEditorRenderer } from "../lib/node-editor";
-import { Task, Deployment, taskToTemplateNode, taskToMockNode } from "../lib/task";
+import { Task, Deployment, cloneTask } from "../lib/task";
 import { v4 as uuidv4 } from 'uuid';
+import { TaskNode } from "../lib/task/node";
 
 export class DeploymentState {
     public readonly editor: NodeEditorRenderer;
@@ -26,6 +27,9 @@ export class DeploymentState {
 
     @observable
     private _status: string;
+
+    @observable.shallow
+    private taskNodeMap = new Map<string, TaskNode>();
 
     private get deployment(): Deployment {
         return {
@@ -52,7 +56,7 @@ export class DeploymentState {
         this.tasks.forEach(task => this.addTaskToEditor(task));
     }
 
-    public getTaskById = createTransformer((id: string) => this.tasks.find(t => t.id === id));
+    public getTaskNodeById = createTransformer((id: string) => this.taskNodeMap.get(id));
 
     public destroy() {
         this.reactionDisposers.forEach(disposer => disposer());
@@ -65,18 +69,7 @@ export class DeploymentState {
     }
     
     public async createTaskFromTemplate(template: Task) {
-        const task = cloneDeep(template);
-        task.id = uuidv4();
-        task.stream_groups.forEach(group => {
-            group.inputs.forEach(input => {
-                input.ref_id = uuidv4();
-                input.topic_id = uuidv4();
-            });
-            group.outputs.forEach(output => {
-                output.topic_id = uuidv4();
-            });
-        });
-        
+        const task = cloneTask(template);
         this.tasks.push(task);
         this.addTaskToEditor(task);
     }
@@ -118,7 +111,8 @@ export class DeploymentState {
         this._status = json.status;
     }
     private async addTaskToEditor(task: Task) {
-        const node = taskToMockNode(task);
+        const node = new TaskNode(task);
+        this.taskNodeMap.set(task.id, node);
         await this.editor.addNode(node, true);
     }
 }

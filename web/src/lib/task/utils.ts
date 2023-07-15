@@ -1,9 +1,11 @@
 import { z } from "zod";
 import { PointModel } from "../../model";
 import { Connection, ConnectionGroup, InputConnection, Node } from "../node-editor";
-import { TaskStream, TaskStreamGroup, Task, TaskNode } from "./types";
+import { TaskStreamGroup, Task, TaskOutputStream, TaskStreamBase } from "./types";
+import { v4 as uuidv4 } from 'uuid';
+import cloneDeep from "clone-deep";
 
-function streamFromConnection(connection: Connection): TaskStream {
+export function connectionToOutputStream(connection: Connection): TaskOutputStream {
     return {
         label: connection.label,
         content_type: connection.config.contentType,
@@ -13,7 +15,21 @@ function streamFromConnection(connection: Connection): TaskStream {
     }
 }
 
-function streamGroupToConnectionGroup(group: TaskStreamGroup): ConnectionGroup {
+export function cloneTask(task: Task): Task {
+    const newTask = cloneDeep(task);
+    newTask.id = uuidv4();
+    newTask.stream_groups.forEach(group => {
+        group.inputs.forEach(input => {
+            input.ref_id = uuidv4();
+        });
+        group.outputs.forEach(output => {
+            output.topic_id = uuidv4();
+        });
+    });
+    return newTask;
+}
+
+export function streamGroupToConnectionGroup(group: TaskStreamGroup): ConnectionGroup {
     return {
         inputs: group.inputs.map(input => (<InputConnection>{
             refId: input.ref_id,
@@ -37,7 +53,7 @@ function streamGroupToConnectionGroup(group: TaskStreamGroup): ConnectionGroup {
     }
 }
 
-export function taskToTemplateNode(task: Task): Node {
+export function taskToDisplayNode(task: Task): Node {
     return {
         connect: async () => false,
         getId: () => task.id,
@@ -48,63 +64,12 @@ export function taskToTemplateNode(task: Task): Node {
     };
 }
 
-export function streamToString(stream: TaskStream): string {
+export function streamToString(stream: TaskStreamBase): string {
     const format = [stream.content_type, stream.encoding].filter(x => x).join('/');
     if (format) {
         return `${stream.label} (${format})`;
     }
     else {
         return stream.label;
-    }
-}
-
-export function taskToMockNode(task: Task): Node {
-    return {
-        getId: () => task.id,
-        getName: () => task.config.label,
-        getPosition: () => task.config.position ?? ({ x: 0, y: 0 }),
-        setPosition: (x, y) => { task.config.position = { x, y } },
-        connect: async (inputId, connection) => {
-            for (const group of task.stream_groups) {
-                for (const input of group.inputs) {
-                    if (input.ref_id === inputId) {
-                        input.topic_id = connection?.refId ?? "";
-                        return true;
-                    }
-                }
-            }
-            return false;
-        },
-        getConnectionGroups: () => task.stream_groups.map(streamGroupToConnectionGroup),
-    };
-}
-
-export function wrapTaskInNode(task: TaskNode): Node {
-    return {
-        getId: () => task.getId(),
-        getName: () => {
-            const nameRes = z.string().safeParse(task.getConfig('label'))
-            if (nameRes.success) {
-                return nameRes.data;
-            }
-            else {
-                return '<unnamed>';
-            }
-        },
-        connect: async (inputId: string, outputConnection?: Connection) => {
-            return task.connect(inputId, outputConnection ? streamFromConnection(outputConnection) : undefined);
-        },
-        onUpdated: task.onUpdated,
-        getPosition: () => {
-            const pos = PointModel.safeParse(task.getConfig('position'));
-            if (pos.success) {
-                return pos.data;
-            }
-            else {
-                return { x: 0, y: 0 };
-            }
-        },
-        setPosition: (x: number, y: number) => task.setConfig('position', { x, y }),
-        getConnectionGroups: () => task.getStreamGroups().map(streamGroupToConnectionGroup)
     }
 }

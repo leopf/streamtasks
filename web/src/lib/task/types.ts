@@ -1,18 +1,22 @@
-export interface TaskStream {
+export interface TaskStreamBase {
     label: string;
-    topic_id: string;
     content_type?: string;
     encoding?: string;
     extra?: Record<string, string | number | boolean>;
 }
 
-export interface TaskInputStream extends TaskStream {
+export interface TaskOutputStream extends TaskStreamBase {
+    topic_id: string;
+}
+
+export interface TaskInputStream extends TaskStreamBase {
     ref_id: string;
+    topic_id?: string;
 }
 
 export interface TaskStreamGroup {
     inputs: TaskInputStream[];
-    outputs: TaskStream[];
+    outputs: TaskOutputStream[];
 }
 
 export interface Task {
@@ -29,13 +33,4 @@ export interface Deployment {
     id: string;
     label: string;
     status: "offline" | "running" | "error";
-}
-
-export interface TaskNode {
-    getId: () => string;
-    setConfig: (key: string, value: any) => void;
-    getConfig: (key: string) => any;
-    getStreamGroups: () => TaskStreamGroup[];
-    onUpdated?: (cb: () => void) => void;
-    connect: (inputRefId: string, stream?: TaskStream) => boolean | string;
 }

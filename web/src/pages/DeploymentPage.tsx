@@ -4,14 +4,13 @@ import { state } from "../state";
 import { observer } from "mobx-react";
 import { useParams, useNavigate } from "react-router-dom";
 import React from "react";
-import { Box, Divider, IconButton, Stack, SxProps, Table, TableBody, TableCell, TableContainer, TableRow, Theme, Tooltip, Typography } from "@mui/material";
-import { Clear as ClearIcon, PlayArrow as PlayIcon, Stop as StopIcon, Cached as ReloadIcon, ReceiptLong as LogsIcon } from "@mui/icons-material";
+import { Box, Divider, IconButton, Stack, SxProps, Theme, Typography } from "@mui/material";
+import { Clear as ClearIcon, PlayArrow as PlayIcon, Stop as StopIcon, Cached as ReloadIcon } from "@mui/icons-material";
 import { TaskTemplateList } from "../components/stateful/TaskTemplateList";
 import { NodeEditor } from "../components/stateless/NodeEditor";
 import { TitleBar } from "../components/stateful/TitleBar";
 import { DeploymentLabelEditor } from "../components/stateless/DeploymentLabelEditor";
 import { LoadingButton } from '@mui/lab';
-import { SystemLogModal } from "../components/stateful/SystemLogModal";
 import { TaskEditor } from "../components/stateful/TaskEditor";
 import { ShowSystemLogsButton } from "../components/stateful/ShowSystemLogsButton";
 
@@ -117,7 +116,7 @@ export const DeploymentPage = observer((props: {}) => {
         if (!deployment || !selectedTaskId) {
             return undefined;
         }
-        return deployment.getTaskById(selectedTaskId);
+        return deployment.getTaskNodeById(selectedTaskId);
     }, [deployment, selectedTaskId])
 
     if (!deployment) {
@@ -164,7 +163,7 @@ export const DeploymentPage = observer((props: {}) => {
                         <NodeEditor editor={deployment.editor} />
                         {!!selectedTask && (
                             <TaskEditorOverlay onClose={() => setSelectedTaskId(undefined)}>
-                                <TaskEditor deployment={deployment} task={selectedTask} onUnselect={() => setSelectedTaskId(undefined)} />
+                                <TaskEditor deployment={deployment} taskNode={selectedTask} onUnselect={() => setSelectedTaskId(undefined)} />
                             </TaskEditorOverlay>
                         )}
                     </Box>
