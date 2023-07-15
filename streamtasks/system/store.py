@@ -62,17 +62,19 @@ class DeploymentStore:
   
   def has_deployment(self, id: str) -> bool: return id in self._deployments
   def set_deployment_started(self, deployment: Deployment):
-    self._started_deployments[deployment.id] = deployment.copy(deep=True)
+    new_deployment = deployment.copy(deep=True)
+    self._started_deployments[deployment.id] = new_deployment
+    return new_deployment
 
   def set_deployment_stopped(self, deployment: Deployment):
     self._started_deployments.pop(deployment.id, None)
   
-  def get_deployment_status(self, id: str) -> DeploymentStatus:
+  def get_deployment_status(self, id: str) -> DeploymentStatusInfo:
     started_deployment = self.get_started_deployment(id)
-    if started_deployment is not None: return DeploymentStatus(status=started_deployment.status, started=True)
+    if started_deployment is not None: return DeploymentStatusInfo(status=started_deployment.status, started=True)
     deployment = self.get_deployment(id)
     if deployment is None: raise RuntimeError(f"Deployment with id {id} not found")
-    return DeploymentStatus(status=deployment.status, started=False)
+    return DeploymentStatusInfo(status=deployment.status, started=False)
 
   def get_started_deployment(self, id: str) -> Optional[Deployment]:
     return self._started_deployments.get(id, None)
@@ -88,3 +90,6 @@ class DeploymentStore:
 
   def remove_deployment(self, id: str):
     self._deployments.pop(id, None)
+
+  def update_deployment(self, deployment: Deployment):
+    self._deployments[deployment.id] = deployment

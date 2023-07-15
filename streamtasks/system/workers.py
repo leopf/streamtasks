@@ -234,8 +234,27 @@ class TaskManagerWorker(Worker):
       deployment = self.deployments.get_deployment(id)
       if deployment is None: self._deployment_not_found(id)
       if self.deployments.deployment_was_started(id): raise HTTPException(status_code=400, detail="deployment already started")
-      asyncio.create_task(self.start_deployment(client, deployment))
+      self._assign_topic_ids(deployment)
+      asyncio.create_task(self.start_deployment(client, self.deployments.set_deployment_started(deployment)))
       return self._respond_deployment_status(id)
+
+    @app.post("/api/deployment")
+    async def create_deployment():
+      deployment = Deployment()
+      self.deployments.add_deployment(deployment)
+      return deployment
+
+    @app.get("/api/deployment/{id}")
+    async def get_deployment(id: str):
+      deployment = self.deployments.get(id, None)
+      if deployment is None: self._deployment_not_found(id)
+      return deployment
+
+    @app.put("/api/deployment")
+    async def update_deployment(deployment: Deployment):
+      if not self.deployments.has_deployment(deployment.id): self._deployment_not_found(deployment.id)
+      self.deployments.update_deployment(deployment)
+      return deployment
 
     @app.delete("/api/deployment/{id}")
     async def delete_deployment(id: str):
@@ -244,27 +263,14 @@ class TaskManagerWorker(Worker):
       self.deployments.remove_deployment(id)
       return { "success": True }
 
-    @app.get("/api/deployment/{id}")
-    async def get_deployment(id: str):
-      deployment = self.deployments.get(id, None)
-      if deployment is None: self._deployment_not_found(id)
-      return deployment
-
-    @app.post("/api/deployment")
-    async def create_deployment(tasks: list[DeploymentTask]):
-      topic_str_ids = set(itertools.chain.from_iterable(task.get_topic_ids() for task in tasks))
-      topic_int_ids = await client.request_topic_ids(len(topic_str_ids))
-      topic_id_map = { topic_str_id: topic_int_id for topic_str_id, topic_int_id in zip(topic_str_ids, topic_int_ids) }
-      deployment = Deployment(status="offline", tasks=[ DeploymentTask(**{
-        **deployment.dict(),
-        "topic_id_map":{ k: topic_id_map[k] for k in set(deployment.get_topic_ids()) },
-          "id":str(uuid4()),
-      }) for deployment in tasks ])
-
-      self.deployments[deployment.id] = deployment
-      return deployment.dict()
-    
     await self.asgi_server.serve(app)
+
+  def _assign_topic_ids(self, deployment: Deployment):
+    topic_str_ids = set(itertools.chain.from_iterable(task.get_topic_ids() for task in deployment.tasks))
+    topic_int_ids = await self._client.request_topic_ids(len(topic_str_ids))
+    topic_id_map = { topic_str_id: topic_int_id for topic_str_id, topic_int_id in zip(topic_str_ids, topic_int_ids) }
+    for task in deployment.tasks:
+      task.topic_id_map = { k: topic_id_map[k] for k in set(task.get_topic_ids()) }
 
   def _deployment_not_found(self, id: str): raise HTTPException(status_code=404, detail=f"Deployment with id {id} not found!")
   def _respond_deployment_status(self, id: str):
@@ -285,6 +291,7 @@ class TaskManagerWorker(Worker):
       logging.error(f"failed to stop deployment: {e}")
   
   async def stop_deployment(self, client: Client, deployment: Deployment):
+    deployment.status = "stopping"
     await self._stop_task_deployments(client, deployment.tasks)
     deployment.status = "stopped"
 
@@ -305,7 +312,8 @@ class TaskManagerWorker(Worker):
 
     await asyncio.wait([ asyncio.create_task(deploy_task(task)) for task in deployment.tasks ])
     if deployment_failed:
-      deployment.status = "failed"
+      deployment.status = "failing"
       await self._stop_task_deployments(client, deployed_tasks)
+      deployment.status = "failed"
     else:
       deployment.status = "running"
