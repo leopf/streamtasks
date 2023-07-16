@@ -34,10 +34,6 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
   async def asyncTearDown(self):
     for task in self.tasks: task.cancel()
 
-  async def setup_worker(self, worker: Worker):
-    await worker.set_node_connection(await self.node.create_connection(raw=True))
-    self.tasks.append(asyncio.create_task(worker.start()))
-
   async def test_transmit(self):
     sender = ASGIEventSender(self.client1, 1337, 1)
     receiver = ASGIEventReceiver(self.client2, 1337)

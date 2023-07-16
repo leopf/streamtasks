@@ -6,6 +6,7 @@ import uvicorn
 import re
 from streamtasks.system.protocols import *
 from streamtasks.client import Client
+from streamtasks.comm import Connection
 from streamtasks.asgi import *
 from streamtasks.worker import Worker
 from streamtasks.system.task import Task
@@ -20,8 +21,8 @@ import itertools
 
 
 class TaskFactoryWorker(Worker, ABC):
-  def __init__(self, node_id: int):
-    super().__init__(node_id)
+  def __init__(self, node_connection: Connection):
+    super().__init__(node_connection)
     self.id = str(uuid4())
     self.tasks = {}
     self.setup_done = asyncio.Event()
@@ -126,8 +127,8 @@ class TaskFactoryWorker(Worker, ABC):
 
 # TODO: this needs the actual dashboard
 class NodeManagerWorker(Worker):
-  def __init__(self, node_id: int):
-    super().__init__(node_id)
+  def __init__(self, node_connection: Connection):
+    super().__init__(node_connection)
     self.async_tasks = []
     self._client = None
 
@@ -151,8 +152,8 @@ class NodeManagerWorker(Worker):
     return id
 
 class TaskManagerWorker(Worker):
-  def __init__(self, node_id: int, asgi_server: ASGIServer):
-    super().__init__(node_id)
+  def __init__(self, node_connection: Connection, asgi_server: ASGIServer):
+    super().__init__(node_connection)
     self.ready = asyncio.Event()
     self.asgi_server = asgi_server
 

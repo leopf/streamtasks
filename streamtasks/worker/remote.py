@@ -6,8 +6,8 @@ class RemoteServerWorker(Worker):
   bind_address: RemoteAddress
   switch: IPCSwitch
 
-  def __init__(self, node_id: int, bind_address: RemoteAddress):
-    super().__init__(node_id, IPCSwitch(bind_address))
+  def __init__(self, node_connection: Connection, bind_address: RemoteAddress):
+    super().__init__(node_connection, IPCSwitch(bind_address))
 
   async def start(self):
     await asyncio.gather(
@@ -20,8 +20,8 @@ class RemoteClientWorker(Worker):
   remote_conn: Optional[IPCConnection]
   connection_cost: int
 
-  def __init__(self, node_id: int, remote_address: RemoteAddress, connection_cost: int = 10):
-    super().__init__(node_id)
+  def __init__(self, node_connection: Connection, remote_address: RemoteAddress, connection_cost: int = 10):
+    super().__init__(node_connection)
     self.remote_address = remote_address
     self.connection_cost = connection_cost
     self.remote_conn = None

@@ -91,7 +91,7 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
     self.tasks = []
     self.node = LocalNode()
 
-    dicovery_worker = DiscoveryWorker(0)
+    dicovery_worker = DiscoveryWorker(await self.node.create_connection(raw=True))
     await self.setup_worker(dicovery_worker)
 
     self.tasks.append(asyncio.create_task(self.node.start()))
@@ -99,13 +99,13 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
     await asyncio.sleep(0.001)
 
     self.managment_server = ASGITestServer()
-    self.management_worker = TaskManagerWorker(0, self.managment_server)
+    self.management_worker = TaskManagerWorker(await self.node.create_connection(raw=True), self.managment_server)
     await self.setup_worker(self.management_worker)
 
-    self.counter_emit_worker = CounterEmitTaskFactory(0)
+    self.counter_emit_worker = CounterEmitTaskFactory(await self.node.create_connection(raw=True))
     await self.setup_worker(self.counter_emit_worker)
 
-    self.counter_increment_worker = CounterIncrementTaskFactory(0)
+    self.counter_increment_worker = CounterIncrementTaskFactory(await self.node.create_connection(raw=True))
     await self.setup_worker(self.counter_increment_worker)
 
   async def asyncTearDown(self):
@@ -115,7 +115,6 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
 
   async def setup_worker(self, worker: Worker):
     if hasattr(worker, "stop_timeout"): worker.stop_timeout = 0.1
-    await worker.set_node_connection(await self.node.create_connection(raw=True))
     task = asyncio.create_task(worker.start())
     self.tasks.append(task)
     await worker.connected.wait()

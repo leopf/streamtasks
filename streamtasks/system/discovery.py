@@ -3,6 +3,7 @@ from streamtasks.client import Client, FetchRequest
 from streamtasks.system.protocols import *
 from streamtasks.message.data import JsonData, TextData, MessagePackData
 from streamtasks.comm.types import TopicControlData
+from streamtasks.comm import Connection
 import logging
 import asyncio
 
@@ -11,8 +12,8 @@ class DiscoveryWorker(Worker):
   _topics_counter: int
   _address_map: dict[str, int]
 
-  def __init__(self, node_id: int):
-    super().__init__(node_id)
+  def __init__(self, node_connection: Connection):
+    super().__init__(node_connection)
     self._address_counter = WorkerAddresses.COUNTER_INIT
     self._topics_counter = WorkerTopics.COUNTER_INIT
     self._address_map = {}

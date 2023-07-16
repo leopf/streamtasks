@@ -17,14 +17,13 @@ async def demo_app(scope, receive, send):
     await send({"type": "http.response.body", "body": b"Hello world!"})
 
 async def setup_worker(worker: Worker):
-    await worker.set_node_connection(await node.create_connection(raw=True))
     processing_tasks.append(asyncio.create_task(worker.start()))
 
 async def start_node():
     processing_tasks.append(asyncio.create_task(node.start()))
 
 async def start_secondary_server():
-    worker = Worker(2)
+    worker = Worker(await node.create_connection(raw=True))
     await setup_worker(worker)
 
     client = Client(await worker.create_connection())
@@ -39,7 +38,7 @@ async def start_secondary_server():
     processing_tasks.append(asyncio.create_task(runner.start()))
 
 async def start_main_server():
-    worker = Worker(1)
+    worker = Worker(await node.create_connection(raw=True))
     await setup_worker(worker)
 
     client = Client(await worker.create_connection())

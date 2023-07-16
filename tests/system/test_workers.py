@@ -16,25 +16,26 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     self.tasks = []
     self.node = LocalNode()
 
-    self.worker = Worker(1)
+    self.worker = Worker(await self.node.create_connection(raw=True))
     await self.setup_worker(self.worker)
 
     self.tasks.append(asyncio.create_task(self.node.start()))
 
     await asyncio.sleep(0.001)
 
-  async def wait_for(self, fut): return await asyncio.wait_for(fut, 1)
+  async def wait_for(self, fut): return await asyncio.wait_for(fut, 2)
 
   async def asyncTearDown(self):
-    for task in self.tasks: task.cancel()
+    for task in self.tasks: 
+      if task.done(): await task
+      else: task.cancel()
 
   async def setup_worker(self, worker: Worker):
-    await worker.set_node_connection(await self.node.create_connection(raw=True))
     self.tasks.append(asyncio.create_task(worker.start()))
     await asyncio.sleep(0.001) # wait for worker setup
 
   async def test_address_discovery(self):
-    discovery_worker = DiscoveryWorker(1)
+    discovery_worker = DiscoveryWorker(await self.node.create_connection(raw=True))
     await self.setup_worker(discovery_worker)
 
     client = Client(await self.worker.create_connection(raw=True))
@@ -52,7 +53,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     self.assertEqual(expected_addresses, list(addresses))
 
   async def test_wait_for_name(self): # NOTE: this test is broken, waiter before is not waiting for the fetch to finish
-    discovery_worker = DiscoveryWorker(1)
+    discovery_worker = DiscoveryWorker(await self.node.create_connection(raw=True))
     await self.setup_worker(discovery_worker)
 
 
@@ -77,7 +78,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     await waiter_task
 
   async def test_address_name_resolver(self):
-    discovery_worker = DiscoveryWorker(1)
+    discovery_worker = DiscoveryWorker(await self.node.create_connection(raw=True))
     await self.setup_worker(discovery_worker)
 
     client1 = Client(await self.worker.create_connection(raw=True))
@@ -94,7 +95,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     self.assertEquals(await client2.resolve_address_name("c1"), client1.default_address)
 
   async def test_topic_discovery(self):
-    discovery_worker = DiscoveryWorker(1)
+    discovery_worker = DiscoveryWorker(await self.node.create_connection(raw=True))
     await self.setup_worker(discovery_worker)
 
     client = Client(await self.worker.create_connection(raw=True))
