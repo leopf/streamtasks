@@ -14,12 +14,13 @@ const ctx = await esbuild.context({
     outfile: "dist/js/main.js",
 })
 
-const { port, host } = await ctx.serve({ servedir: "dist", })
+const { port: frontendPort, host } = await ctx.serve({ servedir: "dist", })
 
-const frontendServer = `http://${host}:${port}`;
+const attemptPorts = [ frontendPort, 8010 ];
 
 http.createServer(async (req, res) => {
-    const forwardRequest = (path) => {
+    let portIndex = 0;
+    const forwardRequest = (port, path) => {
         const options = {
             hostname: host,
             port,
@@ -30,9 +31,13 @@ http.createServer(async (req, res) => {
 
         const proxyReq = http.request(options, (proxyRes) => {
             if (proxyRes.statusCode === 404) {
-                // If esbuild 404s the request, assume it's a route needing to
-                // be handled by the JS bundle, so forward a second attempt to `/`.
-                return forwardRequest("/");
+                portIndex += 1;
+                if (portIndex < attemptPorts.length) {
+                    return forwardRequest(attemptPorts[portIndex], path);
+                }
+                else {
+                    return forwardRequest(port, "/");
+                }
             }
 
             // Otherwise esbuild handled it like a champ, so proxy the response back.
@@ -44,6 +49,6 @@ http.createServer(async (req, res) => {
     };
 
     // When we're called pass the request right through to esbuild.
-    forwardRequest(req.url);
+    forwardRequest(attemptPorts[portIndex], req.url);
 }).listen(8001, host)
 console.log(`Serving on http://${host}:${8001}`)

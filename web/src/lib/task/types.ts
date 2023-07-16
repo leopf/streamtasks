@@ -28,9 +28,12 @@ export interface Task {
     stream_groups: TaskStreamGroup[];
 }
 
-export interface Deployment {
-    tasks: Task[];
+export interface DeploymentBase {
     id: string;
     label: string;
     status: "offline" | "running" | "error";
+}
+
+export interface Deployment extends DeploymentBase {
+    tasks: Task[];
 }

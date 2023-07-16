@@ -13,7 +13,12 @@ import { LoadingScreen } from "./components/stateless/LoadingScreen";
 const router = createBrowserRouter([
     {
         path: "/deployment/view/:id",
-        element: <DeploymentPage />
+        element: <DeploymentPage />,
+        loader: async ({ params }) => {
+            if (params.id) {
+                return await state.loadDeployment(params.id);
+            }
+        }
     },
     {
         path: "/dashboard/:id",

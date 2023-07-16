@@ -58,7 +58,7 @@ export class TaskNode implements Node {
         try {
             const stream = outputConnection ? connectionToOutputStream(outputConnection) : undefined;
 
-            const res = await fetch(`/api/task-factory/${this.task.task_factory_id}/rpc/connect`, {
+            const res = await fetch(`/task-factory/${this.task.task_factory_id}/rpc/connect`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
@@ -78,7 +78,7 @@ export class TaskNode implements Node {
             if (data.errorMessage) {
                 return data.errorMessage;
             }
-            else {
+            else if (data.task) {
                 const cloned = cloneDeep(this.task);
                 cloned.stream_groups.forEach(group => {
                     group.inputs.forEach(input => {
@@ -97,6 +97,9 @@ export class TaskNode implements Node {
                     this.task = cloned;
                     this.updateHandlers.forEach(cb => cb());
                 }
+            }
+            else {
+                return "backend responded without a task or error message"
             }
         }
         catch (e) {

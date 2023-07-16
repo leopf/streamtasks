@@ -1,5 +1,5 @@
 import { computed, makeAutoObservable, observable } from "mobx";
-import { Deployment, Task } from "../lib/task";
+import { Deployment, DeploymentBase, Task } from "../lib/task";
 import { DeploymentState } from "./deployment";
 import { LogEntry } from "../model";
 import { Dashboard } from "../types";
@@ -14,7 +14,7 @@ export class RootState {
     }
 
     @observable
-    private _deployments: Deployment[] = [];
+    private _deployments: DeploymentBase[] = [];
 
     @observable
     private _dashboards: Dashboard[] = [];
@@ -62,9 +62,10 @@ export class RootState {
         this._initialized = true;
     }
 
-    public getDeployment(id: string) {
-        const deployment = this._deployments.find(d => d.id === id);
-        if (!deployment) return undefined;
+    public async loadDeployment(id: string) {
+        const res = await fetch(`/api/deployment/${id}`);
+        if (!res.ok) return undefined;
+        const deployment: Deployment = await res.json();
         return new DeploymentState(deployment);
     }
     public async createDeployment(label: string) {
@@ -83,17 +84,22 @@ export class RootState {
 
     public async loadDeployments() {
         const res = await fetch('/api/deployments');
-        this._deployments = await res.json();;
+        const json = await res.json();
+        console.log("deployments: ", json);
+        this._deployments = json;
     }
 
     public async loadDashboards() {
         const res = await fetch('/api/dashboards');
-        this._dashboards = await res.json();;
+        const json = await res.json();
+        console.log("dashboards: ", json);
+        this._dashboards = json;
     }
 
     private async loadTaskTemplates() {
         const res = await fetch('/api/task-templates');
         const json = await res.json();
+        console.log("task templates: ", json);
         this.taskTemplates = json;
         return json;
     }

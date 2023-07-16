@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { DeploymentState } from "../state/deployment";
 import { state } from "../state";
 import { observer } from "mobx-react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLoaderData } from "react-router-dom";
 import React from "react";
 import { Box, Divider, IconButton, Stack, SxProps, Theme, Typography } from "@mui/material";
 import { Clear as ClearIcon, PlayArrow as PlayIcon, Stop as StopIcon, Cached as ReloadIcon } from "@mui/icons-material";
@@ -87,16 +87,8 @@ function TaskEditorOverlay(props: { children: React.ReactNode, onClose?: () => v
 export const DeploymentPage = observer((props: {}) => {
     const [editLabel, setEditLabel] = useState<boolean>(false)
     const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(undefined)
-    const params = useParams<"id">();
-    const navigate = useNavigate();
 
-    const deployment = useMemo(() => {
-        const id = params.id;
-        if (id) {
-            return state.getDeployment(id);
-        }
-        return undefined;
-    }, [params.id])
+    const deployment = useLoaderData() as DeploymentState;
 
     useEffect(() => {
         if (deployment) {
@@ -107,9 +99,6 @@ export const DeploymentPage = observer((props: {}) => {
             return () => {
                 deployment.destroy();
             }
-        }
-        else {
-            navigate("/")
         }
     }, [deployment])
 
