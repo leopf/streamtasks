@@ -77,10 +77,13 @@ class TaskFactoryDeleteMessage(BaseModel):
 
 DeploymentStatus = Literal[("offline", "starting", "running", "stopping", "failing", "failed")]
 
-class Deployment(BaseModel):
+class DeploymentBase(BaseModel):
   id: str = Field(default_factory=uuid4_str)
-  tasks: list[DeploymentTask] = []
+  label: str = "new deployment"
   status: DeploymentStatus = "offline"
+
+class Deployment(DeploymentBase):
+  tasks: list[DeploymentTask] = []
 
 class DeploymentStatusInfo(BaseModel):
   status: DeploymentStatus

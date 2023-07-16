@@ -220,24 +220,8 @@ class TaskManagerWorker(Worker):
     @app.get("/api/task-templates")
     def list_task_factories(): return self.task_factories.task_templates
 
-    @app.get("/api/deployment/{id}/status")
-    def get_deployment_status(id: str): return self._respond_deployment_status(id)
-
-    @app.post("/api/deployment/{id}/stop")
-    async def stop_deployment(id: str):
-      deployment = self.deployments.get_started_deployment(id)
-      if deployment is None: self._deployment_not_found(id)
-      asyncio.create_task(self.stop_deployment(client, deployment))
-      return self._respond_deployment_status(id)
-
-    @app.post("/api/deployment/{id}/start")
-    async def start_deployment(id: str):
-      deployment = self.deployments.get_deployment(id)
-      if deployment is None: self._deployment_not_found(id)
-      if self.deployments.deployment_was_started(id): raise HTTPException(status_code=400, detail="deployment already started")
-      await self._assign_topic_ids(client, deployment)
-      asyncio.create_task(self.start_deployment(client, self.deployments.set_deployment_started(deployment)))
-      return self._respond_deployment_status(id)
+    @app.get("/api/deployments")
+    def list_deployments(): return self.deployments.deployments
 
     @app.post("/api/deployment")
     async def create_deployment(tasks: list[DeploymentTask] = []):
@@ -269,6 +253,25 @@ class TaskManagerWorker(Worker):
       if self.deployments.deployment_was_started(id): raise HTTPException(status_code=400, detail="deployment is running")
       self.deployments.remove_deployment(id)
       return { "success": True }
+
+    @app.get("/api/deployment/{id}/status")
+    def get_deployment_status(id: str): return self._respond_deployment_status(id)
+
+    @app.post("/api/deployment/{id}/stop")
+    async def stop_deployment(id: str):
+      deployment = self.deployments.get_started_deployment(id)
+      if deployment is None: self._deployment_not_found(id)
+      asyncio.create_task(self.stop_deployment(client, deployment))
+      return self._respond_deployment_status(id)
+
+    @app.post("/api/deployment/{id}/start")
+    async def start_deployment(id: str):
+      deployment = self.deployments.get_deployment(id)
+      if deployment is None: self._deployment_not_found(id)
+      if self.deployments.deployment_was_started(id): raise HTTPException(status_code=400, detail="deployment already started")
+      await self._assign_topic_ids(client, deployment)
+      asyncio.create_task(self.start_deployment(client, self.deployments.set_deployment_started(deployment)))
+      return self._respond_deployment_status(id)
 
     await self.asgi_server.serve(app)
 

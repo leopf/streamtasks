@@ -60,6 +60,9 @@ class DeploymentStore:
     self._deployments = {}
     self._started_deployments = {}
   
+  @property
+  def deployments(self): return [ DeploymentBase(**deployment.dict()) for deployment in self._deployments.values() ]
+
   def has_deployment(self, id: str) -> bool: return id in self._deployments
   def set_deployment_started(self, deployment: Deployment):
     new_deployment = deployment.copy(deep=True)
