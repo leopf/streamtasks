@@ -32,6 +32,7 @@ class ASGIIDRouter:
       found_app = self._apps.get(id, None)
       new_scope = dict(scope)
       new_scope["path"] = req_path[len(id)+1:]
+      new_scope["root_path"] = scope["root_path"] + "/" + id
       if found_app:
         return await found_app(new_scope, receive, send)
     await asgi_app_not_found(scope, receive, send)

@@ -41,7 +41,6 @@ class TaskStreamGroup(BaseModel):
 class DeploymentTask(BaseModel):
   id: str = Field(default_factory=uuid4_str)
   task_factory_id: str
-  label: str
   config: dict[str, Any] = {}
   stream_groups: list[TaskStreamGroup]
   topic_id_map: dict[str, int] = {}

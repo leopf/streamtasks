@@ -9,6 +9,11 @@ from uuid import uuid4
 from fastapi import FastAPI
 import httpx
 
+from pydantic import BaseModel
+
+class TestModel(BaseModel):
+  test: str
+
 class TestASGI(unittest.IsolatedAsyncioTestCase):
   client1: Client
   client2: Client
@@ -52,6 +57,9 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
   async def test_app_fastapi(self):
     demo_app = FastAPI()
     demo_app.add_api_route("/", lambda: { "text": "Hello from FastAPI!" })
+    @demo_app.post("/post")
+    async def post(data: TestModel):
+      return { "data": data }
 
     runner = ASGIAppRunner(self.client2, demo_app, "demo_app", 1337)
     self.tasks.append(asyncio.create_task(runner.start()))
@@ -63,6 +71,10 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
     response = await client.get("/")
     self.assertEqual(200, response.status_code)
     self.assertEqual(b'{"text":"Hello from FastAPI!"}', response.content)
+
+    response = await client.post("/post", json={"test": "test"})
+    self.assertEqual(200, response.status_code)
+    self.assertEqual(b'{"data":{"test":"test"}}', response.content)
 
   async def test_app(self):
     async def demo_app(scope, receive, send):

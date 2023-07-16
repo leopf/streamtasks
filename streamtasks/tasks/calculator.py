@@ -225,8 +225,10 @@ class CalculatorTaskFactoryWorker(TaskFactoryWorker):
   @property
   def task_template(self): return DeploymentTask(
     task_factory_id=self.id,
-    label="Calculator",
-    hostname=socket.gethostname(),
+    config={
+      "label": "Calculator",
+      "hostname": socket.gethostname(),
+    },
     stream_groups=[
       TaskStreamGroup(
         inputs=[TaskInputStream(label="x"), TaskInputStream(label="y")],    

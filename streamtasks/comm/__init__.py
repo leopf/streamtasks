@@ -346,7 +346,7 @@ class Switch:
       await self.send_to(AddressesChangedMessage(addresses_added, addresses_removed), [ conn for conn in self.cm.connections if conn != origin ])
 
   async def handle_message(self, message: Message, origin: Connection):
-    print(f"Received message {message} of type {type(message)}")
+    # print(f"Received message {message} of type {type(message)}")
     if isinstance(message, TopicMessage):
       if isinstance(message, TopicControlMessage):
         self.stream_controls[message.topic] = message.to_data()

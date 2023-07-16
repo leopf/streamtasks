@@ -7,7 +7,10 @@ from streamtasks.tasks.flowdetector import FlowDetectorTaskFactoryWorker
 from streamtasks.tasks.gate import GateTaskFactoryWorker
 from streamtasks.tasks.passivize import PassivizeTaskFactoryWorker
 import asyncio
+import logging
+import sys
 
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 async def run():
     node = LocalNode()

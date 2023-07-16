@@ -117,8 +117,10 @@ class GateTaskFactoryWorker(TaskFactoryWorker):
   def task_template(self): return DeploymentTask(
     id="gate",
     task_factory_id=self.id,
-    label="Gate",
-    hostname=socket.gethostname(),
+    config={
+      "label": "Gate",
+      "hostname": socket.gethostname(),
+    },
     stream_groups=[
       TaskStreamGroup(
         inputs=[TaskInputStream(label="input"), TaskInputStream(label="gate", content_type="number")],    

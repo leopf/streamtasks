@@ -78,8 +78,10 @@ class PassivizeTaskFactoryWorker(TaskFactoryWorker):
   @property
   def task_template(self): return DeploymentTask(
     task_factory_id=self.id,
-    label="Passivize",
-    hostname=socket.gethostname(),
+    config={
+      "label": "Passivize",
+      "hostname": socket.gethostname(),
+    },
     stream_groups=[
       TaskStreamGroup(
         inputs=[TaskInputStream(label="input")],    

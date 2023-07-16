@@ -30,13 +30,14 @@ http.createServer(async (req, res) => {
         };
 
         const proxyReq = http.request(options, (proxyRes) => {
+            console.log("proxyRes.statusCode", proxyRes.statusCode, path);
             if (proxyRes.statusCode === 404) {
                 portIndex += 1;
                 if (portIndex < attemptPorts.length) {
                     return forwardRequest(attemptPorts[portIndex], path);
                 }
                 else {
-                    return forwardRequest(port, "/");
+                    return forwardRequest(frontendPort, "/");
                 }
             }
 

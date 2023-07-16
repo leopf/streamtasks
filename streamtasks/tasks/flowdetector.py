@@ -99,8 +99,10 @@ class FlowDetectorTaskFactoryWorker(TaskFactoryWorker):
   @property
   def task_template(self): return DeploymentTask(
     task_factory_id=self.id,
-    label="Flow Detector",
-    hostname=socket.gethostname(),
+    config= {
+      "label": "Flow Detector",
+      "hostname": socket.gethostname(),
+    },
     stream_groups=[
       TaskStreamGroup(
         inputs=[TaskInputStream(label="input")],    
