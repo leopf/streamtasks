@@ -27,11 +27,11 @@ class ASGIIDRouter:
   
   async def __call__(self, scope, receive, send):
     if "path" in scope: 
-      req_path = scope["path"].decode("utf-8")
+      req_path = scope["path"]
       id = req_path[1:].split("/")[0]
       found_app = self._apps.get(id, None)
       new_scope = dict(scope)
-      new_scope["path"] = req_path[len(id)+1:].encode("utf-8")
+      new_scope["path"] = req_path[len(id)+1:]
       if found_app:
         return await found_app(new_scope, receive, send)
     await asgi_app_not_found(scope, receive, send)

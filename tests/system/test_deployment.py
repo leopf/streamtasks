@@ -54,8 +54,7 @@ class CounterMultipyTask(Task):
           await self.client.send_stream_data(output_topic_id, MessagePackData({ "count": count * self.multiplier }))
 
 class TestTaskFactoryWorker(TaskFactoryWorker):
-  @property
-  def config_script(self): return ""
+  async def rpc_connect(self, req: RPCTaskConnectRequest) -> DeploymentTask: return req.task
 
 class CounterIncrementTaskFactory(TestTaskFactoryWorker):
   async def create_task(self, deployment: DeploymentTask) -> Task: return CounterMultipyTask(await self.create_client(), deployment)

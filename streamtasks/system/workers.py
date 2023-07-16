@@ -49,6 +49,7 @@ class TaskFactoryWorker(Worker, ABC):
 
   async def _setup(self):
     await self.connected.wait()
+    await self._client.wait_for_topic_signal(WorkerTopics.DISCOVERY_SIGNAL)
     await self._client.request_address()
     await self._client.wait_for_address_name(AddressNames.TASK_MANAGER)
     self.reg = TaskFactoryRegistration(
@@ -84,11 +85,14 @@ class TaskFactoryWorker(Worker, ABC):
 
     app = FastAPI()
 
-    @app.get("/config.js")
-    async def config_js(): return PlainTextResponse(self.config_script, media_type="application/javascript")
-
-    @app.get("/task-format.json")
-    async def task_template(): return self.task_template.dict()
+    @app.post("/rpc/connect")
+    async def rpc_connect(req: RPCTaskConnectRequest):
+      try:
+        deployment = await self.rpc_connect(req)
+        if deployment is None: raise Exception("Something went wrong!")
+        return RPCTaskConnectResponse(task=deployment, error_message=None)
+      except Exception as e:
+        return RPCTaskConnectResponse(task=None, error_message=str(e))
 
     runner = ASGIAppRunner(self._client, app, self.reg.web_init_descriptor, self.reg.worker_address)
     self.web_server_running.set()
@@ -118,10 +122,11 @@ class TaskFactoryWorker(Worker, ABC):
     await asyncio.sleep(self._task_startup_duration)
     return task.get_deployment_status()
   async def create_client(self) -> Client: return Client(await self.create_connection())
+  
   @abstractproperty
   def task_template(self) -> DeploymentTask: pass
-  @abstractproperty
-  def config_script(self) -> str: pass
+  @abstractmethod
+  async def rpc_connect(self, req: RPCTaskConnectRequest) -> Optional[DeploymentTask]: pass
   @abstractmethod
   async def create_task(self, deployment: DeploymentTask) -> Task: pass
 
@@ -212,10 +217,11 @@ class TaskManagerWorker(Worker):
   async def _run_web_server(self, client: Client):
     await self.ready.wait()
     app = FastAPI()
+    app.mount(self.dashboards.base_url, self.dashboards.router)
+    app.mount(self.task_factories.base_url, self.task_factories.router)
 
     @app.get("/dashboards")
     def list_dashboards(): return self.dashboards.dashboards
-    app.mount(self.dashboards.base_url, self.dashboards.router)
 
     @app.get("/api/task-templates")
     def list_task_factories(): return self.task_factories.task_templates

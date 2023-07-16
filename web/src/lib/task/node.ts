@@ -12,7 +12,7 @@ export interface RPCTaskConnectRequest {
 }
 
 export interface RPCTaskConnectResponse {
-    task: Task;
+    task?: Task;
     errorMessage?: string;
 }
 

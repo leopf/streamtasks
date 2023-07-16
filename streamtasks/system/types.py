@@ -89,6 +89,15 @@ class DeploymentStatusInfo(BaseModel):
   status: DeploymentStatus
   started: bool
 
+class RPCTaskConnectRequest(BaseModel):
+  input_id: str
+  output_stream: Optional[TaskOutputStream]
+  task: DeploymentTask
+
+class RPCTaskConnectResponse(BaseModel):
+  task: DeploymentTask
+  error_message: Optional[str]
+
 class TaskFetchDescriptors:
   REGISTER_TASK_FACTORY = "register_task_factory"
   UNREGISTER_TASK_FACTORY = "unregister_task_factory"

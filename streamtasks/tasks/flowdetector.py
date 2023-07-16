@@ -1,6 +1,6 @@
 from streamtasks.system.task import Task
 from streamtasks.system.workers import TaskFactoryWorker
-from streamtasks.system.types import DeploymentTask, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
+from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
 from streamtasks.client import Client
 from streamtasks.client.receiver import NoopReceiver
 from streamtasks.message import NumberMessage, get_timestamp_from_message, SerializableData, MessagePackData
@@ -95,8 +95,7 @@ class FlowDetectorTask(Task):
 
 class FlowDetectorTaskFactoryWorker(TaskFactoryWorker):
   async def create_task(self, deployment: DeploymentTask): return FlowDetectorTask(await self.create_client(), deployment)
-  @property
-  def config_script(self): return ""
+  async def rpc_connect(self, req: RPCTaskConnectRequest) -> DeploymentTask: return req.task
   @property
   def task_template(self): return DeploymentTask(
     task_factory_id=self.id,

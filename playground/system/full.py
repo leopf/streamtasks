@@ -11,21 +11,19 @@ import asyncio
 
 async def run():
     node = LocalNode()
-    task_manager = TaskManagerWorker(await node.create_connection(), UvicornASGIServer("8010"))
-    discovery = DiscoveryWorker(await node.create_connection())
-    calculator = CalculatorTaskFactoryWorker(await node.create_connection())
-    flow_detector = FlowDetectorTaskFactoryWorker(await node.create_connection())
-    gate = GateTaskFactoryWorker(await node.create_connection())
-    passivize = PassivizeTaskFactoryWorker(await node.create_connection())
+    workers = [
+        TaskManagerWorker(await node.create_connection(), UvicornASGIServer(8010)),
+        DiscoveryWorker(await node.create_connection()),
+        GateTaskFactoryWorker(await node.create_connection()),
+        # CalculatorTaskFactoryWorker(await node.create_connection()),
+        # FlowDetectorTaskFactoryWorker(await node.create_connection()),
+        # PassivizeTaskFactoryWorker(await node.create_connection()),
+    ]
+
 
     await asyncio.gather(
         node.start(),
-        discovery.start(),
-        task_manager.start(),
-        calculator.start(),
-        flow_detector.start(),
-        gate.start(),
-        passivize.start()
+        *(worker.start() for worker in workers),
     )
 
 async def main():
