@@ -160,7 +160,7 @@ class ASGIAppRunner:
         for event in data.events: 
           event = MessagePackValueTransformer.deannotate_value(event)
           await recv_queue.put(event)
-      await recv_queue.get()
+      return await recv_queue.get()
 
     async def run():
       logging.info(f"ASGI instance ({config.connection_id}) starting!")

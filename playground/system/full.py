@@ -18,9 +18,9 @@ async def run():
         TaskManagerWorker(await node.create_connection(), UvicornASGIServer(8010)),
         DiscoveryWorker(await node.create_connection()),
         GateTaskFactoryWorker(await node.create_connection()),
+        PassivizeTaskFactoryWorker(await node.create_connection()),
+        FlowDetectorTaskFactoryWorker(await node.create_connection()),
         # CalculatorTaskFactoryWorker(await node.create_connection()),
-        # FlowDetectorTaskFactoryWorker(await node.create_connection()),
-        # PassivizeTaskFactoryWorker(await node.create_connection()),
     ]
 
 

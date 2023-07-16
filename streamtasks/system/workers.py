@@ -88,20 +88,6 @@ class TaskFactoryWorker(Worker, ABC):
 
     app = FastAPI()
 
-    @app.middleware("http")
-    async def log_requests(request, call_next):
-      idem = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-      logging.info(f"rid={idem} start request path={request.url.path}")
-      start_time = time.time()
-      
-      response = await call_next(request)
-      
-      process_time = (time.time() - start_time) * 1000
-      formatted_process_time = '{0:.2f}'.format(process_time)
-      logging.info(f"rid={idem} completed_in={formatted_process_time}ms status_code={response.status_code}")
-      
-      return response
-
     @app.post("/rpc/connect")
     async def rpc_connect(req: RPCTaskConnectRequest):
       try:
@@ -110,12 +96,6 @@ class TaskFactoryWorker(Worker, ABC):
         return RPCTaskConnectResponse(task=deployment, error_message=None)
       except Exception as e:
         return RPCTaskConnectResponse(task=None, error_message=str(e))
-
-    # handle various errors
-    @app.exception_handler(Exception)
-    async def handle_exception(request, exc: Exception):
-      print(exc)
-      return PlainTextResponse(str(exc), status_code=500)
 
     runner = ASGIAppRunner(self._client, app, self.reg.web_init_descriptor, self.reg.worker_address)
     self.web_server_running.set()

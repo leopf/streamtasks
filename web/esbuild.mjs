@@ -16,7 +16,7 @@ const ctx = await esbuild.context({
 
 const { port: frontendPort, host } = await ctx.serve({ servedir: "dist", })
 
-const attemptPorts = [ frontendPort, 8010 ];
+const attemptPorts = [ 8010, frontendPort ];
 
 http.createServer(async (req, res) => {
     let portIndex = 0;

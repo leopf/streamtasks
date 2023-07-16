@@ -94,7 +94,7 @@ class RPCTaskConnectRequest(BaseModel):
   task: DeploymentTask
 
 class RPCTaskConnectResponse(BaseModel):
-  task: DeploymentTask
+  task: Optional[DeploymentTask]
   error_message: Optional[str]
 
 class TaskFetchDescriptors:
