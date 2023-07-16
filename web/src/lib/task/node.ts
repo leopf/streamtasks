@@ -94,7 +94,6 @@ export class TaskNode implements Node {
                 Object.assign(this.task, data.task);
                 if (taskRequiresUpdate(cloned, data.task)) {
                     console.log("update")
-                    this.task = cloned;
                     this.updateHandlers.forEach(cb => cb());
                 }
             }

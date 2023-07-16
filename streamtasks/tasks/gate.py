@@ -1,5 +1,6 @@
 from streamtasks.system.task import Task
 from streamtasks.system.workers import TaskFactoryWorker
+from streamtasks.system.helpers import apply_task_stream_config
 from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
 from streamtasks.client import Client
 from streamtasks.client.receiver import NoopReceiver
@@ -92,26 +93,25 @@ class GateTaskFactoryWorker(TaskFactoryWorker):
   async def create_task(self, deployment: DeploymentTask): return GateTask(await self.create_client(), deployment)
   async def rpc_connect(self, req: RPCTaskConnectRequest) -> DeploymentTask:
     if req.input_id == req.task.stream_groups[0].inputs[0].ref_id:
-      new_task: DeploymentTask = req.task.copy(deep=True)
-
-      new_task.stream_groups[0].inputs[0].encoding = req.output_stream.encoding
-      new_task.stream_groups[0].inputs[0].content_type = req.output_stream.content_type
-      new_task.stream_groups[0].inputs[0].extra = req.output_stream.extra
-      new_task.stream_groups[0].inputs[0].topic_id = req.output_stream.topic_id
-
-      new_task.stream_groups[0].outputs[0].encoding = req.output_stream.encoding
-      new_task.stream_groups[0].outputs[0].content_type = req.output_stream.content_type
-      new_task.stream_groups[0].outputs[0].extra = req.output_stream.extra
+      if req.output_stream is None:
+        req.task.stream_groups[0].inputs[0].topic_id = None
+      else:
+        apply_task_stream_config(req.task.stream_groups[0].inputs[0], req.output_stream)
+        req.task.stream_groups[0].inputs[0].topic_id = req.output_stream.topic_id
+        apply_task_stream_config(req.task.stream_groups[0].outputs[0], req.output_stream)
       
-      return new_task
+      return req.task
     elif req.input_id == req.task.stream_groups[0].inputs[1].ref_id:
-      assert req.output_stream.content_type == "number", "Gate input must be a number"
-      assert req.output_stream.encoding is None, "Gate is not allowed to have an encoding"
-      assert req.output_stream.extra is None, "Gate is not allowed to have extra data"
+      if req.output_stream is None: 
+        req.task.stream_groups[0].inputs[1].topic_id = None
+        return req.task
+      else:
+        assert req.output_stream.content_type == "number", "Gate input must be a number"
+        assert req.output_stream.encoding is None, "Gate is not allowed to have an encoding"
+        assert req.output_stream.extra is None, "Gate is not allowed to have extra data"
 
-      new_task: DeploymentTask = req.task.copy(deep=True)
-      new_task.stream_groups[0].inputs[1].topic_id = req.output_stream.topic_id
-      return new_task
+        req.task.stream_groups[0].inputs[1].topic_id = req.output_stream.topic_id
+        return req.task
 
   @property
   def task_template(self): return DeploymentTask(

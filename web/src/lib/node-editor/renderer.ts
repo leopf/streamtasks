@@ -245,9 +245,7 @@ export class NodeRenderer {
         ]
 
 
-        const hash = objectHash(["5", stream.config]);
-        const n = parseInt(hash.substr(0, 2), 16) % samples.length;
-        return samples[n];
+        return samples[parseInt(objectHash([11, stream.config]).slice(0, 6), 16) % samples.length];
     }
 }
 

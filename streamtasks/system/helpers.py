@@ -3,7 +3,7 @@ from typing import Iterable
 from streamtasks.asgi import ASGIApp
 from streamtasks.client import Client
 from streamtasks.system.protocols import *
-from streamtasks.system.types import TaskFactoryRegistration, DashboardRegistration, DashboardInfo
+from streamtasks.system.types import TaskFactoryRegistration, DashboardRegistration, DashboardInfo, TaskStreamBase
 from streamtasks.asgi import *
 import fnmatch
 import urllib.parse
@@ -15,6 +15,11 @@ import httpx
 async def asgi_app_not_found(scope, receive, send):
   await send({"type": "http.response.start", "status": 404})
   await send({"type": "http.response.body", "body": b"404 Not Found"})
+
+def apply_task_stream_config(target: TaskStreamBase, source: TaskStreamBase):
+  target.content_type = source.content_type
+  target.encoding = source.encoding
+  target.extra = source.extra
 
 class ASGIIDRouter:
   def __init__(self):
