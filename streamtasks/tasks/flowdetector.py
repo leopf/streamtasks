@@ -106,7 +106,7 @@ class FlowDetectorTaskFactoryWorker(TaskFactoryWorker):
     stream_groups=[
       TaskStreamGroup(
         inputs=[TaskInputStream(label="input")],    
-        outputs=[TaskOutputStream(label="output"), TaskOutputStream(label="signal")]      
+        outputs=[TaskOutputStream(label="output"), TaskOutputStream(label="signal", content_type="number")]      
       )
     ]
   )
