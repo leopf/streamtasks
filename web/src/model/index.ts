@@ -7,6 +7,7 @@ export const PointModel = z.object({
 export type Point = z.infer<typeof PointModel>;
 
 export const LogEntryModel = z.object({
+    id: z.string().uuid(),
     level: z.string(),
     message: z.string(),
     timestamp: z.coerce.date(),

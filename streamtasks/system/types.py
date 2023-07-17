@@ -97,6 +97,16 @@ class RPCTaskConnectResponse(BaseModel):
   task: Optional[DeploymentTask] = None
   error_message: Optional[str] = None
 
+class SystemLogQueryParams(BaseModel):
+  count: int = 100
+  offset: int = 0
+
+class SystemLogEntry(BaseModel):
+  id: str = Field(default_factory=uuid4_str)
+  message: str
+  level: str
+  timestamp: int
+
 class TaskFetchDescriptors:
   REGISTER_TASK_FACTORY = "register_task_factory"
   UNREGISTER_TASK_FACTORY = "unregister_task_factory"

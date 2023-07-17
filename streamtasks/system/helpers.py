@@ -1,16 +1,13 @@
 from abc import ABC, abstractmethod
-from typing import Iterable
 from streamtasks.asgi import ASGIApp
-from streamtasks.client import Client
 from streamtasks.system.protocols import *
-from streamtasks.system.types import TaskFactoryRegistration, DashboardRegistration, DashboardInfo, TaskStreamBase
+from streamtasks.system.types import TaskStreamBase, SystemLogEntry
 from streamtasks.asgi import *
-import fnmatch
 import urllib.parse
 import uvicorn
-import re
 import asyncio
 import httpx
+import logging
 
 async def asgi_app_not_found(scope, receive, send):
   await send({"type": "http.response.start", "status": 404})
@@ -74,3 +71,16 @@ class UvicornASGIServer(ASGIServer):
     config = uvicorn.Config(app, port=self.port, host=self.host)
     server = uvicorn.Server(config)
     await server.serve()
+
+class JsonLogger(logging.StreamHandler):
+  def __init__(self, stream=None):
+    super().__init__(stream)
+    self.log_entries = []
+
+  def emit(self, record):
+    entry = SystemLogEntry(
+      level=record.levelname,
+      message=self.format(record),
+      timestamp=int(record.created * 1000)
+    )
+    self.log_entries.append(entry)

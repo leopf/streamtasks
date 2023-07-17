@@ -1,9 +1,6 @@
 import asyncio
 from abc import ABC, abstractmethod, abstractproperty
-from typing import Iterable
 from streamtasks.asgi import ASGIApp
-import uvicorn
-import re
 from streamtasks.system.protocols import *
 from streamtasks.client import Client
 from streamtasks.comm import Connection
@@ -14,13 +11,8 @@ from streamtasks.system.types import *
 from streamtasks.system.helpers import *
 from streamtasks.system.store import *
 from uuid import uuid4
-import urllib.parse
-from fastapi.responses import PlainTextResponse
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 import itertools
-import time
-import random
-import string
 
 
 class TaskFactoryWorker(Worker, ABC):
@@ -168,9 +160,11 @@ class TaskManagerWorker(Worker):
     self.deployments = DeploymentStore()
     self.dashboards = None
     self.task_factories = None
+    self.log_handler = JsonLogger()
 
   async def start(self):
     try:
+      logging.getLogger().addHandler(self.log_handler)
       client = Client(await self.create_connection())
       self.dashboards = DashboardStore(client, "/dashboard/")
       self.task_factories = TaskFactoryStore(client, "/task-factory/")
@@ -183,6 +177,7 @@ class TaskManagerWorker(Worker):
       )
     finally:
       self.ready.clear()
+      logging.getLogger().removeHandler(self.log_handler)
 
   async def _setup(self, client: Client):
     await self.connected.wait()
@@ -222,6 +217,12 @@ class TaskManagerWorker(Worker):
     app = FastAPI()
     app.mount(self.dashboards.base_url, self.dashboards.router)
     app.mount(self.task_factories.base_url, self.task_factories.router)
+
+    @app.get("/api/logs")
+    def get_logs(req: Request):
+      q = SystemLogQueryParams.model_validate(req.query_params)
+      if q.offset == 0: return self.log_handler.log_entries[-q.count:]
+      else: return self.log_handler.log_entries[-q.offset-q.count:-q.offset]
 
     @app.get("/api/dashboards")
     def list_dashboards(): return self.dashboards.dashboards

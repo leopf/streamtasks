@@ -7,7 +7,7 @@ import { state } from "../../state";
 export const ShowSystemLogsButton = observer((props: {}) => {
     return (
         <Tooltip title="logs">
-        <IconButton size="small" sx={{ marginRight: 1 }} onClick={() => state.systemLogOpen = true}>
+        <IconButton size="small" sx={{ marginRight: 1 }} onClick={() => state.systemLogs.toggleOpen()}>
             <LogsIcon htmlColor="#fff" />
         </IconButton>
     </Tooltip>

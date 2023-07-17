@@ -5,16 +5,22 @@ import { AppModal } from "../stateless/AppModel";
 import React, { useEffect, useRef, useState } from "react";
 import { reaction } from "mobx";
 
-export const SystemLogModal = observer((props: { }) => {
+export const SystemLogModal = observer((props: {}) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
 
     const scrollToEnd = () => containerRef.current?.scrollTo(0, containerRef.current.scrollHeight)
-    useEffect(() => reaction(() => state.logs.length, scrollToEnd), [containerRef.current]);
-    useEffect(scrollToEnd, [state.systemLogOpen, containerRef]);
+    useEffect(() => reaction(() => state.systemLogs.logs.length, scrollToEnd), [containerRef.current]);
+    useEffect(scrollToEnd, [state.systemLogs.open, containerRef]);
+    useEffect(() => {
+        if (state.systemLogs.open) {
+            const hdl = setInterval(() => state.systemLogs.completeLoadLogs(), 1000);
+            return () => clearInterval(hdl);
+        }
+    }, [state.systemLogs.open]);
 
     return (
-        <AppModal open={state.systemLogOpen} onClose={() => state.systemLogOpen = false} title="System logs">
-            <Stack spacing={2} padding={2} ref={(e) => {
+        <AppModal open={state.systemLogs.open} onClose={() => state.systemLogs.toggleOpen()} title="System logs">
+            <Box ref={(e) => {
                 if (e !== containerRef.current) {
                     containerRef.current = e as HTMLDivElement;
                     scrollToEnd();
@@ -24,12 +30,14 @@ export const SystemLogModal = observer((props: { }) => {
                 overflowY: "auto",
                 maxHeight: "100%"
             }}>
-                {state.systemLogOpen && (
-                    state.logs.map((log, i) => {
-                        return (<Box key={i}>{`[${log.timestamp.toLocaleString()}] ${log.level}: ${log.message}`}</Box>)
-                    })
-                )}
-            </Stack>
+                <Stack spacing={2} padding={2} boxSizing={"border-box"}>
+                    {state.systemLogs.open && (
+                        state.systemLogs.logs.map((log) => {
+                            return (<Box key={log.id}>{`[${log.timestamp.toLocaleString()}] ${log.level}: ${log.message}`}</Box>)
+                        })
+                    )}
+                </Stack>
+            </Box>
         </AppModal>
     );
 })
