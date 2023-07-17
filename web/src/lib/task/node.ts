@@ -13,7 +13,7 @@ export interface RPCTaskConnectRequest {
 
 export interface RPCTaskConnectResponse {
     task?: Task;
-    errorMessage?: string;
+    error_message?: string;
 }
 
 function taskRequiresUpdate(oldTask: Task, newTask: Task) {
@@ -75,8 +75,8 @@ export class TaskNode implements Node {
             }
 
             const data = await res.json() as RPCTaskConnectResponse;
-            if (data.errorMessage) {
-                return data.errorMessage;
+            if (data.error_message) {
+                return data.error_message;
             }
             else if (data.task) {
                 const cloned = cloneDeep(this.task);
@@ -98,7 +98,7 @@ export class TaskNode implements Node {
                 }
             }
             else {
-                return "backend responded without a task or error message"
+                return "Error while creating the connection."
             }
         }
         catch (e) {
