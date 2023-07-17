@@ -101,13 +101,14 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     self.assertIn(1, received.remove)
     
   async def test_close(self):    
-    self.a.close()
-    await asyncio.sleep(0.001)
-    self.assertEqual(len(self.switch.cm.connections), 1)
+    async with asyncio.timeout(1):
+      self.a.close()
+      while len(self.switch.cm.connections) != 1: await asyncio.sleep(0.001)
+      self.assertEqual(len(self.switch.cm.connections), 1)
 
-    self.b.close()
-    await asyncio.sleep(0.001)
-    self.assertEqual(len(self.switch.cm.connections), 0)
+      self.b.close()
+      while len(self.switch.cm.connections) != 0: await asyncio.sleep(0.001)
+      self.assertEqual(len(self.switch.cm.connections), 0)
     
 if __name__ == '__main__':
   unittest.main()

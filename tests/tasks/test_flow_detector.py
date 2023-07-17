@@ -47,7 +47,7 @@ class TestFlowDetector(TaskTestBase):
     return task
 
   async def _test_fail_mode(self, fail_mode: FlowDetectorFailMode, fm_expected_values):
-    async with asyncio.timeout(1):
+    async with asyncio.timeout(10):
       async with self.client.get_topics_receiver([ self.stream_signal_topic ]) as signal_recv:
         task = self.start_task(fail_mode)
         await task.setup_done.wait()

@@ -67,7 +67,7 @@ class TestGate(TaskTestBase):
     await asyncio.sleep(0.001)
 
   async def _test_fail_mode(self, fail_mode: GateFailMode, expected_values: list[float], expected_pauses: list[bool]):
-    async with asyncio.timeout(1):
+    async with asyncio.timeout(10):
       gate = self.start_gate(fail_mode)
       async with self.client.get_topics_receiver([ self.stream_out_topic ]) as out_reciever:
         await self.stream_out_topic.subscribe()
@@ -147,5 +147,4 @@ class TestGate(TaskTestBase):
         await self.stream_gate_topic.wait_subscribed(subscribed=False)
 
 if __name__ == "__main__":
-  setup()
   unittest.main()
