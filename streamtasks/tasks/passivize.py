@@ -1,4 +1,5 @@
 from streamtasks.system.task import Task
+from streamtasks.system.helpers import apply_task_stream_config
 from streamtasks.system.workers import TaskFactoryWorker
 from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
 from streamtasks.client import Client
@@ -74,7 +75,16 @@ class PassivizeTask(Task):
 
 class PassivizeTaskFactoryWorker(TaskFactoryWorker):
   async def create_task(self, deployment: DeploymentTask): return PassivizeTask(await self.create_client(), deployment)
-  async def rpc_connect(self, req: RPCTaskConnectRequest) -> DeploymentTask: return req.task
+  async def rpc_connect(self, req: RPCTaskConnectRequest) -> DeploymentTask: 
+    assert req.input_id == req.task.stream_groups[0].inputs[0].ref_id, "Input stream id does not match task input stream id"
+    if req.output_stream:
+      req.task.stream_groups[0].inputs[0].topic_id = req.output_stream.topic_id
+      apply_task_stream_config(req.task.stream_groups[0].inputs[0], req.output_stream)
+      apply_task_stream_config(req.task.stream_groups[0].outputs[0], req.output_stream)
+      apply_task_stream_config(req.task.stream_groups[0].outputs[1], req.output_stream)
+    else:
+      req.task.stream_groups[0].inputs[0].topic_id = None
+    return req.task
   @property
   def task_template(self): return DeploymentTask(
     task_factory_id=self.id,
