@@ -24,13 +24,18 @@ class DiscoveryWorker(Worker):
     client = Client(await self.create_connection())
     await client.change_addresses([WorkerAddresses.ID_DISCOVERY])
 
-    async with client.provide_context([WorkerTopics.ADDRESSES_CREATED, WorkerTopics.DISCOVERY_SIGNAL, WorkerTopics.ADDRESS_NAME_ASSIGNED]):
-      await asyncio.gather(
-        self._run_address_generator(client),
-        self._run_fetch_server(client),
-        self._run_lighthouse(client),
-        super().start()
-      )
+    try:
+      async with client.provide_context([WorkerTopics.ADDRESSES_CREATED, WorkerTopics.DISCOVERY_SIGNAL, WorkerTopics.ADDRESS_NAME_ASSIGNED]):
+        await asyncio.gather(
+          self._run_address_generator(client),
+          self._run_fetch_server(client),
+          self._run_lighthouse(client),
+          super().start()
+        )
+    finally:
+      self._address_counter = WorkerAddresses.COUNTER_INIT
+      self._topics_counter = WorkerTopics.COUNTER_INIT
+      self._address_map = {}
 
   async def _run_lighthouse(self, client: Client):
     await self.connected.wait()

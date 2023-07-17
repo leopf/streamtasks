@@ -138,21 +138,18 @@ export class RootState {
     public async loadDeployments() {
         const res = await fetch('/api/deployments');
         const json = await res.json();
-        console.log("deployments: ", json);
         this._deployments = json;
     }
 
     public async loadDashboards() {
         const res = await fetch('/api/dashboards');
         const json = await res.json();
-        console.log("dashboards: ", json);
         this._dashboards = json;
     }
 
     private async loadTaskTemplates() {
         const res = await fetch('/api/task-templates');
         const json = await res.json();
-        console.log("task templates: ", json);
         this.taskTemplates = json;
         return json;
     }

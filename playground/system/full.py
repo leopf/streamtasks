@@ -11,7 +11,7 @@ import sys
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
-async def run():
+async def main():
     node = LocalNode()
     workers = [
         TaskManagerWorker(await node.create_connection(), UvicornASGIServer(8010)),
@@ -28,17 +28,5 @@ async def run():
         *(worker.start() for worker in workers),
     )
 
-async def main():
-    task = asyncio.create_task(run())
-    try:
-        await task
-    except KeyboardInterrupt:
-        print("interrupted")
-        task.cancel()
-        await task
-
-
 if __name__ == "__main__":
     asyncio.run(main())
-
-

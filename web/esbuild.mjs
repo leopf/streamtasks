@@ -18,7 +18,7 @@ const { port: frontendPort, host } = await ctx.serve({ servedir: "dist", })
 
 const attemptPorts = [ 8010, frontendPort ];
 
-http.createServer(async (req, res) => {
+http.createServer((req, res) => {
     let portIndex = 0;
     const forwardRequest = (port, path) => {
         const options = {
@@ -28,28 +28,44 @@ http.createServer(async (req, res) => {
             method: req.method,
             headers: req.headers,
         };
+        let done = false;
+        const callNext = () => {
+            if (done) return;
+            done = true;
+            portIndex += 1;
+            if (portIndex < attemptPorts.length) {
+                return forwardRequest(attemptPorts[portIndex], path);
+            }
+            else {
+                return forwardRequest(frontendPort, "/");
+            }
+        };
 
         const proxyReq = http.request(options, (proxyRes) => {
-            console.log("proxyRes.statusCode", proxyRes.statusCode, path);
+            if (done) return;
+            
             if (proxyRes.statusCode === 404) {
-                portIndex += 1;
-                if (portIndex < attemptPorts.length) {
-                    return forwardRequest(attemptPorts[portIndex], path);
-                }
-                else {
-                    return forwardRequest(frontendPort, "/");
-                }
+                callNext();
+                return;
             }
-
-            // Otherwise esbuild handled it like a champ, so proxy the response back.
             res.writeHead(proxyRes.statusCode, proxyRes.headers);
             proxyRes.pipe(res, { end: true });
+        });
+
+        proxyReq.on("error", (e) => {
+            callNext();
         });
 
         req.pipe(proxyReq, { end: true });
     };
 
-    // When we're called pass the request right through to esbuild.
-    forwardRequest(attemptPorts[portIndex], req.url);
+    try {
+        forwardRequest(attemptPorts[portIndex], req.url);
+    }
+    catch (e) {
+        console.error(e);
+        res.writeHead(500);
+        res.end("Internal Server Error");
+    }
 }).listen(8001, host)
 console.log(`Serving on http://${host}:${8001}`)

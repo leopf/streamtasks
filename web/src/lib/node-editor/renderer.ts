@@ -472,8 +472,9 @@ export class NodeEditorRenderer {
 
     private container?: HTMLElement;
     private containerResizeObserver?: ResizeObserver;
-    private _updatedHandlers: ((nodeId: string) => void)[] = [];
-    private _selectedHandlers: ((nodeId?: string) => void)[] = [];
+    private _updatedHandlers = new Set<(nodeId: string) => void>();
+    private _selectedHandlers = new Set<(nodeId?: string) => void>();
+    private _connectErrorHandlers = new Set<(message: string) => void>();
 
     private _readOnly: boolean = false;
     public get readOnly() {
@@ -538,14 +539,33 @@ export class NodeEditorRenderer {
             .wheel()
     }
 
+    public on(event: "connectError", callback: (message: string) => void): void;
     public on(event: "updated", callback: (nodeId: string) => void): void;
     public on(event: "selected", callback: (nodeId?: string) => void): void;
-    public on(event: "updated" | "selected", callback: ((nodeId: string) => void) | ((nodeId?: string) => void)) {
+    public on(event: "updated" | "selected" | "connectError", callback: ((v: string) => void) | ((v?: string) => void)) {
         if (event === "updated") {
-            this._updatedHandlers.push(callback);
+            this._updatedHandlers.add(callback);
         }
         else if (event === "selected") {
-            this._selectedHandlers.push(callback as any);
+            this._selectedHandlers.add(callback as any);
+        }
+        else if (event === "connectError") {
+            this._connectErrorHandlers.add(callback as any);
+        }
+    }
+
+    public off(event: "connectError", callback: (message: string) => void): void;
+    public off(event: "updated", callback: (nodeId: string) => void): void;
+    public off(event: "selected", callback: (nodeId?: string) => void): void;
+    public off(event: "updated" | "selected" | "connectError", callback: ((v: string) => void) | ((v?: string) => void)) {
+        if (event === "updated") {
+            this._updatedHandlers.delete(callback);
+        }
+        else if (event === "selected") {
+            this._selectedHandlers.delete(callback as any);
+        }
+        else if (event === "connectError") {
+            this._connectErrorHandlers.delete(callback as any);
         }
     }
 
@@ -693,6 +713,9 @@ export class NodeEditorRenderer {
     private emitSelected(nodeId?: string) {
         this._selectedHandlers.forEach(h => h(nodeId));
     }
+    private emitConnectError(message: string) {
+        this._connectErrorHandlers.forEach(h => h(message));
+    }
 
     private resize() {
         if (!this.container) return;
@@ -784,14 +807,14 @@ export class NodeEditorRenderer {
 
     private handleConnectionResult(result: ConnectResult): boolean {
         if (result === false) {
-            console.log('Connection failed');
+            this.emitConnectError('Connection failed');
             return false;
         }
         else if (result === true) {
             return true;
         }
         else {
-            console.error(result);
+            this.emitConnectError(result);
             return false;
         }
     }

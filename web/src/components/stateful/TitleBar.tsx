@@ -24,7 +24,7 @@ const DeploymentList = observer(() => {
             </Stack>
         }>
             {state.deployments.map(deployment => (
-                <ListItem disablePadding>
+                <ListItem disablePadding key={deployment.id}>
                     <ListItemButton href={`/deployment/view/${deployment.id}`}>
                         <ListItemText primary={deployment.label} />
                     </ListItemButton>
@@ -56,7 +56,7 @@ export const TitleBar = observer((props: { children?: React.ReactNode }) => {
                     <DeploymentList />
                     <List subheader={<ListSubheader>Dashboards</ListSubheader>}>
                         {state.dashboards.map(dashboard => (
-                            <ListItem disablePadding>
+                            <ListItem disablePadding key={dashboard.id}>
                                 <ListItemButton href={`/dashboard/${dashboard.id}`}>
                                     <ListItemText primary={dashboard.label} />
                                 </ListItemButton>

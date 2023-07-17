@@ -1,7 +1,7 @@
 import { TableContainer, Table, TableBody, TableRow, TableCell, Box, Stack, Typography, Divider } from "@mui/material";
 import { observer } from "mobx-react";
 import React, { useMemo } from "react";
-import { Task, TaskStreamBase, streamToString } from "../../lib/task";
+import { Task, TaskInputStream, TaskOutputStream, TaskStreamBase, streamToString } from "../../lib/task";
 import { DeploymentState } from "../../state/deployment";
 import { TaskNode } from "../../lib/task/node";
 
@@ -25,7 +25,7 @@ const TaskStreamDisplay = (props: { stream: TaskStreamBase }) => {
 
 export const TaskEditor = observer((props: { taskNode: TaskNode, deployment: DeploymentState, onUnselect: () => void }) => {
     const mappedStreams = useMemo(() => {
-        const streams: [(TaskStreamBase | undefined), (TaskStreamBase | undefined)][] = [];
+        const streams: [(TaskInputStream | undefined), (TaskOutputStream | undefined)][] = [];
 
         for (let i = 0; i < props.taskNode.task.stream_groups.length; i++) {
             const group = props.taskNode.task.stream_groups[i];
@@ -50,7 +50,7 @@ export const TaskEditor = observer((props: { taskNode: TaskNode, deployment: Dep
                 <Table size="small">
                     <TableBody>
                         {mappedStreams.map(([input, output], i) => (
-                            <TableRow>
+                            <TableRow key={(input?.ref_id ?? "") + (output?.topic_id ?? "")}>
                                 <TableCell padding="none" align="left">{input ? <TaskStreamDisplay stream={input} /> : <Box height={1} />}</TableCell>
                                 <TableCell padding="none" align="left">{output ? <TaskStreamDisplay stream={output} /> : <Box height={1} />}</TableCell>
                             </TableRow>
