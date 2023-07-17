@@ -120,6 +120,18 @@ const DeploymentNodeEditor = observer((props: { deployment: DeploymentState, fle
 
     return (
         <>
+            <Box flex={props.flex} height="100%" width="100%" sx={{ position: "relative" }}>
+                <NodeEditor editor={props.deployment.editor} />
+                {!!selectedTask && (
+                    <TaskEditorOverlay onClose={() => setSelectedTaskId(undefined)}>
+                        <TaskEditor 
+                            deployment={props.deployment} 
+                            taskNode={selectedTask} 
+                            onUnselect={() => setSelectedTaskId(undefined)} 
+                            onDelete={() => setDeleteDialogOpen(true)} />
+                    </TaskEditorOverlay>
+                )}
+            </Box>
             <Dialog open={deleteDialogOpen && !!selectedTask} onClose={() => setDeleteDialogOpen(false)}>
                 <Box sx={{ padding: 2 }}>
                     <Typography>Are you sure you want to delete this task?</Typography>
@@ -137,14 +149,6 @@ const DeploymentNodeEditor = observer((props: { deployment: DeploymentState, fle
                     </Stack>
                 </Box>
             </Dialog>
-            <Box flex={props.flex} height="100%" width="100%">
-                <NodeEditor editor={props.deployment.editor} />
-                {!!selectedTask && (
-                    <TaskEditorOverlay onClose={() => setSelectedTaskId(undefined)}>
-                        <TaskEditor deployment={props.deployment} taskNode={selectedTask} onUnselect={() => setSelectedTaskId(undefined)} />
-                    </TaskEditorOverlay>
-                )}
-            </Box>
         </>
     );
 });

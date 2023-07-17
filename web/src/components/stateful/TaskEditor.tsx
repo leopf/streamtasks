@@ -1,9 +1,10 @@
-import { TableContainer, Table, TableBody, TableRow, TableCell, Box, Stack, Typography, Divider } from "@mui/material";
+import { TableContainer, Table, TableBody, TableRow, TableCell, Box, Stack, Typography, Divider, IconButton } from "@mui/material";
 import { observer } from "mobx-react";
 import React, { useMemo } from "react";
 import { Task, TaskInputStream, TaskOutputStream, TaskStreamBase, streamToString } from "../../lib/task";
 import { DeploymentState } from "../../state/deployment";
 import { TaskNode } from "../../lib/task/node";
+import { Delete as DeleteIcon } from "@mui/icons-material";
 
 const TaskStreamDisplay = (props: { stream: TaskStreamBase }) => {
     const valueToString = (value: any) => {
@@ -23,7 +24,7 @@ const TaskStreamDisplay = (props: { stream: TaskStreamBase }) => {
     )
 };
 
-export const TaskEditor = observer((props: { taskNode: TaskNode, deployment: DeploymentState, onUnselect: () => void }) => {
+export const TaskEditor = observer((props: { taskNode: TaskNode, deployment: DeploymentState, onUnselect: () => void, onDelete: () => void }) => {
     const mappedStreams = useMemo(() => {
         const streams: [(TaskInputStream | undefined), (TaskOutputStream | undefined)][] = [];
 
@@ -44,7 +45,15 @@ export const TaskEditor = observer((props: { taskNode: TaskNode, deployment: Dep
 
     return (
         <Stack direction="column" padding={2}>
-            <Typography variant="subtitle1" gutterBottom>{props.taskNode.getName()}</Typography>
+            <Stack direction="row" alignItems="center" paddingBottom={1}>
+                <Typography variant="subtitle1" gutterBottom>{props.taskNode.getName()}</Typography>
+                <Box flex={1} />
+                <Box>
+                    <IconButton onClick={props.onDelete}>
+                        <DeleteIcon sx={{ width: "15px", height: "15px" }} />
+                    </IconButton>
+                </Box>
+            </Stack>
             <Divider sx={{ width: "100%" }} />
             <TableContainer>
                 <Table size="small">
