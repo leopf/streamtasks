@@ -26,11 +26,11 @@ export const SystemLogModal = observer((props: {}) => {
                     scrollToEnd();
                 }
             }} sx={{
-                fontFamily: "Consolas",
+                fontFamily: "Consolas, monospace",
                 overflowY: "auto",
                 maxHeight: "100%"
             }}>
-                <Stack spacing={2} padding={2} boxSizing={"border-box"}>
+                <Stack spacing={0.5} padding={2} boxSizing={"border-box"}>
                     {state.systemLogs.open && (
                         state.systemLogs.logs.map((log) => {
                             return (<Box key={log.id}>{`[${log.timestamp.toLocaleString()}] ${log.level}: ${log.message}`}</Box>)
