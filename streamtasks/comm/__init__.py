@@ -11,6 +11,9 @@ import asyncio
 
 RemoteAddress = Union[str, tuple[str, int]]
 
+class ConnectionClosedError(Exception):
+  def __init__(self, message: str = "Connection closed"): super().__init__(message)
+
 class Connection(ABC):
   in_topics: set[int]
   addresses: dict[int, int]
@@ -75,7 +78,7 @@ class Connection(ABC):
       done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
       results = [ task.result() for task in done ]
       assert len(results) > 0, "Invalid state"
-      if len(results) > 1 or not isinstance(results[0], Message): raise Exception("Connection closed")
+      if len(results) > 1 or not isinstance(results[0], Message): raise ConnectionClosedError()
       return results[0]
     finally:
       for task in tasks: task.cancel()
@@ -141,7 +144,7 @@ class IPCConnection(Connection):
   def _validate_open(self):
     if self.connection.closed:
       if not self.closed.is_set(): self.close()
-      raise Exception("Connection closed")
+      raise ConnectionClosedError()
 
 class QueueConnection(Connection):
   out_messages: asyncio.Queue[Message]
@@ -179,7 +182,7 @@ class QueueConnection(Connection):
   def _validate_open(self):
     if self.close_signal.is_set():
       if not self.closed.is_set(): self.close()
-      raise Exception("Connection closed")
+      raise ConnectionClosedError()
 
 class RawQueueConnection(QueueConnection):
   out_messages: asyncio.Queue[bytes]
@@ -366,7 +369,11 @@ class Switch:
       while True: 
         message = await connection.recv()
         await self.handle_message(message, connection)
-    except BaseException as e: logging.error(f"Error receiving from connection: {e}")
+    except asyncio.CancelledError: pass
+    except ConnectionClosedError: pass
+    except BaseException as e: 
+      logging.error(f"Error receiving from connection: {e}")
+      raise e
     finally: 
       await self.remove_connection(connection)
 

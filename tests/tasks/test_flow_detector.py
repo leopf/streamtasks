@@ -78,9 +78,7 @@ class TestFlowDetector(TaskTestBase):
         while len(expected_values) > 0:
           value = await recv_value()
           if value is None: continue
-          print(f"got: {value}")
           expected_value = expected_values.pop(0)
-          print(f"expected: {expected_value}, got: {value}")
           self.assertEqual(value, expected_value)
 
   async def test_fail_open(self):

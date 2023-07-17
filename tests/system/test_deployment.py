@@ -107,7 +107,7 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
     await self.setup_worker(self.counter_increment_worker)
     
     await asyncio.sleep(0.001)
-
+    
   async def asyncTearDown(self):
     for task in self.tasks:
       if task.done(): await task
@@ -132,6 +132,8 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
       self.assertEqual(len(tasks), 2)
       self.assertIn(self.counter_emit_worker.id, ids)
       self.assertIn(self.counter_increment_worker.id, ids)
+      
+      await web_client.aclose()
 
   async def test_counter_deploy(self):
     async with asyncio.timeout(10):
@@ -177,7 +179,8 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
           self.assertEqual(topic_id, result_topic_id)
           self.assertEqual(data.data["count"], last_value + multiplier)
           last_value = data.data["count"]
-
+      
+      await web_client.aclose()
 
 if __name__ == "__main__":
   unittest.main()

@@ -5,6 +5,7 @@ from streamtasks.system.protocols import *
 from streamtasks.message.data import JsonData, TextData, MessagePackData
 from streamtasks.comm.types import TopicControlData
 from streamtasks.comm import Connection
+import pydantic
 import logging
 import asyncio
 
@@ -80,6 +81,7 @@ class DiscoveryWorker(Worker):
             request_id=request.request_id, 
             addresses=addresses
           ).model_dump()))
+        except pydantic.ValidationError as e: pass
         except Exception as e: 
           logging.error(e)
   

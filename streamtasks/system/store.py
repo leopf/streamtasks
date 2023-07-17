@@ -63,7 +63,7 @@ class DeploymentStore:
 
   def has_deployment(self, id: str) -> bool: return id in self._deployments
   def set_deployment_started(self, deployment: Deployment):
-    new_deployment = deployment.copy(deep=True)
+    new_deployment = deployment.model_copy(deep=True)
     self._started_deployments[deployment.id] = new_deployment
     return new_deployment
 
