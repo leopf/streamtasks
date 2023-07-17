@@ -89,8 +89,8 @@ class Client:
     await self._register_address_name(name, address)
   async def resolve_address_name(self, name: str) -> Optional[int]:
     if name in self._address_map: return self._address_map[name]
-    raw_res = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.RESOLVE_ADDRESS, ResolveAddressRequestBody(address_name=name).dict())
-    res: ResolveAddressResonseBody = ResolveAddressResonseBody.parse_obj(raw_res)
+    raw_res = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.RESOLVE_ADDRESS, ResolveAddressRequestBody(address_name=name).model_dump())
+    res: ResolveAddressResonseBody = ResolveAddressResonseBody.model_validate(raw_res)
     if res.address is not None: self._address_map[name] = res.address
     return res.address
 
@@ -99,7 +99,7 @@ class Client:
     async with self._address_request_lock:
       request_id = secrets.randbelow(1<<64)
       async with ResolveAddressesReceiver(self, request_id) as receiver:
-        await self.send_to(WorkerAddresses.ID_DISCOVERY, JsonData(GenerateAddressesRequestMessage(request_id=request_id, count=count).dict()))
+        await self.send_to(WorkerAddresses.ID_DISCOVERY, JsonData(GenerateAddressesRequestMessage(request_id=request_id, count=count).model_dump()))
         data: GenerateAddressesResponseMessage = await receiver.recv()
         addresses = set(data.addresses)
     assert len(addresses) == count, "The response returned an invalid number of addresses"
@@ -107,8 +107,8 @@ class Client:
     return addresses
 
   async def request_topic_ids(self, count: int, apply: bool=False) -> set[int]:
-    raw_res = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.GENERATE_TOPICS, GenerateTopicsRequestBody(count=count).dict())
-    res = GenerateTopicsResponseBody.parse_obj(raw_res)
+    raw_res = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.GENERATE_TOPICS, GenerateTopicsRequestBody(count=count).model_dump())
+    res = GenerateTopicsResponseBody.model_validate(raw_res)
     assert len(res.topics) == count, "The fetch request returned an invalid number of topics"
     if apply: await self.provide(res.topics)
     return res.topics
@@ -142,7 +142,7 @@ class Client:
       return_address=self.default_address, 
       request_id=fetch_id, 
       descriptor=descriptor, 
-      body=body).dict()))
+      body=body).model_dump()))
     receiver = FetchReponseReceiver(self, fetch_id)
     response_data = await receiver.recv()
     return response_data
@@ -159,7 +159,7 @@ class Client:
 
   async def _get_address(self, address: Union[int, str]) -> int: return await self.resolve_address_name(address) if isinstance(address, str) else address
   async def _register_address_name(self, name: str, address: Optional[int]):
-    await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.REGISTER_ADDRESS, RegisterAddressRequestBody(address_name=name, address=address).dict())
+    await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.REGISTER_ADDRESS, RegisterAddressRequestBody(address_name=name, address=address).model_dump())
     self._set_address_name(name, address)
   def _set_address_name(self, name: str, address: Optional[int]):
     if address is None: self._address_map.pop(name, None)

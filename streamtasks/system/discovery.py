@@ -42,7 +42,7 @@ class DiscoveryWorker(Worker):
 
     @server.route(WorkerFetchDescriptors.REGISTER_ADDRESS)
     async def register_address(req: FetchRequest):
-      request: RegisterAddressRequestBody = RegisterAddressRequestBody.parse_obj(req.body)
+      request: RegisterAddressRequestBody = RegisterAddressRequestBody.model_validate(req.body)
       logging.info(f"registering address name {request.address_name} for address {request.address}")
       if request.address is None: self._address_map.pop(request.address_name, None)
       else: self._address_map[request.address_name] = request.address
@@ -50,20 +50,20 @@ class DiscoveryWorker(Worker):
       await client.send_stream_data(WorkerTopics.ADDRESS_NAME_ASSIGNED, MessagePackData(AddressNameAssignmentMessage(
         address_name=request.address_name,
         address=self._address_map.get(request.address_name, None)
-      ).dict()))
+      ).model_dump()))
 
     @server.route(WorkerFetchDescriptors.RESOLVE_ADDRESS)
     async def resolve_address(req: FetchRequest):
-      request: ResolveAddressRequestBody = ResolveAddressRequestBody.parse_obj(req.body)
+      request: ResolveAddressRequestBody = ResolveAddressRequestBody.model_validate(req.body)
       logging.info(f"resolving the address for {request.address_name}")
-      await req.respond(ResolveAddressResonseBody(address=self._address_map.get(request.address_name, None)).dict())
+      await req.respond(ResolveAddressResonseBody(address=self._address_map.get(request.address_name, None)).model_dump())
 
     @server.route(WorkerFetchDescriptors.GENERATE_TOPICS)
     async def generate_topics(req: FetchRequest):
-      request = GenerateTopicsRequestBody.parse_obj(req.body)
+      request = GenerateTopicsRequestBody.model_validate(req.body)
       logging.info(f"generating {request.count} topics")
       topics = self.generate_topics(request.count)
-      await req.respond(GenerateTopicsResponseBody(topics=topics).dict())
+      await req.respond(GenerateTopicsResponseBody(topics=topics).model_dump())
 
     await server.start()
 
@@ -72,13 +72,13 @@ class DiscoveryWorker(Worker):
       while True:
         try:
           address, message = await receiver.recv()
-          request = GenerateAddressesRequestMessage.parse_obj(message.data)
+          request = GenerateAddressesRequestMessage.model_validate(message.data)
           logging.info(f"generating {request.count} addresses")
           addresses = self.generate_addresses(request.count)
           await client.send_stream_data(WorkerTopics.ADDRESSES_CREATED, JsonData(GenerateAddressesResponseMessage(
             request_id=request.request_id, 
             addresses=addresses
-          ).dict()))
+          ).model_dump()))
         except Exception as e: 
           logging.error(e)
   

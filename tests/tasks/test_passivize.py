@@ -55,12 +55,12 @@ class TestPassivize(TaskTestBase):
         await self.stream_active_out_topic.subscribe()
         await self.stream_in_topic.wait_subscribed()
 
-        # await self.client.send_stream_data(self.stream_in_topic.topic, JsonData(NumberMessage(timestamp=1, value=1).dict()))
+        # await self.client.send_stream_data(self.stream_in_topic.topic, JsonData(NumberMessage(timestamp=1, value=1).model_dump()))
         # await self.stream_passive_out_topic.unsubscribe()
-        # await self.client.send_stream_data(self.stream_in_topic.topic, JsonData(NumberMessage(timestamp=1, value=2).dict()))
+        # await self.client.send_stream_data(self.stream_in_topic.topic, JsonData(NumberMessage(timestamp=1, value=2).model_dump()))
         # await self.stream_passive_out_topic.subscribe()
         # await self.stream_active_out_topic.unsubscribe()
-        # await self.client.send_stream_data(self.stream_in_topic.topic, JsonData(NumberMessage(timestamp=1, value=3).dict()))
+        # await self.client.send_stream_data(self.stream_in_topic.topic, JsonData(NumberMessage(timestamp=1, value=3).model_dump()))
 
         # messages = [
         #   (1, self.stream_active_out_topic.topic),

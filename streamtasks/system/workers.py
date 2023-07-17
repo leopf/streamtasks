@@ -58,9 +58,9 @@ class TaskFactoryWorker(Worker, ABC):
     self.reg = TaskFactoryRegistration(
       id=self.id, 
       worker_address=self._client.default_address,
-      task_template=self.task_template.dict()
+      task_template=self.task_template.model_dump()
     )
-    await self._client.fetch(AddressNames.TASK_MANAGER, TaskFetchDescriptors.REGISTER_TASK_FACTORY, self.reg.dict())
+    await self._client.fetch(AddressNames.TASK_MANAGER, TaskFetchDescriptors.REGISTER_TASK_FACTORY, self.reg.model_dump())
     self.setup_done.set()
 
   async def _run_fetch_server(self):
@@ -70,15 +70,15 @@ class TaskFactoryWorker(Worker, ABC):
 
     @server.route(TaskFetchDescriptors.DELETE_TASK)
     async def delete_task(req: FetchRequest):
-      deployment: TaskDeploymentDeleteMessage = TaskDeploymentDeleteMessage.parse_obj(req.body)
+      deployment: TaskDeploymentDeleteMessage = TaskDeploymentDeleteMessage.model_validate(req.body)
       status = await self.delete_task(deployment)
-      await req.respond(status.dict())
+      await req.respond(status.model_dump())
 
     @server.route(TaskFetchDescriptors.DEPLOY_TASK)
     async def deploy_task(req: FetchRequest):
-      deployment: DeploymentTask = DeploymentTask.parse_obj(req.body)
+      deployment: DeploymentTask = DeploymentTask.model_validate(req.body)
       status = await self.deploy_task(deployment)
-      await req.respond(status.dict())
+      await req.respond(status.model_dump())
 
     self.fetch_server_running.set()
     await server.start()
@@ -150,13 +150,13 @@ class NodeManagerWorker(Worker):
       for task in self.async_tasks: task.cancel()
 
   async def unregister_dashboard(self, key: str):
-    self._client.fetch(AddressNames.TASK_MANAGER, TaskFetchDescriptors.UNREGISTER_DASHBOARD, DashboardDeleteMessage(key=key).dict())
+    self._client.fetch(AddressNames.TASK_MANAGER, TaskFetchDescriptors.UNREGISTER_DASHBOARD, DashboardDeleteMessage(key=key).model_dump())
   async def register_dashboard(self, label: str, app: ASGIApp):
     id = str(uuid4())
     dashboard = DashboardRegistration(label=label, id=id, init_descriptor=f"global_dashboard_${id}", address=self._client.default_address)
     runner = ASGIAppRunner(self._client, app, dashboard.web_init_descriptor, dashboard.address)
     self.async_tasks.append(asyncio.create_task(runner.start()))
-    await self._client.fetch(AddressNames.TASK_MANAGER, TaskFetchDescriptors.REGISTER_DASHBOARD, dashboard.dict())
+    await self._client.fetch(AddressNames.TASK_MANAGER, TaskFetchDescriptors.REGISTER_DASHBOARD, dashboard.model_dump())
     return id
 
 class TaskManagerWorker(Worker):
@@ -197,22 +197,22 @@ class TaskManagerWorker(Worker):
 
     @server.route(TaskFetchDescriptors.REGISTER_TASK_FACTORY)
     async def register_task_factory(req: FetchRequest):
-      registration: TaskFactoryRegistration = TaskFactoryRegistration.parse_obj(req.body)
+      registration: TaskFactoryRegistration = TaskFactoryRegistration.model_validate(req.body)
       self.task_factories.add_task_factory(registration)
 
     @server.route(TaskFetchDescriptors.UNREGISTER_TASK_FACTORY)
     async def unregister_task_factory(req: FetchRequest):
-      registration: TaskFactoryDeleteMessage = TaskFactoryDeleteMessage.parse_obj(req.body)
+      registration: TaskFactoryDeleteMessage = TaskFactoryDeleteMessage.model_validate(req.body)
       self.task_factories.remove_task_factory(registration.id)
 
     @server.route(TaskFetchDescriptors.REGISTER_DASHBOARD)
     async def register_dashboard(req: FetchRequest):
-      dashboard: DashboardRegistration = DashboardRegistration.parse_obj(req.body)
+      dashboard: DashboardRegistration = DashboardRegistration.model_validate(req.body)
       self.dashboards.add_dashboard(dashboard)
 
     @server.route(TaskFetchDescriptors.UNREGISTER_DASHBOARD)
     async def unregister_dashboard(req: FetchRequest):
-      dashboard: DashboardDeleteMessage = DashboardDeleteMessage.parse_obj(req.body)
+      dashboard: DashboardDeleteMessage = DashboardDeleteMessage.model_validate(req.body)
       self.dashboards.remove_dashboard(dashboard.id)
 
     await server.start()

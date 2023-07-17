@@ -32,7 +32,7 @@ class FetchRequest:
     self.response_sent = False
 
   async def respond(self, body: Any):
-    await self._client.send_to(self._return_address, JsonData(FetchResponseMessage(request_id=self._request_id, body=body).dict()))
+    await self._client.send_to(self._return_address, JsonData(FetchResponseMessage(request_id=self._request_id, body=body).model_dump()))
     self.response_sent = True
 
 class FetchReponseReceiver(Receiver):
@@ -48,7 +48,7 @@ class FetchReponseReceiver(Receiver):
       a_message: AddressedMessage = message
       if isinstance(a_message.data, JsonData):
         try:
-          fr_message = FetchResponseMessage.parse_obj(a_message.data.data)
+          fr_message = FetchResponseMessage.model_validate(a_message.data.data)
           if fr_message.request_id == self._fetch_id:
             self._recv_queue.put_nowait(fr_message.body)
         except: pass
@@ -75,7 +75,7 @@ class FetchServerReceiver(Receiver):
     a_message: AddressedMessage = message
     if not isinstance(a_message.data, JsonData): return
     try:
-      fr_message = FetchRequestMessage.parse_obj(a_message.data.data)
+      fr_message = FetchRequestMessage.model_validate(a_message.data.data)
       if fr_message.descriptor in self._descriptor_mapping:
         self._recv_queue.put_nowait((fr_message.descriptor, FetchRequest(self._client, fr_message.return_address, fr_message.request_id, fr_message.body)))
     except: pass
@@ -106,7 +106,7 @@ class FetchRequestReceiver(Receiver):
     if self._receive_address is not None and a_message.address != self._receive_address: return
     if not isinstance(a_message.data, JsonData): return
     try:
-      fr_message = FetchRequestMessage.parse_obj(a_message.data.data)
+      fr_message = FetchRequestMessage.model_validate(a_message.data.data)
       if fr_message.descriptor == self._descriptor:
         self._recv_queue.put_nowait(FetchRequest(self._client, fr_message.return_address, fr_message.request_id, fr_message.body))
     except: pass

@@ -37,14 +37,14 @@ class TaskFactoryStore:
   async def start_task(self, task: DeploymentTask):
     factory = self._task_factories.get(task.task_factory_id, None)
     if factory is None: raise RuntimeError(f"Task factory with id {task_factory_id} not found")
-    response = await self.client.fetch(factory.worker_address, TaskFetchDescriptors.DEPLOY_TASK, task.dict())
-    return TaskDeploymentStatus.parse_obj(response)
+    response = await self.client.fetch(factory.worker_address, TaskFetchDescriptors.DEPLOY_TASK, task.model_dump())
+    return TaskDeploymentStatus.model_validate(response)
 
   async def delete_task(self, task_factory_id: str, task_id: str):
     factory = self._task_factories.get(task_factory_id, None)
     if factory is None: raise RuntimeError(f"Task factory with id {task_factory_id} not found")
-    response = await self.client.fetch(factory.worker_address, TaskFetchDescriptors.DELETE_TASK, TaskDeploymentDeleteMessage(id=task_id).dict())
-    return TaskDeploymentStatus.parse_obj(response)
+    response = await self.client.fetch(factory.worker_address, TaskFetchDescriptors.DELETE_TASK, TaskDeploymentDeleteMessage(id=task_id).model_dump())
+    return TaskDeploymentStatus.model_validate(response)
 
   def add_task_factory(self, task_factory: TaskFactoryRegistration): 
     proxy_app = ASGIProxyApp(self.client, task_factory.worker_address, task_factory.web_init_descriptor, self.client.default_address)
@@ -61,7 +61,7 @@ class DeploymentStore:
     self._started_deployments = {}
   
   @property
-  def deployments(self): return [ DeploymentBase(**deployment.dict()) for deployment in self._deployments.values() ]
+  def deployments(self): return [ DeploymentBase(**deployment.model_dump()) for deployment in self._deployments.values() ]
 
   def has_deployment(self, id: str) -> bool: return id in self._deployments
   def set_deployment_started(self, deployment: Deployment):

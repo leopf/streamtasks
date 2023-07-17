@@ -101,7 +101,7 @@ class AddressNameAssignedReceiver(Receiver):
     if message.topic != WorkerTopics.ADDRESS_NAME_ASSIGNED: return
     if not isinstance(message.data, MessagePackData): return
     try:
-      self._recv_queue.put_nowait(AddressNameAssignmentMessage.parse_obj(message.data.data))
+      self._recv_queue.put_nowait(AddressNameAssignmentMessage.model_validate(message.data.data))
     except: pass
 
 class TopicsReceiver(Receiver):
@@ -151,7 +151,7 @@ class ResolveAddressesReceiver(Receiver):
       sd_message: TopicDataMessage = message
       if isinstance(sd_message.data, JsonData):
         try:
-          ra_message = GenerateAddressesResponseMessage.parse_obj(sd_message.data.data)
+          ra_message = GenerateAddressesResponseMessage.model_validate(sd_message.data.data)
           if ra_message.request_id == self._request_id:
             self._recv_queue.put_nowait(ra_message)
         except: pass

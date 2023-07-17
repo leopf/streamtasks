@@ -5,7 +5,6 @@ from streamtasks.asgi import *
 from streamtasks.worker import *
 from streamtasks.node import *
 import asyncio
-from uuid import uuid4
 from fastapi import FastAPI
 import httpx
 
@@ -40,7 +39,7 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
     for task in self.tasks: task.cancel()
 
   async def test_transmit(self):
-    sender = ASGIEventSender(self.client1, 1337, 1)
+    sender = ASGIEventSender(self.client1, 1337, "1")
     receiver = ASGIEventReceiver(self.client2, 1337)
 
     await receiver.start_recv()
@@ -75,6 +74,7 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
     response = await client.post("/post", json={"test": "test"})
     self.assertEqual(200, response.status_code)
     self.assertEqual(b'{"data":{"test":"test"}}', response.content)
+    await client.aclose()
 
   async def test_app(self):
     async def demo_app(scope, receive, send):
@@ -91,6 +91,7 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
     response = await client.get("/")
     self.assertEqual(200, response.status_code)
     self.assertEqual(b"Hello world!", response.content)
+    await client.aclose()
     
 
 if __name__ == '__main__':

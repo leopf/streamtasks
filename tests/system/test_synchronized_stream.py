@@ -33,7 +33,7 @@ class TestSynchronizedStream(unittest.IsolatedAsyncioTestCase):
 
   async def send_text(self, topic: int, text: str):
     self.timestamp += 1
-    await self.a.send_stream_data(topic, JsonData(StringMessage(timestamp=self.timestamp, value=text).dict()))
+    await self.a.send_stream_data(topic, JsonData(StringMessage(timestamp=self.timestamp, value=text).model_dump()))
 
   async def test_synchronized_stream(self):
     async with self.a.provide_context([ 1, 2 ]):

@@ -48,12 +48,12 @@ class TestGate(TaskTestBase):
 
   async def send_input_data(self, value: float):
     self.timestamp += 1
-    await self.client.send_stream_data(self.stream_in_topic.topic, MessagePackData(NumberMessage(timestamp=self.timestamp, value=value).dict()))
+    await self.client.send_stream_data(self.stream_in_topic.topic, MessagePackData(NumberMessage(timestamp=self.timestamp, value=value).model_dump()))
     await asyncio.sleep(0.001)
 
   async def send_gate_data(self, value: float):
     self.timestamp += 1
-    await self.client.send_stream_data(self.stream_gate_topic.topic, MessagePackData(NumberMessage(timestamp=self.timestamp, value=value).dict()))
+    await self.client.send_stream_data(self.stream_gate_topic.topic, MessagePackData(NumberMessage(timestamp=self.timestamp, value=value).model_dump()))
     await asyncio.sleep(0.001)
 
   async def send_gate_pause(self, paused: bool):

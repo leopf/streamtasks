@@ -22,7 +22,7 @@ class TestMessage(unittest.TestCase):
 
   def test_number_message(self):
     message = NumberMessage(timestamp=1337, value=42.0)
-    data = MessagePackData(message.dict())
+    data = MessagePackData(message.model_dump())
     serialized = data.serialize()
     sdata = data_from_serialization_type(serialized, SerializationType.MSGPACK)
     self.assertIsInstance(sdata, MessagePackData)

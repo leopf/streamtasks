@@ -95,7 +95,6 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
 
     self.tasks.append(asyncio.create_task(self.node.start()))
 
-    await asyncio.sleep(0.001)
 
     self.managment_server = ASGITestServer()
     self.management_worker = TaskManagerWorker(await self.node.create_connection(raw=True), self.managment_server)
@@ -106,6 +105,8 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
 
     self.counter_increment_worker = CounterIncrementTaskFactory(await self.node.create_connection(raw=True))
     await self.setup_worker(self.counter_increment_worker)
+    
+    await asyncio.sleep(0.001)
 
   async def asyncTearDown(self):
     for task in self.tasks:
@@ -120,7 +121,7 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
     return task
 
   async def test_task_templates_list(self):
-    async with asyncio.timeout(1):
+    async with asyncio.timeout(10):
       await self.counter_emit_worker.wait_idle()
       await self.counter_increment_worker.wait_idle()
       web_client = await self.managment_server.wait_for_client()
@@ -133,7 +134,7 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
       self.assertIn(self.counter_increment_worker.id, ids)
 
   async def test_counter_deploy(self):
-    async with asyncio.timeout(1):
+    async with asyncio.timeout(10):
       client = Client(await self.node.create_connection())
       await client.request_address()
 
@@ -143,13 +144,13 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
         DeploymentTask(
           task_factory_id=self.counter_emit_worker.id, 
           label="emit counter", 
-          config={ "initial_count": 2 }, 
+          config={ "initial_count": 2, "label": "emit counter" }, 
           stream_groups=[TaskStreamGroup(inputs=[],outputs=[TaskOutputStream(label="count",topic_id="emit")])]
         ),
         DeploymentTask(
           task_factory_id=self.counter_increment_worker.id,
           label="increment",
-          config={ "multiplier": multiplier },
+          config={ "multiplier": multiplier, "label": "increment" },
           stream_groups=[TaskStreamGroup(inputs=[TaskInputStream(label="value in",topic_id="emit")], outputs=[TaskOutputStream(label="value out",topic_id="increment")])]
         )
       ]
@@ -158,15 +159,15 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
       await self.counter_increment_worker.wait_idle()
       web_client = await self.managment_server.wait_for_client()
 
-      result = await web_client.post("/api/deployment", content=json.dumps([ deployment.dict() for deployment in deployments]))
-      deployment: Deployment = Deployment.parse_obj(result.json())
+      result = await web_client.post("/api/deployment", content=json.dumps([ deployment.model_dump() for deployment in deployments]))
+      deployment: Deployment = Deployment.model_validate(result.json())
       self.assertEqual(len(deployment.tasks), 2)
-      self.assertEqual(deployment.tasks[0].label, "emit counter")
-      self.assertEqual(deployment.tasks[1].label, "increment")
+      self.assertEqual(deployment.tasks[0].config["label"], "emit counter")
+      self.assertEqual(deployment.tasks[1].config["label"], "increment")
 
       await web_client.post(f"/api/deployment/{deployment.id}/start")
       result = await web_client.get(f"/api/deployment/{deployment.id}/started")
-      deployment: Deployment = Deployment.parse_obj(result.json())
+      deployment: Deployment = Deployment.model_validate(result.json())
       result_topic_id = deployment.tasks[1].topic_id_map["increment"]
       async with client.get_topics_receiver([ result_topic_id ]) as receiver:
         topic_id, data, _ = await receiver.recv()

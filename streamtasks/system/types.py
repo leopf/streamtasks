@@ -23,12 +23,12 @@ class DashboardInfo(BaseModel):
 
 class TaskStreamBase(BaseModel):
   label: str
-  content_type: Optional[str]
-  encoding: Optional[str]
-  extra: Optional[dict[str, Any]]
+  content_type: Optional[str] = None
+  encoding: Optional[str] = None
+  extra: Optional[dict[str, Any]] = None
 
 class TaskInputStream(TaskStreamBase):
-  topic_id: Optional[str]
+  topic_id: Optional[str] = None
   ref_id: str = Field(default_factory=uuid4_str)
 
 class TaskOutputStream(TaskStreamBase):
@@ -53,7 +53,7 @@ class DeploymentTask(BaseModel):
 
 class TaskDeploymentStatus(BaseModel):
   running: bool
-  error: Optional[str]
+  error: Optional[str] = None
 
   def validate_running(self, running: bool):
     if self.error is not None: raise Exception(f"task errored: {self.error}")
@@ -74,7 +74,7 @@ class TaskFactoryRegistration(BaseModel):
 class TaskFactoryDeleteMessage(BaseModel):
   id: str
 
-DeploymentStatus = Literal[("offline", "starting", "running", "stopping", "failing", "failed")]
+DeploymentStatus = Literal["offline", "starting", "running", "stopping", "failing", "failed"]
 
 class DeploymentBase(BaseModel):
   id: str = Field(default_factory=uuid4_str)
@@ -90,12 +90,12 @@ class DeploymentStatusInfo(BaseModel):
 
 class RPCTaskConnectRequest(BaseModel):
   input_id: str
-  output_stream: Optional[TaskOutputStream]
+  output_stream: Optional[TaskOutputStream] = None
   task: DeploymentTask
 
 class RPCTaskConnectResponse(BaseModel):
-  task: Optional[DeploymentTask]
-  error_message: Optional[str]
+  task: Optional[DeploymentTask] = None
+  error_message: Optional[str] = None
 
 class TaskFetchDescriptors:
   REGISTER_TASK_FACTORY = "register_task_factory"

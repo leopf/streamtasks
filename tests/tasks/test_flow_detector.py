@@ -72,7 +72,7 @@ class TestFlowDetector(TaskTestBase):
           topic_id, data, _ = await signal_recv.recv()
           if data is None: continue
           self.assertEqual(topic_id, self.stream_signal_topic.topic)
-          message = NumberMessage.parse_obj(data.data)
+          message = NumberMessage.model_validate(data.data)
           value = message.value
           expected_value = expected_values.pop(0)
           self.assertEqual(value, expected_value)

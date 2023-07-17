@@ -38,12 +38,12 @@ class ResolveAddressRequestBody(BaseModel):
   address_name: str
 
 class ResolveAddressResonseBody(BaseModel):
-  address: Optional[int]
+  address: Optional[int] = None
 
 class RegisterAddressRequestBody(BaseModel):
   address_name: str
-  address: Optional[int]
+  address: Optional[int] = None
 
 class AddressNameAssignmentMessage(BaseModel):
   address_name: str
-  address: Optional[int]
+  address: Optional[int] = None

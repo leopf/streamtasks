@@ -8,13 +8,14 @@ setup(
     author='leopf',
     description='A task orchestrator for Python',
     license='MIT',
-    requires=['typing_extensions', 'av'],
+    install_requires=['typing_extensions', 'av', "msgpack", "pydantic","fastavro", "numpy", "uvicorn", "httpx", "fastapi", "scipy", "lark"],
     entry_points={
         'console_scripts': [
             'streamtasks = streamtasks.bin.__init__:main'
         ]
     }
 )
+
 
 
 

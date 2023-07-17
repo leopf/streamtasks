@@ -68,7 +68,7 @@ class GateTask(Task):
         with await self.gate_stream.recv() as message:
           if message.data is not None: 
             try:
-              nmessage = NumberMessage.parse_obj(message.data.data)
+              nmessage = NumberMessage.model_validate(message.data.data)
               self.gate_open = float(nmessage.value) > 0.5
             except:
               if self.fail_mode != GateFailMode.PASSIVE: self.gate_open = self.default_gate_open

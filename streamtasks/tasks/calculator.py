@@ -161,7 +161,7 @@ class CalculatorNameExtractor(Transformer):
 
 class CalculatorInputConfig(BaseModel):
   name: str
-  fallback_value: Optional[float]
+  fallback_value: Optional[float] = None
 
 class CalculatorTask(Task):
   def __init__(self, client: Client, deployment: DeploymentTask):
@@ -178,7 +178,7 @@ class CalculatorTask(Task):
       self.input_paused_count = 0
       self.formula_ast = CalculatorGrammar.parse(self.deployment.config["formula"]) 
       self.input_topic_ids = [ topic_id_map[input.topic_id] for input in self.deployment.stream_groups[0].inputs]
-      input_configs = [ CalculatorInputConfig.parse_obj(config) for config in self.deployment.config["input_configs"] ]
+      input_configs = [ CalculatorInputConfig.model_validate(config) for config in self.deployment.config["input_configs"] ]
       validate_formula(self.formula_ast, [ config.name for config in input_configs ])
 
       sync = StreamSynchronizer()
@@ -206,7 +206,7 @@ class CalculatorTask(Task):
       while True:
         with await stream.recv() as message:
           if message.data is not None:
-            nmessage = NumberMessage.parse_obj(message.data.data)
+            nmessage = NumberMessage.model_validate(message.data.data)
             self.input_map[var_name] = nmessage.value
             await self._send_calculated_output(message.timestamp)
           if message.control is not None and message.control.paused != paused:
