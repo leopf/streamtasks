@@ -32,7 +32,7 @@ class Connection(ABC):
 
     self.closed = asyncio.Event()
 
-    assert cost > 0, "Cost must be greater than 0"
+    if cost == 0: raise ValueError("Cost must be greater than 0")
     self.cost = cost
 
   def __del__(self): self.close()
@@ -361,7 +361,6 @@ class Switch:
     elif isinstance(message, AddressesChangedRecvMessage):
       await self.on_addresses_changed(message, origin)
     else:
-      assert type(message) not in [ OutTopicsChangedMessage, AddressesChangedMessage ], "Message type should never be received (sender only)!"
       logging.warning(f"Unhandled message {message}")
 
   async def _run_connection_receiving(self, connection: Connection):

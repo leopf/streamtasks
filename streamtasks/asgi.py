@@ -123,8 +123,7 @@ class ASGIAppRunner:
   def __init__(self, client: 'Client', app: ASGIApp, init_conn_desc: str, own_address: Optional[int] = None):
     self._client = client
     self._app = app
-    
-    assert len(client._addresses) > 0, "The client must have at least one address to host an ASGI application"
+    if client.default_address is None: raise Exception("The client must have at least one address to host an ASGI application")
     if own_address is not None: self._own_address = own_address
     else: self._own_address = client.default_address
 
@@ -182,7 +181,7 @@ class ASGIProxyApp:
     self._client = client
     self._remote_address = remote_address
     self._init_descriptor = init_descriptor
-    assert len(client._addresses) > 0, "The client must have at least one address to host an ASGI application"
+    if client.default_address is None: raise Exception("The client must have at least one address to host an ASGI application")
     if own_address is not None: self._own_address = own_address
     else: self._own_address = client.default_address
     

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from streamtasks.asgi import ASGIApp
 from streamtasks.system.protocols import *
-from streamtasks.system.types import TaskStreamBase, SystemLogEntry
+from streamtasks.system.types import TaskStreamBase, SystemLogEntry, TaskStreamConfig
 from streamtasks.asgi import *
 import urllib.parse
 import uvicorn
@@ -17,6 +17,11 @@ def apply_task_stream_config(target: TaskStreamBase, source: TaskStreamBase):
   target.content_type = source.content_type
   target.encoding = source.encoding
   target.extra = source.extra
+
+def validate_stream_config(config: TaskStreamConfig, expected: TaskStreamConfig, message: str):
+  if config.content_type == expected.content_type and config.encoding == expected.encoding and config.extra == expected.extra: return
+  if config.extra != expected.extra: raise Exception(f"{message} extra mismatch, NOT IMPLEMENTED")
+  raise Exception(message)
 
 class ASGIIDRouter:
   def __init__(self):

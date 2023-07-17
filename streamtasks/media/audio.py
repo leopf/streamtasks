@@ -50,7 +50,7 @@ class AudioCodecInfo(CodecInfo[AudioFrame]):
     return AudioResampler(self.to_av_format(), self.to_av_layout(), self.sample_rate)
 
   def _get_av_codec_context(self, mode: str):
-    assert mode in ('r', 'w'), f'Invalid mode: {mode}. Must be "r" or "w".'
+    if mode not in ('r', 'w'): raise ValueError(f'Invalid mode: {mode}. Must be "r" or "w".')
     ctx = av.codec.CodecContext.create(self.codec, mode)
     ctx.format = self.to_av_format()
     ctx.channels = self.channels

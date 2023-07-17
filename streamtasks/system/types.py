@@ -21,11 +21,13 @@ class DashboardInfo(BaseModel):
   path: str
   label: str
 
-class TaskStreamBase(BaseModel):
-  label: str
+class TaskStreamConfig(BaseModel):
   content_type: Optional[str] = None
   encoding: Optional[str] = None
   extra: Optional[dict[str, Any]] = None
+
+class TaskStreamBase(TaskStreamConfig):
+  label: str
 
 class TaskInputStream(TaskStreamBase):
   topic_id: Optional[str] = None

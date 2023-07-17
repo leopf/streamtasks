@@ -1,7 +1,7 @@
 from streamtasks.system.task import Task
 from streamtasks.system.workers import TaskFactoryWorker
-from streamtasks.system.helpers import apply_task_stream_config
-from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
+from streamtasks.system.helpers import apply_task_stream_config, validate_stream_config
+from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, TaskStreamConfig, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
 from streamtasks.client import Client
 from streamtasks.client.receiver import NoopReceiver
 from streamtasks.message import NumberMessage
@@ -105,10 +105,7 @@ class GateTaskFactoryWorker(TaskFactoryWorker):
         req.task.stream_groups[0].inputs[1].topic_id = None
         return req.task
       else:
-        assert req.output_stream.content_type == "number", "Gate input must be a number"
-        assert req.output_stream.encoding is None, "Gate is not allowed to have an encoding"
-        assert req.output_stream.extra is None, "Gate is not allowed to have extra data"
-
+        validate_stream_config(req.output_stream, TaskStreamConfig(content_type="number"), "Gate input must be a number")
         req.task.stream_groups[0].inputs[1].topic_id = req.output_stream.topic_id
         return req.task
 

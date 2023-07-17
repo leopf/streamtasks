@@ -59,7 +59,7 @@ class VideoCodecInfo(VideoCodecInfoMinimal):
     return self.codec == other.codec and self.pixel_format == other.pixel_format and self.framerate == other.framerate and self.width == other.width and self.height == other.height
 
   def _get_av_codec_context(self, mode: str):
-    assert mode in ('r', 'w'), f'Invalid mode: {mode}. Must be "r" or "w".' 
+    if mode not in ('r', 'w'): raise ValueError(f'Invalid mode: {mode}. Must be "r" or "w".')
     ctx = av.codec.CodecContext.create(self.codec, mode)
     ctx.format = self.to_av_format()
     ctx.framerate = self.framerate

@@ -102,14 +102,15 @@ class Client:
         await self.send_to(WorkerAddresses.ID_DISCOVERY, JsonData(GenerateAddressesRequestMessage(request_id=request_id, count=count).model_dump()))
         data: GenerateAddressesResponseMessage = await receiver.recv()
         addresses = set(data.addresses)
-    assert len(addresses) == count, "The response returned an invalid number of addresses"
+    
+    if len(addresses) != count: raise Exception("The response returned an invalid number of addresses")
     if apply: await self.change_addresses(self._addresses | addresses)
     return addresses
 
   async def request_topic_ids(self, count: int, apply: bool=False) -> set[int]:
     raw_res = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.GENERATE_TOPICS, GenerateTopicsRequestBody(count=count).model_dump())
     res = GenerateTopicsResponseBody.model_validate(raw_res)
-    assert len(res.topics) == count, "The fetch request returned an invalid number of topics"
+    if len(res.topics) != count: raise Exception("The fetch request returned an invalid number of topics")
     if apply: await self.provide(res.topics)
     return res.topics
 

@@ -95,7 +95,7 @@ class FlowDetectorTask(Task):
 class FlowDetectorTaskFactoryWorker(TaskFactoryWorker):
   async def create_task(self, deployment: DeploymentTask): return FlowDetectorTask(await self.create_client(), deployment)
   async def rpc_connect(self, req: RPCTaskConnectRequest) -> DeploymentTask: 
-    assert req.input_id == req.task.stream_groups[0].inputs[0].ref_id, "Input stream id does not match task input stream id"
+    if req.input_id != req.task.stream_groups[0].inputs[0].ref_id: raise Exception("Input stream id does not match task input stream id")
     if req.output_stream:
       req.task.stream_groups[0].inputs[0].topic_id = req.output_stream.topic_id
       apply_task_stream_config(req.task.stream_groups[0].inputs[0], req.output_stream)
