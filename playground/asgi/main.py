@@ -4,9 +4,6 @@ from streamtasks.node import LocalNode
 from streamtasks.client import Client
 from streamtasks.asgi import *
 import uvicorn
-import cProfile
-import signal
-import os
 import asyncio
 
 node = LocalNode()

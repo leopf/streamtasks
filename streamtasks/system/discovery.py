@@ -1,5 +1,6 @@
 from streamtasks.worker import Worker
-from streamtasks.client import Client, FetchRequest
+from streamtasks.client import Client
+from streamtasks.client.fetch import FetchRequest
 from streamtasks.system.protocols import *
 from streamtasks.message.data import JsonData, TextData, MessagePackData
 from streamtasks.comm.types import TopicControlData

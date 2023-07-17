@@ -10,7 +10,7 @@ from streamtasks.system.types import *
 from streamtasks.system.helpers import ASGITestServer
 from streamtasks.system.discovery import DiscoveryWorker
 import asyncio
-from pydantic import parse_obj_as
+from pydantic import TypeAdapter
 import json
 
 class CounterEmitTask(Task):
@@ -127,7 +127,7 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
       web_client = await self.managment_server.wait_for_client()
 
       result = await web_client.get("/api/task-templates")
-      tasks: list[DeploymentTask] = parse_obj_as(list[DeploymentTask], result.json())
+      tasks: list[DeploymentTask] = TypeAdapter(list[DeploymentTask]).validate_python(result.json())
       ids = [ task.task_factory_id for task in tasks ]
       self.assertEqual(len(tasks), 2)
       self.assertIn(self.counter_emit_worker.id, ids)

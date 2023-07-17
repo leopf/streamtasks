@@ -2,7 +2,6 @@ from streamtasks.node import LocalNode
 from streamtasks.system.discovery import DiscoveryWorker
 from streamtasks.system.workers import TaskManagerWorker
 from streamtasks.system.helpers import UvicornASGIServer
-from streamtasks.tasks.calculator import CalculatorTaskFactoryWorker
 from streamtasks.tasks.flowdetector import FlowDetectorTaskFactoryWorker
 from streamtasks.tasks.gate import GateTaskFactoryWorker
 from streamtasks.tasks.passivize import PassivizeTaskFactoryWorker

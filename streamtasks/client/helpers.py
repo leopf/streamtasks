@@ -3,8 +3,6 @@ from typing import TYPE_CHECKING, Iterable
 if TYPE_CHECKING:
   from streamtasks.client import Client
 
-import asyncio
-
 class SubscibeContext:
   def __init__(self, client: 'Client', topics: Iterable[int]):
     self._client = client

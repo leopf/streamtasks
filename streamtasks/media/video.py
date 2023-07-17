@@ -1,11 +1,7 @@
 from typing import Optional
-import asyncio
 import av
 import numpy as np
-import time
-from fractions import Fraction
 from streamtasks.media.config import *
-from streamtasks.message import MediaPacket
 from streamtasks.media.codec import CodecInfo, Frame
 
 class VideoFrame(Frame[av.video.frame.VideoFrame]):

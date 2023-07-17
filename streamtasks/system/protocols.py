@@ -1,5 +1,4 @@
-from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Optional
 from pydantic import BaseModel
 
 class WorkerAddresses:

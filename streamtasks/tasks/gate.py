@@ -4,11 +4,10 @@ from streamtasks.system.helpers import apply_task_stream_config
 from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
 from streamtasks.client import Client
 from streamtasks.client.receiver import NoopReceiver
-from streamtasks.message import NumberMessage, get_timestamp_from_message, SerializableData
+from streamtasks.message import NumberMessage
 from streamtasks.streams import StreamSynchronizer, SynchronizedStream
 import socket
 import asyncio
-import logging
 from enum import Enum
 
 class GateFailMode(Enum):

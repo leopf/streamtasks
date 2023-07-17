@@ -2,8 +2,6 @@ from streamtasks.client import Client
 from streamtasks.system.types import *
 from streamtasks.asgi import *
 from streamtasks.system.helpers import ASGIIDRouter
-import urllib.parse
-import asyncio
 
 class DashboardStore:
   def __init__(self, client: Client, base_path: str):
@@ -36,7 +34,7 @@ class TaskFactoryStore:
 
   async def start_task(self, task: DeploymentTask):
     factory = self._task_factories.get(task.task_factory_id, None)
-    if factory is None: raise RuntimeError(f"Task factory with id {task_factory_id} not found")
+    if factory is None: raise RuntimeError(f"Task factory with id {task.task_factory_id} not found")
     response = await self.client.fetch(factory.worker_address, TaskFetchDescriptors.DEPLOY_TASK, task.model_dump())
     return TaskDeploymentStatus.model_validate(response)
 

@@ -1,10 +1,8 @@
 from streamtasks.media.video import VideoCodecInfo, VideoFrame
 from streamtasks.message import MediaPacket
 import numpy as np
-import matplotlib.pyplot as plt
 import asyncio
 import cv2
-import time
 w, h = 480, 360
 
 async def display_frame(name: str, f: np.ndarray):

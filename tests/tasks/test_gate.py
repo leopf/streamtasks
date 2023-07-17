@@ -1,12 +1,8 @@
 import unittest
 from streamtasks.tasks.gate import GateTask, GateFailMode
 from streamtasks.system.types import DeploymentTask, TaskInputStream, TaskOutputStream, TaskStreamGroup
-from streamtasks.client import Client
-from streamtasks.comm import Switch, create_local_cross_connector
-from streamtasks.comm.types import TopicControlData
-from streamtasks.message import NumberMessage, StringMessage, MessagePackData
+from streamtasks.message import NumberMessage, MessagePackData
 import asyncio
-import itertools
 
 from .shared import TaskTestBase
 

@@ -1,5 +1,6 @@
 from streamtasks.worker import Worker
-from streamtasks.comm import RemoteAddress, IPCSwitch, IPCConnection, connect_to_listener
+from streamtasks.comm import RemoteAddress, IPCSwitch, IPCConnection, connect_to_listener, Connection
+from typing import Optional
 import asyncio
 
 class RemoteServerWorker(Worker):

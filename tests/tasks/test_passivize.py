@@ -1,8 +1,6 @@
-import unittest
 from .shared import TaskTestBase
 from streamtasks.tasks.passivize import PassivizeTask
 from streamtasks.system.types import DeploymentTask, TaskInputStream, TaskOutputStream, TaskStreamGroup
-from streamtasks.message import JsonData, NumberMessage
 import asyncio
 
 class TestPassivize(TaskTestBase):

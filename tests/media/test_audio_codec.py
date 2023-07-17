@@ -1,6 +1,5 @@
 import unittest
 from streamtasks.media.audio import AudioCodecInfo, AudioFrame
-from streamtasks.message import MediaPacket
 import numpy as np
 import scipy
 

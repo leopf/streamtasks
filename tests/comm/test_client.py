@@ -1,6 +1,7 @@
 import unittest
 from streamtasks.comm import *
 from streamtasks.client import *
+from streamtasks.client.fetch import FetchRequest
 
 class TestClient(unittest.IsolatedAsyncioTestCase):
   a: Client

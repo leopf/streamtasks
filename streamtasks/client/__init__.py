@@ -6,7 +6,7 @@ from streamtasks.system.protocols import WorkerAddresses, WorkerFetchDescriptors
 from streamtasks.message.serializers import get_core_serializers
 from streamtasks.message.data import *
 from streamtasks.client.receiver import *
-from streamtasks.client.fetch import FetchReponseReceiver, FetchRequest, FetchRequestMessage, FetchRequestReceiver, FetchResponseMessage, FetchServerReceiver
+from streamtasks.client.fetch import FetchReponseReceiver, FetchRequestMessage, FetchRequestReceiver, FetchServerReceiver
 from streamtasks.client.helpers import ProvideContext, ProvideTracker, SubscibeContext, SubscribeTracker
 import secrets
 

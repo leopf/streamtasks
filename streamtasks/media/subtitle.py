@@ -1,11 +1,7 @@
 import av
-import asyncio
-import time
 from streamtasks.media.config import *
 from streamtasks.media.codec import CodecInfo, Frame
-from streamtasks.message import MediaPacket
 from av.subtitles.subtitle import SubtitleSet
-from typing import Any
 
 class SubtitleCodecInfo(CodecInfo):
   @property

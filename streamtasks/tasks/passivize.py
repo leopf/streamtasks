@@ -4,12 +4,8 @@ from streamtasks.system.workers import TaskFactoryWorker
 from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
 from streamtasks.client import Client
 from streamtasks.client.receiver import NoopReceiver
-from streamtasks.message import NumberMessage, get_timestamp_from_message, SerializableData
 import socket
-from pydantic import BaseModel
 import asyncio
-import logging
-from enum import Enum
 
 class PassivizeTask(Task):
   def __init__(self, client: Client, deployment: DeploymentTask):

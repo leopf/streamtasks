@@ -1,15 +1,14 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 import asyncio
 from streamtasks.comm import *
 from streamtasks.system.protocols import *
 from streamtasks.message.data import *
-import weakref
-import secrets
 import itertools
-from typing import Union, Optional, Any, Callable, Awaitable
+from typing import Union, Optional, Any, TYPE_CHECKING
 from streamtasks.client.helpers import SubscribeTracker
 
+if TYPE_CHECKING:
+  from streamtasks.client import Client
 
 class Receiver(ABC):
   _client: 'Client'

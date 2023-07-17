@@ -1,9 +1,6 @@
 from streamtasks.comm.types import *
 from io import BytesIO
-import struct
 import fastavro
-import avro.schema
-from avro.datafile import DataFileReader, DataFileWriter
 
 PricedIdSchema = fastavro.parse_schema({
     "type": "record",

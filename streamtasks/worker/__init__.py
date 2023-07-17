@@ -1,8 +1,6 @@
 from streamtasks.comm import *
 from typing import Optional
 import asyncio
-import logging
-from streamtasks.client import Client, FetchRequest
 from streamtasks.message.data import *
 
 class Worker:

@@ -2,15 +2,12 @@ from streamtasks.comm.types import *
 from streamtasks.comm.helpers import *
 from streamtasks.comm.serialize import serialize_message, deserialize_message
 from streamtasks.helpers import IdTracker
-from typing import Union, Optional, Any, Iterable
+from typing import Union, Optional
 import multiprocessing.connection as mpconn
-from abc import ABC, abstractmethod, abstractstaticmethod
-from dataclasses import dataclass
-from typing_extensions import Self
+from abc import ABC, abstractmethod
 import logging
 import os
 import asyncio
-import itertools
 
 RemoteAddress = Union[str, tuple[str, int]]
 
@@ -211,6 +208,7 @@ def connect_to_listener(address: RemoteAddress) -> Optional[IPCConnection]:
     logging.info(f"Connected to {address}")
     return conn
   except BaseException:
+    import traceback
     logging.error(f"Connection to {address} refused, Error: {traceback.format_exc()}")
     return None
 

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from typing import Any, Iterable
-from abc import ABC, abstractproperty, abstractclassmethod
+from typing import Any
+from abc import ABC
 from typing_extensions import Self
 from streamtasks.message.data import SerializableData, SerializationType, data_from_serialization_type
 
@@ -32,7 +32,7 @@ class TopicControlMessage(TopicMessage):
   topic: int
   paused: bool
 
-  def to_data(self) -> 'StreamControlData': return TopicControlData(self.paused)
+  def to_data(self) -> 'TopicControlData': return TopicControlData(self.paused)
 
 @dataclass
 class AddressedMessage(DataMessage):

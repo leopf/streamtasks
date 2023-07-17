@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, TypeVar, TypedDict, Optional, Generic, ClassVar, Iterator
+from typing import Any, TypeVar, TypedDict, Optional, Generic, Iterator
 from streamtasks.message import MediaPacket
 from streamtasks.media.config import *
 from streamtasks.media.helpers import *
@@ -112,6 +112,7 @@ class EmptyTranscoder:
 class CodecOptions(TypedDict):
   thread_type: Optional[str]
 
+  @staticmethod 
   def apply(ctx: av.codec.CodecContext, opt: 'CodecOptions'):
     ctx.thread_type = opt['thread_type'] if "thread_type" in opt else "AUTO"
 

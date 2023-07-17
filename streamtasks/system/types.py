@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, Any, Union, Literal
+from typing import Optional, Any, Literal
 from uuid import uuid4
 import itertools
 

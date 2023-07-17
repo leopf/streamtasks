@@ -3,17 +3,12 @@ from streamtasks.system.workers import TaskFactoryWorker
 from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, RPCTaskConnectRequest, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
 from streamtasks.client import Client
 from streamtasks.client.receiver import NoopReceiver
-from streamtasks.message import NumberMessage, get_timestamp_from_message, SerializableData, MessagePackData
+from streamtasks.message import NumberMessage
 from streamtasks.streams import StreamSynchronizer, SynchronizedStream
-from streamtasks.helpers import TimeSynchronizer
-from streamtasks.comm.types import TopicControlMessage
 import socket
 from pydantic import BaseModel
 import asyncio
-import logging
-from enum import Enum
 from typing import Optional
-import functools
 import math
 from lark import Lark, Transformer
 import re
@@ -114,9 +109,9 @@ def validate_formula(formula_ast, input_var_names):
   extractor = CalculatorNameExtractor()
   extractor.transform(formula_ast)
   all_var_names = set(itertools.chain(input_var_names, CalculatorEvalContext.default_input_map.keys()))
-  if not extractor.var_names.issubset(all_var_names): raise Exception(f"Invalid variable names: {used_var_names - all_var_names}")
+  if not extractor.var_names.issubset(all_var_names): raise Exception(f"Invalid variable names: {extractor.var_names - all_var_names}")
   available_func_names = CalculatorEvalContext.__dict__.keys()
-  if not extractor.func_names.issubset(available_func_names): raise Exception(f"Invalid function names: {used_func_names - available_func_names}")
+  if not extractor.func_names.issubset(available_func_names): raise Exception(f"Invalid function names: {extractor.func_names - available_func_names}")
 
 # takes an input map and transforms bools to floats. Any float > 0.5 is considered True, otherwise False
 class CalculatorEvalTransformer(Transformer):

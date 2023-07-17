@@ -9,6 +9,9 @@ setup(
     description='A task orchestrator for Python',
     license='MIT',
     install_requires=['typing_extensions', 'av', "msgpack", "pydantic","fastavro", "numpy", "uvicorn", "httpx", "fastapi", "scipy", "lark"],
+    extras_require={
+        "dev": [ "matplotlib", "simpleaudio", "opencv-python" ]
+    },
     entry_points={
         'console_scripts': [
             'streamtasks = streamtasks.bin.__init__:main'
