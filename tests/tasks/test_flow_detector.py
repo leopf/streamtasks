@@ -23,7 +23,7 @@ class TestFlowDetector(TaskTestBase):
     label="test flow detector",
     config={
       "fail_mode": fail_mode.value,
-      "signal_delay": 0.1
+      "signal_delay": 1
     },
     stream_groups=[
       TaskStreamGroup(
@@ -67,14 +67,20 @@ class TestFlowDetector(TaskTestBase):
           "value": 1
         }))
 
-        expected_values = [0, 1, 0, 1] + [fm_expected_values[0]] + [fm_expected_values[0]]
-        while len(expected_values) > 0:
+        async def recv_value():
           topic_id, data, _ = await signal_recv.recv()
-          if data is None: continue
+          if data is None: return None
           self.assertEqual(topic_id, self.stream_signal_topic.topic)
           message = NumberMessage.model_validate(data.data)
-          value = message.value
+          return message.value
+
+        expected_values = [0, 1, 0, 1] + [fm_expected_values[0]] + [fm_expected_values[0]]
+        while len(expected_values) > 0:
+          value = await recv_value()
+          if value is None: continue
+          print(f"got: {value}")
           expected_value = expected_values.pop(0)
+          print(f"expected: {expected_value}, got: {value}")
           self.assertEqual(value, expected_value)
 
   async def test_fail_open(self):
