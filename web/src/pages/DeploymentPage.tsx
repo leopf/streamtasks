@@ -4,7 +4,7 @@ import { state } from "../state";
 import { observer } from "mobx-react";
 import { useParams, useNavigate, useLoaderData } from "react-router-dom";
 import React from "react";
-import { Box, Divider, IconButton, Stack, SxProps, Theme, Typography } from "@mui/material";
+import { Box, Button, Dialog, Divider, IconButton, Stack, SxProps, Theme, Typography } from "@mui/material";
 import { Clear as ClearIcon, PlayArrow as PlayIcon, Stop as StopIcon, Cached as ReloadIcon } from "@mui/icons-material";
 import { TaskTemplateList } from "../components/stateful/TaskTemplateList";
 import { NodeEditor } from "../components/stateless/NodeEditor";
@@ -84,33 +84,77 @@ function TaskEditorOverlay(props: { children: React.ReactNode, onClose?: () => v
     );
 }
 
-export const DeploymentPage = observer((props: {}) => {
-    const [editLabel, setEditLabel] = useState<boolean>(false)
-    const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(undefined)
+const DeploymentNodeEditor = observer((props: { deployment: DeploymentState, flex: number }) => {
+    const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(undefined);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState<boolean>(false);
+    const selectedTask = useMemo(() => {
+        if (!selectedTaskId) return undefined;
+        return props.deployment.getTaskNodeById(selectedTaskId);
+    }, [props.deployment, selectedTaskId])
 
-    const deployment = useLoaderData() as DeploymentState;
 
     useEffect(() => {
-        if (deployment) {
-            deployment.editor.on("selected", id => {
+        if (props.deployment) {
+            props.deployment.editor.on("selected", id => {
                 setSelectedTaskId(id)
             });
 
             return () => {
-                deployment.destroy();
+                props.deployment.destroy();
             }
         }
-    }, [deployment])
+    }, [props.deployment])
 
-    const selectedTask = useMemo(() => {
-        if (!deployment || !selectedTaskId) {
-            return undefined;
+    useEffect(() => {
+        const deleteHandler = (e: KeyboardEvent) => {
+            console.log("keyboard event", e)
+            if (e.key === "Delete") {
+                setDeleteDialogOpen(true);
+            }
+        };
+        window.addEventListener("keydown", deleteHandler);
+        return () => {
+            window.removeEventListener("keydown", deleteHandler);
         }
-        return deployment.getTaskNodeById(selectedTaskId);
-    }, [deployment, selectedTaskId])
+    }, []);
+
+    return (
+        <>
+            <Dialog open={deleteDialogOpen && !!selectedTask} onClose={() => setDeleteDialogOpen(false)}>
+                <Box sx={{ padding: 2 }}>
+                    <Typography>Are you sure you want to delete this task?</Typography>
+                    <Stack direction="row" marginTop={2}>
+                        <Box flex={1} />
+                        <Button sx={{ marginRight: 1 }} variant="outlined" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+                        <Button variant="contained" onClick={() => {
+                            if (!!selectedTask) {
+                                setSelectedTaskId(undefined);
+                                props.deployment.removeTask(selectedTask.task);
+                            }
+                            setDeleteDialogOpen(false);
+                        }
+                        }>Delete</Button>
+                    </Stack>
+                </Box>
+            </Dialog>
+            <Box flex={props.flex} height="100%" width="100%">
+                <NodeEditor editor={props.deployment.editor} />
+                {!!selectedTask && (
+                    <TaskEditorOverlay onClose={() => setSelectedTaskId(undefined)}>
+                        <TaskEditor deployment={props.deployment} taskNode={selectedTask} onUnselect={() => setSelectedTaskId(undefined)} />
+                    </TaskEditorOverlay>
+                )}
+            </Box>
+        </>
+    );
+});
+
+export const DeploymentPage = observer((props: {}) => {
+    const [editLabel, setEditLabel] = useState<boolean>(false)
+    const deployment = useLoaderData() as DeploymentState;
 
     if (!deployment) {
-        return <ErrorScreen/>;
+        return <ErrorScreen />;
     }
 
     return (
@@ -134,7 +178,7 @@ export const DeploymentPage = observer((props: {}) => {
                         <ReloadIcon htmlColor="#fff" />
                     </IconButton>
                     <Box flex={1} />
-                    <ShowSystemLogsButton/>
+                    <ShowSystemLogsButton />
                     <DeploymentStatusButton deployment={deployment} />
                     <Box width={"5px"} />
                 </Stack>
@@ -147,16 +191,7 @@ export const DeploymentPage = observer((props: {}) => {
                     }}>
                         <TaskTemplateList onSelect={(t) => deployment.createTaskFromTemplate(t)} />
                     </Box>
-                    <Box flex={6} height={"100%"} sx={{
-                        position: "relative",
-                    }}>
-                        <NodeEditor editor={deployment.editor} />
-                        {!!selectedTask && (
-                            <TaskEditorOverlay onClose={() => setSelectedTaskId(undefined)}>
-                                <TaskEditor deployment={deployment} taskNode={selectedTask} onUnselect={() => setSelectedTaskId(undefined)} />
-                            </TaskEditorOverlay>
-                        )}
-                    </Box>
+                    <DeploymentNodeEditor deployment={deployment} flex={6} />
                 </Stack>
             </Box>
         </Stack>

@@ -67,7 +67,7 @@ export class DeploymentState {
     }
     public async stopListening() {
     }
-    
+
     public async createTaskFromTemplate(template: Task) {
         const task = cloneTask(template);
         this.tasks.push(task);
@@ -109,6 +109,11 @@ export class DeploymentState {
         });
         const json = await res.json();
         this._status = json.status;
+    }
+    public removeTask(task: Task) {
+        this.editor.deleteNode(task.id);
+        this.tasks = this.tasks.filter(t => t.id !== task.id);
+        this.taskNodeMap.delete(task.id);
     }
     private async addTaskToEditor(task: Task) {
         const node = new TaskNode(task);
