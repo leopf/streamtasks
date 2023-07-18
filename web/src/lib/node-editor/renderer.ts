@@ -75,6 +75,10 @@ export class NodeRenderer {
         return this.node.getConnectionGroups().map(cg => cg.outputs).reduce((a, b) => a.concat(b), []);
     }
 
+    public get position() {
+        return this.node.getPosition();
+    }
+
     constructor(node: Node, editor?: NodeEditorRenderer) {
         this.node = node;
         this.node.onUpdated?.call(this.node, async () => await this.editor?.updateNode(this.id));
@@ -92,21 +96,16 @@ export class NodeRenderer {
         return await this.node.connect(inputConnectionId, outputConnection);
     }
 
-    public move(x: number, y: number) {
-        const currentPosition = this.node.getPosition();
-        this.position = { x: currentPosition.x + x, y: currentPosition.y + y };
-    }
-
-    public get position() {
-        return this.node.getPosition();
-    }
-
-    public set position(pos: Point) {
+    public updatePosition(pos: Point) {
         this.node.setPosition(pos.x, pos.y);
         this.group.position.set(pos.x, pos.y);
         this.connectorPositionsOutdated = true;
     }
 
+    public move(x: number, y: number) {
+        const currentPosition = this.position;
+        this.updatePosition({ x: currentPosition.x + x, y: currentPosition.y + y });
+    }
 
     public remove() {
         this.group.removeFromParent();
@@ -115,10 +114,7 @@ export class NodeRenderer {
     public render() {
         this.group.removeChildren();
         this._relConnectorPositions.clear();
-        this.connectorPositionsOutdated = true;
-
-        const pos = this.node.getPosition();
-        this.group.position.set(pos.x, pos.y);
+        this.updatePosition(this.position);
 
         const nodeLabel = new PIXI.Text(this.node.getName(), this.nodeLabelTextStyle);
         nodeLabel.resolution = 2;
@@ -588,10 +584,10 @@ export class NodeEditorRenderer {
         if (center) {
             const xOffset = nodeRenderer.container.width / 2;
             const yOffset = nodeRenderer.container.height / 2;
-            nodeRenderer.position = {
+            nodeRenderer.updatePosition({
                 x: this.viewport.center.x - xOffset,
                 y: this.viewport.center.y - yOffset
-            }
+            });
             this.renderNode(node.getId());
         }
     }
