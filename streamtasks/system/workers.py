@@ -5,6 +5,7 @@ from streamtasks.system.protocols import *
 from streamtasks.client import Client
 from streamtasks.comm import Connection
 from streamtasks.asgi import *
+from streamtasks.helpers import INSTANCE_ID
 from streamtasks.worker import Worker
 from streamtasks.system.task import Task
 from streamtasks.system.types import *
@@ -13,12 +14,21 @@ from streamtasks.system.store import *
 from uuid import uuid4
 from fastapi import FastAPI, HTTPException, Request
 import itertools
-
+import hashlib
 
 class TaskFactoryWorker(Worker, ABC):
+  registered_ids: ClassVar[set[str]] = set()
+  
   def __init__(self, node_connection: Connection):
     super().__init__(node_connection)
-    self.id = str(uuid4())
+    h = hashlib.sha256()
+    h.update(self.__class__.__name__.encode("utf-8"))
+    h.update(str(INSTANCE_ID.value).encode("utf-8"))
+    self.id = h.hexdigest()
+    
+    if self.id in TaskFactoryWorker.registered_ids: raise Exception(f"TaskFactoryWorker with id {self.id} of class {self.__class__.__name__} already registered! If you want to create multiple TaskFactoryWorkers of the same type, you need to change the instance id.")
+    TaskFactoryWorker.registered_ids.add(self.id)
+    
     self.tasks = {}
     self.setup_done = asyncio.Event()
     self.web_server_running = asyncio.Event()
