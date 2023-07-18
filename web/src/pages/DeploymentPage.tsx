@@ -42,7 +42,7 @@ const DeploymentStatusButton = observer((props: { deployment: DeploymentState })
     return (
         <LoadingButton sx={statusButtonStyles} size="small" variant="contained" startIcon={icon} loadingPosition="start" loading={isLoading} onClick={async () => {
             setLoading(true);
-            if (props.deployment.status === "running") {
+            if (props.deployment.isStarted) {
                 await props.deployment.stop();
             }
             else {

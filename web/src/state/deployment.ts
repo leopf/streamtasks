@@ -111,6 +111,10 @@ export class DeploymentState {
     }
     @action
     public async start() {
+        if (this.isStarted) {
+            console.warn('Deployment is already started');
+            return;
+        }
         const res = await fetch(`/api/deployment/${this.id}/start`, {
             method: 'POST',
         });
@@ -119,6 +123,10 @@ export class DeploymentState {
     }
     @action
     public async stop() {
+        if (!this.isStarted) {
+            console.warn('Attempted to stop a deployment that is not started');
+            return;
+        }
         const res = await fetch(`/api/deployment/${this.id}/stop`, {
             method: 'POST',
         });

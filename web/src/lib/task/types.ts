@@ -14,6 +14,8 @@ export interface TaskInputStream extends TaskStreamBase {
     topic_id?: string;
 }
 
+export type TaskStream = TaskInputStream | TaskOutputStream;
+
 export interface TaskStreamGroup {
     inputs: TaskInputStream[];
     outputs: TaskOutputStream[];

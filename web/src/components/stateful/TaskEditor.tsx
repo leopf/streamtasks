@@ -1,10 +1,10 @@
 import { TableContainer, Table, TableBody, TableRow, TableCell, Box, Stack, Typography, Divider, IconButton } from "@mui/material";
 import { observer } from "mobx-react";
 import React, { useMemo } from "react";
-import { Task, TaskInputStream, TaskOutputStream, TaskStreamBase, streamToString } from "../../lib/task";
+import { Task, TaskInputStream, TaskOutputStream, TaskStream, TaskStreamBase, streamToString } from "../../lib/task";
 import { DeploymentState } from "../../state/deployment";
 import { TaskNode } from "../../lib/task/node";
-import { Delete as DeleteIcon, OpenInNew as OpenInNewIcon } from "@mui/icons-material";
+import { Delete as DeleteIcon, Wysiwyg as WysiwygIcon } from "@mui/icons-material";
 import { TopicDataModal } from "../stateless/TopicDataModal";
 
 const TaskStreamDisplay = (props: { stream: TaskStreamBase, allowOpen: boolean, onOpen: () => void }) => {
@@ -17,11 +17,11 @@ const TaskStreamDisplay = (props: { stream: TaskStreamBase, allowOpen: boolean, 
 
     return (
         <Stack direction="column" alignItems="flex-start" paddingY={1}>
-            <Stack direction="row" spacing={2} alignItems="center">
-                <Typography variant="caption" lineHeight={1}>{streamToString(props.stream)}</Typography>
+            <Stack direction="row" spacing={1} alignItems="center" width="100%">
+                <Typography variant="caption" lineHeight={1} flex={1}>{streamToString(props.stream)}</Typography>
                 {props.allowOpen && (
                     <IconButton onClick={props.onOpen}>
-                        <OpenInNewIcon sx={{ width: "15px", height: "15px" }} />
+                        <WysiwygIcon sx={{ width: "15px", height: "15px" }} />
                     </IconButton>
                 )}
             </Stack>
@@ -33,8 +33,7 @@ const TaskStreamDisplay = (props: { stream: TaskStreamBase, allowOpen: boolean, 
 };
 
 export const TaskEditor = observer((props: { taskNode: TaskNode, deployment: DeploymentState, onUnselect: () => void, onDelete: () => void }) => {
-    const [openStreamId, setOpenStreamId] = React.useState<string | undefined>(undefined);
-    const [openStreamTitle, setOpenStreamTitle] = React.useState<string>("");
+    const [openStream, setOpenStream] = React.useState<TaskStream | undefined>(undefined);
 
     const mappedStreams = useMemo(() => {
         const streams: [(TaskInputStream | undefined), (TaskOutputStream | undefined)][] = [];
@@ -54,14 +53,9 @@ export const TaskEditor = observer((props: { taskNode: TaskNode, deployment: Dep
         return streams;
     }, [props.taskNode])
 
-    const openStream = (stream: TaskInputStream | TaskOutputStream) => {
-        setOpenStreamId(stream.topic_id);
-        setOpenStreamTitle(`${props.taskNode.getName()}: ${streamToString(stream)}`);
-    };
-
     return (
         <>
-            <TopicDataModal topic_id={openStreamId} title={openStreamTitle} onClose={() => setOpenStreamId(undefined)} />
+            <TopicDataModal taskName={props.taskNode.getName()} stream={openStream} onClose={() => setOpenStream(undefined)} />
             <Stack direction="column" padding={2}>
                 <Stack direction="row" alignItems="center" paddingBottom={1}>
                     <Typography variant="subtitle1" gutterBottom>{props.taskNode.getName()}</Typography>
@@ -80,12 +74,12 @@ export const TaskEditor = observer((props: { taskNode: TaskNode, deployment: Dep
                                 <TableRow key={(input?.ref_id ?? "") + (output?.topic_id ?? "")}>
                                     <TableCell padding="none" align="left">{
                                         input ?
-                                            <TaskStreamDisplay allowOpen={props.deployment.isStarted} stream={input} onOpen={() => openStream(input)} /> :
+                                            <TaskStreamDisplay allowOpen={props.deployment.isStarted} stream={input} onOpen={() => setOpenStream(input)} /> :
                                             <Box height={1} />
                                     }</TableCell>
                                     <TableCell padding="none" align="left">{
                                         output ?
-                                            <TaskStreamDisplay allowOpen={props.deployment.isStarted} stream={output} onOpen={() => openStream(output)} /> :
+                                            <TaskStreamDisplay allowOpen={props.deployment.isStarted} stream={output} onOpen={() => setOpenStream(output)} /> :
                                             <Box height={1} />
                                     }</TableCell>
                                 </TableRow>
