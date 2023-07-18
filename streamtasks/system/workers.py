@@ -232,6 +232,17 @@ class TaskManagerWorker(Worker):
     app.mount(self.dashboards.base_url, self.dashboards.router)
     app.mount(self.task_factories.base_url, self.task_factories.router)
 
+    @app.websocket("/topic/{id}")
+    async def topic_websocket(websocket: WebSocket, id: str):
+      await websocket.accept()
+      async with client.get_topics_receiver([ id ]) as receiver:
+        while True:
+          topic_id, data, _ = await receiver.recv()
+          try:
+            if topic_id == id and data is not None: await websocket.send_json(data.data)
+          except:
+            await websocket.send_json({ "error": "failed to receive data" })
+
     @app.get("/api/logs")
     def get_logs(req: Request):
       q = SystemLogQueryParams.model_validate(req.query_params)

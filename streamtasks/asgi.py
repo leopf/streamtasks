@@ -203,8 +203,11 @@ class ASGIProxyApp:
 
     async def recv_loop(): 
       while not closed_event.is_set(): 
-        await sender.send(await receive())
+        event = await receive()
+        await sender.send(event)
         await asyncio.sleep(0)
+        event_type = event.get("type", None)
+        if event_type == "http.disconnect" or event_type == "websocket.disconnect": closed_event.set()
     async def send_loop():
       while not closed_event.is_set():
         await asyncio.sleep(0)
