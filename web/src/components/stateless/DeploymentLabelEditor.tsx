@@ -2,7 +2,6 @@ import { Box, Button, Dialog, DialogTitle, Stack, TextField, Typography } from "
 import React, { useEffect } from "react";
 
 export function DeploymentLabelEditor(props: { open: boolean, value: string, onChange: (value: string) => void, onClose: () => void }) {
-
     const [label, setLabel] = React.useState<string>(props.value);
 
     useEffect(() => {
@@ -18,12 +17,7 @@ export function DeploymentLabelEditor(props: { open: boolean, value: string, onC
     return (
         <Dialog open={props.open} onClose={() => props.onClose()} fullWidth>
             <Box padding={2}>
-
-                <Typography variant="h5" marginY={3}>Deployment</Typography>
-                <TextField fullWidth label="Label" value={label} onInput={(e) => setLabel((e.target as HTMLInputElement).value)} />
-                <Stack direction="row-reverse" marginTop={2}>
-                    <Button onClick={() => props.onClose()}>Save</Button>
-                </Stack>
+                <TextField autoFocus fullWidth label="Label" value={label} onInput={(e) => setLabel((e.target as HTMLInputElement).value)} />
             </Box>
         </Dialog>
     );
