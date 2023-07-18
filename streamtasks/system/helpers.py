@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from fastapi import Response
 from fastapi.staticfiles import StaticFiles
+from starlette.datastructures import Headers
 from starlette.types import Scope
 
 from streamtasks.asgi import ASGIApp
@@ -95,10 +96,14 @@ class JsonLogger(logging.StreamHandler):
     self.log_entries.append(entry)
     
 class SPAStaticFiles(StaticFiles):
+  def is_not_modified(self, response_headers: Headers, request_headers: Headers) -> bool:
+    return False
   async def get_response(self, path: str, scope: Scope) -> Response:
     try:
       response = await super().get_response(path, scope)
       if response.status_code == 404: raise Exception("404")
-      return response
-    finally:
-      return await super().get_response("index.html", scope)
+    except:
+      response = await super().get_response("index.html", scope)
+    
+    response.headers["Cache-Control"] = "no-cache"
+    return response

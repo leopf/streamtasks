@@ -14,9 +14,11 @@ from streamtasks.system.store import *
 from uuid import uuid4
 from fastapi import FastAPI, HTTPException, Request, WebSocket
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import FileResponse
 import itertools
 import hashlib
 from tinydb import TinyDB
+import os
 import tinydb.storages as tinydb_storages
 
 class TaskFactoryWorker(Worker, ABC):
@@ -310,7 +312,7 @@ class TaskManagerWorker(Worker):
       await asyncio.sleep(0.1)
       return self._respond_deployment_status(id)
 
-    app.mount("/", SPAStaticFiles(directory="web/dist", html=True))
+    app.mount("/", SPAStaticFiles(directory="./web/dist", html=True))
     
     await self.asgi_server.serve(app)
 

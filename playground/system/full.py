@@ -21,7 +21,7 @@ async def main():
     
     node = LocalNode()
     workers = [
-        TaskManagerWorker(await node.create_connection(), UvicornASGIServer(8010), FileStorage),
+        TaskManagerWorker(await node.create_connection(), UvicornASGIServer(8010)),
         DiscoveryWorker(await node.create_connection()),
         GateTaskFactoryWorker(await node.create_connection()),
         PassivizeTaskFactoryWorker(await node.create_connection()),

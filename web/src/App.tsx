@@ -9,23 +9,31 @@ import { SystemLogModal } from "./components/stateful/SystemLogModal";
 import { HomePage } from "./pages/HomePage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LoadingScreen } from "./components/stateless/LoadingScreen";
+import { ErrorScreen } from "./components/stateless/ErrorScreen";
 
 const router = createBrowserRouter([
     {
         path: "/deployment/view/:id",
         element: <DeploymentPage />,
+        errorElement: <ErrorScreen/>,
         loader: async ({ params }) => {
-            if (params.id) {
-                return await state.loadDeployment(params.id);
+            try {
+                if (params.id) {
+                    return await state.loadDeployment(params.id) ?? null;
+                }
             }
+            catch {}
+            return null;
         }
     },
     {
         path: "/dashboard/:id",
+        errorElement: <ErrorScreen/>,
         element: <DashboardPage />
     },
     {
         path: "/",
+        errorElement: <ErrorScreen/>,
         element: <HomePage />
     }
 ]);
@@ -66,7 +74,7 @@ export const App = observer(() => {
         <ThemeProvider theme={theme}>
             <>
                 <SystemLogModal/>
-                <RouterProvider router={router} />
+                <RouterProvider fallbackElement={<ErrorScreen/>} router={router} />
             </>
         </ThemeProvider>
     )
