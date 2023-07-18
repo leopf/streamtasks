@@ -31,13 +31,13 @@ const DeploymentStatusButton = observer((props: { deployment: DeploymentState })
     const [isLoading, setLoading] = useState<boolean>(false);
 
     useEffect(() => {
-        if (!props.deployment.started) return;
+        if (!props.deployment.isStarted) return;
         props.deployment.startListening();
         return () => props.deployment.stopListening();
-    }, [props.deployment.started])
+    }, [props.deployment.isStarted])
 
-    const text = `${props.deployment.started ? "stop" : "start"} (${props.deployment.status})`;
-    const icon = props.deployment.started ? <StopIcon /> : <PlayIcon />;
+    const text = `${props.deployment.isStarted ? "stop" : "start"} (${props.deployment.status})`;
+    const icon = props.deployment.isStarted ? <StopIcon /> : <PlayIcon />;
     
     return (
         <LoadingButton sx={statusButtonStyles} size="small" variant="contained" startIcon={icon} loadingPosition="start" loading={isLoading} onClick={async () => {

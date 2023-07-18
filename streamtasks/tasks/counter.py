@@ -18,6 +18,8 @@ class CounterTask(Task):
 
   async def start_task(self):
     try:
+      topic_id_map = self.deployment.topic_id_map
+      await self.output_topic.set_topic(topic_id_map[self.deployment.stream_groups[0].outputs[0].topic_id])
       while True:
         await self.client.send_stream_data(self.output_topic.topic, MessagePackData(NumberMessage(value=self.count, timestamp=get_timestamp_ms())))
         await asyncio.sleep(self.delay)

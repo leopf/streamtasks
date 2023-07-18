@@ -28,12 +28,14 @@ export interface Task {
     stream_groups: TaskStreamGroup[];
 }
 
+export type DeploymentStatus = 'offline' | 'starting' | 'running' | 'stopping' | 'failing' | 'failed';
+
 export interface DeploymentBase {
     id: string;
     label: string;
-    status: "offline" | "running" | "error";
 }
 
 export interface Deployment extends DeploymentBase {
+    status: DeploymentStatus;
     tasks: Task[];
 }

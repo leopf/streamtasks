@@ -2,7 +2,7 @@ import cloneDeep from "clone-deep";
 import { action, computed, makeAutoObservable, observable, reaction } from "mobx";
 import { createTransformer } from "mobx-utils";
 import { NodeEditorRenderer } from "../lib/node-editor";
-import { Task, Deployment, cloneTask, DeploymentBase } from "../lib/task";
+import { Task, Deployment, cloneTask, DeploymentBase, DeploymentStatus, deploymentStatusIsStarted } from "../lib/task";
 import { v4 as uuidv4 } from 'uuid';
 import { TaskNode } from "../lib/task/node";
 import { RootState } from ".";
@@ -21,20 +21,18 @@ export class DeploymentState {
         return this._status;
     }
 
-    public get started() {
-        return this._started;
+    @computed
+    public get isStarted() {
+        return deploymentStatusIsStarted(this._status);
     }
 
     @computed
     public get readOnly() {
-        return this.status === 'running';
+        return this.isStarted;
     }
 
     @observable
-    private _status: string;
-
-    @observable
-    private _started: boolean = false;
+    private _status: DeploymentStatus;
 
     @observable.shallow
     private taskNodeMap = new Map<string, TaskNode>();
@@ -45,13 +43,13 @@ export class DeploymentState {
         return {
             id: this.id,
             label: this.label,
-            status: this._status as any,
         };
     }
     @computed
     private get deployment(): Deployment {
         return {
             ...this.deploymentBase,
+            status: this._status,
             tasks: this.tasks,
         };
     }
@@ -108,24 +106,24 @@ export class DeploymentState {
     @action
     public async updateStatus() {
         const res = await fetch(`/api/deployment/${this.id}/status`);
-        const json = await res.json();
-        this.applyStatus(json);
+        const data: { status: DeploymentStatus } = await res.json();
+        this.applyStatus(data.status);
     }
     @action
     public async start() {
         const res = await fetch(`/api/deployment/${this.id}/start`, {
             method: 'POST',
         });
-        const json = await res.json();
-        this.applyStatus(json);
+        const data: { status: DeploymentStatus } = await res.json();
+        this.applyStatus(data.status);
     }
     @action
     public async stop() {
         const res = await fetch(`/api/deployment/${this.id}/stop`, {
             method: 'POST',
         });
-        const json = await res.json();
-        this.applyStatus(json);
+        const data: { status: DeploymentStatus } = await res.json();
+        this.applyStatus(data.status);
     }
     @action
     public async reload() {
@@ -161,8 +159,7 @@ export class DeploymentState {
         this.taskNodeMap.set(task.id, node);
         await this.editor.addNode(node, center);
     }
-    private applyStatus(statusInfo: { status: string, started: boolean }) {
-        this._status = statusInfo.status;
-        this._started = statusInfo.started;
+    private applyStatus(status: DeploymentStatus) {
+        this._status = status;
     }
 }

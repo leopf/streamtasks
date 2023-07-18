@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { PointModel } from "../../model";
 import { Connection, ConnectionGroup, InputConnection, Node } from "../node-editor";
-import { TaskStreamGroup, Task, TaskOutputStream, TaskStreamBase } from "./types";
+import { TaskStreamGroup, Task, TaskOutputStream, TaskStreamBase, DeploymentStatus } from "./types";
 import { v4 as uuidv4 } from 'uuid';
 import cloneDeep from "clone-deep";
 
@@ -27,6 +27,10 @@ export function cloneTask(task: Task): Task {
         });
     });
     return newTask;
+}
+
+export function deploymentStatusIsStarted(status: DeploymentStatus) {
+    return [ "running", "stopping", "starting", "failed" ].includes(status);    
 }
 
 export function streamGroupToConnectionGroup(group: TaskStreamGroup): ConnectionGroup {

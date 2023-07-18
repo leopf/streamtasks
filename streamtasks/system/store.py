@@ -71,16 +71,17 @@ class DeploymentStore:
   def set_deployment_stopped(self, deployment: Deployment): self._started_deployments.pop(deployment.id, None)
   def get_deployment_status(self, id: str) -> DeploymentStatusInfo:
     started_deployment = self.get_started_deployment(id)
-    if started_deployment is not None: return DeploymentStatusInfo(status=started_deployment.status, started=True)
-    deployment = self.get_deployment(id)
-    if deployment is None: raise RuntimeError(f"Deployment with id {id} not found")
-    return DeploymentStatusInfo(status=deployment.status, started=False)
+    if started_deployment is not None: return DeploymentStatusInfo(status=started_deployment.status)
+    return DeploymentStatusInfo(status="offline")
   
   def get_started_deployment(self, id: str) -> Optional[Deployment]: return self._started_deployments.get(id, None)
   def get_deployment(self, id: str) -> Optional[Deployment]:
     db_res = self._deployments_table.get(TinyDBQuery().id == id)
     if db_res is None: return None
-    return Deployment(**db_res)
+    deployment = Deployment(**db_res)
+    status_info = self.get_deployment_status(deployment.id)
+    deployment.status = status_info.status
+    return deployment
   
   def deployment_was_started(self, id: str) -> bool: return id in self._started_deployments
   def store_deployment(self, deployment: Deployment): self._deployments_table.upsert(deployment.model_dump(), TinyDBQuery().id == deployment.id)

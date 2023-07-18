@@ -76,19 +76,18 @@ class TaskFactoryRegistration(BaseModel):
 class TaskFactoryDeleteMessage(BaseModel):
   id: str
 
-DeploymentStatus = Literal["offline", "starting", "running", "stopping", "failing", "failed"]
+DeploymentStatus = Literal["offline", "starting", "running", "stopping", "failed"]
 
 class DeploymentBase(BaseModel):
   id: str = Field(default_factory=uuid4_str)
   label: str = "new deployment"
-  status: DeploymentStatus = "offline"
 
 class Deployment(DeploymentBase):
+  status: DeploymentStatus = "offline"
   tasks: list[DeploymentTask] = []
 
 class DeploymentStatusInfo(BaseModel):
   status: DeploymentStatus
-  started: bool
 
 class RPCTaskConnectRequest(BaseModel):
   input_id: str

@@ -177,6 +177,7 @@ class TaskManagerWorker(Worker):
     self.dashboards = None
     self.task_factories = None
     self.log_handler = JsonLogger()
+    self.topic_id_map = {}
 
   async def start(self):
     try:
@@ -234,14 +235,16 @@ class TaskManagerWorker(Worker):
     app.mount(self.dashboards.base_url, self.dashboards.router)
     app.mount(self.task_factories.base_url, self.task_factories.router)
 
-    @app.websocket("/topic/{id}")
+    @app.websocket("/topic/{id}/subscribe")
     async def topic_websocket(websocket: WebSocket, id: str):
+      id: int = self.topic_id_map.get(id, None)
+      if id is None: raise HTTPException(status_code=404, detail=f"Topic with id {id} not found!") 
       await websocket.accept()
       async with client.get_topics_receiver([ id ]) as receiver:
-        while True:
+        while True:          
           topic_id, data, _ = await receiver.recv()
           try:
-            if topic_id == id and data is not None: await websocket.send_json(data.data)
+            if topic_id == id and data is not None: await websocket.send_json(dict(data.data))
           except:
             await websocket.send_json({ "error": "failed to receive data" })
 
@@ -281,6 +284,7 @@ class TaskManagerWorker(Worker):
     @app.put("/api/deployment")
     async def update_deployment(deployment: Deployment):
       if not self.deployments.has_deployment(deployment.id): self._deployment_not_found(deployment.id)
+      deployment.status = "offline"
       self.deployments.store_deployment(deployment)
       return deployment
 
@@ -320,6 +324,7 @@ class TaskManagerWorker(Worker):
     topic_str_ids = set(itertools.chain.from_iterable(task.get_topic_ids() for task in deployment.tasks))
     topic_int_ids = await client.request_topic_ids(len(topic_str_ids))
     topic_id_map = { topic_str_id: topic_int_id for topic_str_id, topic_int_id in zip(topic_str_ids, topic_int_ids) }
+    self.topic_id_map.update(topic_id_map)
     for task in deployment.tasks:
       task.topic_id_map = { k: topic_id_map[k] for k in set(task.get_topic_ids()) }
 
@@ -344,7 +349,7 @@ class TaskManagerWorker(Worker):
   async def stop_deployment(self, client: Client, deployment: Deployment):
     deployment.status = "stopping"
     await self._stop_task_deployments(client, deployment.tasks)
-    deployment.status = "stopped"
+    self.deployments.set_deployment_stopped(deployment)
 
   async def start_deployment(self, client: Client, deployment: Deployment):
     deployment.status = "starting"
@@ -363,8 +368,6 @@ class TaskManagerWorker(Worker):
 
     await asyncio.wait([ asyncio.create_task(deploy_task(task)) for task in deployment.tasks ])
     if deployment_failed:
-      deployment.status = "failing"
-      await self._stop_task_deployments(client, deployed_tasks)
       deployment.status = "failed"
     else:
       deployment.status = "running"
