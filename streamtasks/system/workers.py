@@ -15,6 +15,9 @@ from uuid import uuid4
 from fastapi import FastAPI, HTTPException, Request
 import itertools
 import hashlib
+from tinydb import TinyDB
+import tinydb.storages as tinydb_storages
+from tinydb.middlewares import CachingMiddleware as TinyDBCachingMiddleware
 
 class TaskFactoryWorker(Worker, ABC):
   registered_ids: ClassVar[set[str]] = set()
@@ -162,12 +165,13 @@ class NodeManagerWorker(Worker):
     return id
 
 class TaskManagerWorker(Worker):
-  def __init__(self, node_connection: Connection, asgi_server: ASGIServer):
+  def __init__(self, node_connection: Connection, asgi_server: ASGIServer, db_storage: type[tinydb_storages.Storage] = tinydb_storages.MemoryStorage):
     super().__init__(node_connection)
     self.ready = asyncio.Event()
+    self.db = TinyDB(storage=db_storage)
     self.asgi_server = asgi_server
 
-    self.deployments = DeploymentStore()
+    self.deployments = DeploymentStore(self.db.table("deployments"))
     self.dashboards = None
     self.task_factories = None
     self.log_handler = JsonLogger()

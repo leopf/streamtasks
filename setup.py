@@ -8,7 +8,7 @@ setup(
     author='leopf',
     description='A task orchestrator for Python',
     license='MIT',
-    install_requires=['typing_extensions', 'av', "msgpack", "pydantic","fastavro", "numpy", "uvicorn", "httpx", "fastapi", "scipy", "lark"],
+    install_requires=['typing_extensions', 'av', "msgpack", "pydantic","fastavro", "numpy", "uvicorn", "httpx", "fastapi", "scipy", "lark", "tinydb"],
     extras_require={
         "dev": [ "matplotlib", "simpleaudio", "opencv-python" ]
     },
