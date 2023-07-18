@@ -21,6 +21,10 @@ export class DeploymentState {
         return this._status;
     }
 
+    public get started() {
+        return this._started;
+    }
+
     @computed
     public get readOnly() {
         return this.status === 'running';
@@ -29,11 +33,13 @@ export class DeploymentState {
     @observable
     private _status: string;
 
+    @observable
+    private _started: boolean = false;
+
     @observable.shallow
     private taskNodeMap = new Map<string, TaskNode>();
 
-    private rootState: RootState;
-
+    
     @computed
     private get deploymentBase(): DeploymentBase {
         return {
@@ -49,8 +55,11 @@ export class DeploymentState {
             tasks: this.tasks,
         };
     }
-
+    
+    private rootState: RootState;
     private reactionDisposers: (() => void)[] = [];
+    
+    private statusRefreshHandle?: number;
 
     constructor(rootState: RootState, deployment: Deployment) {
         makeAutoObservable(this);
@@ -78,9 +87,15 @@ export class DeploymentState {
         this.editor.destroy();
     }
 
-    public async startListening() {
+    public startListening() {
+        this.statusRefreshHandle = window.setInterval(async () => {
+            await this.updateStatus();
+        }, 1000);
     }
-    public async stopListening() {
+    public stopListening() {
+        if (this.statusRefreshHandle) {
+            clearInterval(this.statusRefreshHandle);
+        }
     }
 
     @action
@@ -91,12 +106,18 @@ export class DeploymentState {
         this.addTaskToEditor(reactiveTask!); // this is safe because we just pushed it
     }
     @action
+    public async updateStatus() {
+        const res = await fetch(`/api/deployment/${this.id}/status`);
+        const json = await res.json();
+        this.applyStatus(json);
+    }
+    @action
     public async start() {
         const res = await fetch(`/api/deployment/${this.id}/start`, {
             method: 'POST',
         });
         const json = await res.json();
-        this._status = json.status;
+        this.applyStatus(json);
     }
     @action
     public async stop() {
@@ -104,7 +125,7 @@ export class DeploymentState {
             method: 'POST',
         });
         const json = await res.json();
-        this._status = json.status;
+        this.applyStatus(json);
     }
     @action
     public async reload() {
@@ -121,7 +142,6 @@ export class DeploymentState {
     }
     @action
     public async save() {
-        console.log("saving deployment")
         await fetch(`/api/deployment`, {
             method: 'PUT',
             headers: {
@@ -140,5 +160,9 @@ export class DeploymentState {
         const node = new TaskNode(task);
         this.taskNodeMap.set(task.id, node);
         await this.editor.addNode(node, center);
+    }
+    private applyStatus(statusInfo: { status: string, started: boolean }) {
+        this._status = statusInfo.status;
+        this._started = statusInfo.started;
     }
 }

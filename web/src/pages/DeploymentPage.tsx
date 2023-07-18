@@ -30,9 +30,15 @@ const statusButtonStyles: SxProps<Theme> = {
 const DeploymentStatusButton = observer((props: { deployment: DeploymentState }) => {
     const [isLoading, setLoading] = useState<boolean>(false);
 
-    const text = `${props.deployment.status === "running" ? "stop" : "start"} (${props.deployment.status})`;
-    const icon = props.deployment.status === "running" ? <StopIcon /> : <PlayIcon />;
+    useEffect(() => {
+        if (!props.deployment.started) return;
+        props.deployment.startListening();
+        return () => props.deployment.stopListening();
+    }, [props.deployment.started])
 
+    const text = `${props.deployment.started ? "stop" : "start"} (${props.deployment.status})`;
+    const icon = props.deployment.started ? <StopIcon /> : <PlayIcon />;
+    
     return (
         <LoadingButton sx={statusButtonStyles} size="small" variant="contained" startIcon={icon} loadingPosition="start" loading={isLoading} onClick={async () => {
             setLoading(true);
@@ -124,10 +130,10 @@ const DeploymentNodeEditor = observer((props: { deployment: DeploymentState, fle
                 <NodeEditor editor={props.deployment.editor} />
                 {!!selectedTask && (
                     <TaskEditorOverlay onClose={() => setSelectedTaskId(undefined)}>
-                        <TaskEditor 
-                            deployment={props.deployment} 
-                            taskNode={selectedTask} 
-                            onUnselect={() => setSelectedTaskId(undefined)} 
+                        <TaskEditor
+                            deployment={props.deployment}
+                            taskNode={selectedTask}
+                            onUnselect={() => setSelectedTaskId(undefined)}
                             onDelete={() => setDeleteDialogOpen(true)} />
                     </TaskEditorOverlay>
                 )}

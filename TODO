@@ -7,6 +7,10 @@ https://github.com/cloudflare/stpyv8
 Questions:
 How do i solve topic remapping?
 
+BUGS:
+- ASGI
+- Deployment reload
+
 Media:
 time bases
 transcode framerate change

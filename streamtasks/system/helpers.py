@@ -1,4 +1,8 @@
 from abc import ABC, abstractmethod
+from fastapi import Response
+from fastapi.staticfiles import StaticFiles
+from starlette.types import Scope
+
 from streamtasks.asgi import ASGIApp
 from streamtasks.system.protocols import *
 from streamtasks.system.types import TaskStreamBase, SystemLogEntry, TaskStreamConfig
@@ -89,3 +93,12 @@ class JsonLogger(logging.StreamHandler):
       timestamp=int(record.created * 1000)
     )
     self.log_entries.append(entry)
+    
+class SPAStaticFiles(StaticFiles):
+  async def get_response(self, path: str, scope: Scope) -> Response:
+    try:
+      response = await super().get_response(path, scope)
+      if response.status_code == 404: raise Exception("404")
+      return response
+    finally:
+      return await super().get_response("index.html", scope)

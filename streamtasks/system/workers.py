@@ -12,12 +12,12 @@ from streamtasks.system.types import *
 from streamtasks.system.helpers import *
 from streamtasks.system.store import *
 from uuid import uuid4
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, WebSocket
+from fastapi.staticfiles import StaticFiles
 import itertools
 import hashlib
 from tinydb import TinyDB
 import tinydb.storages as tinydb_storages
-from tinydb.middlewares import CachingMiddleware as TinyDBCachingMiddleware
 
 class TaskFactoryWorker(Worker, ABC):
   registered_ids: ClassVar[set[str]] = set()
@@ -286,6 +286,7 @@ class TaskManagerWorker(Worker):
       deployment = self.deployments.get_started_deployment(id)
       if deployment is None: self._deployment_not_found(id)
       asyncio.create_task(self.stop_deployment(client, deployment))
+      await asyncio.sleep(0.1)
       return self._respond_deployment_status(id)
 
     @app.post("/api/deployment/{id}/start")
@@ -295,8 +296,11 @@ class TaskManagerWorker(Worker):
       if self.deployments.deployment_was_started(id): raise HTTPException(status_code=400, detail="deployment already started")
       await self._assign_topic_ids(client, deployment)
       asyncio.create_task(self.start_deployment(client, self.deployments.set_deployment_started(deployment)))
+      await asyncio.sleep(0.1)
       return self._respond_deployment_status(id)
 
+    app.mount("/", SPAStaticFiles(directory="web/dist", html=True))
+    
     await self.asgi_server.serve(app)
 
   async def _assign_topic_ids(self, client: Client, deployment: Deployment):
