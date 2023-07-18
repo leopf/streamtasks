@@ -153,12 +153,15 @@ class ASGIAppRunner:
     
     async def send(event: dict): 
       await sender.send(event)
+      await asyncio.sleep(0)
+    
     async def receive() -> dict: 
       while recv_queue.empty() and not stop_signal.is_set():
         data = await receiver.recv()
         for event in data.events: 
           event = MessagePackValueTransformer.deannotate_value(event)
           await recv_queue.put(event)
+      await asyncio.sleep(0)
       return await recv_queue.get()
 
     async def run():
@@ -204,6 +207,7 @@ class ASGIProxyApp:
         await asyncio.sleep(0)
     async def send_loop():
       while not closed_event.is_set():
+        await asyncio.sleep(0)
         data = await receiver.recv()
         for event in data.events: await send(MessagePackValueTransformer.deannotate_value(event))
         if data.closed: closed_event.set()
