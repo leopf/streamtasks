@@ -1,9 +1,8 @@
 Testing:
 - topic control data
-- sub unsub
 
-Fix:
-connection close not working, race
+Add task with:
+https://github.com/cloudflare/stpyv8
 
 Questions:
 How do i solve topic remapping?
