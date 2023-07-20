@@ -9,11 +9,16 @@ export class DeploymentState {
     public readonly editor: NodeEditorRenderer;
     public readonly id: string;
 
-    @observable
-    public label: string;
-
     public get status() {
         return this._status;
+    }
+
+    public get label() {
+        return this._label;
+    }
+    public set label(value: string) {
+        this.validateAllowEdit();
+        this._label = value;
     }
 
     @computed
@@ -23,7 +28,7 @@ export class DeploymentState {
 
     @computed
     public get readOnly() {
-        return this.isStarted;
+        return this.isStarted && !this.disabled;
     }
 
     @observable
@@ -35,11 +40,14 @@ export class DeploymentState {
     @observable
     private _tasks: Task[] = [];
 
+    @observable
+    private _label: string;
+
     @computed
     private get deploymentBase(): DeploymentBase {
         return {
             id: this.id,
-            label: this.label,
+            label: this._label,
         };
     }
     @computed
@@ -51,18 +59,20 @@ export class DeploymentState {
         };
     }
     
+    private readonly disabled: boolean = false;
     private rootState: RootState;
     private reactionDisposers: (() => void)[] = [];
     
     private statusRefreshHandle?: number;
 
-    constructor(rootState: RootState, deployment: Deployment) {
+    constructor(rootState: RootState, deployment: Deployment, disabled: boolean = false) {
         makeAutoObservable(this);
         this.rootState = rootState;
         this.id = deployment.id;
         this._tasks = deployment.tasks;
-        this.label = deployment.label;
+        this._label = deployment.label;
         this._status = deployment.status;
+        this.disabled = disabled;
 
         this.editor = new NodeEditorRenderer();
     }
@@ -75,12 +85,14 @@ export class DeploymentState {
         for (const task of this._tasks) {
             await this.addTaskToEditor(task, false);
         }
+        this.reactionDisposers.push(reaction(() => this.readOnly, () => this.editor.readOnly = this.readOnly, { fireImmediately: true }));
 
-        this.reactionDisposers.push(reaction(() => this.readOnly, () => this.editor.readOnly = this.readOnly));
-        this.reactionDisposers.push(reaction(() => this.deploymentBase, () => this.rootState.replaceDeployment(this.deployment)));
-        this.reactionDisposers.push(reaction(() => JSON.stringify(this.deployment), () => this.save(), {
-            delay: 1000,
-        })); // TODO: there must be a better way to do this
+        if (!this.disabled) {
+            this.reactionDisposers.push(reaction(() => this.deploymentBase, () => this.rootState.replaceDeployment(this.deployment)));
+            this.reactionDisposers.push(reaction(() => JSON.stringify(this.deployment), () => this.save(), {
+                delay: 1000,
+            })); // TODO: there must be a better way to do this
+        }
     }
 
     @action
@@ -90,6 +102,7 @@ export class DeploymentState {
     }
 
     public startListening() {
+        if (this.statusRefreshHandle) this.stopListening();
         this.statusRefreshHandle = window.setInterval(async () => {
             await this.updateStatus();
         }, 1000);
@@ -102,6 +115,7 @@ export class DeploymentState {
 
     @action
     public async createTaskFromTemplate(template: Task) {
+        this.validateAllowEdit();
         const task = cloneTask(template);
         this._tasks.push(task);
         const reactiveTask = this.getTaskById(task.id);
@@ -144,7 +158,7 @@ export class DeploymentState {
         });
         const deployment: Deployment = await res.json();
         this._tasks = deployment.tasks;
-        this.label = deployment.label;
+        this._label = deployment.label;
         this._status = deployment.status;
 
         this.editor.clear();
@@ -164,6 +178,7 @@ export class DeploymentState {
     }
     @action
     public removeTask(task: Task) {
+        this.validateAllowEdit();
         this.editor.deleteNode(task.id);
         this._tasks = this._tasks.filter(t => t.id !== task.id);
         this.taskNodeMap.delete(task.id);
@@ -175,5 +190,11 @@ export class DeploymentState {
     }
     private applyStatus(status: DeploymentStatus) {
         this._status = status;
+    }
+
+    private validateAllowEdit() {
+        if (this.readOnly) {
+            throw new Error('Attempted to edit a read-only deployment');
+        }
     }
 }

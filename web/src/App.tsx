@@ -14,26 +14,42 @@ import { ErrorScreen } from "./components/stateless/ErrorScreen";
 const router = createBrowserRouter([
     {
         path: "/deployment/view/:id",
-        element: <DeploymentPage />,
-        errorElement: <ErrorScreen/>,
+        element: <DeploymentPage showOriginal={true} />,
+        errorElement: <ErrorScreen />,
         loader: async ({ params }) => {
-            try {
-                if (params.id) {
-                    return await state.loadDeployment(params.id) ?? null;
+            if (params.id) {
+                const deployment = await state.loadDeployment(params.id);
+                if (!deployment) {
+                    throw new Error("Deployment not found");
                 }
+                return deployment;
             }
-            catch {}
+            return null;
+        }
+    },
+    {
+        path: "/deployment/view/:id/started",
+        element: <DeploymentPage showOriginal={false} />,
+        errorElement: <ErrorScreen />,
+        loader: async ({ params }) => {
+            if (params.id) {
+                const deployment = await state.loadStartedDeployment(params.id);
+                if (!deployment) {
+                    throw new Error("Deployment not found");
+                }
+                return deployment;
+            }
             return null;
         }
     },
     {
         path: "/dashboard/:id",
-        errorElement: <ErrorScreen/>,
+        errorElement: <ErrorScreen />,
         element: <DashboardPage />
     },
     {
         path: "/",
-        errorElement: <ErrorScreen/>,
+        errorElement: <ErrorScreen />,
         element: <HomePage />
     }
 ]);
@@ -67,14 +83,14 @@ export const App = observer(() => {
     }, []);
 
     if (!state.initialized) {
-        return <LoadingScreen/>;
+        return <LoadingScreen />;
     }
 
     return (
         <ThemeProvider theme={theme}>
             <>
-                <SystemLogModal/>
-                <RouterProvider fallbackElement={<LoadingScreen/>} router={router} />
+                <SystemLogModal />
+                <RouterProvider fallbackElement={<LoadingScreen />} router={router} />
             </>
         </ThemeProvider>
     )

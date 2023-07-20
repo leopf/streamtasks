@@ -3,7 +3,7 @@ import { DeploymentState } from "../state/deployment";
 import { observer } from "mobx-react";
 import { useLoaderData } from "react-router-dom";
 import React from "react";
-import { Box, Button, Dialog, Divider, IconButton, Stack, SxProps, Theme, Typography } from "@mui/material";
+import { Box, Button, Dialog, Divider, IconButton, Stack, SxProps, Theme, Tooltip, Typography } from "@mui/material";
 import { Clear as ClearIcon, PlayArrow as PlayIcon, Stop as StopIcon, Cached as ReloadIcon } from "@mui/icons-material";
 import { TaskTemplateList } from "../components/stateful/TaskTemplateList";
 import { NodeEditor } from "../components/stateless/NodeEditor";
@@ -37,7 +37,7 @@ const DeploymentStatusButton = observer((props: { deployment: DeploymentState })
 
     const text = `${props.deployment.isStarted ? "stop" : "start"} (${props.deployment.status})`;
     const icon = props.deployment.isStarted ? <StopIcon /> : <PlayIcon />;
-    
+
     return (
         <LoadingButton sx={statusButtonStyles} size="small" variant="contained" startIcon={icon} loadingPosition="start" loading={isLoading} onClick={async () => {
             setLoading(true);
@@ -97,6 +97,10 @@ const DeploymentNodeEditor = observer((props: { deployment: DeploymentState, fle
         return props.deployment.getTaskNodeById(selectedTaskId);
     }, [props.deployment, selectedTaskId])
 
+    const openDeleteDialog = () => {
+        if (props.deployment.readOnly) return;
+        setDeleteDialogOpen(true);
+    }
 
     useEffect(() => {
         if (props.deployment) {
@@ -114,7 +118,7 @@ const DeploymentNodeEditor = observer((props: { deployment: DeploymentState, fle
         const deleteHandler = (e: KeyboardEvent) => {
             console.log("keyboard event", e)
             if (e.key === "Delete") {
-                setDeleteDialogOpen(true);
+                openDeleteDialog();
             }
         };
         window.addEventListener("keydown", deleteHandler);
@@ -133,11 +137,11 @@ const DeploymentNodeEditor = observer((props: { deployment: DeploymentState, fle
                             deployment={props.deployment}
                             taskNode={selectedTask}
                             onUnselect={() => setSelectedTaskId(undefined)}
-                            onDelete={() => setDeleteDialogOpen(true)} />
+                            onDelete={() => openDeleteDialog()} />
                     </TaskEditorOverlay>
                 )}
             </Box>
-            <Dialog open={deleteDialogOpen && !!selectedTask} onClose={() => setDeleteDialogOpen(false)}>
+            <Dialog open={deleteDialogOpen && !!selectedTask && !props.deployment.readOnly} onClose={() => setDeleteDialogOpen(false)}>
                 <Box sx={{ padding: 2 }}>
                     <Typography>Are you sure you want to delete this task?</Typography>
                     <Stack direction="row" marginTop={2}>
@@ -158,7 +162,7 @@ const DeploymentNodeEditor = observer((props: { deployment: DeploymentState, fle
     );
 });
 
-export const DeploymentPage = observer((props: {}) => {
+export const DeploymentPage = observer((props: { showOriginal: boolean }) => {
     const [editLabel, setEditLabel] = useState<boolean>(false)
     const deployment = useLoaderData() as DeploymentState;
 
@@ -182,11 +186,16 @@ export const DeploymentPage = observer((props: {}) => {
                             borderRadius: 1.25,
                             backgroundColor: "rgba(0, 0, 0, 0.2)"
                         }
-                    }} fontSize={18} onClick={() => setEditLabel(true)} >{deployment.label}</Typography>
+                    }} fontSize={18} onClick={!deployment.readOnly ? () => setEditLabel(true) : undefined} >{deployment.label}</Typography>
                     <IconButton sx={{ marginLeft: 1 }} size="small" onClick={() => deployment.reload()}>
                         <ReloadIcon htmlColor="#fff" />
                     </IconButton>
                     <Box flex={1} />
+                    {(deployment.isStarted && props.showOriginal) && (
+                        <Tooltip title="shows the original version of the started deployment">
+                            <Button sx={{ marginRight: 1, color: "#fff9" }} href={`/deployment/view/${deployment.id}/started`}>show original</Button>
+                        </Tooltip>
+                    )}
                     <ShowSystemLogsButton />
                     <DeploymentStatusButton deployment={deployment} />
                     <Box width={"5px"} />

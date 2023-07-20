@@ -11,7 +11,9 @@ export function DeploymentLabelEditor(props: { open: boolean, value: string, onC
     }, [props.open])
 
     useEffect(() => {
-        props.onChange(label);
+        if (props.open) {
+            props.onChange(label);
+        }
     }, [label])
 
     return (

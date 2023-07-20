@@ -56,6 +56,14 @@ export class RootState {
             deployment,
         ];
     }
+    public async loadStartedDeployment(id: string) {
+        const res = await fetch(`/api/deployment/${id}/started`);
+        if (!res.ok) return undefined;
+        const deployment: Deployment = await res.json();
+        const deploymentState = new DeploymentState(this, deployment, true);
+        await deploymentState.init();
+        return deploymentState;
+    }
     public async loadDeployment(id: string) {
         const res = await fetch(`/api/deployment/${id}`);
         if (!res.ok) return undefined;
