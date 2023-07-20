@@ -74,7 +74,7 @@ export const App = observer(() => {
         <ThemeProvider theme={theme}>
             <>
                 <SystemLogModal/>
-                <RouterProvider fallbackElement={<ErrorScreen/>} router={router} />
+                <RouterProvider fallbackElement={<LoadingScreen/>} router={router} />
             </>
         </ThemeProvider>
     )

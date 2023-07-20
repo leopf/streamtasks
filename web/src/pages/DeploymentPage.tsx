@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { DeploymentState } from "../state/deployment";
-import { state } from "../state";
 import { observer } from "mobx-react";
-import { useParams, useNavigate, useLoaderData } from "react-router-dom";
+import { useLoaderData } from "react-router-dom";
 import React from "react";
 import { Box, Button, Dialog, Divider, IconButton, Stack, SxProps, Theme, Typography } from "@mui/material";
 import { Clear as ClearIcon, PlayArrow as PlayIcon, Stop as StopIcon, Cached as ReloadIcon } from "@mui/icons-material";
@@ -13,7 +12,7 @@ import { DeploymentLabelEditor } from "../components/stateless/DeploymentLabelEd
 import { LoadingButton } from '@mui/lab';
 import { TaskEditor } from "../components/stateful/TaskEditor";
 import { ShowSystemLogsButton } from "../components/stateful/ShowSystemLogsButton";
-import { ErrorScreen } from "../components/stateless/ErrorScreen";
+import { LoadingScreen } from "../components/stateless/LoadingScreen";
 
 const statusButtonStyles: SxProps<Theme> = {
     backgroundColor: "#eee",
@@ -164,7 +163,7 @@ export const DeploymentPage = observer((props: {}) => {
     const deployment = useLoaderData() as DeploymentState;
 
     if (!deployment) {
-        return <ErrorScreen />;
+        return <LoadingScreen />;
     }
 
     return (

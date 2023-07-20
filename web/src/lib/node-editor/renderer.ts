@@ -566,6 +566,8 @@ export class NodeEditorRenderer {
     }
 
     public async addNode(node: Node, center: boolean = false) {
+        if (this.nodeRenderers.has(node.getId())) throw new Error(`Node with id ${node.getId()} already exists`);
+
         const nodeRenderer = new NodeRenderer(node, this);
 
         this.nodeRenderers.set(node.getId(), nodeRenderer);

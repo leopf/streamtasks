@@ -1,18 +1,13 @@
-import cloneDeep from "clone-deep";
 import { action, computed, makeAutoObservable, observable, reaction } from "mobx";
 import { createTransformer } from "mobx-utils";
 import { NodeEditorRenderer } from "../lib/node-editor";
 import { Task, Deployment, cloneTask, DeploymentBase, DeploymentStatus, deploymentStatusIsStarted } from "../lib/task";
-import { v4 as uuidv4 } from 'uuid';
 import { TaskNode } from "../lib/task/node";
 import { RootState } from ".";
 
 export class DeploymentState {
     public readonly editor: NodeEditorRenderer;
     public readonly id: string;
-
-    @observable
-    public tasks: Task[] = [];
 
     @observable
     public label: string;
@@ -37,7 +32,9 @@ export class DeploymentState {
     @observable.shallow
     private taskNodeMap = new Map<string, TaskNode>();
 
-    
+    @observable
+    private _tasks: Task[] = [];
+
     @computed
     private get deploymentBase(): DeploymentBase {
         return {
@@ -50,7 +47,7 @@ export class DeploymentState {
         return {
             ...this.deploymentBase,
             status: this._status,
-            tasks: this.tasks,
+            tasks: this._tasks,
         };
     }
     
@@ -63,23 +60,30 @@ export class DeploymentState {
         makeAutoObservable(this);
         this.rootState = rootState;
         this.id = deployment.id;
-        this.tasks = deployment.tasks;
+        this._tasks = deployment.tasks;
         this.label = deployment.label;
         this._status = deployment.status;
+
+        this.editor = new NodeEditorRenderer();
+    }
+
+    public getTaskNodeById = createTransformer((id: string) => this.taskNodeMap.get(id));
+    public getTaskById = createTransformer((id: string) => this._tasks.find(t => t.id === id));
+
+    @action
+    public async init() {
+        for (const task of this._tasks) {
+            await this.addTaskToEditor(task, false);
+        }
 
         this.reactionDisposers.push(reaction(() => this.readOnly, () => this.editor.readOnly = this.readOnly));
         this.reactionDisposers.push(reaction(() => this.deploymentBase, () => this.rootState.replaceDeployment(this.deployment)));
         this.reactionDisposers.push(reaction(() => JSON.stringify(this.deployment), () => this.save(), {
             delay: 1000,
         })); // TODO: there must be a better way to do this
-
-        this.editor = new NodeEditorRenderer();
-        this.tasks.forEach(task => this.addTaskToEditor(task, false));
     }
 
-    public getTaskNodeById = createTransformer((id: string) => this.taskNodeMap.get(id));
-    public getTaskById = createTransformer((id: string) => this.tasks.find(t => t.id === id));
-
+    @action
     public destroy() {
         this.reactionDisposers.forEach(disposer => disposer());
         this.editor.destroy();
@@ -99,9 +103,9 @@ export class DeploymentState {
     @action
     public async createTaskFromTemplate(template: Task) {
         const task = cloneTask(template);
-        this.tasks.push(task);
+        this._tasks.push(task);
         const reactiveTask = this.getTaskById(task.id);
-        this.addTaskToEditor(reactiveTask!); // this is safe because we just pushed it
+        await this.addTaskToEditor(reactiveTask!); // this is safe because we just pushed it
     }
     @action
     public async updateStatus() {
@@ -139,12 +143,14 @@ export class DeploymentState {
             method: 'GET'
         });
         const deployment: Deployment = await res.json();
-        this.tasks = deployment.tasks;
+        this._tasks = deployment.tasks;
         this.label = deployment.label;
         this._status = deployment.status;
 
         this.editor.clear();
-        this.tasks.forEach(task => this.addTaskToEditor(task, false));
+        for (const task of this._tasks) {
+            await this.addTaskToEditor(task, false);
+        }
     }
     @action
     public async save() {
@@ -159,7 +165,7 @@ export class DeploymentState {
     @action
     public removeTask(task: Task) {
         this.editor.deleteNode(task.id);
-        this.tasks = this.tasks.filter(t => t.id !== task.id);
+        this._tasks = this._tasks.filter(t => t.id !== task.id);
         this.taskNodeMap.delete(task.id);
     }
     private async addTaskToEditor(task: Task, center: boolean = true) {
