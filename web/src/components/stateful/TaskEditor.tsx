@@ -1,9 +1,9 @@
-import { TableContainer, Table, TableBody, TableRow, TableCell, Box, Stack, Typography, Divider, IconButton } from "@mui/material";
+import { TableContainer, Table, TableBody, TableRow, TableCell, Box, Stack, Typography, Divider, IconButton, TextField, FormControl, Select, MenuItem, InputLabel, Menu } from "@mui/material";
 import { observer } from "mobx-react";
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Task, TaskInputStream, TaskOutputStream, TaskStream, TaskStreamBase, streamToString } from "../../lib/task";
 import { DeploymentState } from "../../state/deployment";
-import { TaskNode } from "../../lib/task/node";
+import { TaskEditorField, TaskNode } from "../../lib/task/node";
 import { Delete as DeleteIcon, Wysiwyg as WysiwygIcon } from "@mui/icons-material";
 import { TopicDataModal } from "../stateless/TopicDataModal";
 
@@ -32,8 +32,117 @@ const TaskStreamDisplay = (props: { stream: TaskStreamBase, allowOpen: boolean, 
     )
 };
 
+class EditorValidationHandler {
+    private updated: Record<string, number> = {};
+    private scheduled: Record<string, number> = {};
+
+    public get isOutdated() {
+        return Object.values(this.updated).some(value => value > 0);
+    }
+
+    public updateField(field: string) {
+        this.updated[field] = (this.updated[field] ?? 0) + 1;
+    }
+    public schedulePending() {
+        const scheduling = { ...this.updated };
+        for (const [key, value] of Object.entries(this.scheduled)) {
+            scheduling[key] = (scheduling[key] ?? 0) - value;
+        }
+        this.scheduled = { ...this.updated };
+        return scheduling;
+    }
+    public submitScheduled(scheduled: Record<string, number>) {
+        for (const [key, value] of Object.entries(scheduled)) {
+            this.updated[key] -= value;
+            this.scheduled[key] -= value;
+        }
+    }
+}
+
+const TaskFieldEditor = (props: { taskNode: TaskNode }) => {
+    const [fields, setFields] = useState<TaskEditorField[]>([]);
+    const [updateCounter, setUpdateCounter] = useState(0);
+    const validationHandlerRef = useRef(new EditorValidationHandler());
+
+    useEffect(() => {
+        let disposed = false;
+        props.taskNode.getEditorFields().then(fields => {
+            if (!disposed) {
+                setFields(fields);
+            }
+        });
+        return () => {
+            disposed = true
+        };
+    }, [props.taskNode]);
+
+    if (fields.length === 0) {
+        return null;
+    }
+
+    const refetchFields = async () => {
+        const scheduled = validationHandlerRef.current.schedulePending();
+        const fields = await props.taskNode.getEditorFields();
+        validationHandlerRef.current.submitScheduled(scheduled);
+        setFields(fields);
+    };
+
+    const renderField = (field: TaskEditorField) => {
+        if (field.type === "header") return <Typography variant="subtitle2" sx={{ fontWeight: "600" }}>{field.label}</Typography>;
+        if (field.type === "text") {
+            return (
+                <TextField
+                    key={field.config_path}
+                    size="small"
+                    label={field.label}
+                    value={props.taskNode.getConfig(field.config_path, "")}
+                    fullWidth
+                    error={!field.valid || validationHandlerRef.current.isOutdated}
+                    onInput={e => {
+                        console.log("changed text");
+                        props.taskNode.setConfig(field.config_path, (e.target as HTMLInputElement).value)
+                        validationHandlerRef.current.updateField(field.config_path);
+                        refetchFields();
+                        setUpdateCounter(updateCounter + 1);
+                    }} />
+            )
+        }
+        if (field.type === "select") {
+            return (
+                <FormControl fullWidth key={field.config_path}>
+                    <InputLabel id={field.config_path}>{field.label}</InputLabel>
+                    <Select
+                        size="small"
+                        labelId={field.config_path}
+                        label={field.label}
+                        value={props.taskNode.getConfig(field.config_path, "")}
+                        error={!field.valid || validationHandlerRef.current.isOutdated}
+                        onChange={e => {
+                            console.log("changed select");
+                            props.taskNode.setConfig(field.config_path, e.target.value)
+                            validationHandlerRef.current.updateField(field.config_path);
+                            refetchFields();
+                            setUpdateCounter(updateCounter + 1);
+                        }}
+                    >
+                        <MenuItem sx={{ height: 30 }} value={""}></MenuItem>
+                        {field.options.map(option => (<MenuItem value={option.value} key={option.value}>{option.label}</MenuItem>))}
+                    </Select>
+                </FormControl>
+            );
+        }
+        return null;
+    };
+    return (
+        <Stack direction="column" spacing={1.5}>
+            {fields.map(renderField)}
+        </Stack>
+    );
+};
+
 export const TaskEditor = observer((props: { taskNode: TaskNode, deployment: DeploymentState, onUnselect: () => void, onDelete: () => void }) => {
-    const [openStream, setOpenStream] = React.useState<TaskStream | undefined>(undefined);
+    const [openStream, setOpenStream] = useState<TaskStream | undefined>(undefined);
+    const [updateCounter, setUpdateCounter] = useState(0);
 
     const mappedStreams = useMemo(() => {
         const streams: [(TaskInputStream | undefined), (TaskOutputStream | undefined)][] = [];
@@ -51,7 +160,13 @@ export const TaskEditor = observer((props: { taskNode: TaskNode, deployment: Dep
         }
 
         return streams;
-    }, [props.taskNode])
+    }, [props.taskNode, updateCounter]);
+
+    useEffect(() => {
+        const updateCallback = () => setUpdateCounter(updateCounter + 1);
+        props.taskNode.onUpdated(updateCallback);
+        return () => props.taskNode.offUpdated(updateCallback);
+    }, [props.taskNode]);
 
     return (
         <>
@@ -60,11 +175,13 @@ export const TaskEditor = observer((props: { taskNode: TaskNode, deployment: Dep
                 <Stack direction="row" alignItems="center" paddingBottom={1}>
                     <Typography variant="subtitle1" gutterBottom>{props.taskNode.getName()}</Typography>
                     <Box flex={1} />
-                    <Box>
-                        <IconButton onClick={props.onDelete}>
-                            <DeleteIcon sx={{ width: "15px", height: "15px" }} />
-                        </IconButton>
-                    </Box>
+                    {!props.deployment.readOnly && (
+                        <Box>
+                            <IconButton onClick={props.onDelete}>
+                                <DeleteIcon sx={{ width: "15px", height: "15px" }} />
+                            </IconButton>
+                        </Box>
+                    )}
                 </Stack>
                 <Divider sx={{ width: "100%" }} />
                 <TableContainer>
@@ -87,6 +204,8 @@ export const TaskEditor = observer((props: { taskNode: TaskNode, deployment: Dep
                         </TableBody>
                     </Table>
                 </TableContainer>
+                <Box height={25} />
+                <TaskFieldEditor taskNode={props.taskNode} />
             </Stack>
         </>
     );

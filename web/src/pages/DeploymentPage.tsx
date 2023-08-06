@@ -193,7 +193,7 @@ export const DeploymentPage = observer((props: { showOriginal: boolean }) => {
                     <Box flex={1} />
                     {(deployment.isStarted && props.showOriginal) && (
                         <Tooltip title="shows the original version of the started deployment">
-                            <Button sx={{ marginRight: 1, color: "#fff9" }} href={`/deployment/view/${deployment.id}/started`}>show original</Button>
+                            <Button size="small" sx={{ marginRight: 1, color: "#fff9" }} href={`/deployment/view/${deployment.id}/started`}>show original</Button>
                         </Tooltip>
                     )}
                     <ShowSystemLogsButton />

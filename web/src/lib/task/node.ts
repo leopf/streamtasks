@@ -15,6 +15,20 @@ export interface RPCTaskConnectResponse {
     task?: Task;
     error_message?: string;
 }
+export type TaskEditorFieldBase<T extends string> = {
+    type: T;
+    label: string;
+}
+export type TaskEditorInputField<T extends string> = TaskEditorFieldBase<T> & {
+    config_path: string;
+    valid: boolean;
+}
+export type TaskEditorTextField = TaskEditorInputField<"text">;
+export type TaskEditorSelectField = TaskEditorInputField<"select"> & {
+    options: ({ label: string, value: any })[];
+}
+export type TaskEditorHeaderField = TaskEditorFieldBase<"header">;
+export type TaskEditorField = TaskEditorTextField | TaskEditorSelectField | TaskEditorHeaderField;
 
 function taskRequiresUpdate(oldTask: Task, newTask: Task) {
     const updatePaths = [
@@ -51,8 +65,39 @@ export class TaskNode implements Node {
     public getPosition() {
         return this.task.config.position ?? { x: 0, y: 0 };
     }
+    public setConfig(path: string, value: any) {
+        objectPath(this.task).set(path, value);
+    }
+    public getConfig(path: string, defaultValue?: any) {
+        return objectPath(this.task).get(path, defaultValue);
+    }
     public getConnectionGroups() {
         return this.task.stream_groups.map(streamGroupToConnectionGroup);
+    }
+    public async getEditorFields(): Promise<TaskEditorField[]> {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return [
+            {
+                type: "header",
+                label: "General"
+            },
+            {
+                type: "text",
+                label: "Formula",
+                config_path: "formula_input",
+                valid: true,
+            },
+            {
+                type: "select",
+                label: "Encoding",
+                config_path: "encoding",
+                options: [
+                    { label: "h264", value: "h264" },
+                    { label: "h265", value: "h265" },
+                ],
+                valid: true,
+            }
+        ];
     }
     public async connect(inputId: string, outputConnection?: Connection): Promise<boolean | string> {
         try {
