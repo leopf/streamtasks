@@ -357,6 +357,7 @@ class TaskManagerWorker(Worker):
     deployment_failed = False
 
     async def deploy_task(task: DeploymentTask):
+      nonlocal deployment_failed
       try:
         status = await self.task_factories.start_task(task)
         status.validate_running(True)
