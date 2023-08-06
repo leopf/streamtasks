@@ -103,6 +103,11 @@ class TaskFactoryWorker(Worker, ABC):
         return RPCTaskConnectResponse(task=deployment, error_message=None)
       except Exception as e:
         return RPCTaskConnectResponse(task=None, error_message=str(e))
+      
+    @app.post("/rpc/on-editor")
+    async def rpc_on_editor(req: DeploymentTask):
+      task, fields = await self.rpc_on_editor(req)
+      return RPCOnEditorResponse(task=task, fields=fields)
 
     runner = ASGIAppRunner(self._client, app, self.reg.web_init_descriptor, self.reg.worker_address)
     self.web_server_running.set()
@@ -137,6 +142,7 @@ class TaskFactoryWorker(Worker, ABC):
   def task_template(self) -> DeploymentTask: pass
   @abstractmethod
   async def rpc_connect(self, req: RPCTaskConnectRequest) -> Optional[DeploymentTask]: pass
+  async def rpc_on_editor(self, task: DeploymentTask) -> Union[DeploymentTask, list[dict[str, Any]]]: return task, []
   @abstractmethod
   async def create_task(self, deployment: DeploymentTask) -> Task: pass
 

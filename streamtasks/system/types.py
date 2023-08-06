@@ -97,6 +97,10 @@ class RPCTaskConnectRequest(BaseModel):
 class RPCTaskConnectResponse(BaseModel):
   task: Optional[DeploymentTask] = None
   error_message: Optional[str] = None
+  
+class RPCOnEditorResponse(BaseModel):
+  task: DeploymentTask
+  fields: list[dict[str, Any]]
 
 class SystemLogQueryParams(BaseModel):
   count: int = 100

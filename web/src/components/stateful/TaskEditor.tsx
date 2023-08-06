@@ -134,7 +134,7 @@ const TaskFieldEditor = (props: { taskNode: TaskNode }) => {
         return null;
     };
     return (
-        <Stack direction="column" spacing={1.5}>
+        <Stack marginTop={4} direction="column" spacing={1.5}>
             {fields.map(renderField)}
         </Stack>
     );
@@ -204,7 +204,6 @@ export const TaskEditor = observer((props: { taskNode: TaskNode, deployment: Dep
                         </TableBody>
                     </Table>
                 </TableContainer>
-                <Box height={25} />
                 <TaskFieldEditor taskNode={props.taskNode} />
             </Stack>
         </>

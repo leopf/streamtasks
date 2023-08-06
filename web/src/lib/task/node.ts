@@ -5,16 +5,6 @@ import { connectionToOutputStream, streamGroupToConnectionGroup } from "./utils"
 import objectPath from 'object-path';
 import deepEqual from "deep-equal";
 
-export interface RPCTaskConnectRequest {
-    input_id: string;
-    output_stream?: TaskOutputStream;
-    task: Task;
-}
-
-export interface RPCTaskConnectResponse {
-    task?: Task;
-    error_message?: string;
-}
 export type TaskEditorFieldBase<T extends string> = {
     type: T;
     label: string;
@@ -30,6 +20,21 @@ export type TaskEditorSelectField = TaskEditorInputField<"select"> & {
 export type TaskEditorHeaderField = TaskEditorFieldBase<"header">;
 export type TaskEditorField = TaskEditorTextField | TaskEditorSelectField | TaskEditorHeaderField;
 
+export interface RPCTaskConnectRequest {
+    input_id: string;
+    output_stream?: TaskOutputStream;
+    task: Task;
+}
+
+export interface RPCTaskConnectResponse {
+    task?: Task;
+    error_message?: string;
+}
+export interface RPCOnEditorResponse {
+    task: Task;
+    fields: TaskEditorField[];
+}
+
 function taskRequiresUpdate(oldTask: Task, newTask: Task) {
     const updatePaths = [
         "config.label",
@@ -42,15 +47,18 @@ function taskRequiresUpdate(oldTask: Task, newTask: Task) {
 
 export class TaskNode implements Node {
     private updateHandlers = new Set<(() => void)>();
-    
-    public task: Task;
+
+    private _task: Task;
+    public get task() {
+        return this._task;
+    }
 
     public get id() {
-        return this.task.id;
+        return this._task.id;
     }
 
     constructor(task: Task) {
-        this.task = task;
+        this._task = task;
     }
 
     public getId() {
@@ -75,75 +83,28 @@ export class TaskNode implements Node {
         return this.task.stream_groups.map(streamGroupToConnectionGroup);
     }
     public async getEditorFields(): Promise<TaskEditorField[]> {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return [
-            {
-                type: "header",
-                label: "General"
-            },
-            {
-                type: "text",
-                label: "Formula",
-                config_path: "formula_input",
-                valid: true,
-            },
-            {
-                type: "select",
-                label: "Encoding",
-                config_path: "encoding",
-                options: [
-                    { label: "h264", value: "h264" },
-                    { label: "h265", value: "h265" },
-                ],
-                valid: true,
-            }
-        ];
+        const data = await this.rpcRequest<Task, RPCOnEditorResponse>("/rpc/on-editor", this.task);
+        this.pushTask(data.task);
+        return data.fields;
     }
     public async connect(inputId: string, outputConnection?: Connection): Promise<boolean | string> {
         try {
             const stream = outputConnection ? connectionToOutputStream(outputConnection) : undefined;
-
-            const res = await fetch(`/task-factory/${this.task.task_factory_id}/rpc/connect`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(<RPCTaskConnectRequest>{
-                    input_id: inputId,
-                    output_stream: stream,
-                    task: this.task,
-                })
+            const data = await this.rpcRequest<RPCTaskConnectRequest, RPCTaskConnectResponse>("/rpc/connect", {
+                input_id: inputId,
+                output_stream: stream,
+                task: this.task,
             });
 
-            if (!res.ok) {
-                return false;
-            }
-
-            const data = await res.json() as RPCTaskConnectResponse;
             if (data.error_message) {
                 return data.error_message;
             }
             else if (data.task) {
-                const cloned = cloneDeep(this.task);
-                cloned.stream_groups.forEach(group => {
-                    group.inputs.forEach(input => {
-                        if (input.ref_id === inputId) {
-                            input.topic_id = stream?.topic_id;
-                            if (input.topic_id === undefined) {
-                                delete input.topic_id;
-                            }
-                        }
-                    });
-                });
-
-                Object.assign(this.task, data.task);
-                if (taskRequiresUpdate(cloned, data.task)) {
-                    console.log("update")
-                    this.updateHandlers.forEach(cb => cb());
-                }
+                this.setInputTopicId(inputId, stream?.topic_id);
+                this.pushTask(data.task);
             }
             else {
-                return "Error while creating the connection."
+                return "Task did not respond with a task."
             }
         }
         catch (e) {
@@ -158,5 +119,41 @@ export class TaskNode implements Node {
     }
     public offUpdated(cb: () => void) {
         this.updateHandlers.delete(cb);
+    }
+
+    private async rpcRequest<I, O>(path: string, body: I) : Promise<O> {
+        const res = await fetch(`/task-factory/${this.task.task_factory_id}${path}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(body)
+        });
+
+        if (!res.ok) {
+            throw new Error("Request failed");
+        }
+
+        return await res.json() as O;
+    }
+    private emitUpdated() {
+        console.log("TaskNode: emitUpdated");
+        this.updateHandlers.forEach(cb => cb());
+    }
+    private pushTask(task: Task) {
+        const requiresUpdate = taskRequiresUpdate(this.task, task);
+        Object.assign(this.task, task);
+        if (requiresUpdate) {
+            this.emitUpdated();
+        }
+    }
+    private setInputTopicId(inputId: string, topicId?: string) {
+        const taskStream = this._task.stream_groups.flatMap(g => g.inputs).find(i => i.ref_id === inputId);
+        if (taskStream) {
+            taskStream.topic_id = topicId;
+            if (taskStream.topic_id === undefined) {
+                delete taskStream.topic_id;
+            }
+        }
     }
 }
