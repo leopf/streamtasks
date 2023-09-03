@@ -5,6 +5,7 @@ import { LRUCache } from 'lru-cache';
 import { Connection, Node, ConnectResult, InputConnection, NodeDisplayOptions, NodeRenderOptions } from "./types";
 import { Point } from '../../model';
 import { Lock, createNodeDisplayHash } from './utils';
+import { DropShadowFilter } from '@pixi/filter-drop-shadow';
 
 const appBackgroundColor = 0xeeeeee;
 const paddingVertical = 10;
@@ -85,6 +86,10 @@ export class NodeRenderer {
         this.editor = editor;
 
         this.group = new PIXI.Container();
+        // this.group.filters = [new DropShadowFilter({
+        //     alpha: 0.5,
+        //     blur: 5,
+        // })];
         this.group.interactive = true;
 
         this.group.on('pointerdown', () => this.editor?.onPressNode(this.id));
@@ -384,7 +389,7 @@ export class NodeImageRenderer {
         if (this.cache.has(nodeHash)) {
             return this.cache.get(nodeHash)!;
         }
-        
+
         let result: string | undefined;
         let resolver: ((dataUrl: string) => void) | undefined;
         let handler = (dataUrl: string) => {
@@ -461,7 +466,7 @@ export class NodeEditorRenderer {
 
     private pressActive = false;
     private selectedNodeId?: string;
-    
+
     private selectedConnectionId?: string;
     private keepEditingLinkLine = false;
     private editingLinkLine?: PIXI.Graphics;
@@ -636,7 +641,7 @@ export class NodeEditorRenderer {
                 this.links.add(connection);
                 this.renderLink(connection);
                 this.renderInputLinks(connection.inputNodeId, connection.inputId);
-    
+
                 this.emitUpdated(connection.inputNodeId);
                 this.emitUpdated(connection.outputNodeId);
             }

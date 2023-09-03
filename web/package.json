@@ -16,6 +16,7 @@
     "@mui/icons-material": "^5.14.0",
     "@mui/lab": "5.0.0-alpha.136",
     "@mui/material": "^5.14.0",
+    "@pixi/filter-drop-shadow": "^5.2.0",
     "@types/clone-deep": "^4.0.1",
     "@types/deep-equal": "^1.0.1",
     "@types/lodash": "^4.14.195",

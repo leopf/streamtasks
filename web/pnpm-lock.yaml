@@ -20,6 +20,9 @@ dependencies:
   '@mui/material':
     specifier: ^5.14.0
     version: 5.14.0(@emotion/react@11.11.1)(@emotion/styled@11.11.0)(@types/react@18.2.14)(react-dom@18.2.0)(react@18.2.0)
+  '@pixi/filter-drop-shadow':
+    specifier: ^5.2.0
+    version: 5.2.0(@pixi/core@7.2.4)
   '@types/clone-deep':
     specifier: ^4.0.1
     version: 4.0.1
@@ -823,10 +826,27 @@ packages:
       '@pixi/core': 7.2.4
     dev: false
 
+  /@pixi/filter-drop-shadow@5.2.0(@pixi/core@7.2.4):
+    resolution: {integrity: sha512-cYS2KDER7cwCu0V4VNSxTHGvzmNcEXdC9j3031YBOkUAE3+p17LMS/TAt6XeMfJV7KaPuusvXy2NFgGkv3RDbw==}
+    peerDependencies:
+      '@pixi/core': ^7.0.0-X
+    dependencies:
+      '@pixi/core': 7.2.4
+      '@pixi/filter-kawase-blur': 5.1.1(@pixi/core@7.2.4)
+    dev: false
+
   /@pixi/filter-fxaa@7.2.4(@pixi/core@7.2.4):
     resolution: {integrity: sha512-qzKjdL+Ih18uGTJLg8tT/H+YCsTeGkw2uF7lyKnw/lxGLJQhLWIhM95M9qSNgxbXyW1vp7SbG81a9aAEz2HAhA==}
     peerDependencies:
       '@pixi/core': 7.2.4
+    dependencies:
+      '@pixi/core': 7.2.4
+    dev: false
+
+  /@pixi/filter-kawase-blur@5.1.1(@pixi/core@7.2.4):
+    resolution: {integrity: sha512-nPnJ1ChBFP+4pgFCwC0RJgHAJCetiHcQU3INH7zCdq88cFABmVmhN+wCKRNg4H7lF1EJjaXgFDkTrTreOD/bnw==}
+    peerDependencies:
+      '@pixi/core': ^7.0.0-X
     dependencies:
       '@pixi/core': 7.2.4
     dev: false

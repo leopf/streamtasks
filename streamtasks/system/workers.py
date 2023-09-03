@@ -13,13 +13,11 @@ from streamtasks.system.helpers import *
 from streamtasks.system.store import *
 from uuid import uuid4
 from fastapi import FastAPI, HTTPException, Request, WebSocket
-from fastapi.staticfiles import StaticFiles
-from starlette.responses import FileResponse
 import itertools
 import hashlib
 from tinydb import TinyDB
-import os
 import tinydb.storages as tinydb_storages
+import socket
 
 class TaskFactoryWorker(Worker, ABC):
   registered_ids: ClassVar[set[str]] = set()
@@ -137,6 +135,9 @@ class TaskFactoryWorker(Worker, ABC):
     await asyncio.sleep(self._task_startup_duration)
     return task.get_deployment_status()
   async def create_client(self) -> Client: return Client(await self.create_connection())
+  
+  @property
+  def hostname(self): return socket.gethostname()
   
   @abstractproperty
   def task_template(self) -> DeploymentTask: pass

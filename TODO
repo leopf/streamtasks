@@ -1,6 +1,11 @@
 Testing:
 - topic control data
 
+
+General:
+- auto restarting tasks if they fail and are configured to do so
+- every task factory provides a topic, this way the management server can subscribe and find out, if it is still running
+
 Add task with:
 https://github.com/cloudflare/stpyv8
 
