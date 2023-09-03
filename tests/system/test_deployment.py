@@ -4,8 +4,8 @@ from streamtasks.worker import Worker
 from streamtasks.node import *
 from streamtasks.message.data import MessagePackData
 from streamtasks.client import *
-from streamtasks.system.task import Task
-from streamtasks.system.workers import TaskFactoryWorker, TaskManagerWorker
+from streamtasks.system.task import Task, TaskFactoryWorker
+from streamtasks.system.workers import TaskManagerWorker
 from streamtasks.system.types import *
 from streamtasks.system.helpers import ASGITestServer
 from streamtasks.system.discovery import DiscoveryWorker

@@ -7,7 +7,7 @@ from streamtasks.system.protocols import Optional
 from streamtasks.system.store import DeploymentTask, Optional, RPCTaskConnectRequest
 from streamtasks.system.task import Task
 from streamtasks.system.types import DeploymentTask, Optional, RPCTaskConnectRequest, TaskInputStream, TaskStreamGroup
-from streamtasks.system.workers import TaskFactoryWorker
+from streamtasks.system.task import TaskFactoryWorker
 from pydantic import BaseModel
 from dataclasses import dataclass
 from typing import Any, Union, Optional, Literal, Tuple, get_origin

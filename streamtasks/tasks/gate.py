@@ -1,5 +1,4 @@
-from streamtasks.system.task import Task
-from streamtasks.system.workers import TaskFactoryWorker
+from streamtasks.system.task import Task, TaskFactoryWorker
 from streamtasks.system.helpers import apply_task_stream_config, validate_stream_config
 from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, TaskStreamConfig, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
 from streamtasks.client import Client

@@ -1,151 +1,18 @@
 import asyncio
-from abc import ABC, abstractmethod, abstractproperty
 from streamtasks.asgi import ASGIApp
 from streamtasks.system.protocols import *
 from streamtasks.client import Client
 from streamtasks.comm import Connection
 from streamtasks.asgi import *
-from streamtasks.helpers import INSTANCE_ID
 from streamtasks.worker import Worker
-from streamtasks.system.task import Task
 from streamtasks.system.types import *
 from streamtasks.system.helpers import *
 from streamtasks.system.store import *
 from uuid import uuid4
 from fastapi import FastAPI, HTTPException, Request, WebSocket
 import itertools
-import hashlib
 from tinydb import TinyDB
 import tinydb.storages as tinydb_storages
-import socket
-
-class TaskFactoryWorker(Worker, ABC):
-  registered_ids: ClassVar[set[str]] = set()
-  
-  def __init__(self, node_connection: Connection):
-    super().__init__(node_connection)
-    h = hashlib.sha256()
-    h.update(self.__class__.__name__.encode("utf-8"))
-    h.update(str(INSTANCE_ID.value).encode("utf-8"))
-    self.id = h.hexdigest()
-    
-    if self.id in TaskFactoryWorker.registered_ids: raise Exception(f"TaskFactoryWorker with id {self.id} of class {self.__class__.__name__} already registered! If you want to create multiple TaskFactoryWorkers of the same type, you need to change the instance id.")
-    TaskFactoryWorker.registered_ids.add(self.id)
-    
-    self.tasks = {}
-    self.setup_done = asyncio.Event()
-    self.web_server_running = asyncio.Event()
-    self.fetch_server_running = asyncio.Event()
-    self.stop_timeout = 2
-    self._client = None
-    self._task_startup_duration = 0.1
-
-  async def start(self):
-    try:
-      self._client = Client(await self.create_connection())
-      await asyncio.gather(
-        self._setup(),
-        self._run_fetch_server(),
-        self._run_web_server(),
-        super().start()
-      )
-    finally:
-      self.web_server_running.clear()
-      self.fetch_server_running.clear()
-      self.setup_done.clear()
-      for task in self.tasks.values(): await task.stop(self.stop_timeout)
-
-  async def _setup(self):
-    await self.connected.wait()
-    await self._client.wait_for_topic_signal(WorkerTopics.DISCOVERY_SIGNAL)
-    await self._client.request_address()
-    await self._client.wait_for_address_name(AddressNames.TASK_MANAGER)
-    self.reg = TaskFactoryRegistration(
-      id=self.id, 
-      worker_address=self._client.default_address,
-      task_template=self.task_template.model_dump()
-    )
-    await self._client.fetch(AddressNames.TASK_MANAGER, TaskFetchDescriptors.REGISTER_TASK_FACTORY, self.reg.model_dump())
-    self.setup_done.set()
-
-  async def _run_fetch_server(self):
-    await self.setup_done.wait()
-
-    server = self._client.create_fetch_server()
-
-    @server.route(TaskFetchDescriptors.DELETE_TASK)
-    async def delete_task(req: FetchRequest):
-      deployment: TaskDeploymentDeleteMessage = TaskDeploymentDeleteMessage.model_validate(req.body)
-      status = await self.delete_task(deployment)
-      await req.respond(status.model_dump())
-
-    @server.route(TaskFetchDescriptors.DEPLOY_TASK)
-    async def deploy_task(req: FetchRequest):
-      deployment: DeploymentTask = DeploymentTask.model_validate(req.body)
-      status = await self.deploy_task(deployment)
-      await req.respond(status.model_dump())
-
-    self.fetch_server_running.set()
-    await server.start()
-
-  async def _run_web_server(self):
-    await self.setup_done.wait()
-
-    app = FastAPI()
-
-    @app.post("/rpc/connect")
-    async def rpc_connect(req: RPCTaskConnectRequest):
-      try:
-        deployment = await self.rpc_connect(req)
-        if deployment is None: raise Exception("Something went wrong!")
-        return RPCTaskConnectResponse(task=deployment, error_message=None)
-      except Exception as e:
-        return RPCTaskConnectResponse(task=None, error_message=str(e))
-      
-    @app.post("/rpc/on-editor")
-    async def rpc_on_editor(req: DeploymentTask):
-      task, fields = await self.rpc_on_editor(req)
-      return RPCOnEditorResponse(task=task, fields=fields)
-
-    runner = ASGIAppRunner(self._client, app, self.reg.web_init_descriptor, self.reg.worker_address)
-    self.web_server_running.set()
-    await runner.start()
-
-  async def wait_idle(self):
-    await self.web_server_running.wait()
-    await self.fetch_server_running.wait()
-
-  async def delete_task(self, deployment: TaskDeploymentDeleteMessage):
-    if deployment.id not in self.tasks: return
-    task: Task = self.tasks[deployment.id]
-    await task.stop(self.stop_timeout)
-    del self.tasks[deployment.id]
-    return task.get_deployment_status()
-  async def deploy_task(self, deployment: DeploymentTask):
-    if deployment.id in self.tasks:
-      task: Task = self.tasks[deployment.id]
-      if task.can_update(deployment): 
-        await task.update(deployment)
-        await asyncio.sleep(self._task_startup_duration)
-        return task.get_deployment_status()
-      else: await task.stop(self.stop_timeout)
-    task = await self.create_task(deployment)
-    await task.start()
-    self.tasks[deployment.id] = task
-    await asyncio.sleep(self._task_startup_duration)
-    return task.get_deployment_status()
-  async def create_client(self) -> Client: return Client(await self.create_connection())
-  
-  @property
-  def hostname(self): return socket.gethostname()
-  
-  @abstractproperty
-  def task_template(self) -> DeploymentTask: pass
-  @abstractmethod
-  async def rpc_connect(self, req: RPCTaskConnectRequest) -> Optional[DeploymentTask]: pass
-  async def rpc_on_editor(self, task: DeploymentTask) -> Union[DeploymentTask, list[dict[str, Any]]]: return task, []
-  @abstractmethod
-  async def create_task(self, deployment: DeploymentTask) -> Task: pass
 
 # TODO: this needs the actual dashboard
 class NodeManagerWorker(Worker):

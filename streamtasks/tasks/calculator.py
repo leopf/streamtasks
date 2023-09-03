@@ -1,5 +1,4 @@
-from streamtasks.system.task import Task
-from streamtasks.system.workers import TaskFactoryWorker
+from streamtasks.system.task import Task, TaskFactoryWorker
 from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, RPCTaskConnectRequest, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
 from streamtasks.client import Client
 from streamtasks.client.receiver import NoopReceiver
