@@ -40,12 +40,20 @@ class TaskStreamGroup(BaseModel):
   inputs: list[TaskInputStream]
   outputs: list[TaskOutputStream]
 
-class DeploymentTask(BaseModel):
-  id: str = Field(default_factory=uuid4_str)
-  task_factory_id: str
+class DeploymentTaskScaffold(BaseModel):
   config: dict[str, Any] = {}
   stream_groups: list[TaskStreamGroup]
+
+class DeploymentTask(DeploymentTaskScaffold):
+  id: str = Field(default_factory=uuid4_str)
+  task_factory_id: str
   topic_id_map: dict[str, int] = {}
+
+  def get_output_topic_ids(self) -> set[str]:
+    return set(stream.topic_id for stream_group in self.stream_groups for stream in stream_group.outputs)
+
+  def get_input_topic_ids(self) -> set[str]:
+    return set(stream.topic_id for stream_group in self.stream_groups for stream in stream_group.inputs)
 
   def get_topic_ids(self) -> set[str]:
     for stream_group in self.stream_groups:

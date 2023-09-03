@@ -8,10 +8,11 @@ from streamtasks.asgi import ASGIAppRunner
 from streamtasks.client.fetch import FetchRequest
 from streamtasks.comm import Connection
 from streamtasks.helpers import INSTANCE_ID
+from streamtasks.message.data import SerializableData
 from streamtasks.system.protocols import AddressNames, WorkerTopics
-from streamtasks.system.types import DeploymentTask, RPCOnEditorResponse, RPCTaskConnectRequest, RPCTaskConnectResponse, TaskDeploymentDeleteMessage, TaskDeploymentStatus, TaskFactoryRegistration, TaskFetchDescriptors
+from streamtasks.system.types import DeploymentTask, DeploymentTaskScaffold, RPCOnEditorResponse, RPCTaskConnectRequest, RPCTaskConnectResponse, TaskDeploymentDeleteMessage, TaskDeploymentStatus, TaskFactoryRegistration, TaskFetchDescriptors
 from streamtasks.system.helpers import asgi_app_not_found
-from abc import ABC, abstractmethod, abstractproperty
+from abc import ABC, abstractclassmethod, abstractmethod, abstractproperty
 import asyncio
 
 from streamtasks.client import Client
