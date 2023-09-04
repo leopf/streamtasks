@@ -77,13 +77,13 @@ class FlowDetectorTask(Task):
 
   async def _process_message(self, data: SerializableData):
     try: 
-      self.time_sync.set_time(get_timestamp_from_message(data))
+      self.time_sync.update(get_timestamp_from_message(data))
       self.failing = False
     except Exception as e: self.failing = True
     finally: await self.client.send_stream_data(self.output_topic.topic, data)
 
   async def _on_state_change(self, timestamp: Optional[int] = None):
-    if timestamp is not None: self.time_sync.set_time(timestamp)
+    if timestamp is not None: self.time_sync.update(timestamp)
     await self.input_topic.set_subscribed(self.output_topic.is_subscribed)
     await self.output_topic.set_paused(self.input_paused)
     is_active = self.output_topic.is_subscribed and not self.input_paused and (not self.failing or self.fail_mode == FlowDetectorFailMode.FAIL_OPEN)

@@ -73,7 +73,7 @@ class TimeSynchronizer:
     self._time_offset = 0
   @property
   def time(self) -> int: return get_timestamp_ms() + self._time_offset
-  def set_time(self, timestamp): self._time_offset = timestamp - get_timestamp_ms()
+  def update(self, timestamp: int): self._time_offset = timestamp - get_timestamp_ms()
   def reset(self): self._time_offset = 0
   
 # context stuff from https://github.com/tinygrad/tinygrad/blob/master/tinygrad/helpers.py
