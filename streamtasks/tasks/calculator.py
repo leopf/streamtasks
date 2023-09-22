@@ -1,5 +1,8 @@
+from functools import cached_property
+from streamtasks.system.helpers import validate_stream_config
+from streamtasks.system.synctask import SynchronizedTask
 from streamtasks.system.task import Task, TaskFactoryWorker
-from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, RPCTaskConnectRequest, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
+from streamtasks.system.types import DeploymentTaskScaffold, RPCTaskConnectRequest, DeploymentTask, RPCTaskConnectRequest, TaskStreamConfig, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
 from streamtasks.client import Client
 from streamtasks.client.receiver import NoopReceiver
 from streamtasks.message import NumberMessage
@@ -157,62 +160,64 @@ class CalculatorInputConfig(BaseModel):
   name: str
   fallback_value: Optional[float] = None
 
-class CalculatorTask(Task):
-  def __init__(self, client: Client, deployment: DeploymentTask):
-    super().__init__(client)
-    self.deployment = deployment
-
-  async def start_task(self):
-    try:
-      topic_id_map = self.deployment.topic_id_map
-      
-      self.input_map = {}
-      self.output_topic = self.client.create_provide_tracker()
-      await self.output_topic.set_topic(topic_id_map[self.deployment.stream_groups[0].outputs[0].topic_id])
-      self.input_paused_count = 0
-      self.formula_ast = CalculatorGrammar.parse(self.deployment.config["formula"]) 
-      self.input_topic_ids = [ topic_id_map[input.topic_id] for input in self.deployment.stream_groups[0].inputs]
-      input_configs = [ CalculatorInputConfig.model_validate(config) for config in self.deployment.config["input_configs"] ]
-      validate_formula(self.formula_ast, [ config.name for config in input_configs ])
-
-      sync = StreamSynchronizer()
-      input_streams = [ SynchronizedStream(sync, self.client.get_topics_receiver([ input_topic_id ])) for input_topic_id in self.input_topic_ids ]
-      input_recv_tasks = [ asyncio.create_task(self._run_receive_input(stream, config.name, config.fallback_value)) for stream, config in zip(input_streams, input_configs) ]
+def variable_name_ganerator():
+  synbols = "abcdefghijklmnopqrstuvwxyz"
+  counts = [0]
+  while True:
+    name = "".join(synbols[i] for i in counts)
+    yield name
     
-      return asyncio.gather(
-        self._process_subscription_status(),
-        *input_recv_tasks
+    counts[-1] += 1
+    for i in range(len(counts) - 1, -1, -1):
+      if counts[i] >= len(synbols):
+        counts[i] = 0
+        if i == 0: counts.insert(0, 0)
+        else: counts[i - 1] += 1
+      else: break
+
+class CalculatorTask(SynchronizedTask):
+  @classmethod
+  def name(cls): return "Calculator"
+  @classmethod
+  def task_scaffold(cls): return DeploymentTaskScaffold(
+    config={
+      "formula": "",
+    },
+    stream_groups=[
+      TaskStreamGroup(
+        inputs=[],    
+        outputs=[TaskOutputStream(label="output")]      
       )
-    finally:
-      await self.output_topic.set_topic(None)
-      for recv_task in input_recv_tasks: recv_task.cancel()
-
-  async def _process_subscription_status(self):
-    async with NoopReceiver(self.client):
-      while True:
-        await self.output_topic.wait_subscribed_change()
-        if self.output_topic.is_subscribed: await self.client.subscribe(self.input_topic_ids)
-        else: await self.client.unsubscribe(self.input_topic_ids)
-
-  async def _run_receive_input(self, stream: SynchronizedStream, var_name: str, fallback_value: float):
-    async with stream:
-      paused = False
-      while True:
-        with await stream.recv() as message:
-          if message.data is not None:
-            nmessage = NumberMessage.model_validate(message.data.data)
-            self.input_map[var_name] = nmessage.value
-            await self._send_calculated_output(message.timestamp)
-          if message.control is not None and message.control.paused != paused:
-            paused = message.control.paused
-            self.input_paused_count += 1 if message.control.paused else -1
-            if message.control.paused: self.input_map[var_name] = fallback_value
-            await self.output_topic.set_paused(self.input_paused_count == len(self.input_topic_ids))
-
-  async def _send_calculated_output(self, timestamp: int):
-    output_value = CalculatorEvalTransformer(CalculatorEvalContext(self.input_map)).transform(self.formula_ast)
-    await self.client.send_stream_data(self.output_topic.topic, NumberMessage(timestamp=timestamp, value=output_value))
-
+    ]
+  )
+  @classmethod
+  async def rpc_connect(cls, req: RPCTaskConnectRequest) -> Optional[DeploymentTask]:
+    if req.output_stream is not None:
+      validate_stream_config(req.output_stream, TaskStreamConfig(content_type="number"), "Input must be a number")
+      topic_id = req.output_stream.topic_id
+    else: topic_id = None
+    for input_stream in req.task.stream_groups[0].inputs:
+      if req.input_id == input_stream.ref_id:
+        input_stream.topic_id = topic_id
+        break
+    return req.task
+  
+  @cached_property
+  def topic_label_map(self):
+    return {
+      stream.label: stream.topic_id
+      for stream in self.deployment.stream_groups[0].inputs + self.deployment.stream_groups[0].outputs
+    }
+  
+  async def setup(self):
+    self.formula_ast = CalculatorGrammar.parse(self.deployment.config["formula"])
+    input_configs = [ CalculatorInputConfig.model_validate(config) for config in self.deployment.config["input_configs"] ]
+    validate_formula(self.formula_ast, [ config.name for config in input_configs ])
+    
+  async def on_changed(self, timestamp: int, **kwargs):
+    input_map = None
+    
+  
 class CalculatorTaskFactoryWorker(TaskFactoryWorker):
   async def create_task(self, deployment: DeploymentTask): return CalculatorTask(await self.create_client(), deployment)
   async def rpc_connect(self, req: RPCTaskConnectRequest) -> DeploymentTask: return req.task

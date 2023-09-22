@@ -11,7 +11,7 @@ from streamtasks.message.data import SerializableData
 from streamtasks.message.helpers import get_timestamp_from_message
 from streamtasks.streams import StreamSynchronizer, SynchronizedStream
 from streamtasks.system.task import Task, TaskFactoryWorker
-from streamtasks.system.types import DeploymentTask, DeploymentTaskScaffold, RPCTaskConnectRequest
+from streamtasks.system.types import DeploymentTask, DeploymentTaskScaffold, RPCTaskConnectRequest, RPCUIEventRequest, RPCUIEventResponse
 
 class SynchronizedTaskFactoryWorker(TaskFactoryWorker):
   def __init__(self, node_connection: Connection, task_component_cls: type["SynchronizedTask"]):
@@ -35,8 +35,7 @@ class SynchronizedTaskFactoryWorker(TaskFactoryWorker):
       }
     )
   async def rpc_connect(self, req: RPCTaskConnectRequest) -> Optional[DeploymentTask]: return await self.TaskComponent.rpc_connect(req)
-  async def rpc_on_editor(self, task: DeploymentTask) -> Union[DeploymentTask, list[dict[str, Any]]]: return await self.TaskComponent.rpc_on_editor(task)
-  
+  async def rpc_ui_event(self, req: RPCUIEventRequest) -> RPCUIEventResponse: return await self.TaskComponent.rpc_ui_event(req)
 
 class SynchronizedTask(Task):
   def __init__(self, client: Client, deployment: DeploymentTask):
@@ -64,12 +63,12 @@ class SynchronizedTask(Task):
   @abstractclassmethod
   async def rpc_connect(cls, req: RPCTaskConnectRequest) -> Optional[DeploymentTask]: pass
   @classmethod
-  async def rpc_on_editor(cls, task: DeploymentTask) -> Union[DeploymentTask, list[dict[str, Any]]]: return task, []
+  async def rpc_ui_event(cls, req: RPCUIEventRequest) -> RPCUIEventResponse: return RPCUIEventResponse(task=req.task)
   
   async def setup(self): pass
   async def cleanup(self): pass
   @abstractmethod
-  async def update(self, timestamp: int, values: dict[str, Any]): pass
+  async def on_changed(self, timestamp: int, **kwargs: Any): pass
   
   @property
   def topic_label_map(self) -> dict[str, str]: return {}
@@ -96,7 +95,7 @@ class SynchronizedTask(Task):
       await self.client.provide([])
       await self.cleanup()
   
-  def request_update(self): self._submit_update()
+  def request_changed(self): self._submit_changed()
   
   async def emit(self, topic_label: str, data: SerializableData):
     if not self._update_lock.locked():
@@ -126,17 +125,17 @@ class SynchronizedTask(Task):
   @property
   def _reversed_topic_label_map(self) -> dict[str, str]: return { topic_id: topic_label for topic_label, topic_id in self.topic_label_map.items() }
   
-  def _submit_update(self, timestamp: Optional[int] = None):
+  def _submit_changed(self, timestamp: Optional[int] = None):
     if timestamp is not None:
       self._time_sync.update(timestamp)
     else:
       timestamp = self._time_sync.time
-    asyncio.create_task(self._run_update(timestamp, { **self._input_map }))
+    asyncio.create_task(self._run_changed(timestamp, { **self._input_map }))
   
-  async def _run_update(self, timestamp: int, values: dict[str, Any]):
+  async def _run_changed(self, timestamp: int, values: dict[str, Any]):
     async with self._update_lock:
       self._current_timestamp = timestamp
-      await self.update(timestamp, values)
+      await self.on_changed(timestamp, **values)
     
   async def _run_receive_input(self, topic_id: str, stream: SynchronizedStream):
     async with stream:
@@ -145,7 +144,7 @@ class SynchronizedTask(Task):
         with await stream.recv() as message:
           if message.data is not None:
             self._input_map[topic_id] = message.data.data
-            self._submit_update(message.timestamp)
+            self._submit_changed(message.timestamp)
           if message.control is not None and message.control.paused != paused:
             paused = message.control.paused
             self._input_paused_map[topic_id] = paused

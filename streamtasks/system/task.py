@@ -10,7 +10,7 @@ from streamtasks.comm import Connection
 from streamtasks.helpers import INSTANCE_ID
 from streamtasks.message.data import SerializableData
 from streamtasks.system.protocols import AddressNames, WorkerTopics
-from streamtasks.system.types import DeploymentTask, DeploymentTaskScaffold, RPCOnEditorResponse, RPCTaskConnectRequest, RPCTaskConnectResponse, TaskDeploymentDeleteMessage, TaskDeploymentStatus, TaskFactoryRegistration, TaskFetchDescriptors
+from streamtasks.system.types import DeploymentTask, DeploymentTaskScaffold, RPCUIEventRequest, RPCUIEventResponse, RPCTaskConnectRequest, RPCTaskConnectResponse, TaskDeploymentDeleteMessage, TaskDeploymentStatus, TaskFactoryRegistration, TaskFetchDescriptors
 from streamtasks.system.helpers import asgi_app_not_found
 from abc import ABC, abstractclassmethod, abstractmethod, abstractproperty
 import asyncio
@@ -124,11 +124,11 @@ class TaskFactoryWorker(Worker, ABC):
       except Exception as e:
         return RPCTaskConnectResponse(task=None, error_message=str(e))
       
-    @app.post("/rpc/on-editor")
-    async def rpc_on_editor(req: DeploymentTask):
-      task, fields = await self.rpc_on_editor(req)
-      return RPCOnEditorResponse(task=task, fields=fields)
-
+    @app.post("/rpc/ui-event")
+    async def rpc_ui_event(req: RPCUIEventRequest):
+      res = await self.rpc_ui_event(req)
+      return RPCUIEventResponse.model_validate(res)
+    
     runner = ASGIAppRunner(self._client, app, self.reg.web_init_descriptor, self.reg.worker_address)
     self.web_server_running.set()
     await runner.start()
@@ -167,7 +167,7 @@ class TaskFactoryWorker(Worker, ABC):
   def task_template(self) -> DeploymentTask: pass
   @abstractmethod
   async def rpc_connect(self, req: RPCTaskConnectRequest) -> Optional[DeploymentTask]: pass
-  async def rpc_on_editor(self, task: DeploymentTask) -> Union[DeploymentTask, list[dict[str, Any]]]: return task, []
+  async def rpc_ui_event(self, req: RPCUIEventRequest) -> RPCUIEventResponse: return RPCUIEventResponse(task=req.task)
   @abstractmethod
   async def create_task(self, deployment: DeploymentTask) -> Task: pass
   
