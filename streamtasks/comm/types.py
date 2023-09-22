@@ -17,7 +17,10 @@ class DataMessage(Message, ABC):
   def from_dict(cls, data: dict[str, Any]) -> Self: 
     ser_type = SerializationType(data['ser_type'])
     data.pop('ser_type', None)
-    return cls(**{ **data, 'data': data_from_serialization_type(data['data'], ser_type) })
+    
+    inner_data = data['data'] if isinstance(data['data'], memoryview) else memoryview(data['data'])
+    
+    return cls(**{ **data, 'data': data_from_serialization_type(inner_data, ser_type) })
 
 class TopicMessage(Message, ABC):
   topic: int

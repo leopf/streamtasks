@@ -22,17 +22,17 @@ class MediaPacketSerializer(Serializer):
   })
   @property
   def content_id(self) -> int: return 1000
-  def serialize(self, data: Any) -> bytes: 
+  def serialize(self, data: Any) -> memoryview: 
     data: MediaPacket = data
     assert isinstance(data, MediaPacket)
     stream = BytesIO()
     fastavro.schemaless_writer(stream, self.avro_schema, data.as_dict())
-    return stream.getvalue()
-  def deserialize(self, data: bytes) -> Any:
+    return memoryview(stream.getvalue())
+  def deserialize(self, data: memoryview) -> Any:
     stream = BytesIO(data)
     return MediaPacket(**fastavro.schemaless_reader(stream, self.avro_schema))
 class MediaPacketData(CustomData):
-  def __init__(self, data: Union[Any, bytes]): super().__init__(data, MediaPacketSerializer())
+  def __init__(self, data: Union[Any, memoryview]): super().__init__(data, MediaPacketSerializer())
 
 def get_core_serializers() -> dict[int, Serializer]:
   l = [MediaPacketSerializer()]
