@@ -3,26 +3,26 @@ from streamtasks.comm import *
 from streamtasks.message.data import *
 
 class TestSwitch(unittest.IsolatedAsyncioTestCase):
-  a: Connection
-  b: Connection
+  a: Link
+  b: Link
   switch: Switch
   tasks: list[asyncio.Task]
 
   async def asyncSetUp(self):
-    conn1 = create_local_cross_connector(raw=True)
-    conn2 = create_local_cross_connector(raw=True)
+    conn1 = create_queue_connection(raw=True)
+    conn2 = create_queue_connection(raw=True)
 
     self.switch = Switch()
-    await self.switch.add_connection(conn1[0])
-    await self.switch.add_connection(conn2[0])
+    await self.switch.add_link(conn1[0])
+    await self.switch.add_link(conn2[0])
 
-    self.switch_connections = [ conn1[0], conn2[0] ]
+    self.switch_links = [ conn1[0], conn2[0] ]
     self.a = conn1[1]
     self.b = conn2[1]
     self.tasks = []
 
   async def asyncTearDown(self):
-    self.switch.close_all_connections()
+    self.switch.stop_receiving()
     for task in self.tasks: task.cancel()
 
   async def test_standard_workflow(self):
@@ -30,12 +30,12 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
 
     await self.b.recv() # receive and ignore provides message
 
-    self.assertIn(1, self.switch_connections[0].out_topics)
+    self.assertIn(1, self.switch_links[0].out_topics)
 
     await self.b.send(InTopicsChangedMessage(set([1]), set()))
     await self.a.recv()
 
-    self.assertIn(1, self.switch_connections[1].in_topics)
+    self.assertIn(1, self.switch_links[1].in_topics)
     self.assertIn(1, self.switch.in_topics)
 
     await self.a.send(TopicDataMessage(1, TextData("Hello")))
@@ -47,7 +47,7 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     await self.a.recv()
 
     self.assertNotIn(1, self.switch.in_topics)
-    self.assertNotIn(1, self.switch_connections[1].in_topics)
+    self.assertNotIn(1, self.switch_links[1].in_topics)
   
   async def test_provider_added(self):
     await self.b.send(InTopicsChangedMessage(set([1]), set()))
@@ -103,12 +103,12 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
   async def test_close(self):    
     async with asyncio.timeout(1):
       self.a.close()
-      while len(self.switch.cm.connections) != 1: await asyncio.sleep(0.001)
-      self.assertEqual(len(self.switch.cm.connections), 1)
+      while len(self.switch.link_manager.links) != 1: await asyncio.sleep(0.001)
+      self.assertEqual(len(self.switch.link_manager.links), 1)
 
       self.b.close()
-      while len(self.switch.cm.connections) != 0: await asyncio.sleep(0.001)
-      self.assertEqual(len(self.switch.cm.connections), 0)
+      while len(self.switch.link_manager.links) != 0: await asyncio.sleep(0.001)
+      self.assertEqual(len(self.switch.link_manager.links), 0)
     
 if __name__ == '__main__':
   unittest.main()

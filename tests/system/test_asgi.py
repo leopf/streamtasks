@@ -22,12 +22,12 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
   async def asyncSetUp(self):
     self.tasks = []
 
-    conn1 = create_local_cross_connector(raw=False)
-    conn2 = create_local_cross_connector(raw=False)
+    conn1 = create_queue_connection(raw=False)
+    conn2 = create_queue_connection(raw=False)
 
     switch = Switch()
-    await switch.add_connection(conn1[0])
-    await switch.add_connection(conn2[0])
+    await switch.add_link(conn1[0])
+    await switch.add_link(conn2[0])
 
     self.client1 = Client(conn1[1])
     self.client2 = Client(conn2[1])

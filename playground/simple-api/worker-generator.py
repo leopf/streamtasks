@@ -1,7 +1,7 @@
 import inspect
 from streamtasks.asgi import Optional
 from streamtasks.client import Client
-from streamtasks.comm import Connection
+from streamtasks.comm import Link
 from streamtasks.system.helpers import Optional
 from streamtasks.system.protocols import Optional
 from streamtasks.system.store import DeploymentTask, Optional, RPCTaskConnectRequest
@@ -129,8 +129,8 @@ class FunctionTask(Task):
     
     
 class FunctionTaskFacotry(TaskFactoryWorker):
-    def __init__(self, node_connection: Connection, info: FunctionTaskInfo):
-        super().__init__(node_connection)
+    def __init__(self, node_link: Link, info: FunctionTaskInfo):
+        super().__init__(node_link)
         self.info = info
     
     async def create_task(self, deployment: DeploymentTask) -> Task: return FunctionTask(await self.create_client(), self.info, deployment)

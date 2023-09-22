@@ -21,13 +21,13 @@ async def main():
     
     node = LocalNode()
     workers = [
-        TaskManagerWorker(await node.create_connection(), UvicornASGIServer(8010)),
-        DiscoveryWorker(await node.create_connection()),
-        GateTaskFactoryWorker(await node.create_connection()),
-        PassivizeTaskFactoryWorker(await node.create_connection()),
-        FlowDetectorTaskFactoryWorker(await node.create_connection()),
-        CounterTaskFactoryWorker(await node.create_connection()),
-        # CalculatorTaskFactoryWorker(await node.create_connection()),
+        TaskManagerWorker(await node.create_link(), UvicornASGIServer(8010)),
+        DiscoveryWorker(await node.create_link()),
+        GateTaskFactoryWorker(await node.create_link()),
+        PassivizeTaskFactoryWorker(await node.create_link()),
+        FlowDetectorTaskFactoryWorker(await node.create_link()),
+        CounterTaskFactoryWorker(await node.create_link()),
+        # CalculatorTaskFactoryWorker(await node.create_link()),
     ]
 
 

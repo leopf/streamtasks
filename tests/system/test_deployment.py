@@ -90,20 +90,20 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
     self.tasks = []
     self.node = LocalNode()
 
-    dicovery_worker = DiscoveryWorker(await self.node.create_connection(raw=True))
+    dicovery_worker = DiscoveryWorker(await self.node.create_link(raw=True))
     await self.setup_worker(dicovery_worker)
 
     self.tasks.append(asyncio.create_task(self.node.start()))
 
 
     self.managment_server = ASGITestServer()
-    self.management_worker = TaskManagerWorker(await self.node.create_connection(raw=True), self.managment_server)
+    self.management_worker = TaskManagerWorker(await self.node.create_link(raw=True), self.managment_server)
     await self.setup_worker(self.management_worker)
 
-    self.counter_emit_worker = CounterEmitTaskFactory(await self.node.create_connection(raw=True))
+    self.counter_emit_worker = CounterEmitTaskFactory(await self.node.create_link(raw=True))
     await self.setup_worker(self.counter_emit_worker)
 
-    self.counter_increment_worker = CounterIncrementTaskFactory(await self.node.create_connection(raw=True))
+    self.counter_increment_worker = CounterIncrementTaskFactory(await self.node.create_link(raw=True))
     await self.setup_worker(self.counter_increment_worker)
     
     await asyncio.sleep(0.001)
@@ -137,7 +137,7 @@ class TestDeployment(unittest.IsolatedAsyncioTestCase):
 
   async def test_counter_deploy(self):
     async with asyncio.timeout(10):
-      client = Client(await self.node.create_connection())
+      client = Client(await self.node.create_link())
       await client.request_address()
 
       multiplier = 42

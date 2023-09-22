@@ -6,7 +6,7 @@ from typing import Any, ClassVar, Optional, Union
 from fastapi import FastAPI
 from streamtasks.asgi import ASGIAppRunner
 from streamtasks.client.fetch import FetchRequest
-from streamtasks.comm import Connection
+from streamtasks.comm import Link
 from streamtasks.helpers import INSTANCE_ID
 from streamtasks.message.data import SerializableData
 from streamtasks.system.protocols import AddressNames, WorkerTopics
@@ -45,8 +45,8 @@ class Task(ABC):
 class TaskFactoryWorker(Worker, ABC):
   registered_ids: ClassVar[set[str]] = set()
   
-  def __init__(self, node_connection: Connection):
-    super().__init__(node_connection)
+  def __init__(self, node_link: Link):
+    super().__init__(node_link)
     
     self.id = self._generate_id()
     TaskFactoryWorker.registered_ids.add(self.id)
@@ -64,7 +64,7 @@ class TaskFactoryWorker(Worker, ABC):
  
   async def start(self):
     try:
-      self._client = Client(await self.create_connection())
+      self._client = Client(await self.create_link())
       await asyncio.gather(
         self._setup(),
         self._run_fetch_server(),
@@ -158,7 +158,7 @@ class TaskFactoryWorker(Worker, ABC):
     await asyncio.sleep(self._task_startup_duration)
     return task.get_deployment_status()
   
-  async def create_client(self) -> Client: return Client(await self.create_connection())
+  async def create_client(self) -> Client: return Client(await self.create_link())
   
   @property
   def hostname(self): return socket.gethostname()

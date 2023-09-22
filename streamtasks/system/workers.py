@@ -2,7 +2,7 @@ import asyncio
 from streamtasks.asgi import ASGIApp
 from streamtasks.system.protocols import *
 from streamtasks.client import Client
-from streamtasks.comm import Connection
+from streamtasks.comm import Link
 from streamtasks.asgi import *
 from streamtasks.worker import Worker
 from streamtasks.system.types import *
@@ -16,14 +16,14 @@ import tinydb.storages as tinydb_storages
 
 # TODO: this needs the actual dashboard
 class NodeManagerWorker(Worker):
-  def __init__(self, node_connection: Connection):
-    super().__init__(node_connection)
+  def __init__(self, node_link: Link):
+    super().__init__(node_link)
     self.async_tasks = []
     self._client = None
 
   async def start(self):
     try:
-      self._client = Client(await self.create_connection())
+      self._client = Client(await self.create_link())
       await asyncio.gather(
         super().start()
       )
@@ -41,8 +41,8 @@ class NodeManagerWorker(Worker):
     return id
 
 class TaskManagerWorker(Worker):
-  def __init__(self, node_connection: Connection, asgi_server: ASGIServer, db_storage: type[tinydb_storages.Storage] = tinydb_storages.MemoryStorage):
-    super().__init__(node_connection)
+  def __init__(self, node_link: Link, asgi_server: ASGIServer, db_storage: type[tinydb_storages.Storage] = tinydb_storages.MemoryStorage):
+    super().__init__(node_link)
     self.ready = asyncio.Event()
     self.db = TinyDB(storage=db_storage)
     self.asgi_server = asgi_server
@@ -56,7 +56,7 @@ class TaskManagerWorker(Worker):
   async def start(self):
     try:
       logging.getLogger().addHandler(self.log_handler)
-      client = Client(await self.create_connection())
+      client = Client(await self.create_link())
       self.dashboards = DashboardStore(client, "/dashboard/")
       self.task_factories = TaskFactoryStore(client, "/task-factory/")
 

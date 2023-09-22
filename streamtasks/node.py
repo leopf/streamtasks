@@ -1,5 +1,5 @@
 import asyncio
-from streamtasks.comm import IPCSwitch, get_node_socket_path, Switch, create_local_cross_connector
+from streamtasks.comm import Switch, create_queue_connection
 from abc import ABC
 
 class NodeBase(ABC):
@@ -15,26 +15,14 @@ class NodeBase(ABC):
       self.running = True
       await asyncio.Future() # wait for cancellation
     finally:
-      self.switch.close_all_connections()
+      self.switch.stop_receiving()
       self.running = False
 
 class LocalNode(NodeBase):
   def __init__(self):
     super().__init__(Switch())
 
-  async def create_connection(self, raw: bool = False):
-    connector = create_local_cross_connector(raw)
-    await self.switch.add_connection(connector[0])
-    return connector[1]
-
-class IPCNode(NodeBase):
-  switch: IPCSwitch
-
-  def __init__(self, id: int):
-    super().__init__(IPCSwitch(get_node_socket_path(id)))
-
-  async def start(self):
-    await asyncio.gather(
-      super().start(),
-      self.switch.start_listening(),
-    )
+  async def create_link(self, raw: bool = False):
+    connection = create_queue_connection(raw)
+    await self.switch.add_link(connection[0])
+    return connection[1]

@@ -4,7 +4,7 @@ from streamtasks.client.fetch import FetchRequest
 from streamtasks.system.protocols import *
 from streamtasks.message.data import JsonData, TextData, MessagePackData
 from streamtasks.comm.types import TopicControlData
-from streamtasks.comm import Connection
+from streamtasks.comm import Link
 import pydantic
 import logging
 import asyncio
@@ -14,14 +14,14 @@ class DiscoveryWorker(Worker):
   _topics_counter: int
   _address_map: dict[str, int]
 
-  def __init__(self, node_connection: Connection):
-    super().__init__(node_connection)
+  def __init__(self, node_link: Link):
+    super().__init__(node_link)
     self._address_counter = WorkerAddresses.COUNTER_INIT
     self._topics_counter = WorkerTopics.COUNTER_INIT
     self._address_map = {}
 
   async def start(self):
-    client = Client(await self.create_connection())
+    client = Client(await self.create_link())
     await client.change_addresses([WorkerAddresses.ID_DISCOVERY])
 
     try:

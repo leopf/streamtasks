@@ -11,7 +11,7 @@ from streamtasks.client.helpers import ProvideContext, ProvideTracker, SubscibeC
 import secrets
 
 class Client:
-  _connection: Connection
+  _link: Link
   _receivers:  list[Receiver]
   _receive_task: Optional[asyncio.Task]
   _addresses: set[int]
@@ -22,8 +22,8 @@ class Client:
   _subscribing_topics: IdTracker
   _provided_topics: IdTracker
 
-  def __init__(self, connection: Connection):
-    self._connection = connection
+  def __init__(self, link: Link):
+    self._link = link
     self._receivers = []
     self._receive_task = None
     self._addresses = set()
@@ -78,9 +78,9 @@ class Client:
     if (topic in self._subscribed_provided_topics) == subscribed: return
     if subscribed: return await self._subscribed_provided_topics.wait_for_id_added(topic)
     else: return await self._subscribed_provided_topics.wait_for_id_removed(topic)
-  async def send_to(self, address: Union[int, str], data: Any): await self._connection.send(AddressedMessage(await self._get_address(address), data))
-  async def send_stream_control(self, topic: int, control_data: TopicControlData): await self._connection.send(control_data.to_message(topic))
-  async def send_stream_data(self, topic: int, data: SerializableData): await self._connection.send(TopicDataMessage(topic, data))
+  async def send_to(self, address: Union[int, str], data: Any): await self._link.send(AddressedMessage(await self._get_address(address), data))
+  async def send_stream_control(self, topic: int, control_data: TopicControlData): await self._link.send(control_data.to_message(topic))
+  async def send_stream_data(self, topic: int, data: SerializableData): await self._link.send(TopicDataMessage(topic, data))
 
   async def unregister_address_name(self, name: str): await self._register_address_name(name, None)
   async def register_address_name(self, name: str, address: Optional[int] = None): 
@@ -118,23 +118,23 @@ class Client:
     new_addresses = set(addresses)
     add = new_addresses - self._addresses
     remove = self._addresses - new_addresses
-    await self._connection.send(AddressesChangedMessage(ids_to_priced_ids(add), remove))
+    await self._link.send(AddressesChangedMessage(ids_to_priced_ids(add), remove))
     self._addresses = new_addresses
 
   def provide_context(self, topics: Iterable[int]): return ProvideContext(self, topics)
   async def provide(self, topics: Iterable[int]):
     actually_added = self._provided_topics.add_many(topics)
-    if len(actually_added) > 0: await self._connection.send(OutTopicsChangedMessage(ids_to_priced_ids(actually_added), set()))
+    if len(actually_added) > 0: await self._link.send(OutTopicsChangedMessage(ids_to_priced_ids(actually_added), set()))
   async def unprovide(self, topics: Iterable[int]):
     actually_removed = self._provided_topics.remove_many(topics)
-    if len(actually_removed) > 0: await self._connection.send(OutTopicsChangedMessage(set(), set(actually_removed)))
+    if len(actually_removed) > 0: await self._link.send(OutTopicsChangedMessage(set(), set(actually_removed)))
   def subscribe_context(self, topics: Iterable[int]): return SubscibeContext(self, topics)
   async def subscribe(self, topics: Iterable[int]):
     actually_added = self._subscribing_topics.add_many(topics)
-    if len(actually_added) > 0: await self._connection.send(InTopicsChangedMessage(set(actually_added), set()))
+    if len(actually_added) > 0: await self._link.send(InTopicsChangedMessage(set(actually_added), set()))
   async def unsubscribe(self, topics: Iterable[int]):
     actually_removed = self._subscribing_topics.remove_many(topics)
-    if len(actually_removed) > 0: await self._connection.send(InTopicsChangedMessage(set(), set(actually_removed)))
+    if len(actually_removed) > 0: await self._link.send(InTopicsChangedMessage(set(), set(actually_removed)))
 
   async def fetch(self, address: Union[int, str], descriptor: str, body):
     self._fetch_id_counter = fetch_id = self._fetch_id_counter + 1
@@ -169,7 +169,7 @@ class Client:
   async def _task_receive(self):
     try:
       while len(self._receivers) > 0:
-        message = await self._connection.recv()
+        message = await self._link.recv()
         if isinstance(message, InTopicsChangedMessage): self._subscribed_provided_topics.change_many(message.add, message.remove)
         if isinstance(message, TopicMessage) and message.topic not in self._subscribing_topics: continue
         if isinstance(message, DataMessage) and message.data.type == SerializationType.CUSTOM: message.data.serializer = self._custom_serializers.get(message.data.content_id, None)

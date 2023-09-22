@@ -9,12 +9,12 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
   tasks: list[asyncio.Task]
   
   async def asyncSetUp(self):
-    conn1 = create_local_cross_connector(raw=False)
-    conn2 = create_local_cross_connector(raw=True)
+    conn1 = create_queue_connection(raw=False)
+    conn2 = create_queue_connection(raw=True)
 
     self.switch = Switch()
-    await self.switch.add_connection(conn1[0])
-    await self.switch.add_connection(conn2[0])
+    await self.switch.add_link(conn1[0])
+    await self.switch.add_link(conn2[0])
 
     self.tasks = []
     
@@ -24,7 +24,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     await asyncio.sleep(0.001)
 
   async def asyncTearDown(self):
-    self.switch.close_all_connections()
+    self.switch.stop_receiving()
     for task in self.tasks: task.cancel()
 
   async def test_subscribe(self):

@@ -1,6 +1,6 @@
 import unittest
 from streamtasks.client import Client
-from streamtasks.comm import Switch, create_local_cross_connector
+from streamtasks.comm import Switch, create_queue_connection
 import asyncio
 
 class TaskTestBase(unittest.IsolatedAsyncioTestCase):
@@ -11,12 +11,12 @@ class TaskTestBase(unittest.IsolatedAsyncioTestCase):
   async def asyncSetUp(self):
     self.tasks = []
 
-    conn1 = create_local_cross_connector(raw=False)
-    conn2 = create_local_cross_connector(raw=True)
+    conn1 = create_queue_connection(raw=False)
+    conn2 = create_queue_connection(raw=True)
 
     switch = Switch()
-    await switch.add_connection(conn1[0])
-    await switch.add_connection(conn2[0])
+    await switch.add_link(conn1[0])
+    await switch.add_link(conn2[0])
     self.timestamp = 0
 
     self.client = Client(conn1[1])

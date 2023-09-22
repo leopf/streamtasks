@@ -20,10 +20,10 @@ async def start_node():
     processing_tasks.append(asyncio.create_task(node.start()))
 
 async def start_secondary_server():
-    worker = Worker(await node.create_connection(raw=True))
+    worker = Worker(await node.create_link(raw=True))
     await setup_worker(worker)
 
-    client = Client(await worker.create_connection())
+    client = Client(await worker.create_link())
     await client.change_addresses([1337])
 
     app = FastAPI()
@@ -35,10 +35,10 @@ async def start_secondary_server():
     processing_tasks.append(asyncio.create_task(runner.start()))
 
 async def start_main_server():
-    worker = Worker(await node.create_connection(raw=True))
+    worker = Worker(await node.create_link(raw=True))
     await setup_worker(worker)
 
-    client = Client(await worker.create_connection())
+    client = Client(await worker.create_link())
     await client.change_addresses([1338])
 
     app = FastAPI()

@@ -4,7 +4,7 @@ import asyncio
 from functools import cached_property
 from typing import Any, Optional, Union
 from streamtasks.client import Client
-from streamtasks.comm import Connection
+from streamtasks.comm import Link
 from streamtasks.comm.types import TopicControlData
 from streamtasks.helpers import TimeSynchronizer
 from streamtasks.message.data import SerializableData
@@ -14,8 +14,8 @@ from streamtasks.system.task import Task, TaskFactoryWorker
 from streamtasks.system.types import DeploymentTask, DeploymentTaskScaffold, RPCTaskConnectRequest, RPCUIEventRequest, RPCUIEventResponse
 
 class SynchronizedTaskFactoryWorker(TaskFactoryWorker):
-  def __init__(self, node_connection: Connection, task_component_cls: type["SynchronizedTask"]):
-    super().__init__(node_connection)
+  def __init__(self, node_link: Link, task_component_cls: type["SynchronizedTask"]):
+    super().__init__(node_link)
     self.TaskComponent = task_component_cls
   
   @property
@@ -54,7 +54,7 @@ class SynchronizedTask(Task):
       self._update_lock = asyncio.Lock()
   
   @classmethod
-  def FactoryWorker(cls, node_connection: Connection): return SynchronizedTaskFactoryWorker(node_connection, cls)
+  def FactoryWorker(cls, node_connection: Link): return SynchronizedTaskFactoryWorker(node_connection, cls)
   
   @abstractclassmethod
   def name(cls) -> str: pass
