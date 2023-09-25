@@ -6,7 +6,7 @@ from typing import Any, ClassVar, Optional, Union
 from fastapi import FastAPI
 from streamtasks.asgi import ASGIAppRunner
 from streamtasks.client.fetch import FetchRequest
-from streamtasks.comm import Link
+from streamtasks.net import Link
 from streamtasks.helpers import INSTANCE_ID
 from streamtasks.message.data import SerializableData
 from streamtasks.system.protocols import AddressNames, WorkerTopics

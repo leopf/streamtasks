@@ -1,5 +1,5 @@
 import unittest
-from streamtasks.comm import Switch, create_queue_connection
+from streamtasks.net import Switch, create_queue_connection
 from streamtasks.client import Client
 from streamtasks.streams import StreamSynchronizer, SynchronizedStream
 from streamtasks.message import StringMessage, JsonData

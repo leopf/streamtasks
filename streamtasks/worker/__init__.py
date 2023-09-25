@@ -1,4 +1,4 @@
-from streamtasks.comm import *
+from streamtasks.net import *
 from typing import Optional
 import asyncio
 from streamtasks.message.data import *

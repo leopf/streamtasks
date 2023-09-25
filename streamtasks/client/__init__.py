@@ -1,6 +1,6 @@
 from typing import Optional, Any
 import asyncio
-from streamtasks.comm import *
+from streamtasks.net import *
 from streamtasks.helpers import IdTracker, AwaitableIdTracker
 from streamtasks.system.protocols import WorkerAddresses, WorkerFetchDescriptors
 from streamtasks.message.serializers import get_core_serializers

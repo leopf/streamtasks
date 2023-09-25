@@ -1,14 +1,11 @@
-from streamtasks.comm.types import *
-from streamtasks.comm.helpers import *
-from streamtasks.comm.serialize import serialize_message, deserialize_message
+from streamtasks.net.types import *
+from streamtasks.net.helpers import *
+from streamtasks.net.serialize import serialize_message, deserialize_message
 from streamtasks.helpers import IdTracker
-from typing import Union
 from abc import ABC, abstractmethod
 import logging
-import os
 import asyncio
 
-RemoteAddress = Union[str, tuple[str, int]]
 
 class ConnectionClosedError(Exception):
   def __init__(self, message: str = "Connection closed"): super().__init__(message)

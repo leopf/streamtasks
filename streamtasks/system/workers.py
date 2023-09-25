@@ -2,7 +2,7 @@ import asyncio
 from streamtasks.asgi import ASGIApp
 from streamtasks.system.protocols import *
 from streamtasks.client import Client
-from streamtasks.comm import Link
+from streamtasks.net import Link
 from streamtasks.asgi import *
 from streamtasks.worker import Worker
 from streamtasks.system.types import *

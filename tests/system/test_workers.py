@@ -1,5 +1,5 @@
 import unittest
-from streamtasks.comm import *
+from streamtasks.net import *
 from streamtasks.client import *
 from streamtasks.worker import Worker
 from streamtasks.system.discovery import DiscoveryWorker

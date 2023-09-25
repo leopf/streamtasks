@@ -1,7 +1,7 @@
 import inspect
 from streamtasks.asgi import Optional
 from streamtasks.client import Client
-from streamtasks.comm import Link
+from streamtasks.net import Link
 from streamtasks.system.helpers import Optional
 from streamtasks.system.protocols import Optional
 from streamtasks.system.store import DeploymentTask, Optional, RPCTaskConnectRequest

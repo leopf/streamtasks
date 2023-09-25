@@ -1,6 +1,6 @@
 import unittest
 from streamtasks.client import Client
-from streamtasks.comm import Switch, create_queue_connection
+from streamtasks.net import Switch, create_queue_connection
 import asyncio
 
 class TaskTestBase(unittest.IsolatedAsyncioTestCase):

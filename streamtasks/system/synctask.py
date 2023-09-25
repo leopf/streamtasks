@@ -4,8 +4,8 @@ import asyncio
 from functools import cached_property
 from typing import Any, Optional, Union
 from streamtasks.client import Client
-from streamtasks.comm import Link
-from streamtasks.comm.types import TopicControlData
+from streamtasks.net import Link
+from streamtasks.net.types import TopicControlData
 from streamtasks.helpers import TimeSynchronizer
 from streamtasks.message.data import SerializableData
 from streamtasks.message.helpers import get_timestamp_from_message

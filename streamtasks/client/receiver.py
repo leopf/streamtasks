@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import asyncio
-from streamtasks.comm import *
+from streamtasks.net import *
 from streamtasks.system.protocols import *
 from streamtasks.message.data import *
 import itertools

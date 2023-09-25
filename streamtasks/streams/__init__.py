@@ -1,5 +1,5 @@
 from typing import Optional
-from streamtasks.comm.types import TopicControlData
+from streamtasks.net.types import TopicControlData
 from streamtasks.message import get_timestamp_from_message, SerializableData
 from streamtasks.client.receiver import TopicsReceiver
 import logging

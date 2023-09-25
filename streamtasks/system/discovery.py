@@ -3,8 +3,8 @@ from streamtasks.client import Client
 from streamtasks.client.fetch import FetchRequest
 from streamtasks.system.protocols import *
 from streamtasks.message.data import JsonData, TextData, MessagePackData
-from streamtasks.comm.types import TopicControlData
-from streamtasks.comm import Link
+from streamtasks.net.types import TopicControlData
+from streamtasks.net import Link
 import pydantic
 import logging
 import asyncio

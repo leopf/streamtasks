@@ -1,5 +1,5 @@
 import asyncio
-from streamtasks.comm import Switch, create_queue_connection
+from streamtasks.net import Switch, create_queue_connection
 from abc import ABC
 
 class NodeBase(ABC):

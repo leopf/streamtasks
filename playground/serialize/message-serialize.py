@@ -1,4 +1,4 @@
-from streamtasks.comm.types import *
+from streamtasks.net.types import *
 from io import BytesIO
 import fastavro
 

@@ -1,5 +1,5 @@
 import fastavro
-from streamtasks.comm.types import *
+from streamtasks.net.types import *
 from io import BytesIO
 
 PRICED_ID_SCHEMA = fastavro.parse_schema({

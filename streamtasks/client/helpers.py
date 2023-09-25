@@ -1,4 +1,4 @@
-from streamtasks.comm.types import TopicControlData
+from streamtasks.net.types import TopicControlData
 from typing import TYPE_CHECKING, Iterable
 if TYPE_CHECKING:
   from streamtasks.client import Client

@@ -1,5 +1,5 @@
 import unittest
-from streamtasks.comm import *
+from streamtasks.net import *
 from streamtasks.message.data import *
 
 class TestSwitch(unittest.IsolatedAsyncioTestCase):
