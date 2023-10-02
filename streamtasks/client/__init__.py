@@ -1,7 +1,7 @@
 from typing import Optional, Any
 import asyncio
 from streamtasks.net import *
-from streamtasks.helpers import IdTracker, AwaitableIdTracker
+from streamtasks.helpers import IdGenerator, IdTracker, AwaitableIdTracker
 from streamtasks.system.protocols import WorkerAddresses, WorkerFetchDescriptors
 from streamtasks.message.serializers import get_core_serializers
 from streamtasks.message.data import *
@@ -19,7 +19,7 @@ class Client:
     self._address_request_lock = asyncio.Lock()
     self._address_resolver_cache: dict[str, int] = {}
     self._custom_serializers = get_core_serializers()
-    self.port_counter = WorkerPorts.DYNAMIC_START
+    self._port_generator = IdGenerator(WorkerPorts.DYNAMIC_START, 0xffffffffffffffff)
 
     self._subscribed_provided_topics = AwaitableIdTracker()
     self._in_topics = IdTracker()
@@ -30,17 +30,16 @@ class Client:
 
   def get_topics_receiver(self, topics: Iterable[Union[int, SubscribeTracker]], subscribe: bool = True): return TopicsReceiver(self, set(topics), subscribe)
   
+  # TODO remove
   def create_subscription_tracker(self): return SubscribeTracker(self)
+  # TODO remove
   def create_provide_tracker(self): return ProvideTracker(self)
 
   def add_serializer(self, serializer: Serializer): 
     if serializer.content_id not in self._custom_serializers: self._custom_serializers[serializer.content_id] = serializer
   def remove_serializer(self, content_id: int): self._custom_serializers.pop(content_id, None)
 
-  def get_free_port(self):
-    port = self.port_counter
-    self.port_counter += 1
-    return port
+  def get_free_port(self): return self._port_generator.next()
 
   async def wait_for_topic_signal(self, topic: int): return await TopicSignalReceiver(self, topic).wait()
   async def wait_for_address_name(self, name: str):

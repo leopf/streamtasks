@@ -85,6 +85,16 @@ class TimeSynchronizer:
 @functools.lru_cache(maxsize=None)
 def getenv(key, default=0) -> Any: return type(default)(os.getenv(key, default))
 
+class IdGenerator:
+  def __init__(self, start: int, end: int) -> None: 
+    assert start < end, "start must me smaller than end"
+    self._current, self._start, self._end = start, start, end
+  def next(self):
+    res = self._current
+    self._current += 1
+    if self._current >= self._end: self._current = self._start
+    return res
+
 class Context(ContextDecorator):
   def __init__(self, **kwargs): self.pvars = { k.upper(): v for k, v in kwargs.items() }
   def __enter__(self): ContextVar.ctx_stack.append({ **ContextVar.ctx_stack[-1].items(), **self.pvars })
