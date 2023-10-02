@@ -84,7 +84,7 @@ class TaskFactoryWorker(Worker, ABC):
     await self._client.wait_for_address_name(AddressNames.TASK_MANAGER)
     self.reg = TaskFactoryRegistration(
       id=self.id, 
-      worker_address=self._client.default_address,
+      worker_address=self._client.address,
       task_template=self.task_template.model_dump()
     )
     await self._client.fetch(AddressNames.TASK_MANAGER, TaskFetchDescriptors.REGISTER_TASK_FACTORY, self.reg.model_dump())

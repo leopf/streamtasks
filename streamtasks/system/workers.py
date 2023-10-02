@@ -35,7 +35,7 @@ class NodeManagerWorker(Worker):
     self._client.fetch(AddressNames.TASK_MANAGER, TaskFetchDescriptors.UNREGISTER_DASHBOARD, DashboardDeleteMessage(key=key).model_dump())
   async def register_dashboard(self, label: str, app: ASGIApp):
     id = str(uuid4())
-    dashboard = DashboardRegistration(label=label, id=id, address=self._client.default_address)
+    dashboard = DashboardRegistration(label=label, id=id, address=self._client.address)
     runner = ASGIAppRunner(self._client, app, dashboard.address)
     self.async_tasks.append(asyncio.create_task(runner.start()))
     await self._client.fetch(AddressNames.TASK_MANAGER, TaskFetchDescriptors.REGISTER_DASHBOARD, dashboard.model_dump())

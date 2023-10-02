@@ -15,7 +15,7 @@ class Client:
     self._link = link
     self._receivers: list[Receiver] = []
     self._receive_task: Optional[asyncio.Task] = None
-    self._addresses: set[int] = set()
+    self._address: Optional[int] = None
     self._address_request_lock = asyncio.Lock()
     self._address_resolver_cache: dict[str, int] = {}
     self._custom_serializers = get_core_serializers()
@@ -26,7 +26,7 @@ class Client:
     self._out_topics = IdTracker()
 
   @property
-  def default_address(self): return next(iter(self._addresses), None)
+  def address(self): return self._address
 
   def get_topics_receiver(self, topics: Iterable[Union[int, SubscribeTracker]], subscribe: bool = True): return TopicsReceiver(self, set(topics), subscribe)
   
@@ -82,7 +82,7 @@ class Client:
 
   async def unregister_address_name(self, name: str): await self._register_address_name(name, None)
   async def register_address_name(self, name: str, address: Optional[int] = None): 
-    address = address or self.default_address
+    address = address or self.address
     if address is None: raise Exception("No local address")
     await self._register_address_name(name, address)
   async def resolve_address_name(self, name: str) -> Optional[int]:
@@ -92,20 +92,12 @@ class Client:
     if res.address is not None: self._address_resolver_cache[name] = res.address
     return res.address
 
-  async def request_address(self): return next(iter(await self.request_addresses(1, apply=True)))
-  async def request_addresses(self, count: int, apply: bool=False) -> set[int]:
-    async with self._address_request_lock:
-      request_id = secrets.randbelow(1<<64)
-      async with ResolveAddressesReceiver(self, request_id) as receiver:
-        await self.send_to(
-            (WorkerAddresses.ID_DISCOVERY, WorkerPorts.DISCOVERY_REQUEST_ADDRESS),
-            MessagePackData(GenerateAddressesRequestMessage(request_id=request_id, count=count).model_dump()))
-        data: GenerateAddressesResponseMessage = await receiver.recv()
-        addresses = set(data.addresses)
-    
-    if len(addresses) != count: raise Exception("The response returned an invalid number of addresses")
-    if apply: await self.change_addresses(self._addresses | addresses)
-    return addresses
+  async def request_address(self):
+    assert self._address is None, "there cant be an address already present, when requesting one" 
+    addresses = await self._request_addresses(1)
+    new_address = next(iter(addresses))
+    await self.set_address(new_address)
+    return new_address
 
   async def request_topic_ids(self, count: int, apply: bool=False) -> set[int]:
     raw_res = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.GENERATE_TOPICS, GenerateTopicsRequestBody(count=count).model_dump())
@@ -114,12 +106,14 @@ class Client:
     if apply: await self.register_out_topics(res.topics)
     return res.topics
 
-  async def change_addresses(self, addresses: Iterable[int]):
-    new_addresses = set(addresses)
-    add = new_addresses - self._addresses
-    remove = self._addresses - new_addresses
-    await self._link.send(AddressesChangedMessage(ids_to_priced_ids(add), remove))
-    self._addresses = new_addresses
+  async def set_address(self, address: Optional[int]):
+    new_addresses = set() if address is None else set([ address ])
+    old_addresses = set() if self._address is None else set([ self._address ])
+    add = new_addresses - old_addresses
+    remove = old_addresses - new_addresses
+    if len(add) > 0 or len(remove) > 0:
+      await self._link.send(AddressesChangedMessage(ids_to_priced_ids(add), remove))
+    self._address = address
 
   def out_topics_context(self, topics: Iterable[int]): return OutTopicsContext(self, topics)
   def in_topics_context(self, topics: Iterable[int]): return InTopicsContext(self, topics)
@@ -138,11 +132,11 @@ class Client:
     if len(actually_removed) > 0: await self._link.send(InTopicsChangedMessage(set(), set(actually_removed)))
 
   async def fetch(self, address: str | int, descriptor: str, body: Any, port=WorkerPorts.FETCH):
-    if self.default_address is None: raise Exception("No local address")
+    if self.address is None: raise Exception("No local address")
     return_port = self.get_free_port()
     async with FetchReponseReceiver(self, return_port) as receiver:
       await self.send_to((address, port), MessagePackData(FetchRequestMessage(
-        return_address=self.default_address, 
+        return_address=self.address, 
         return_port=return_port, 
         descriptor=descriptor, 
         body=body).model_dump()))
@@ -159,6 +153,17 @@ class Client:
       try: await self._receive_task
       except: pass
 
+  async def _request_addresses(self, count: int) -> set[int]:
+    async with self._address_request_lock:
+      request_id = secrets.randbelow(1<<64)
+      async with ResolveAddressesReceiver(self, request_id) as receiver:
+        await self.send_to(
+            (WorkerAddresses.ID_DISCOVERY, WorkerPorts.DISCOVERY_REQUEST_ADDRESS),
+            MessagePackData(GenerateAddressesRequestMessage(request_id=request_id, count=count).model_dump()))
+        data: GenerateAddressesResponseMessage = await receiver.recv()
+        addresses = set(data.addresses)
+    if len(addresses) != count: raise Exception("The response returned an invalid number of addresses")
+    return addresses
   async def _get_address(self, address: Union[int, str]) -> int: return await self.resolve_address_name(address) if isinstance(address, str) else address
   async def _register_address_name(self, name: str, address: Optional[int]):
     await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.REGISTER_ADDRESS, RegisterAddressRequestBody(address_name=name, address=address).model_dump())

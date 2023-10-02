@@ -23,7 +23,7 @@ class DiscoveryWorker(Worker):
 
   async def start(self):
     client = Client(await self.create_link())
-    await client.change_addresses([WorkerAddresses.ID_DISCOVERY])
+    await client.set_address(WorkerAddresses.ID_DISCOVERY)
 
     try:
       async with client.out_topics_context([WorkerTopics.ADDRESSES_CREATED, WorkerTopics.DISCOVERY_SIGNAL, WorkerTopics.ADDRESS_NAME_ASSIGNED]):

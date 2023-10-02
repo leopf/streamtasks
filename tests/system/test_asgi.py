@@ -34,8 +34,8 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
 
     self.client1 = Client(conn1[1])
     self.client2 = Client(conn2[1])
-    await self.client1.change_addresses([1338])
-    await self.client2.change_addresses([1337])
+    await self.client1.set_address(1338)
+    await self.client2.set_address(1337)
     await asyncio.sleep(0.001)
 
   async def asyncTearDown(self):

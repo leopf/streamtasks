@@ -9,16 +9,12 @@ Refactor:
         - have multi receivers that can turn on / off multiple receivers
         - must retain information like topics
     - fix typing
-    - rename sub/prov to in/out
     - noop receiver must go
         - how do we solve topic_is_subscribed in a better way
     - what do we need locks for?
     - receivers should be created outside the client
     - start stop client, with some standard receivers
     - any state changed (address, in/out topics) must be relative or force (all of one)
-    - resolve address needs caching
-    
-
 
 Testing:
 - topic control data

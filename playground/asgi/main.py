@@ -24,7 +24,7 @@ async def start_secondary_server():
     await setup_worker(worker)
 
     client = Client(await worker.create_link())
-    await client.change_addresses([1337])
+    await client.set_address(1337)
 
     app = FastAPI()
     @app.get("/")
@@ -39,7 +39,7 @@ async def start_main_server():
     await setup_worker(worker)
 
     client = Client(await worker.create_link())
-    await client.change_addresses([1338])
+    await client.set_address(1338)
 
     app = FastAPI()
 

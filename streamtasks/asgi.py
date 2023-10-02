@@ -124,8 +124,8 @@ class ASGIAppRunner:
   def __init__(self, client: 'Client', app: ASGIApp, address: Optional[int] = None, port: int = WorkerPorts.ASGI):
     self._client = client
     self._app = app
-    if client.default_address is None: raise Exception("The client must have at least one address to host an ASGI application")
-    self._address = address if address is not None else client.default_address
+    if client.address is None: raise Exception("The client must have at least one address to host an ASGI application")
+    self._address = address if address is not None else client.address
     self._port = port
     self._init_receiver = FetchRequestReceiver(client, ASGIDefaults.INIT_DESCRIPTOR, self._address, self._port)
 
@@ -177,8 +177,8 @@ class ASGIProxyApp:
   def __init__(self, client: 'Client', remote_address: DAddress, remote_port: int = WorkerPorts.ASGI, address: Optional[int] = None):
     self._client = client
     self._remote_endpoint = (remote_address, remote_port)
-    if client.default_address is None: raise Exception("The client must have at least one address to host an ASGI application")
-    self._address = address if address is not None else client.default_address
+    if client.address is None: raise Exception("The client must have at least one address to host an ASGI application")
+    self._address = address if address is not None else client.address
   async def __call__(self, scope, receive: Callable[[], Awaitable[dict]], send: Callable[[dict], Awaitable[None]]):
     connection_id = str(uuid4())
     ser_scope = JSONValueTransformer.annotate_value(scope)

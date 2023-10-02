@@ -21,7 +21,7 @@ class TaskTestBase(unittest.IsolatedAsyncioTestCase):
 
     self.client = Client(conn1[1])
     self.worker_client = Client(conn2[1])
-    await self.client.change_addresses([1338])
+    await self.client.set_address(1338)
     await asyncio.sleep(0.001)
 
   async def asyncTearDown(self):

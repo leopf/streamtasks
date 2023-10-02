@@ -59,7 +59,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
       self.assertEqual((recv_data[0], recv_data[1].data, recv_data[2]), (2, "Hello 2", None))
 
   async def test_address(self):
-    await self.a.change_addresses([1])
+    await self.a.set_address(1)
     await self.b.send_to((1, 10), TextData("Hello 1"))
 
     a_recv = AddressReceiver(self.a, 1, 10)
@@ -77,8 +77,8 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     await receiver_task
 
   async def test_fetch(self):
-    await self.a.change_addresses([1])
-    await self.b.change_addresses([2])
+    await self.a.set_address(1)
+    await self.b.set_address(2)
 
     b_result = None
 
