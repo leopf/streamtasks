@@ -1,7 +1,5 @@
 Refactor:
 - better imports, find a unified way of doing this
-- asgi
-    - remove connection id and use ports
 - client
     - needs a uniform implementation of topics
     - simplify receivers

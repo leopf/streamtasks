@@ -19,20 +19,21 @@ if TYPE_CHECKING:
 @dataclass
 class ASGIConnectionConfig:
   scope: dict
-  connection_id: str
+  port: int
   remote_endpoint: Endpoint
 
 class ASGIDefaults:
   INIT_DESCRIPTOR = "init"
 
-class ASGIInitMessage(BaseModel):
-  connection_id: str
-  return_address: int
-  return_port: int
+class ASGIInitRequest(BaseModel):
+  address: int
+  port: int
   scope: dict
 
+class ASGIInitResponse(BaseModel):
+  port: int
+
 class ASGIEventMessage(BaseModel):
-  connection_id: str
   closed: Optional[bool] = None
   events: list[dict]
 
@@ -109,16 +110,15 @@ class ASGIEventReceiver(Receiver):
     except: pass
 
 class ASGIEventSender:
-  def __init__(self, client: 'Client', remote_endpoint: Endpoint, connection_id: str):
+  def __init__(self, client: 'Client', remote_endpoint: Endpoint):
     self._client = client
     self._remote_endpoint = remote_endpoint
-    self._connection_id = connection_id
   async def send(self, event: dict): await self._send(events=[event])
   async def close(self): 
     await self._send(events=[], closed=True)
   async def _send(self, events: list[dict], closed: Optional[bool] = None):
     events = [MessagePackValueTransformer.annotate_value(event) for event in events]
-    await self._client.send_to(self._remote_endpoint, MessagePackData(ASGIEventMessage(connection_id=self._connection_id, events=events, closed=closed).model_dump()))
+    await self._client.send_to(self._remote_endpoint, MessagePackData(ASGIEventMessage(events=events, closed=closed).model_dump()))
 
 class ASGIAppRunner:
   def __init__(self, client: 'Client', app: ASGIApp, address: Optional[int] = None, port: int = WorkerPorts.ASGI):
@@ -133,20 +133,20 @@ class ASGIAppRunner:
     async with self._init_receiver:
       while True:
         raw_request: FetchRequest = await self._init_receiver.recv()
-        init_request = ASGIInitMessage.model_validate(raw_request.body)
+        init_request = ASGIInitRequest.model_validate(raw_request.body)
 
         config = ASGIConnectionConfig(
           scope=JSONValueTransformer.deannotate_value(init_request.scope), 
-          connection_id=init_request.connection_id, 
-          remote_endpoint=(init_request.return_address, init_request.return_port))
+          port=self._client.get_free_port(), 
+          remote_endpoint=(init_request.address, init_request.port))
         
         self._start_connection(config)
-        await raw_request.respond(None)
+        await raw_request.respond(ASGIInitResponse(port=config.port).model_dump())
 
   def _start_connection(self, config: ASGIConnectionConfig):
-    receiver = ASGIEventReceiver(self._client, self._address, self._port)
+    receiver = ASGIEventReceiver(self._client, self._address, config.port)
     stop_signal = asyncio.Event()
-    sender = ASGIEventSender(self._client, config.remote_endpoint, config.connection_id)
+    sender = ASGIEventSender(self._client, config.remote_endpoint)
     
     recv_queue = asyncio.Queue()
     
@@ -164,12 +164,12 @@ class ASGIAppRunner:
       return await recv_queue.get()
 
     async def run():
-      logging.info(f"ASGI instance ({config.connection_id}) starting!")
+      logging.info(f"ASGI instance ({config.port}) starting!")
       async with receiver:
         await self._app(config.scope, receive, send)
       await sender.close()
       stop_signal.set()
-      logging.info(f"ASGI instance ({config.connection_id}) finished!")
+      logging.info(f"ASGI instance ({config.port}) finished!")
 
     return asyncio.create_task(run())
 
@@ -180,21 +180,20 @@ class ASGIProxyApp:
     if client.address is None: raise Exception("The client must have at least one address to host an ASGI application")
     self._address = address if address is not None else client.address
   async def __call__(self, scope, receive: Callable[[], Awaitable[dict]], send: Callable[[dict], Awaitable[None]]):
-    connection_id = str(uuid4())
     ser_scope = JSONValueTransformer.annotate_value(scope)
     
     port = self._client.get_free_port()
     receiver = ASGIEventReceiver(self._client, self._address, port)
     await receiver.start_recv() # NOTE: must be enabled before sending init message, otherwise events will be lost
     
-    await self._client.fetch(self._remote_endpoint[0], ASGIDefaults.INIT_DESCRIPTOR, ASGIInitMessage(
-        connection_id=connection_id, 
-        return_address=self._address, 
-        return_port=port,
+    init_respose_raw = await self._client.fetch(self._remote_endpoint[0], ASGIDefaults.INIT_DESCRIPTOR, ASGIInitRequest(
+        address=self._address, 
+        port=port,
         scope=ser_scope).model_dump(), self._remote_endpoint[1])
+    init_respose = ASGIInitResponse.model_validate(init_respose_raw)
 
     closed_event = asyncio.Event()
-    sender = ASGIEventSender(self._client, self._remote_endpoint, connection_id)
+    sender = ASGIEventSender(self._client, (self._remote_endpoint[0], init_respose.port))
 
     async def recv_loop(): 
       while not closed_event.is_set(): 

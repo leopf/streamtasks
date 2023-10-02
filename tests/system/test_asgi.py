@@ -42,7 +42,7 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
     for task in self.tasks: task.cancel()
 
   async def test_transmit(self):
-    sender = ASGIEventSender(self.client1, (1337, 101), "1")
+    sender = ASGIEventSender(self.client1, (1337, 101))
     receiver = ASGIEventReceiver(self.client2, 1337, 101)
 
     await receiver.start_recv()
