@@ -33,12 +33,12 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     await asyncio.sleep(0.001)
 
     self.assertFalse(topic_tracker.is_subscribed)
-    await self.b.subscribe([ 1 ])
+    await self.b.register_in_topics([ 1 ])
     await asyncio.wait_for(topic_tracker.wait_subscribed(), 1)
     self.assertTrue(topic_tracker.is_subscribed)
 
   async def test_provide_subscribe(self):
-    await self.a.provide([ 1, 2 ])
+    await self.a.register_out_topics([ 1, 2 ])
 
     async with self.b.get_topics_receiver([ 1, 2 ]) as b_recv:
       await self.a.send_stream_data(1, TextData("Hello 1"))
@@ -50,7 +50,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
       recv_data = await asyncio.wait_for(b_recv.recv(), 1)
       self.assertEqual((recv_data[0], recv_data[1].data, recv_data[2]), (2, "Hello 2", None))
 
-      await self.b.unsubscribe([ 1 ])
+      await self.b.unregister_in_topics([ 1 ])
 
       await self.a.send_stream_data(1, TextData("Hello 1"))
       await self.a.send_stream_data(2, TextData("Hello 2"))
@@ -68,7 +68,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     self.assertEqual(data.data, "Hello 1")
 
   async def test_topic_signal(self):
-    await self.b.subscribe([1])
+    await self.b.register_in_topics([1])
     await asyncio.sleep(0.001)
     async def wait_for_topic_signal():
       await asyncio.wait_for(self.b.wait_for_topic_signal(1), 1)

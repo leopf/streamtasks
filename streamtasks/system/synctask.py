@@ -81,10 +81,10 @@ class SynchronizedTask(Task):
       sync = StreamSynchronizer()
       input_streams = [ SynchronizedStream(sync, self.client.get_topics_receiver([ input_topic_id ], subscribe=False)) for input_topic_id in external_input_topics ]
       
-      await self.client.subscribe(external_input_topics)
+      await self.client.register_in_topics(external_input_topics)
       self._input_subscribed_map = { topic_id: True for topic_id in internal_input_topics }
       
-      await self.client.provide(self._int_ext_topic_map[topic_id] for topic_id in self.deployment.get_output_topic_ids())
+      await self.client.register_out_topics(self._int_ext_topic_map[topic_id] for topic_id in self.deployment.get_output_topic_ids())
       await self.setup()
       
       input_recv_tasks = [ asyncio.create_task(self._run_receive_input(topic_id, stream)) for stream, topic_id in zip(input_streams, internal_input_topics)  ]
@@ -92,7 +92,7 @@ class SynchronizedTask(Task):
       await asyncio.Future() # wait forever
     finally:
       for recv_task in input_recv_tasks: recv_task.cancel()
-      await self.client.provide([])
+      await self.client.register_out_topics([])
       await self.cleanup()
   
   def request_changed(self): self._submit_changed()
@@ -108,8 +108,8 @@ class SynchronizedTask(Task):
   async def set_subscribed(self, topic_label: str, subscribed: bool):
     topic_id = self._topic_label_to_id(topic_label)
     if subscribed == self._input_subscribed_map[topic_id]: return
-    if subscribed: await self.client.subscribe([ self._int_ext_topic_map[topic_id] ])
-    else: await self.client.unsubscribe([ self._int_ext_topic_map[topic_id] ])
+    if subscribed: await self.client.register_in_topics([ self._int_ext_topic_map[topic_id] ])
+    else: await self.client.unregister_in_topics([ self._int_ext_topic_map[topic_id] ])
     self._input_subscribed_map[topic_id] = subscribed
     
   async def get_subscribed(self) -> dict[str, bool]: return self._input_subscribed_map

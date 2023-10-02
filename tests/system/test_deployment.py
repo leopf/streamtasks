@@ -24,7 +24,7 @@ class CounterEmitTask(Task):
     self.output_stream_id = deployment.stream_groups[0].outputs[0].topic_id
   async def start_task(self):
     output_topic_id = self.topic_id_map[self.output_stream_id]
-    async with self.client.provide_context([ output_topic_id ]):
+    async with self.client.out_topics_context([ output_topic_id ]):
       while True:
         await asyncio.sleep(0.001)
         self.counter += 1
@@ -43,7 +43,7 @@ class CounterMultipyTask(Task):
   async def start_task(self):
     input_topic_id = self.topic_id_map[self.input_stream_id]
     output_topic_id = self.topic_id_map[self.output_stream_id]
-    async with self.client.provide_context([ output_topic_id ]):
+    async with self.client.out_topics_context([ output_topic_id ]):
       async with self.client.get_topics_receiver([ input_topic_id ]) as receiver:
         while True:
           topic_id, data, _ = await receiver.recv()

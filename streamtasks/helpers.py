@@ -22,16 +22,20 @@ class IdTracker:
       self._map[id] = val + 1
     return final
 
-  def remove_many(self, ids: Iterable[int]):
-    final = set()
-    for id in ids:
-      val = self._map.get(id, 0)
-      if val == 0: continue
-      elif val == 1: 
-        self._map.pop(id, None)
-        final.add(id)
-      else: self._map[id] = val - 1
-    return final
+  def remove_many(self, ids: Iterable[int], force:bool=False):
+    if force:
+      for id in ids: self._map.pop(id, None)
+      return ids
+    else:
+      final = set()
+      for id in ids:
+        val = self._map.get(id, 0)
+        if val == 0: continue
+        elif val == 1: 
+          self._map.pop(id, None)
+          final.add(id)
+        else: self._map[id] = val - 1
+      return final
 
   def change_many(self, add: Iterable[int], remove: Iterable[int]):
     return self.add_many(add), self.remove_many(remove)

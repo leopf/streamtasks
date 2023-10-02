@@ -3,18 +3,18 @@ from typing import TYPE_CHECKING, Iterable
 if TYPE_CHECKING:
   from streamtasks.client import Client
 
-class SubscibeContext:
+class InTopicsContext:
   def __init__(self, client: 'Client', topics: Iterable[int]):
     self._client = client
     self._topics = topics
-  async def __aenter__(self): await self._client.subscribe(self._topics)
-  async def __aexit__(self, *args): await self._client.unsubscribe(self._topics)
-class ProvideContext:
+  async def __aenter__(self): await self._client.register_in_topics(self._topics)
+  async def __aexit__(self, *args): await self._client.unregister_in_topics(self._topics)
+class OutTopicsContext:
   def __init__(self, client: 'Client', topics: Iterable[int]):
     self._client = client
     self._topics = topics
-  async def __aenter__(self): await self._client.provide(self._topics)
-  async def __aexit__(self, *args): await self._client.unprovide(self._topics)
+  async def __aenter__(self): await self._client.register_out_topics(self._topics)
+  async def __aexit__(self, *args): await self._client.unregister_out_topics(self._topics)
 
 class SubscribeTracker:
   def __init__(self, client: 'Client'):
@@ -27,11 +27,11 @@ class SubscribeTracker:
   async def subscribe(self): 
     if not self._subscribed and self._topic is not None: 
       self._subscribed = True
-      await self._client.subscribe([self._topic])
+      await self._client.register_in_topics([self._topic])
   async def unsubscribe(self): 
     if self._subscribed and self._topic is not None: 
       self._subscribed = False
-      await self._client.unsubscribe([self._topic])
+      await self._client.unregister_in_topics([self._topic])
   @property
   def topic(self): return self._topic
   async def set_topic(self, topic: int, subscribe: bool = True): 
@@ -66,7 +66,7 @@ class ProvideTracker:
   def topic(self): return self._topic
   async def set_topic(self, topic: int):
     if topic != self._topic:
-      if self._topic is not None: await self._client.unprovide([ self._topic ])
+      if self._topic is not None: await self._client.unregister_out_topics([ self._topic ])
       self._paused = False
       self._topic = topic
-      if self._topic is not None: await self._client.provide([ self._topic ])
+      if self._topic is not None: await self._client.register_out_topics([ self._topic ])

@@ -36,7 +36,7 @@ class TestSynchronizedStream(unittest.IsolatedAsyncioTestCase):
     await self.a.send_stream_data(topic, JsonData(StringMessage(timestamp=self.timestamp, value=text).model_dump()))
 
   async def test_synchronized_stream(self):
-    async with self.a.provide_context([ 1, 2 ]):
+    async with self.a.out_topics_context([ 1, 2 ]):
       sync = StreamSynchronizer()
       stream1 = SynchronizedStream(sync, self.b.get_topics_receiver([ 1 ]))
       stream2 = SynchronizedStream(sync, self.b.get_topics_receiver([ 2 ]))

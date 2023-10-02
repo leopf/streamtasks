@@ -79,8 +79,8 @@ class TopicSignalReceiver(Receiver):
     self._topic = topic
     self._signal_event = asyncio.Event()
 
-  async def _on_start_recv(self): await self._client.subscribe([self._topic])
-  async def _on_stop_recv(self): await self._client.unsubscribe([self._topic]) 
+  async def _on_start_recv(self): await self._client.register_in_topics([self._topic])
+  async def _on_stop_recv(self): await self._client.unregister_in_topics([self._topic]) 
 
   async def wait(self): 
     async with self:
@@ -93,8 +93,8 @@ class TopicSignalReceiver(Receiver):
 
 class AddressNameAssignedReceiver(Receiver):
   _recv_queue: asyncio.Queue[AddressNameAssignmentMessage]
-  async def _on_start_recv(self): await self._client.subscribe([WorkerTopics.ADDRESS_NAME_ASSIGNED])
-  async def _on_stop_recv(self): await self._client.unsubscribe([WorkerTopics.ADDRESS_NAME_ASSIGNED])
+  async def _on_start_recv(self): await self._client.register_in_topics([WorkerTopics.ADDRESS_NAME_ASSIGNED])
+  async def _on_stop_recv(self): await self._client.unregister_in_topics([WorkerTopics.ADDRESS_NAME_ASSIGNED])
   def on_message(self, message: Message):
     if not isinstance(message, TopicDataMessage): return
     if message.topic != WorkerTopics.ADDRESS_NAME_ASSIGNED: return
@@ -120,9 +120,9 @@ class TopicsReceiver(Receiver):
   def get_control_data(self, topic: int): return self._control_data.get(topic, None)
 
   async def _on_start_recv(self): 
-    if self._subscribe and len(self._topics) > 0: await self._client.subscribe(self._topics)
+    if self._subscribe and len(self._topics) > 0: await self._client.register_in_topics(self._topics)
   async def _on_stop_recv(self): 
-    if self._subscribe and len(self._topics) > 0: await self._client.unsubscribe(self._topics)
+    if self._subscribe and len(self._topics) > 0: await self._client.unregister_in_topics(self._topics)
 
   def on_message(self, message: Message):
     if isinstance(message, TopicMessage) and message.topic in self.topics:
@@ -142,8 +142,8 @@ class ResolveAddressesReceiver(Receiver):
     super().__init__(client)
     self._request_id = request_id
 
-  async def _on_start_recv(self): await self._client.subscribe([WorkerTopics.ADDRESSES_CREATED])
-  async def _on_stop_recv(self): await self._client.unsubscribe([WorkerTopics.ADDRESSES_CREATED])
+  async def _on_start_recv(self): await self._client.register_in_topics([WorkerTopics.ADDRESSES_CREATED])
+  async def _on_stop_recv(self): await self._client.unregister_in_topics([WorkerTopics.ADDRESSES_CREATED])
 
   def on_message(self, message: Message):
     if isinstance(message, TopicDataMessage) and message.topic == WorkerTopics.ADDRESSES_CREATED:

@@ -26,7 +26,7 @@ class DiscoveryWorker(Worker):
     await client.change_addresses([WorkerAddresses.ID_DISCOVERY])
 
     try:
-      async with client.provide_context([WorkerTopics.ADDRESSES_CREATED, WorkerTopics.DISCOVERY_SIGNAL, WorkerTopics.ADDRESS_NAME_ASSIGNED]):
+      async with client.out_topics_context([WorkerTopics.ADDRESSES_CREATED, WorkerTopics.DISCOVERY_SIGNAL, WorkerTopics.ADDRESS_NAME_ASSIGNED]):
         await asyncio.gather(
           self._run_address_generator(client),
           self._run_fetch_server(client),

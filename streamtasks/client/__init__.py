@@ -7,7 +7,7 @@ from streamtasks.message.serializers import get_core_serializers
 from streamtasks.message.data import *
 from streamtasks.client.receiver import *
 from streamtasks.client.fetch import FetchReponseReceiver, FetchRequestMessage, FetchRequestReceiver
-from streamtasks.client.helpers import ProvideContext, ProvideTracker, SubscibeContext, SubscribeTracker
+from streamtasks.client.helpers import OutTopicsContext, ProvideTracker, InTopicsContext, SubscribeTracker
 import secrets
 
 class Client:
@@ -18,13 +18,13 @@ class Client:
     self._addresses: set[int] = set()
     self._fetch_id_counter: int = 0
     self._address_request_lock = asyncio.Lock()
-    self._address_map: dict[str, int] = {}
+    self._address_resolver_cache: dict[str, int] = {}
     self._custom_serializers = get_core_serializers()
     self.port_counter = WorkerPorts.DYNAMIC_START
 
     self._subscribed_provided_topics = AwaitableIdTracker()
-    self._subscribing_topics = IdTracker()
-    self._provided_topics = IdTracker()
+    self._in_topics = IdTracker()
+    self._out_topics = IdTracker()
 
   @property
   def default_address(self): return next(iter(self._addresses), None)
@@ -45,7 +45,7 @@ class Client:
 
   async def wait_for_topic_signal(self, topic: int): return await TopicSignalReceiver(self, topic).wait()
   async def wait_for_address_name(self, name: str):
-    found_address = self._address_map.get(name, None)
+    found_address = self._address_resolver_cache.get(name, None)
     if found_address is not None: return found_address
 
     receiver = AddressNameAssignedReceiver(self)
@@ -65,11 +65,14 @@ class Client:
 
     return found_address
 
+  # TODO remove
   def topic_is_subscribed(self, topic: int): return topic in self._subscribed_provided_topics
+  # TODO remove
   async def wait_topic_subscribed(self, topic: int, subscribed: bool = True): 
     if (topic in self._subscribed_provided_topics) == subscribed: return
     if subscribed: return await self._subscribed_provided_topics.wait_for_id_added(topic)
     else: return await self._subscribed_provided_topics.wait_for_id_removed(topic)
+
   async def send_to(self, endpoint: Endpoint, data: Any): 
     await self._link.send(AddressedMessage(
       await self._get_address(endpoint[0]), 
@@ -85,10 +88,10 @@ class Client:
     if address is None: raise Exception("No local address")
     await self._register_address_name(name, address)
   async def resolve_address_name(self, name: str) -> Optional[int]:
-    if name in self._address_map: return self._address_map[name]
+    if name in self._address_resolver_cache: return self._address_resolver_cache[name]
     raw_res = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.RESOLVE_ADDRESS, ResolveAddressRequestBody(address_name=name).model_dump())
     res: ResolveAddressResonseBody = ResolveAddressResonseBody.model_validate(raw_res)
-    if res.address is not None: self._address_map[name] = res.address
+    if res.address is not None: self._address_resolver_cache[name] = res.address
     return res.address
 
   async def request_address(self): return next(iter(await self.request_addresses(1, apply=True)))
@@ -110,7 +113,7 @@ class Client:
     raw_res = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.GENERATE_TOPICS, GenerateTopicsRequestBody(count=count).model_dump())
     res = GenerateTopicsResponseBody.model_validate(raw_res)
     if len(res.topics) != count: raise Exception("The fetch request returned an invalid number of topics")
-    if apply: await self.provide(res.topics)
+    if apply: await self.register_out_topics(res.topics)
     return res.topics
 
   async def change_addresses(self, addresses: Iterable[int]):
@@ -120,19 +123,20 @@ class Client:
     await self._link.send(AddressesChangedMessage(ids_to_priced_ids(add), remove))
     self._addresses = new_addresses
 
-  def provide_context(self, topics: Iterable[int]): return ProvideContext(self, topics)
-  async def provide(self, topics: Iterable[int]):
-    actually_added = self._provided_topics.add_many(topics)
+  def out_topics_context(self, topics: Iterable[int]): return OutTopicsContext(self, topics)
+  def in_topics_context(self, topics: Iterable[int]): return InTopicsContext(self, topics)
+  
+  async def register_out_topics(self, topics: Iterable[int]):
+    actually_added = self._out_topics.add_many(topics)
     if len(actually_added) > 0: await self._link.send(OutTopicsChangedMessage(ids_to_priced_ids(actually_added), set()))
-  async def unprovide(self, topics: Iterable[int]):
-    actually_removed = self._provided_topics.remove_many(topics)
+  async def unregister_out_topics(self, topics: Iterable[int], force: bool = False):
+    actually_removed = self._out_topics.remove_many(topics, force=force)
     if len(actually_removed) > 0: await self._link.send(OutTopicsChangedMessage(set(), set(actually_removed)))
-  def subscribe_context(self, topics: Iterable[int]): return SubscibeContext(self, topics)
-  async def subscribe(self, topics: Iterable[int]):
-    actually_added = self._subscribing_topics.add_many(topics)
+  async def register_in_topics(self, topics: Iterable[int]):
+    actually_added = self._in_topics.add_many(topics)
     if len(actually_added) > 0: await self._link.send(InTopicsChangedMessage(set(actually_added), set()))
-  async def unsubscribe(self, topics: Iterable[int]):
-    actually_removed = self._subscribing_topics.remove_many(topics)
+  async def unregister_in_topics(self, topics: Iterable[int], force: bool = False):
+    actually_removed = self._in_topics.remove_many(topics, force=force)
     if len(actually_removed) > 0: await self._link.send(InTopicsChangedMessage(set(), set(actually_removed)))
 
   async def fetch(self, address: str | int, descriptor: str, body: Any, port=WorkerPorts.FETCH):
@@ -163,15 +167,15 @@ class Client:
     await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.REGISTER_ADDRESS, RegisterAddressRequestBody(address_name=name, address=address).model_dump())
     self._set_address_name(name, address)
   def _set_address_name(self, name: str, address: Optional[int]):
-    if address is None: self._address_map.pop(name, None)
-    else: self._address_map[name] = address
+    if address is None: self._address_resolver_cache.pop(name, None)
+    else: self._address_resolver_cache[name] = address
 
   async def _task_receive(self):
     try:
       while len(self._receivers) > 0:
         message = await self._link.recv()
         if isinstance(message, InTopicsChangedMessage): self._subscribed_provided_topics.change_many(message.add, message.remove)
-        if isinstance(message, TopicMessage) and message.topic not in self._subscribing_topics: continue
+        if isinstance(message, TopicMessage) and message.topic not in self._in_topics: continue
         if isinstance(message, DataMessage) and message.data.type == SerializationType.CUSTOM: message.data.serializer = self._custom_serializers.get(message.data.content_id, None)
         for receiver in self._receivers:
           receiver.on_message(message)
