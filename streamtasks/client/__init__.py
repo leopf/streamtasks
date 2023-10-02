@@ -11,25 +11,14 @@ from streamtasks.client.helpers import ProvideContext, ProvideTracker, SubscibeC
 import secrets
 
 class Client:
-  _link: Link
-  _receivers:  list[Receiver]
-  _receive_task: Optional[asyncio.Task]
-  _addresses: set[int]
-  _fetch_id_counter: int
-  _address_request_lock: asyncio.Lock
-  _address_map: dict[str, int]
-  _custom_serializers: dict[int, Serializer]
-  _subscribing_topics: IdTracker
-  _provided_topics: IdTracker
-
   def __init__(self, link: Link):
     self._link = link
-    self._receivers = []
-    self._receive_task = None
-    self._addresses = set()
-    self._fetch_id_counter = 0
+    self._receivers: list[Receiver] = []
+    self._receive_task: Optional[asyncio.Task] = None
+    self._addresses: set[int] = set()
+    self._fetch_id_counter: int = 0
     self._address_request_lock = asyncio.Lock()
-    self._address_map = {}
+    self._address_map: dict[str, int] = {}
     self._custom_serializers = get_core_serializers()
     self.port_counter = WorkerPorts.DYNAMIC_START
 

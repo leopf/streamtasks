@@ -9,7 +9,6 @@ Refactor:
         - have multi receivers that can turn on / off multiple receivers
         - must retain information like topics
     - fix typing
-    - addresses dont need to be tracked seperately
     - rename sub/prov to in/out
     - noop receiver must go
         - how do we solve topic_is_subscribed in a better way
