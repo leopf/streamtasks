@@ -25,24 +25,25 @@ class DataMessage(Message, ABC):
 class TopicMessage(Message, ABC):
   topic: int
 
-@dataclass
+@dataclass(frozen=True)
 class TopicDataMessage(TopicMessage, DataMessage):
   topic: int
   data: SerializableData
 
-@dataclass
+@dataclass(frozen=True)
 class TopicControlMessage(TopicMessage):
   topic: int
   paused: bool
 
   def to_data(self) -> 'TopicControlData': return TopicControlData(self.paused)
 
-@dataclass
+@dataclass(frozen=True)
 class AddressedMessage(DataMessage):
   address: int
+  port: int
   data: SerializableData
 
-@dataclass
+@dataclass(frozen=True)
 class PricedId:
   id: int
   cost: int
@@ -50,7 +51,7 @@ class PricedId:
   def __hash__(self):
     return self.cost | self.id << 32
 
-@dataclass
+@dataclass(frozen=True)
 class AddressesChangedMessage(Message):
   add: set[PricedId]
   remove: set[int]
@@ -67,12 +68,12 @@ class AddressesChangedMessage(Message):
       remove=set(data['remove']),
     )
 
-@dataclass
+@dataclass(frozen=True)
 class AddressesChangedRecvMessage(Message):
   add: set[PricedId]
   remove: set[PricedId]
 
-@dataclass
+@dataclass(frozen=True)
 class InTopicsChangedMessage(Message):
   add: set[int]
   remove: set[int]
@@ -89,7 +90,7 @@ class InTopicsChangedMessage(Message):
       remove=set(data['remove']),
     )
 
-@dataclass
+@dataclass(frozen=True)
 class OutTopicsChangedMessage(Message):
   add: set[PricedId]
   remove: set[int]
@@ -106,7 +107,7 @@ class OutTopicsChangedMessage(Message):
       remove=set(data['remove']),
     )
 
-@dataclass
+@dataclass(frozen=True)
 class OutTopicsChangedRecvMessage(Message):
   add: set[PricedId]
   remove: set[PricedId]

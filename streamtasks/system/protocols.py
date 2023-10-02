@@ -5,6 +5,12 @@ class WorkerAddresses:
   ID_DISCOVERY = 0
   COUNTER_INIT = 10000
 
+class WorkerPorts:
+  DISCOVERY_REQUEST_ADDRESS = 0
+  DYNAMIC_START = 10000
+  FETCH = 100
+  ASGI = 101
+
 class WorkerTopics:
   DISCOVERY_SIGNAL = 0
   ADDRESSES_CREATED = 1

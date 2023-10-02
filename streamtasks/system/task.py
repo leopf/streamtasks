@@ -5,7 +5,7 @@ from typing import Any, ClassVar, Optional, Union
 
 from fastapi import FastAPI
 from streamtasks.asgi import ASGIAppRunner
-from streamtasks.client.fetch import FetchRequest
+from streamtasks.client.fetch import FetchRequest, FetchServer
 from streamtasks.net import Link
 from streamtasks.helpers import INSTANCE_ID
 from streamtasks.message.data import SerializableData
@@ -93,7 +93,7 @@ class TaskFactoryWorker(Worker, ABC):
   async def _run_fetch_server(self):
     await self.setup_done.wait()
 
-    server = self._client.create_fetch_server()
+    server = FetchServer(self._client)
 
     @server.route(TaskFetchDescriptors.DELETE_TASK)
     async def delete_task(req: FetchRequest):
@@ -129,7 +129,7 @@ class TaskFactoryWorker(Worker, ABC):
       res = await self.rpc_ui_event(req)
       return RPCUIEventResponse.model_validate(res)
     
-    runner = ASGIAppRunner(self._client, app, self.reg.web_init_descriptor, self.reg.worker_address)
+    runner = ASGIAppRunner(self._client, app, self.reg.worker_address)
     self.web_server_running.set()
     await runner.start()
 

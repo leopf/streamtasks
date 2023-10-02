@@ -10,9 +10,6 @@ class DashboardRegistration(BaseModel):
   id: str
   address: int
 
-  @property
-  def web_init_descriptor(self) -> str: return f"task_factory_{self.id}_web"
-
 class DashboardDeleteMessage(BaseModel):
   id: str
 
@@ -77,9 +74,6 @@ class TaskFactoryRegistration(BaseModel):
   id: str
   worker_address: int
   task_template: DeploymentTask
-
-  @property
-  def web_init_descriptor(self) -> str: return f"task_factory_{self.id}_web"
 
 class TaskFactoryDeleteMessage(BaseModel):
   id: str

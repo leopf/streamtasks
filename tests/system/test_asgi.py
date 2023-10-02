@@ -13,6 +13,9 @@ from pydantic import BaseModel
 class TestModel(BaseModel):
   test: str
 
+def get_client_for_app(app):
+  transport = httpx.ASGITransport(app=app)
+  return httpx.AsyncClient(transport=transport, base_url="http://testserver")
 class TestASGI(unittest.IsolatedAsyncioTestCase):
   client1: Client
   client2: Client
@@ -39,8 +42,8 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
     for task in self.tasks: task.cancel()
 
   async def test_transmit(self):
-    sender = ASGIEventSender(self.client1, 1337, "1")
-    receiver = ASGIEventReceiver(self.client2, 1337)
+    sender = ASGIEventSender(self.client1, (1337, 101), "1")
+    receiver = ASGIEventReceiver(self.client2, 1337, 101)
 
     await receiver.start_recv()
 
@@ -60,13 +63,12 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
     async def post(data: TestModel):
       return { "data": data }
 
-    runner = ASGIAppRunner(self.client2, demo_app, "demo_app", 1337)
+    runner = ASGIAppRunner(self.client2, demo_app)
     self.tasks.append(asyncio.create_task(runner.start()))
 
-    proxy_app = ASGIProxyApp(self.client1, 1337, "demo_app", 1338)
+    proxy_app = ASGIProxyApp(self.client1, 1337)
     
-    transport = httpx.ASGITransport(app=proxy_app)
-    client = httpx.AsyncClient(transport=transport, base_url="http://testserver")
+    client = get_client_for_app(proxy_app)
     response = await client.get("/")
     self.assertEqual(200, response.status_code)
     self.assertEqual(b'{"text":"Hello from FastAPI!"}', response.content)
@@ -81,13 +83,12 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
       await send({"type": "http.response.start", "status": 200})
       await send({"type": "http.response.body", "body": b"Hello world!"})
 
-    runner = ASGIAppRunner(self.client2, demo_app, "demo_app", 1337)
+    runner = ASGIAppRunner(self.client2, demo_app)
     self.tasks.append(asyncio.create_task(runner.start()))
 
-    proxy_app = ASGIProxyApp(self.client1, 1337, "demo_app", 1338)
+    proxy_app = ASGIProxyApp(self.client1, 1337)
     
-    transport = httpx.ASGITransport(app=proxy_app)
-    client = httpx.AsyncClient(transport=transport, base_url="http://testserver")
+    client = get_client_for_app(proxy_app)
     response = await client.get("/")
     self.assertEqual(200, response.status_code)
     self.assertEqual(b"Hello world!", response.content)

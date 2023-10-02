@@ -16,7 +16,7 @@ class DashboardStore:
   def dashboards(self): return [ DashboardInfo(id=db.id, path=self.router.get_path_to_id(db.id, self.base_url), label=db.label) for db in self._dashboards ]
 
   def add_dashboard(self, dashboard: DashboardRegistration): 
-    proxy_app = ASGIProxyApp(self.client, dashboard.address, dashboard.web_init_descriptor, self.client.default_address)
+    proxy_app = ASGIProxyApp(self.client, dashboard.address)
     self.router.add_app(dashboard.id, proxy_app)
     self._dashboards.append(dashboard)
 
@@ -47,7 +47,7 @@ class TaskFactoryStore:
     return TaskDeploymentStatus.model_validate(response)
 
   def add_task_factory(self, task_factory: TaskFactoryRegistration): 
-    proxy_app = ASGIProxyApp(self.client, task_factory.worker_address, task_factory.web_init_descriptor, self.client.default_address)
+    proxy_app = ASGIProxyApp(self.client, task_factory.worker_address)
     self.router.add_app(task_factory.id, proxy_app)
     self._task_factories[task_factory.id] = task_factory
 

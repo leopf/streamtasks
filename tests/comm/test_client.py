@@ -60,9 +60,9 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
   async def test_address(self):
     await self.a.change_addresses([1])
-    await self.b.send_to(1, TextData("Hello 1"))
+    await self.b.send_to((1, 10), TextData("Hello 1"))
 
-    a_recv = self.a.get_address_receiver([1])
+    a_recv = AddressReceiver(self.a, 1, 10)
     topic, data = await asyncio.wait_for(a_recv.recv(), 1)
     self.assertEqual(topic, 1)
     self.assertEqual(data.data, "Hello 1")
@@ -86,13 +86,12 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
       nonlocal b_result
       b_result = await asyncio.wait_for(self.b.fetch(1, "test", "Hello 1"), 1)
 
-    b_fetch_task = asyncio.create_task(b_fetch())
-
-    a_recv = self.a.get_fetch_request_receiver("test")
-    req: FetchRequest  = await asyncio.wait_for(a_recv.recv(), 1)
-    self.assertEqual(req.body, "Hello 1")
-    self.assertEqual(req._return_address, 2)
-    await req.respond("Hello 2")
+    async with FetchRequestReceiver(self.a, "test") as a_recv:
+      b_fetch_task = asyncio.create_task(b_fetch())
+      req: FetchRequest  = await asyncio.wait_for(a_recv.recv(), 1)
+      self.assertEqual(req.body, "Hello 1")
+      self.assertEqual(req._return_endpoint, (2, WorkerPorts.DYNAMIC_START))
+      await req.respond("Hello 2")
     
     await b_fetch_task
     self.assertEqual(b_result, "Hello 2")

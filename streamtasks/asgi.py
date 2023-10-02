@@ -1,5 +1,6 @@
 from streamtasks.client.receiver import Receiver
 from streamtasks.client.fetch import FetchRequestReceiver, FetchRequest
+from streamtasks.net import DAddress, Endpoint
 from streamtasks.net.types import AddressedMessage, Message
 from streamtasks.message.data import MessagePackData
 from pydantic import BaseModel
@@ -10,6 +11,8 @@ import logging
 from uuid import uuid4
 from typing import TYPE_CHECKING, Any, Awaitable, Optional, Callable, ClassVar, Union
 
+from streamtasks.system.protocols import WorkerPorts
+
 if TYPE_CHECKING:
     from streamtasks.client import Client
 
@@ -17,12 +20,15 @@ if TYPE_CHECKING:
 class ASGIConnectionConfig:
   scope: dict
   connection_id: str
-  remote_address: int
-  own_address: int
+  remote_endpoint: Endpoint
+
+class ASGIDefaults:
+  INIT_DESCRIPTOR = "init"
 
 class ASGIInitMessage(BaseModel):
   connection_id: str
   return_address: int
+  return_port: int
   scope: dict
 
 class ASGIEventMessage(BaseModel):
@@ -86,48 +92,42 @@ class MessagePackValueTransformer(ValueTransformer):
   supported_types = [str, int, float, bool, bytes, bytearray, list, dict]
 
 class ASGIEventReceiver(Receiver):
-  _own_address: int
   _recv_queue: asyncio.Queue[ASGIEventMessage]
 
-  def __init__(self, client: 'Client', own_address: int):
+  def __init__(self, client: 'Client', own_address: int, own_port: int):
     super().__init__(client)
     self._own_address = own_address
+    self._own_port = own_port
 
   def on_message(self, message: Message):
     if not isinstance(message, AddressedMessage): return
     a_message: AddressedMessage = message
-    if a_message.address != self._own_address: return
+    if a_message.address != self._own_address or a_message.port != self._own_port: return
     if not isinstance(a_message.data, MessagePackData): return
     try:
       self._recv_queue.put_nowait(ASGIEventMessage.model_validate(a_message.data.data))
     except: pass
 
 class ASGIEventSender:
-  def __init__(self, client: 'Client', remote_address: Union[int, str], connection_id: str):
+  def __init__(self, client: 'Client', remote_endpoint: Endpoint, connection_id: str):
     self._client = client
-    self._remote_address = remote_address
+    self._remote_endpoint = remote_endpoint
     self._connection_id = connection_id
   async def send(self, event: dict): await self._send(events=[event])
   async def close(self): 
     await self._send(events=[], closed=True)
   async def _send(self, events: list[dict], closed: Optional[bool] = None):
     events = [MessagePackValueTransformer.annotate_value(event) for event in events]
-    await self._client.send_to(self._remote_address, MessagePackData(ASGIEventMessage(connection_id=self._connection_id, events=events, closed=closed).model_dump()))
+    await self._client.send_to(self._remote_endpoint, MessagePackData(ASGIEventMessage(connection_id=self._connection_id, events=events, closed=closed).model_dump()))
 
 class ASGIAppRunner:
-  _client: 'Client'
-  _app: ASGIApp
-  _init_receiver: Receiver
-  _own_address: int
-
-  def __init__(self, client: 'Client', app: ASGIApp, init_conn_desc: str, own_address: Optional[int] = None):
+  def __init__(self, client: 'Client', app: ASGIApp, address: Optional[int] = None, port: int = WorkerPorts.ASGI):
     self._client = client
     self._app = app
     if client.default_address is None: raise Exception("The client must have at least one address to host an ASGI application")
-    if own_address is not None: self._own_address = own_address
-    else: self._own_address = client.default_address
-
-    self._init_receiver = FetchRequestReceiver(client, init_conn_desc, self._own_address)
+    self._address = address if address is not None else client.default_address
+    self._port = port
+    self._init_receiver = FetchRequestReceiver(client, ASGIDefaults.INIT_DESCRIPTOR, self._address, self._port)
 
   async def start(self): # TODO: use fetch server
     async with self._init_receiver:
@@ -138,16 +138,15 @@ class ASGIAppRunner:
         config = ASGIConnectionConfig(
           scope=JSONValueTransformer.deannotate_value(init_request.scope), 
           connection_id=init_request.connection_id, 
-          remote_address=init_request.return_address, 
-          own_address=self._own_address)
+          remote_endpoint=(init_request.return_address, init_request.return_port))
         
         self._start_connection(config)
         await raw_request.respond(None)
 
   def _start_connection(self, config: ASGIConnectionConfig):
-    receiver = ASGIEventReceiver(self._client, config.own_address)
+    receiver = ASGIEventReceiver(self._client, self._address, self._port)
     stop_signal = asyncio.Event()
-    sender = ASGIEventSender(self._client, config.remote_address, config.connection_id)
+    sender = ASGIEventSender(self._client, config.remote_endpoint, config.connection_id)
     
     recv_queue = asyncio.Queue()
     
@@ -175,31 +174,27 @@ class ASGIAppRunner:
     return asyncio.create_task(run())
 
 class ASGIProxyApp:
-  _client: 'Client'
-  _remote_address: Union[int, str]
-  _init_descriptor: str
-  _own_address: int
-
-  def __init__(self, client: 'Client', remote_address: Union[int, str], init_descriptor: str, own_address: Optional[int] = None):
+  def __init__(self, client: 'Client', remote_address: DAddress, remote_port: int = WorkerPorts.ASGI, address: Optional[int] = None):
     self._client = client
-    self._remote_address = remote_address
-    self._init_descriptor = init_descriptor
+    self._remote_endpoint = (remote_address, remote_port)
     if client.default_address is None: raise Exception("The client must have at least one address to host an ASGI application")
-    if own_address is not None: self._own_address = own_address
-    else: self._own_address = client.default_address
-    
+    self._address = address if address is not None else client.default_address
   async def __call__(self, scope, receive: Callable[[], Awaitable[dict]], send: Callable[[dict], Awaitable[None]]):
     connection_id = str(uuid4())
     ser_scope = JSONValueTransformer.annotate_value(scope)
     
-    receiver = ASGIEventReceiver(self._client, self._own_address)
+    port = self._client.get_free_port()
+    receiver = ASGIEventReceiver(self._client, self._address, port)
     await receiver.start_recv() # NOTE: must be enabled before sending init message, otherwise events will be lost
     
-    await self._client.fetch(self._remote_address, self._init_descriptor, ASGIInitMessage(connection_id=connection_id, return_address=self._own_address, scope=ser_scope).model_dump())
+    await self._client.fetch(self._remote_endpoint[0], ASGIDefaults.INIT_DESCRIPTOR, ASGIInitMessage(
+        connection_id=connection_id, 
+        return_address=self._address, 
+        return_port=port,
+        scope=ser_scope).model_dump(), self._remote_endpoint[1])
 
     closed_event = asyncio.Event()
-    sender = ASGIEventSender(self._client, self._remote_address, connection_id)
-
+    sender = ASGIEventSender(self._client, self._remote_endpoint, connection_id)
 
     async def recv_loop(): 
       while not closed_event.is_set(): 

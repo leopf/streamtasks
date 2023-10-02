@@ -6,7 +6,7 @@ from streamtasks.system.protocols import WorkerAddresses, WorkerFetchDescriptors
 from streamtasks.message.serializers import get_core_serializers
 from streamtasks.message.data import *
 from streamtasks.client.receiver import *
-from streamtasks.client.fetch import FetchReponseReceiver, FetchRequestMessage, FetchRequestReceiver, FetchServerReceiver
+from streamtasks.client.fetch import FetchReponseReceiver, FetchRequestMessage, FetchRequestReceiver
 from streamtasks.client.helpers import ProvideContext, ProvideTracker, SubscibeContext, SubscribeTracker
 import secrets
 
@@ -31,6 +31,7 @@ class Client:
     self._address_request_lock = asyncio.Lock()
     self._address_map = {}
     self._custom_serializers = get_core_serializers()
+    self.port_counter = WorkerPorts.DYNAMIC_START
 
     self._subscribed_provided_topics = AwaitableIdTracker()
     self._subscribing_topics = IdTracker()
@@ -40,9 +41,6 @@ class Client:
   def default_address(self): return next(iter(self._addresses), None)
 
   def get_topics_receiver(self, topics: Iterable[Union[int, SubscribeTracker]], subscribe: bool = True): return TopicsReceiver(self, set(topics), subscribe)
-  def get_address_receiver(self, addresses: Iterable[int]): return AddressReceiver(self, set(addresses))
-  def get_fetch_request_receiver(self, descriptor: str): return FetchRequestReceiver(self, descriptor)
-  def create_fetch_server(self): return FetchServerReceiver(self)
   
   def create_subscription_tracker(self): return SubscribeTracker(self)
   def create_provide_tracker(self): return ProvideTracker(self)
@@ -50,6 +48,11 @@ class Client:
   def add_serializer(self, serializer: Serializer): 
     if serializer.content_id not in self._custom_serializers: self._custom_serializers[serializer.content_id] = serializer
   def remove_serializer(self, content_id: int): self._custom_serializers.pop(content_id, None)
+
+  def get_free_port(self):
+    port = self.port_counter
+    self.port_counter += 1
+    return port
 
   async def wait_for_topic_signal(self, topic: int): return await TopicSignalReceiver(self, topic).wait()
   async def wait_for_address_name(self, name: str):
@@ -78,7 +81,12 @@ class Client:
     if (topic in self._subscribed_provided_topics) == subscribed: return
     if subscribed: return await self._subscribed_provided_topics.wait_for_id_added(topic)
     else: return await self._subscribed_provided_topics.wait_for_id_removed(topic)
-  async def send_to(self, address: Union[int, str], data: Any): await self._link.send(AddressedMessage(await self._get_address(address), data))
+  async def send_to(self, endpoint: Endpoint, data: Any): 
+    await self._link.send(AddressedMessage(
+      await self._get_address(endpoint[0]), 
+      endpoint[1], 
+      data
+    ))
   async def send_stream_control(self, topic: int, control_data: TopicControlData): await self._link.send(control_data.to_message(topic))
   async def send_stream_data(self, topic: int, data: SerializableData): await self._link.send(TopicDataMessage(topic, data))
 
@@ -99,7 +107,9 @@ class Client:
     async with self._address_request_lock:
       request_id = secrets.randbelow(1<<64)
       async with ResolveAddressesReceiver(self, request_id) as receiver:
-        await self.send_to(WorkerAddresses.ID_DISCOVERY, JsonData(GenerateAddressesRequestMessage(request_id=request_id, count=count).model_dump()))
+        await self.send_to(
+            (WorkerAddresses.ID_DISCOVERY, WorkerPorts.DISCOVERY_REQUEST_ADDRESS),
+            MessagePackData(GenerateAddressesRequestMessage(request_id=request_id, count=count).model_dump()))
         data: GenerateAddressesResponseMessage = await receiver.recv()
         addresses = set(data.addresses)
     
@@ -136,16 +146,17 @@ class Client:
     actually_removed = self._subscribing_topics.remove_many(topics)
     if len(actually_removed) > 0: await self._link.send(InTopicsChangedMessage(set(), set(actually_removed)))
 
-  async def fetch(self, address: Union[int, str], descriptor: str, body):
+  async def fetch(self, address: str | int, descriptor: str, body: Any, port=WorkerPorts.FETCH):
     self._fetch_id_counter = fetch_id = self._fetch_id_counter + 1
     if self.default_address is None: raise Exception("No local address")
-    await self.send_to(address, JsonData(FetchRequestMessage(
-      return_address=self.default_address, 
-      request_id=fetch_id, 
-      descriptor=descriptor, 
-      body=body).model_dump()))
-    receiver = FetchReponseReceiver(self, fetch_id)
-    response_data = await receiver.recv()
+    return_port = self.get_free_port()
+    async with FetchReponseReceiver(self, return_port) as receiver:
+      await self.send_to((address, port), MessagePackData(FetchRequestMessage(
+        return_address=self.default_address, 
+        return_port=return_port, 
+        descriptor=descriptor, 
+        body=body).model_dump()))
+      response_data = await receiver.recv()
     return response_data
 
   async def enable_receiver(self, receiver: Receiver):

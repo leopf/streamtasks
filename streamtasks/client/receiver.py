@@ -62,15 +62,15 @@ class NoopReceiver(Receiver):
   async def recv(self): raise NotImplementedError("A noop receiver will never receive any messages")
 
 class AddressReceiver(Receiver):
-  _addresses: set[int]
-
-  def __init__(self, client: 'Client', addresses: set[int]):
+  def __init__(self, client: 'Client', address: int, port: int):
     super().__init__(client)
-    self._addresses = addresses
+    self._address = address
+    self._port = port
 
   def on_message(self, message: Message):
-    if isinstance(message, AddressedMessage) and message.address in self._addresses:
-      a_message: AddressedMessage = message
+    if not isinstance(message, AddressedMessage): return
+    a_message: AddressedMessage = message
+    if a_message.address == self._address and a_message.port == self._port:
       self._recv_queue.put_nowait((a_message.address, a_message.data))
 
 class TopicSignalReceiver(Receiver):
@@ -148,7 +148,7 @@ class ResolveAddressesReceiver(Receiver):
   def on_message(self, message: Message):
     if isinstance(message, TopicDataMessage) and message.topic == WorkerTopics.ADDRESSES_CREATED:
       sd_message: TopicDataMessage = message
-      if isinstance(sd_message.data, JsonData):
+      if isinstance(sd_message.data, MessagePackData):
         try:
           ra_message = GenerateAddressesResponseMessage.model_validate(sd_message.data.data)
           if ra_message.request_id == self._request_id:

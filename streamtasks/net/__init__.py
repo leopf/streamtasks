@@ -1,3 +1,4 @@
+from typing import Union
 from streamtasks.net.types import *
 from streamtasks.net.helpers import *
 from streamtasks.net.serialize import serialize_message, deserialize_message
@@ -6,6 +7,8 @@ from abc import ABC, abstractmethod
 import logging
 import asyncio
 
+DAddress = Union[str, int] # dynamic address, which allows names or ints
+Endpoint = tuple[DAddress, int]
 
 class ConnectionClosedError(Exception):
   def __init__(self, message: str = "Connection closed"): super().__init__(message)

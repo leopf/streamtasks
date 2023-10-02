@@ -43,6 +43,7 @@ SCHEMA_MAP = {
     "name": "AddressedMessage",
     "fields": [
       {"name": "address", "type": "int"},
+      {"name": "port", "type": "int"},
       {"name": "data", "type": "bytes"},
       {"name": "ser_type", "type": "int"}
     ]

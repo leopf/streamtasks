@@ -1,5 +1,6 @@
 import asyncio
 from streamtasks.asgi import ASGIApp
+from streamtasks.client.fetch import FetchServer
 from streamtasks.system.protocols import *
 from streamtasks.client import Client
 from streamtasks.net import Link
@@ -34,8 +35,8 @@ class NodeManagerWorker(Worker):
     self._client.fetch(AddressNames.TASK_MANAGER, TaskFetchDescriptors.UNREGISTER_DASHBOARD, DashboardDeleteMessage(key=key).model_dump())
   async def register_dashboard(self, label: str, app: ASGIApp):
     id = str(uuid4())
-    dashboard = DashboardRegistration(label=label, id=id, init_descriptor=f"global_dashboard_${id}", address=self._client.default_address)
-    runner = ASGIAppRunner(self._client, app, dashboard.web_init_descriptor, dashboard.address)
+    dashboard = DashboardRegistration(label=label, id=id, address=self._client.default_address)
+    runner = ASGIAppRunner(self._client, app, dashboard.address)
     self.async_tasks.append(asyncio.create_task(runner.start()))
     await self._client.fetch(AddressNames.TASK_MANAGER, TaskFetchDescriptors.REGISTER_DASHBOARD, dashboard.model_dump())
     return id
@@ -79,7 +80,7 @@ class TaskManagerWorker(Worker):
 
   async def _run_fetch_server(self, client: Client):
     await self.ready.wait()
-    server = client.create_fetch_server()
+    server = FetchServer(client)
 
     @server.route(TaskFetchDescriptors.REGISTER_TASK_FACTORY)
     async def register_task_factory(req: FetchRequest):

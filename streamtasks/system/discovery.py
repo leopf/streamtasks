@@ -1,8 +1,9 @@
+from streamtasks.client.receiver import AddressReceiver
 from streamtasks.worker import Worker
 from streamtasks.client import Client
-from streamtasks.client.fetch import FetchRequest
+from streamtasks.client.fetch import FetchRequest, FetchServer
 from streamtasks.system.protocols import *
-from streamtasks.message.data import JsonData, TextData, MessagePackData
+from streamtasks.message.data import TextData, MessagePackData
 from streamtasks.net.types import TopicControlData
 from streamtasks.net import Link
 import pydantic
@@ -45,7 +46,7 @@ class DiscoveryWorker(Worker):
       await asyncio.sleep(1)
 
   async def _run_fetch_server(self, client: Client):
-    server = client.create_fetch_server()
+    server = FetchServer(client, WorkerPorts.FETCH)
 
     @server.route(WorkerFetchDescriptors.REGISTER_ADDRESS)
     async def register_address(req: FetchRequest):
@@ -75,14 +76,14 @@ class DiscoveryWorker(Worker):
     await server.start()
 
   async def _run_address_generator(self, client: Client):
-    async with client.get_address_receiver([WorkerAddresses.ID_DISCOVERY]) as receiver:
+    async with AddressReceiver(client, WorkerAddresses.ID_DISCOVERY, WorkerPorts.DISCOVERY_REQUEST_ADDRESS) as receiver:
       while True:
         try:
           address, message = await receiver.recv()
           request = GenerateAddressesRequestMessage.model_validate(message.data)
           logging.info(f"generating {request.count} addresses")
           addresses = self.generate_addresses(request.count)
-          await client.send_stream_data(WorkerTopics.ADDRESSES_CREATED, JsonData(GenerateAddressesResponseMessage(
+          await client.send_stream_data(WorkerTopics.ADDRESSES_CREATED, MessagePackData(GenerateAddressesResponseMessage(
             request_id=request.request_id, 
             addresses=addresses
           ).model_dump()))
