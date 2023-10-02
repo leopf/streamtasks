@@ -8,7 +8,6 @@ from abc import ABC
 from dataclasses import dataclass
 import asyncio
 import logging
-from uuid import uuid4
 from typing import TYPE_CHECKING, Any, Awaitable, Optional, Callable, ClassVar, Union
 
 from streamtasks.system.protocols import WorkerPorts
