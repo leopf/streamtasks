@@ -8,7 +8,6 @@ Refactor:
         - one topic per receiver
         - have multi receivers that can turn on / off multiple receivers
         - must retain information like topics
-    - fix typing
     - noop receiver must go
         - how do we solve topic_is_subscribed in a better way
     - what do we need locks for?

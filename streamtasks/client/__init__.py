@@ -16,7 +16,6 @@ class Client:
     self._receivers: list[Receiver] = []
     self._receive_task: Optional[asyncio.Task] = None
     self._address: Optional[int] = None
-    self._address_request_lock = asyncio.Lock()
     self._address_resolver_cache: dict[str, int] = {}
     self._custom_serializers = get_core_serializers()
     self._port_generator = IdGenerator(WorkerPorts.DYNAMIC_START, 0xffffffffffffffff)
@@ -93,9 +92,9 @@ class Client:
     return res.address
 
   async def request_address(self):
-    assert self._address is None, "there cant be an address already present, when requesting one" 
     addresses = await self._request_addresses(1)
     new_address = next(iter(addresses))
+    assert self._address is None, "there cant be an address already present, when requesting one" 
     await self.set_address(new_address)
     return new_address
 
@@ -154,14 +153,13 @@ class Client:
       except: pass
 
   async def _request_addresses(self, count: int) -> set[int]:
-    async with self._address_request_lock:
-      request_id = secrets.randbelow(1<<64)
-      async with ResolveAddressesReceiver(self, request_id) as receiver:
-        await self.send_to(
-            (WorkerAddresses.ID_DISCOVERY, WorkerPorts.DISCOVERY_REQUEST_ADDRESS),
-            MessagePackData(GenerateAddressesRequestMessage(request_id=request_id, count=count).model_dump()))
-        data: GenerateAddressesResponseMessage = await receiver.recv()
-        addresses = set(data.addresses)
+    request_id = secrets.randbelow(1<<64)
+    async with ResolveAddressesReceiver(self, request_id) as receiver:
+      await self.send_to(
+          (WorkerAddresses.ID_DISCOVERY, WorkerPorts.DISCOVERY_REQUEST_ADDRESS),
+          MessagePackData(GenerateAddressesRequestMessage(request_id=request_id, count=count).model_dump()))
+      data: GenerateAddressesResponseMessage = await receiver.recv()
+      addresses = set(data.addresses)
     if len(addresses) != count: raise Exception("The response returned an invalid number of addresses")
     return addresses
   async def _get_address(self, address: Union[int, str]) -> int: return await self.resolve_address_name(address) if isinstance(address, str) else address
