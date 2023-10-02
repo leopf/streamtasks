@@ -16,7 +16,6 @@ class Client:
     self._receivers: list[Receiver] = []
     self._receive_task: Optional[asyncio.Task] = None
     self._addresses: set[int] = set()
-    self._fetch_id_counter: int = 0
     self._address_request_lock = asyncio.Lock()
     self._address_resolver_cache: dict[str, int] = {}
     self._custom_serializers = get_core_serializers()
@@ -140,7 +139,6 @@ class Client:
     if len(actually_removed) > 0: await self._link.send(InTopicsChangedMessage(set(), set(actually_removed)))
 
   async def fetch(self, address: str | int, descriptor: str, body: Any, port=WorkerPorts.FETCH):
-    self._fetch_id_counter = fetch_id = self._fetch_id_counter + 1
     if self.default_address is None: raise Exception("No local address")
     return_port = self.get_free_port()
     async with FetchReponseReceiver(self, return_port) as receiver:
