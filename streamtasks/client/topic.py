@@ -1,12 +1,14 @@
 from abc import abstractmethod
 import asyncio
 from enum import Enum, auto
-from typing import Any, Optional
-from streamtasks.client import Client
+from typing import TYPE_CHECKING, Any, Optional
 from streamtasks.client.receiver import Receiver
 from streamtasks.message.data import SerializableData
 from streamtasks.net import Message
 from streamtasks.net.types import InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicControlMessage, TopicDataMessage
+
+if TYPE_CHECKING:
+  from streamtasks.client import Client
 
 class _TopicRegisterContext:
   def __init__(self, topic_obj: '_TopicBase') -> None: self._topic_obj = topic_obj
@@ -51,7 +53,7 @@ class _InTopicAction(Enum):
 class _InTopicReceiver(Receiver):
   _recv_queue: asyncio.Queue[(_InTopicAction, Any)]
 
-  def __init__(self, client: Client, topic: int):
+  def __init__(self, client: 'Client', topic: int):
     super().__init__(client)
     self._topic = topic
 
@@ -111,7 +113,7 @@ class _OutTopicAction(Enum):
 class _OutTopicReceiver(Receiver):
   _recv_queue: asyncio.Queue[(_OutTopicAction, Any)]
 
-  def __init__(self, client: Client, topic: int):
+  def __init__(self, client: 'Client', topic: int):
     super().__init__(client)
     self._topic = topic
 
