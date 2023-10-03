@@ -1,7 +1,7 @@
 from abc import abstractmethod
 import asyncio
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Iterable, Optional
 from streamtasks.client.receiver import Receiver
 from streamtasks.message.data import SerializableData
 from streamtasks.net import Message
@@ -163,3 +163,16 @@ class OutTopic(_TopicBase):
       action, data = await self._receiver.recv()
       if action == _OutTopicAction.SET_REQUESTED:
         self._is_requested = data
+
+class InTopicsContext:
+  def __init__(self, client: 'Client', topics: Iterable[int]):
+    self._client = client
+    self._topics = topics
+  async def __aenter__(self): await self._client.register_in_topics(self._topics)
+  async def __aexit__(self, *args): await self._client.unregister_in_topics(self._topics)
+class OutTopicsContext:
+  def __init__(self, client: 'Client', topics: Iterable[int]):
+    self._client = client
+    self._topics = topics
+  async def __aenter__(self): await self._client.register_out_topics(self._topics)
+  async def __aexit__(self, *args): await self._client.unregister_out_topics(self._topics)

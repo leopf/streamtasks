@@ -1,7 +1,7 @@
 import unittest
 from streamtasks.net import *
 from streamtasks.client import *
-from streamtasks.client.fetch import FetchRequest
+from streamtasks.client.fetch import FetchRequest, FetchRequestReceiver
 
 class TestClient(unittest.IsolatedAsyncioTestCase):
   a: Client

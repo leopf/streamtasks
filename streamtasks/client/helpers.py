@@ -3,19 +3,6 @@ from typing import TYPE_CHECKING, Iterable
 if TYPE_CHECKING:
   from streamtasks.client import Client
 
-class InTopicsContext:
-  def __init__(self, client: 'Client', topics: Iterable[int]):
-    self._client = client
-    self._topics = topics
-  async def __aenter__(self): await self._client.register_in_topics(self._topics)
-  async def __aexit__(self, *args): await self._client.unregister_in_topics(self._topics)
-class OutTopicsContext:
-  def __init__(self, client: 'Client', topics: Iterable[int]):
-    self._client = client
-    self._topics = topics
-  async def __aenter__(self): await self._client.register_out_topics(self._topics)
-  async def __aexit__(self, *args): await self._client.unregister_out_topics(self._topics)
-
 class SubscribeTracker:
   def __init__(self, client: 'Client'):
     self._client = client
