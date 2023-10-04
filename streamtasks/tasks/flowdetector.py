@@ -43,7 +43,7 @@ class FlowDetectorTask(Task):
     self.out_topic = client.out_topic(config.out_topic)
     self.signal_topic = client.out_topic(config.signal_topic)
     self.fail_mode = config.fail_mode
-    self.current_signal = False
+    self.current_signal = config.fail_mode == FlowDetectorFailMode.OPEN
 
   async def start_task(self):
     async with self.in_topic, self.out_topic, self.signal_topic, self.in_topic.RegisterContext(), \
@@ -54,14 +54,16 @@ class FlowDetectorTask(Task):
         data = await self.in_topic.recv_data_control()
         if isinstance(data, TopicControlData): await self.set_output_paused(data.paused)
         else: 
-          try: self.time_sync.update(get_timestamp_from_message(data))
+          try: 
+            self.time_sync.update(get_timestamp_from_message(data))
+            if self.fail_mode != FlowDetectorFailMode.PASSIVE and self.current_signal == self.out_topic.is_paused:
+              await self.set_signal(not self.out_topic.is_paused)
           except: 
             if self.fail_mode == FlowDetectorFailMode.CLOSED: await self.set_signal(False)
             if self.fail_mode == FlowDetectorFailMode.OPEN: await self.set_signal(True)
           finally: await self.out_topic.send(data)
   async def set_signal(self, signal: bool):
     if signal != self.current_signal:
-      print("sending signal: ", signal)
       await self.signal_topic.send(MessagePackData(NumberMessage(timestamp=self.time_sync.time, value=float(signal)).model_dump()))
       self.current_signal = signal
   async def set_output_paused(self, paused: bool):

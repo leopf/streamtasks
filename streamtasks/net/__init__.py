@@ -301,8 +301,6 @@ class Switch:
     if isinstance(message, TopicMessage):
       if isinstance(message, TopicControlMessage):
         self.stream_controls[message.topic] = message.to_data()
-      else: 
-        print(message.data.data)
       await self.on_stream_message(message, origin)
     elif isinstance(message, AddressedMessage):
       await self.on_addressed_message(message, origin)
