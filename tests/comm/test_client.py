@@ -19,8 +19,9 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     self.tasks = []
     
     self.a = Client(conn1[1])
+    self.a.start()
     self.b = Client(conn2[1])
-
+    self.b.start()
     await asyncio.sleep(0.001)
 
   async def asyncTearDown(self):
@@ -28,19 +29,18 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     for task in self.tasks: task.cancel()
 
   async def test_subscribe(self):
-    topic_tracker = self.a.create_provide_tracker()
-    await topic_tracker.set_topic(1)
-    await asyncio.sleep(0.001)
-
-    self.assertFalse(topic_tracker.is_subscribed)
+    sub_topic = self.a.out_topic(1)
+    await sub_topic.start()
+    await sub_topic.set_registered(True)
+    self.assertFalse(sub_topic.is_requested)
     await self.b.register_in_topics([ 1 ])
-    await asyncio.wait_for(topic_tracker.wait_subscribed(), 1)
-    self.assertTrue(topic_tracker.is_subscribed)
+    await asyncio.wait_for(sub_topic.wait_requested(True), 1)
+    self.assertTrue(sub_topic.is_requested)
 
   async def test_provide_subscribe(self):
     await self.a.register_out_topics([ 1, 2 ])
 
-    async with self.b.get_topics_receiver([ 1, 2 ]) as b_recv:
+    async with TopicsReceiver(self.b, [ 1, 2 ]) as b_recv:
       await self.a.send_stream_data(1, TextData("Hello 1"))
       await self.a.send_stream_data(2, TextData("Hello 2"))
 

@@ -3,6 +3,7 @@ import asyncio
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Iterable, Optional
 from streamtasks.client.receiver import Receiver
+from streamtasks.helpers import AsyncBool
 from streamtasks.message.data import SerializableData
 from streamtasks.net import Message
 from streamtasks.net.types import InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicControlMessage, TopicDataMessage
@@ -13,7 +14,7 @@ if TYPE_CHECKING:
 class _TopicRegisterContext:
   def __init__(self, topic_obj: '_TopicBase') -> None: self._topic_obj = topic_obj
   async def __aenter__(self): await self._topic_obj.set_registered(True)
-  async def __aexit__(self, **_): await self._topic_obj.set_registered(False)
+  async def __aexit__(self, *_): await self._topic_obj.set_registered(False)
 
 class _TopicBase:
   def __init__(self, client: 'Client', topic: int, registered: bool = False) -> None:
@@ -43,7 +44,7 @@ class _TopicBase:
   async def __aenter__(self): 
     await self.start()
     return self
-  async def __aexit__(self, **_): await self.stop()
+  async def __aexit__(self, *_): await self.stop()
 
 class _InTopicAction(Enum):
   SET_COST = auto()
@@ -62,45 +63,46 @@ class _InTopicReceiver(Receiver):
 
   def on_message(self, message: Message):
     if isinstance(message, OutTopicsChangedMessage):
-      otc_message: OutTopicsChangedMessage = message
-      if self._topic in otc_message.remove: self._put_msg(_InTopicAction.SET_COST, None)
+      if self._topic in message.remove: self._put_msg(_InTopicAction.SET_COST, None)
       else:
-        topic_price_map = { pid.id: pid.cost for pid in otc_message.add }
+        topic_price_map = { pid.id: pid.cost for pid in message.add }
         if self._topic in topic_price_map: self._put_msg(_InTopicAction.SET_COST, topic_price_map[self._topic])
 
-    if isinstance(message, TopicControlMessage):
-      tc_message: TopicControlMessage = message
-      if tc_message.topic == self._topic:
-        self._put_msg(_InTopicAction.SET_CONTROL, tc_message.to_data())
+    if isinstance(message, TopicControlMessage) and message.topic == self._topic:
+      self._put_msg(_InTopicAction.SET_CONTROL, message.to_data())
 
-    if isinstance(message, TopicDataMessage):
-      td_message: TopicDataMessage = message
-      if tc_message.topic == self._topic:
-        self._put_msg(_InTopicAction.SET_CONTROL, td_message.data)
+    if isinstance(message, TopicDataMessage) and message.topic == self._topic:
+      self._put_msg(_InTopicAction.DATA, message.data)
 
 
 class InTopic(_TopicBase):
   def __init__(self, client: 'Client', topic: int) -> None:
     super().__init__(client, topic)
     self._receiver = _InTopicReceiver(client, topic)
-    self._control_data: Optional[TopicControlData] = None
+    self._a_is_paused = AsyncBool()
     self._cost: Optional[int] = None
 
   @property
+  def is_paused(self): return self._a_is_paused.value
+  @property
   def cost(self): return self._cost
-  @property
-  def is_available(self): return self._cost is not None
-  @property
-  def is_paused(self): return False if self._control_data is None else self._control_data.paused
-  
+
   async def start(self): await self._receiver.start_recv()
   async def stop(self): await self._receiver.stop_recv()
+  async def wait_paused(self, value: bool = True): return await self._a_is_paused.wait(value)
+  async def recv_data(self):
+    while True:
+      data = await self.recv_data_control()
+      if not isinstance(data, TopicControlData): return data 
 
-  async def recv(self):
+  async def recv_data_control(self):
     while True:
       action, data = await self._receiver.recv()
       if action == _InTopicAction.DATA: return data
-      if action == _InTopicAction.SET_CONTROL: self._control_data = data
+      if action == _InTopicAction.SET_CONTROL: 
+        assert isinstance(data, TopicControlData)
+        self._a_is_paused.set(data.paused)
+        return data
       if action == _InTopicAction.SET_COST: self._cost = data
 
   async def _set_registered(self, registered: bool):
@@ -122,25 +124,24 @@ class _OutTopicReceiver(Receiver):
 
   def on_message(self, message: Message):
     if isinstance(message, InTopicsChangedMessage):
-      itc_message: InTopicsChangedMessage = message
-      if self._topic in itc_message.add: self._put_msg(_OutTopicAction.SET_REQUESTED, True)
-      if self._topic in itc_message.remove: self._put_msg(_OutTopicAction.SET_REQUESTED, False)
+      if self._topic in message.add: self._put_msg(_OutTopicAction.SET_REQUESTED, True)
+      if self._topic in message.remove: self._put_msg(_OutTopicAction.SET_REQUESTED, False)
 
 class OutTopic(_TopicBase):
   def __init__(self, client: 'Client', topic: int) -> None:
     super().__init__(client, topic)
     self._receiver = _OutTopicReceiver(client, topic)
     self._is_paused: bool = False
-    self._is_requested: bool = False
+    self._a_is_requested = AsyncBool()
     self._receiver_task: Optional[asyncio.Task] = None
 
   @property
   def is_paused(self): return self._is_paused
   @property
-  def is_requested(self): return self._is_requested
+  def is_requested(self): return self._a_is_requested.value
 
   async def start(self):
-    if self._receiver_task is None: self._receiver_task = asyncio.create_task(self._receiver_task())
+    if self._receiver_task is None: self._receiver_task = asyncio.create_task(self._run_receiver())
     await self._receiver.start_recv()
 
   async def stop(self):
@@ -148,6 +149,8 @@ class OutTopic(_TopicBase):
     if self._receiver_task is not None: 
       self._receiver_task.cancel()
       self._receiver_task = None
+
+  async def wait_requested(self, value: bool = True): return await self._a_is_requested.wait(value)
 
   async def send(self, data: SerializableData): await self._client.send_stream_data(self._topic, data)
   async def set_paused(self, paused: bool):
@@ -162,17 +165,17 @@ class OutTopic(_TopicBase):
     while True:
       action, data = await self._receiver.recv()
       if action == _OutTopicAction.SET_REQUESTED:
-        self._is_requested = data
+        self._a_is_requested.set(data)
 
 class InTopicsContext:
   def __init__(self, client: 'Client', topics: Iterable[int]):
     self._client = client
     self._topics = topics
   async def __aenter__(self): await self._client.register_in_topics(self._topics)
-  async def __aexit__(self, *args): await self._client.unregister_in_topics(self._topics)
+  async def __aexit__(self, *_): await self._client.unregister_in_topics(self._topics)
 class OutTopicsContext:
   def __init__(self, client: 'Client', topics: Iterable[int]):
     self._client = client
     self._topics = topics
   async def __aenter__(self): await self._client.register_out_topics(self._topics)
-  async def __aexit__(self, *args): await self._client.unregister_out_topics(self._topics)
+  async def __aexit__(self, *_): await self._client.unregister_out_topics(self._topics)

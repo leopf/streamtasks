@@ -33,7 +33,9 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
     await switch.add_link(conn2[0])
 
     self.client1 = Client(conn1[1])
+    self.client1.start()
     self.client2 = Client(conn2[1])
+    self.client2.start()
     await self.client1.set_address(1338)
     await self.client2.set_address(1337)
     await asyncio.sleep(0.001)

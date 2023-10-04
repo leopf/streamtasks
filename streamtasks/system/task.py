@@ -10,7 +10,7 @@ from streamtasks.net import Link
 from streamtasks.helpers import INSTANCE_ID
 from streamtasks.message.data import SerializableData
 from streamtasks.system.protocols import AddressNames, WorkerTopics
-from streamtasks.system.types import DeploymentTask, DeploymentTaskScaffold, RPCUIEventRequest, RPCUIEventResponse, RPCTaskConnectRequest, RPCTaskConnectResponse, TaskDeploymentDeleteMessage, TaskDeploymentStatus, TaskFactoryRegistration, TaskFetchDescriptors
+from streamtasks.system.types import DeploymentTask, DeploymentTaskScaffold, RPCUIEventRequest, RPCUIEventResponse, RPCTaskConnectRequest, RPCTaskConnectResponse, TaskDeploymentDeleteMessage, TaskStatus, TaskFactoryRegistration, TaskFetchDescriptors
 from streamtasks.system.helpers import asgi_app_not_found
 from abc import ABC, abstractclassmethod, abstractmethod, abstractproperty
 import asyncio
@@ -24,14 +24,12 @@ class Task(ABC):
     self._task = None
     self.app = asgi_app_not_found
 
-  def get_deployment_status(self) -> TaskDeploymentStatus: 
+  def get_deployment_status(self) -> TaskStatus: 
     error = None if self._task is None or not self._task.done() else self._task.exception()
-    return TaskDeploymentStatus(
+    return TaskStatus(
       running=self._task is not None and not self._task.done(),
       error=str(error) if error is not None else None)
 
-  def can_update(self, deployment: DeploymentTask): return False
-  async def update(self, deployment: DeploymentTask): pass
   async def stop(self, timeout: float = None): 
     if self._task is None: raise RuntimeError("Task not started")
     self._task.cancel()

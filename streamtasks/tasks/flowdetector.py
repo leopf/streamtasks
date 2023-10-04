@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+from streamtasks.net.types import TopicControlData
 from streamtasks.system.task import Task, TaskFactoryWorker
 from streamtasks.system.helpers import apply_task_stream_config
 from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
@@ -11,10 +13,62 @@ from enum import Enum
 from typing import Optional
 
 class FlowDetectorFailMode(Enum):
-  FAIL_CLOSED = "fail_closed"
-  FAIL_OPEN = "fail_open"
+  CLOSED = "closed"
+  OPEN = "open"
+  PASSIVE = "passive"
+
+@dataclass
+class FlowDetectorConfig:
+  in_topic: int
+  out_topic: int
+  signal_topic: int
+  fail_mode: FlowDetectorFailMode
+
+  @staticmethod
+  def from_deployment_task(task: DeploymentTask):
+    topic_id_map = task.topic_id_map
+
+    return FlowDetectorConfig(
+      in_topic=topic_id_map[task.stream_groups[0].inputs[0].topic_id],
+      out_topic=topic_id_map[task.stream_groups[0].outputs[0].topic_id],
+      signal_topic=topic_id_map[task.stream_groups[0].outputs[1].topic_id],
+      fail_mode=FlowDetectorFailMode(task.config.get("fail_mode", FlowDetectorFailMode.PASSIVE.value))
+    )
 
 class FlowDetectorTask(Task):
+  def __init__(self, client: Client, config: FlowDetectorConfig):
+    super().__init__(client)
+    self.time_sync = TimeSynchronizer()
+    self.in_topic = client.in_topic(config.in_topic)
+    self.out_topic = client.out_topic(config.out_topic)
+    self.signal_topic = client.out_topic(config.signal_topic)
+    self.fail_mode = config.fail_mode
+    self.current_signal = False
+
+  async def start_task(self):
+    async with self.in_topic, self.out_topic, self.signal_topic, self.in_topic.RegisterContext(), \
+        self.out_topic.RegisterContext(), self.signal_topic.RegisterContext():
+      self.client.start()
+      await self.set_output_paused(self.fail_mode == FlowDetectorFailMode.CLOSED)
+      while True:
+        data = await self.in_topic.recv_data_control()
+        if isinstance(data, TopicControlData): await self.set_output_paused(data.paused)
+        else: 
+          try: self.time_sync.update(get_timestamp_from_message(data))
+          except: 
+            if self.fail_mode == FlowDetectorFailMode.CLOSED: await self.set_signal(False)
+            if self.fail_mode == FlowDetectorFailMode.OPEN: await self.set_signal(True)
+          finally: await self.out_topic.send(data)
+  async def set_signal(self, signal: bool):
+    if signal != self.current_signal:
+      print("sending signal: ", signal)
+      await self.signal_topic.send(MessagePackData(NumberMessage(timestamp=self.time_sync.time, value=float(signal)).model_dump()))
+      self.current_signal = signal
+  async def set_output_paused(self, paused: bool):
+    await self.out_topic.set_paused(paused)
+    await self.set_signal(not paused)
+
+class FlowDetectorTask2(Task):
   def __init__(self, client: Client, deployment: DeploymentTask):
     super().__init__(client)    
     self.time_sync = TimeSynchronizer()
@@ -22,7 +76,7 @@ class FlowDetectorTask(Task):
 
     self.failing = False
     self.input_paused = False
-    self.fail_mode = FlowDetectorFailMode(deployment.config.get("fail_mode", FlowDetectorFailMode.FAIL_OPEN.value))
+    self.fail_mode = FlowDetectorFailMode(deployment.config.get("fail_mode", FlowDetectorFailMode.OPEN.value))
     self.signal_delay = deployment.config["signal_delay"] if "signal_delay" in deployment.config else 1
 
     self.input_topic = client.create_subscription_tracker()
@@ -48,7 +102,7 @@ class FlowDetectorTask(Task):
       self.time_sync.reset()
       self.input_paused = False
       self.failing = False
-      self.fail_mode = FlowDetectorFailMode.FAIL_OPEN
+      self.fail_mode = FlowDetectorFailMode.OPEN
       self.setup_done.clear()
 
       await self.input_topic.set_topic(None)
@@ -86,13 +140,14 @@ class FlowDetectorTask(Task):
     if timestamp is not None: self.time_sync.update(timestamp)
     await self.input_topic.set_subscribed(self.output_topic.is_subscribed)
     await self.output_topic.set_paused(self.input_paused)
-    is_active = self.output_topic.is_subscribed and not self.input_paused and (not self.failing or self.fail_mode == FlowDetectorFailMode.FAIL_OPEN)
+    is_active = self.output_topic.is_subscribed and not self.input_paused and (not self.failing or self.fail_mode == FlowDetectorFailMode.OPEN)
     message = NumberMessage(timestamp=self.time_sync.time if timestamp is None else timestamp, value=float(is_active))
     if self.signal_topic.topic is not None: 
       await self.client.send_stream_data(self.signal_topic.topic, MessagePackData(message.model_dump()))
 
 class FlowDetectorTaskFactoryWorker(TaskFactoryWorker):
-  async def create_task(self, deployment: DeploymentTask): return FlowDetectorTask(await self.create_client(), deployment)
+  async def create_task(self, deployment: DeploymentTask): 
+    return FlowDetectorTask(await self.create_client(), FlowDetectorConfig.from_deployment_task(deployment))
   async def rpc_connect(self, req: RPCTaskConnectRequest) -> DeploymentTask: 
     if req.input_id != req.task.stream_groups[0].inputs[0].ref_id: raise Exception("Input stream id does not match task input stream id")
     if req.output_stream:

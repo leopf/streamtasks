@@ -36,7 +36,7 @@ class Receiver(ABC):
   async def __aenter__(self): 
     await self.start_recv()
     return self
-  async def __aexit__(self, *args): await self.stop_recv()
+  async def __aexit__(self, *_): await self.stop_recv()
 
   @abstractmethod
   def on_message(self, message: Message):

@@ -70,6 +70,24 @@ class AwaitableIdTracker(IdTracker):
     if id not in self._waiting_ids_removed: self._waiting_ids_removed[id] = asyncio.Event()
     return await self._waiting_ids_removed[id].wait()
 
+
+class AsyncBool:
+  def __init__(self, initial_value: bool = False) -> None:
+    self._value = initial_value
+    self._waiting_futures: list[asyncio.Future] = []
+  @property
+  def value(self): return self._value
+  def set(self, value: bool):
+    if self.value != value:
+      self._value = value
+      for fut in self._waiting_futures: fut.set_result(True)
+  async def wait(self, value: bool):
+    if self._value == value: return True
+    else: 
+      fut = asyncio.Future()
+      self._waiting_futures.append(fut)
+      return await fut
+
 def get_timestamp_ms(): return int(time.time() * 1000)
 
 class TimeSynchronizer:

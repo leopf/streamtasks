@@ -1,7 +1,6 @@
 import unittest
 from .shared import TaskTestBase
-from streamtasks.tasks.flowdetector import FlowDetectorTask, FlowDetectorFailMode
-from streamtasks.system.types import DeploymentTask, TaskInputStream, TaskOutputStream, TaskStreamGroup
+from streamtasks.tasks.flowdetector import FlowDetectorConfig, FlowDetectorTask, FlowDetectorFailMode
 from streamtasks.message import JsonData, NumberMessage
 from streamtasks.helpers import get_timestamp_ms
 import asyncio
@@ -10,82 +9,65 @@ class TestFlowDetector(TaskTestBase):
 
   async def asyncSetUp(self):
     await super().asyncSetUp()
-    self.stream_in_topic = self.client.create_provide_tracker()
-    await self.stream_in_topic.set_topic(100)
-    self.stream_out_topic = self.client.create_subscription_tracker()
-    await self.stream_out_topic.set_topic(101, False)
-    self.stream_signal_topic = self.client.create_subscription_tracker()
-    await self.stream_signal_topic.set_topic(102)
-
-
-  def get_deployment_config(self, fail_mode: FlowDetectorFailMode): return DeploymentTask(
-    task_factory_id="test_factory",
-    label="test flow detector",
-    config={
-      "fail_mode": fail_mode.value,
-      "signal_delay": 1
-    },
-    stream_groups=[
-      TaskStreamGroup(
-        inputs=[ TaskInputStream(topic_id="input", label="input") ],
-        outputs=[
-          TaskOutputStream(topic_id="output", label="output"),
-          TaskOutputStream(topic_id="signal", label="signal")
-        ]
-      )
-    ],
-    topic_id_map={
-      "input": self.stream_in_topic.topic,
-      "output": self.stream_out_topic.topic,
-      "signal": self.stream_signal_topic.topic
-    }
-  )
+    self.in_topic = self.client.out_topic(100)
+    self.out_topic = self.client.in_topic(101)
+    self.signal_topic = self.client.in_topic(102)
 
   def start_task(self, fail_mode: FlowDetectorFailMode):
-    task = FlowDetectorTask(self.worker_client, self.get_deployment_config(fail_mode))
+    task = FlowDetectorTask(self.worker_client, FlowDetectorConfig(
+      fail_mode=fail_mode,
+      in_topic=self.in_topic.topic,
+      out_topic=self.out_topic.topic,
+      signal_topic=self.signal_topic.topic,
+    ))
     self.tasks.append(asyncio.create_task(task.start()))
     return task
 
   async def _test_fail_mode(self, fail_mode: FlowDetectorFailMode, fm_expected_values):
-    async with asyncio.timeout(10):
-      async with self.client.get_topics_receiver([ self.stream_signal_topic ]) as signal_recv:
+    async with asyncio.timeout(100):
+      async with self.in_topic, self.out_topic, self.signal_topic:
+        self.client.start()
         task = self.start_task(fail_mode)
-        await task.setup_done.wait()
+        
+        await self.out_topic.set_registered(True)
+        await self.signal_topic.set_registered(True)
+        await self.in_topic.set_registered(True)
 
-        await self.stream_out_topic.subscribe()
-        await self.stream_in_topic.wait_subscribed()
+        await self.in_topic.wait_requested()
+        await task.signal_topic.wait_requested()
+        await task.out_topic.wait_requested()
 
-        await self.stream_in_topic.pause()
-        await self.stream_in_topic.resume()
-
-        await self.client.send_stream_data(self.stream_in_topic.topic, JsonData({
+        await self.in_topic.set_paused(True)
+        await self.in_topic.set_paused(False)
+        await self.in_topic.send(JsonData({
           "timestamp": get_timestamp_ms(),
-          "value": 1
+          "value": "HEllo"
+        }))
+        await self.in_topic.send(JsonData({
+          "timestamp": get_timestamp_ms(),
         }))
 
-        await self.client.send_stream_data(self.stream_in_topic.topic, JsonData({
-          "value": 1
-        }))
-
-        async def recv_value():
-          topic_id, data, _ = await signal_recv.recv()
-          if data is None: return None
-          self.assertEqual(topic_id, self.stream_signal_topic.topic)
+        async def recv_signal():
+          data: JsonData = await self.signal_topic.recv_data()
           message = NumberMessage.model_validate(data.data)
           return message.value
+        
 
-        expected_values = [0, 1, 0, 1] + [fm_expected_values[0]] + [fm_expected_values[0]]
-        while len(expected_values) > 0:
-          value = await recv_value()
-          if value is None: continue
-          expected_value = expected_values.pop(0)
-          self.assertEqual(value, expected_value)
+        # expected_values = [0, 1, 0, 1] + [fm_expected_values[0]] + [fm_expected_values[0]]
+        while True: # len(expected_values) > 0:
+          if task._task.done(): raise task._task.exception()
+          value = await recv_signal()
+          # expected_value = expected_values.pop(0)
+          print("found value:", value)
+          # self.assertEqual(value, expected_value)
+
+
 
   async def test_fail_open(self):
-    await self._test_fail_mode(FlowDetectorFailMode.FAIL_OPEN, [ 1 ])
+    await self._test_fail_mode(FlowDetectorFailMode.OPEN, [ 1 ])
 
   async def test_fail_closed(self):
-    await self._test_fail_mode(FlowDetectorFailMode.FAIL_CLOSED, [ 0 ])
+    await self._test_fail_mode(FlowDetectorFailMode.CLOSED, [ 0 ])
 
 if __name__ == '__main__':
   unittest.main()

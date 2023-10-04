@@ -23,8 +23,9 @@ class TestSynchronizedStream(unittest.IsolatedAsyncioTestCase):
     
     self.timestamp = 0
     self.a = Client(conn1[1])
+    self.a.start()
     self.b = Client(conn2[1])
-
+    self.b.start()
     await asyncio.sleep(0.001)
 
   async def asyncTearDown(self):

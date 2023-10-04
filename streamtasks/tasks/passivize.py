@@ -17,8 +17,6 @@ class PassivizeTask(Task):
     self.passive_output_topic = client.create_provide_tracker()
     self.deployment = deployment
 
-  def can_update(self, deployment: DeploymentTask): return True
-  async def update(self, deployment: DeploymentTask): await self._apply_deployment(deployment)
   async def start_task(self):
     try:
       return await asyncio.gather(

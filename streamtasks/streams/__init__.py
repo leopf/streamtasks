@@ -79,7 +79,7 @@ class SynchronizedStream:
   async def __aenter__(self): 
     await self.receiver.__aenter__()
     return self
-  async def __aexit__(self, exc_type, exc_value, traceback): await self.receiver.__aexit__(exc_type, exc_value, traceback)
+  async def __aexit__(self, *args): await self.receiver.__aexit__(*args)
   
   async def recv(self):
     recv_task = asyncio.create_task(self._run_receiver())

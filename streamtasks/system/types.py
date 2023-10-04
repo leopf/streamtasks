@@ -58,7 +58,7 @@ class DeploymentTask(DeploymentTaskScaffold):
         if stream.topic_id is not None:
           yield stream.topic_id
 
-class TaskDeploymentStatus(BaseModel):
+class TaskStatus(BaseModel):
   running: bool
   error: Optional[str] = None
 

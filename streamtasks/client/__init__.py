@@ -14,6 +14,7 @@ import secrets
 class Client:
   def __init__(self, link: Link):
     self._link = link
+    self._started_event = asyncio.Event()
     self._receivers: list[Receiver] = []
     self._receive_task: Optional[asyncio.Task] = None
     self._address: Optional[int] = None
@@ -29,9 +30,11 @@ class Client:
   def address(self): return self._address
 
   def get_topics_receiver(self, topics: Iterable[Union[int, SubscribeTracker]], subscribe: bool = True): return TopicsReceiver(self, set(topics), subscribe)
-  
   def out_topic(self, topic: int): return OutTopic(self, topic)
   def in_topic(self, topic: int): return InTopic(self, topic)
+
+  def start(self): self._started_event.set()
+  def stop(self): self._started_event.clear()
 
   # TODO remove
   def create_subscription_tracker(self): return SubscribeTracker(self)
@@ -66,15 +69,7 @@ class Client:
 
     return found_address
 
-  # TODO remove
-  def topic_is_subscribed(self, topic: int): return topic in self._subscribed_provided_topics
-  # TODO remove
-  async def wait_topic_subscribed(self, topic: int, subscribed: bool = True): 
-    if (topic in self._subscribed_provided_topics) == subscribed: return
-    if subscribed: return await self._subscribed_provided_topics.wait_for_id_added(topic)
-    else: return await self._subscribed_provided_topics.wait_for_id_removed(topic)
-
-  async def send_to(self, endpoint: Endpoint, data: Any): 
+  async def send_to(self, endpoint: Endpoint, data: SerializableData): 
     await self._link.send(AddressedMessage(
       await self._get_address(endpoint[0]), 
       endpoint[1], 
@@ -177,7 +172,9 @@ class Client:
   async def _task_receive(self):
     try:
       while len(self._receivers) > 0:
+        await self._started_event.wait()
         message = await self._link.recv()
+        await self._started_event.wait()
         if isinstance(message, InTopicsChangedMessage): self._subscribed_provided_topics.change_many(message.add, message.remove)
         if isinstance(message, TopicMessage) and message.topic not in self._in_topics: continue
         if isinstance(message, DataMessage) and message.data.type == SerializationType.CUSTOM: message.data.serializer = self._custom_serializers.get(message.data.content_id, None)
