@@ -81,6 +81,7 @@ class AsyncBool:
     if self.value != value:
       self._value = value
       for fut in self._waiting_futures: fut.set_result(True)
+      self._waiting_futures.clear()
   async def wait(self, value: bool):
     if self._value == value: return True
     else: 
