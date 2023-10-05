@@ -32,4 +32,4 @@ class TestMessage(unittest.TestCase):
     self.assertEqual(get_timestamp_from_message(data), message.timestamp)
 
 if __name__ == '__main__':
-    unittest.main()
+  unittest.main()

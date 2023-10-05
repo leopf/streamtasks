@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Iterator
 import unittest
 from .shared import TaskTestBase
-from streamtasks.tasks.flowdetector import FlowDetectorConfig, FlowDetectorTask, FlowDetectorFailMode
+from streamtasks.tasks.flowdetector import FlowDetectorConfig, FlowDetectorState, FlowDetectorTask, FlowDetectorFailMode
 from streamtasks.message import JsonData, NumberMessage
 from streamtasks.helpers import get_timestamp_ms
 import asyncio
@@ -20,32 +20,28 @@ This class simulates the expected behavior of the flow detector
 """
 class FDSim:
   def __init__(self, fail_mode: FlowDetectorFailMode) -> None:
-    self.signals: list[float] = []
+    self.state = FlowDetectorState()
     self.fail_mode = fail_mode
-    self.paused = False
-    self.data_invalid = False
-    self.push_signal(fail_mode == FlowDetectorFailMode.OPEN)
+    self._signals: list[float] = [not self.state.get_signal(self.fail_mode)]
+
+  @property
+  def signals(self): return self._signals[1:] # ignore initial value
 
   def event(self, event: FDEvent):
     if event == FDEvent.pause: 
-      self.push_signal(False)
-      self.paused = True
-    if event == FDEvent.unpause and not self.data_invalid: 
-      self.push_signal(True)
-      self.paused = False
-    if event == FDEvent.valid_data and self.data_invalid:
-      self.data_invalid = False
-      if not self.paused: self.push_signal(True)
+      self.state.input_paused = True
+    if event == FDEvent.unpause: 
+      self.state.input_paused = False
+    if event == FDEvent.valid_data:
+      self.state.last_message_invalid = False 
     if event == FDEvent.invalid_data:
-      self.data_invalid = True
-      if self.fail_mode == FlowDetectorFailMode.CLOSED: 
-        self.push_signal(False)
-      if self.fail_mode == FlowDetectorFailMode.OPEN and not self.paused: 
-        self.push_signal(True)
+      self.state.last_message_invalid = True
+    self.update_signal()
 
-  def push_signal(self, v): 
-    if len(self.signals) == 0 or v != self.signals[-1]: self.signals.append(v)
-
+  def update_signal(self): 
+    new_signal = self.state.get_signal(self.fail_mode)
+    if self._signals[-1] != new_signal: self._signals.append(new_signal)
+  
 class TestFlowDetector(TaskTestBase):
 
   async def asyncSetUp(self):
@@ -65,8 +61,7 @@ class TestFlowDetector(TaskTestBase):
     return task
 
   def generate_events(self) -> Iterator[FDEvent]:
-    possible_events = list(FDEvent)
-    subsequences = list(itertools.combinations(possible_events, len(possible_events)))
+    subsequences = list(itertools.permutations(list(FDEvent)))
     rng = random.Random(42)
     rng.shuffle(subsequences)
     for seq in subsequences:
@@ -74,7 +69,7 @@ class TestFlowDetector(TaskTestBase):
         yield event
 
   async def _test_fail_mode(self, fail_mode: FlowDetectorFailMode):
-    async with asyncio.timeout(1):
+    async with asyncio.timeout(10):
       async with self.in_topic, self.out_topic, self.signal_topic:
         self.client.start()
         task = self.start_task(fail_mode)
@@ -103,21 +98,19 @@ class TestFlowDetector(TaskTestBase):
               "value": "hello"
             }))
 
-        expected_values = list(float(s) for s in sim.signals)
+        expected_values = list(float(s) for s in sim._signals)
 
         while len(expected_values) > 0:
           data: JsonData = await self.signal_topic.recv_data()
           message = NumberMessage.model_validate(data.data)
           self.assertEqual(message.value, expected_values.pop(0))
+          print(f"{len(expected_values)} to go")
 
   async def test_fail_open(self):
     await self._test_fail_mode(FlowDetectorFailMode.OPEN)
 
   async def test_fail_closed(self):
     await self._test_fail_mode(FlowDetectorFailMode.CLOSED)
-
-  async def test_fail_passive(self):
-    await self._test_fail_mode(FlowDetectorFailMode.PASSIVE)
 
 if __name__ == '__main__':
   unittest.main()

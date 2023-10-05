@@ -89,6 +89,22 @@ class AsyncBool:
       self._waiting_futures.append(fut)
       return await fut
 
+class AsyncObservable:
+  static_fields = set(["_observer_futures"])
+  def __init__(self) -> None:
+    self._observer_futures: list[asyncio.Future] = []
+  def __setattr__(self, name: str, value: Any) -> None:
+    if name not in AsyncObservable.static_fields and (name not in self.__dict__ or value != self.__dict__[name]):
+      super().__setattr__(name, value)
+      for fut in self._observer_futures: fut.set_result(None)
+      self._observer_futures.clear()
+    else: super().__setattr__(name, value)
+    
+  async def wait_change(self):
+    fut = asyncio.Future()
+    self._observer_futures.append(fut)
+    return await fut
+
 def get_timestamp_ms(): return int(time.time() * 1000)
 
 class TimeSynchronizer:

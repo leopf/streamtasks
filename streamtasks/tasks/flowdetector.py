@@ -6,7 +6,7 @@ from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, Task
 from streamtasks.client import Client
 from streamtasks.client.receiver import NoopReceiver
 from streamtasks.message import NumberMessage, get_timestamp_from_message, SerializableData, MessagePackData
-from streamtasks.helpers import TimeSynchronizer
+from streamtasks.helpers import AsyncObservable, TimeSynchronizer
 import socket
 import asyncio
 from enum import Enum
@@ -15,7 +15,6 @@ from typing import Optional
 class FlowDetectorFailMode(Enum):
   CLOSED = "closed"
   OPEN = "open"
-  PASSIVE = "passive"
 
 @dataclass
 class FlowDetectorConfig:
@@ -23,6 +22,7 @@ class FlowDetectorConfig:
   out_topic: int
   signal_topic: int
   fail_mode: FlowDetectorFailMode
+  signal_delay: Optional[float] = None
 
   @staticmethod
   def from_deployment_task(task: DeploymentTask):
@@ -32,8 +32,26 @@ class FlowDetectorConfig:
       in_topic=topic_id_map[task.stream_groups[0].inputs[0].topic_id],
       out_topic=topic_id_map[task.stream_groups[0].outputs[0].topic_id],
       signal_topic=topic_id_map[task.stream_groups[0].outputs[1].topic_id],
-      fail_mode=FlowDetectorFailMode(task.config.get("fail_mode", FlowDetectorFailMode.PASSIVE.value))
+      fail_mode=FlowDetectorFailMode(task.config.get("fail_mode", FlowDetectorFailMode.PASSIVE.value)),
+      signal_delay=float(task.config["signal_delay"]) if "signal_delay" in task.config else None
     )
+
+class FlowDetectorState(AsyncObservable):
+  last_message_invalid: bool
+  input_paused: bool
+
+  def __init__(self) -> None:
+    super().__init__()
+    self.last_message_invalid = False
+    self.input_paused = False
+
+  def get_signal(self, fail_mode: FlowDetectorFailMode):
+    if self.input_paused: return False
+    if self.last_message_invalid:
+      if fail_mode == FlowDetectorFailMode.CLOSED: return False
+      if fail_mode == FlowDetectorFailMode.OPEN: return True # to be explicit
+    else:
+      return True
 
 class FlowDetectorTask(Task):
   def __init__(self, client: Client, config: FlowDetectorConfig):
@@ -42,33 +60,56 @@ class FlowDetectorTask(Task):
     self.in_topic = client.in_topic(config.in_topic)
     self.out_topic = client.out_topic(config.out_topic)
     self.signal_topic = client.out_topic(config.signal_topic)
+
     self.fail_mode = config.fail_mode
-    self.current_signal = config.fail_mode == FlowDetectorFailMode.OPEN
+    self.signal_delay = config.signal_delay
+    self.state = FlowDetectorState()
+    self.current_signal = not self.state.get_signal(self.fail_mode) # make sure the initial state is sent
 
   async def start_task(self):
+    tasks = [
+      asyncio.create_task(self.run_main()),
+      asyncio.create_task(self.run_updater()),
+    ]
+    if self.signal_delay: tasks.append(asyncio.create_task(self.run_lighthouse()))
+    try: await asyncio.gather(*tasks)
+    finally:
+      for task in tasks: task.cancel()
+
+  async def run_main(self):
     async with self.in_topic, self.out_topic, self.signal_topic, self.in_topic.RegisterContext(), \
         self.out_topic.RegisterContext(), self.signal_topic.RegisterContext():
       self.client.start()
-      await self.set_output_paused(self.fail_mode == FlowDetectorFailMode.CLOSED)
       while True:
         data = await self.in_topic.recv_data_control()
-        if isinstance(data, TopicControlData): await self.set_output_paused(data.paused)
+        print("recv: ", data)
+        if isinstance(data, TopicControlData): 
+          await self.out_topic.set_paused(data.paused)
+          self.state.input_paused = data.paused
         else: 
           try: 
             self.time_sync.update(get_timestamp_from_message(data))
-            if self.fail_mode != FlowDetectorFailMode.PASSIVE and self.current_signal == self.out_topic.is_paused:
-              await self.set_signal(not self.out_topic.is_paused)
-          except: 
-            if self.fail_mode == FlowDetectorFailMode.CLOSED: await self.set_signal(False)
-            if self.fail_mode == FlowDetectorFailMode.OPEN: await self.set_signal(True)
+            self.state.last_message_invalid = False
+          except ValueError: self.state.last_message_invalid = True
           finally: await self.out_topic.send(data)
-  async def set_signal(self, signal: bool):
-    if signal != self.current_signal:
-      await self.signal_topic.send(MessagePackData(NumberMessage(timestamp=self.time_sync.time, value=float(signal)).model_dump()))
-      self.current_signal = signal
-  async def set_output_paused(self, paused: bool):
-    await self.out_topic.set_paused(paused)
-    await self.set_signal(not paused)
+        await asyncio.sleep(0.001)
+
+  async def run_updater(self):
+    while True:
+      print("state changed: ", self.state)
+      new_signal = self.state.get_signal(self.fail_mode)
+      if new_signal != self.current_signal:
+        self.current_signal = new_signal
+        await self.send_current_signal()
+      await self.state.wait_change()
+
+  async def run_lighthouse(self):
+    while True:
+      await asyncio.sleep(self.signal_delay)
+      await self.send_current_signal()
+
+  async def send_current_signal(self):
+    await self.signal_topic.send(MessagePackData(NumberMessage(timestamp=self.time_sync.time, value=float(self.current_signal)).model_dump()))
 
 class FlowDetectorTask2(Task):
   def __init__(self, client: Client, deployment: DeploymentTask):
