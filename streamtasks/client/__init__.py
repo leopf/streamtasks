@@ -1,6 +1,6 @@
 from typing import Optional, Any
 import asyncio
-from streamtasks.client.topic import InTopic, OutTopic, InTopicsContext, OutTopicsContext
+from streamtasks.client.topic import InTopic, InTopicSynchronizer, OutTopic, InTopicsContext, OutTopicsContext, SynchronizedInTopic
 from streamtasks.net import *
 from streamtasks.helpers import IdGenerator, IdTracker, AwaitableIdTracker
 from streamtasks.system.protocols import WorkerAddresses, WorkerFetchDescriptors
@@ -32,6 +32,7 @@ class Client:
   def get_topics_receiver(self, topics: Iterable[Union[int, SubscribeTracker]], subscribe: bool = True): return TopicsReceiver(self, set(topics), subscribe)
   def out_topic(self, topic: int): return OutTopic(self, topic)
   def in_topic(self, topic: int): return InTopic(self, topic)
+  def sync_in_topic(self, topic: int, sync: InTopicSynchronizer): return SynchronizedInTopic(self, topic, sync)
 
   def start(self): self._started_event.set()
   def stop(self): self._started_event.clear()

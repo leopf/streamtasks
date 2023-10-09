@@ -1,11 +1,13 @@
 from abc import abstractmethod
 import asyncio
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any, Iterable, Optional
+from typing import TYPE_CHECKING, Any, Coroutine, Iterable, Optional
+from streamtasks.client import Client
 from streamtasks.client.receiver import Receiver
 from streamtasks.helpers import AsyncBool
-from streamtasks.message.data import SerializableData
-from streamtasks.net import Message
+from streamtasks.message.data import Any, SerializableData
+from streamtasks.message.helpers import get_timestamp_from_message
+from streamtasks.net import Any, Message
 from streamtasks.net.types import InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicControlMessage, TopicDataMessage
 
 if TYPE_CHECKING:
@@ -76,9 +78,9 @@ class _InTopicReceiver(Receiver):
 
 
 class InTopic(_TopicBase):
-  def __init__(self, client: 'Client', topic: int) -> None:
+  def __init__(self, client: 'Client', topic: int, receiver: Optional[_InTopicReceiver] = None) -> None:
     super().__init__(client, topic)
-    self._receiver = _InTopicReceiver(client, topic)
+    self._receiver = receiver if receiver else _InTopicReceiver(client, topic)
     self._a_is_paused = AsyncBool()
     self._cost: Optional[int] = None
 
@@ -108,6 +110,57 @@ class InTopic(_TopicBase):
   async def _set_registered(self, registered: bool):
     if registered: await self._client.register_in_topics([ self._topic ])
     else: await self._client.unregister_in_topics([ self._topic ])
+
+class InTopicSynchronizer:
+  def __init__(self) -> None:
+    self._topic_timestamps: dict[int, int] = {}
+    self._timestamp_waiters: dict[int, asyncio.Future] = {}
+  
+  @property
+  def current_timestamp(self): return min(self._topic_timestamps.values())
+
+  def set_paused(self, topic_id: int, paused: bool): 
+    if paused: 
+      self._topic_timestamps.pop(topic_id, None)
+      self._update_waiters()
+    else: self._topic_timestamps[topic_id] = self.current_timestamp
+
+  async def topic_wait_timstamp(self, topic_id: int, timestamp: int):
+    self._topic_timestamps[topic_id] = timestamp
+    fut = asyncio.Future()
+    self._timestamp_waiters[timestamp] = fut
+    self._update_waiters()
+    return await fut
+
+  def _update_waiters(self):
+    current_timestamp = self.current_timestamp
+    resolve_timestamps = [ timestamp for timestamp in self._timestamp_waiters if timestamp <= current_timestamp ]
+    for timestamp in resolve_timestamps:
+      fut = self._timestamp_waiters.pop(timestamp)
+      assert fut is not None, "the selected timestamps should be present in the set when popping."
+      fut.set_result(None)
+
+class _SynchronizedInTopicReceiver(_InTopicReceiver):
+  def __init__(self, client: Client, topic: int, sync: InTopicSynchronizer):
+    super().__init__(client, topic)
+    self._sync = sync
+
+  async def recv(self) -> Coroutine[Any, Any, Any]:
+    action, data = await super().recv()
+    if action == _InTopicAction.SET_CONTROL:
+      assert isinstance(data, TopicControlData)
+      self._sync.set_paused(self._topic, data.paused)
+      return data
+    elif action == _InTopicAction.DATA:
+      try:
+        timestamp = get_timestamp_from_message(data)
+        await self._sync.topic_wait_timstamp(self._topic, timestamp)
+      except ValueError: pass
+    return (action, data)
+
+class SynchronizedInTopic(InTopic):
+  def __init__(self, client: Client, topic: int, sync: InTopicSynchronizer) -> None:
+    super().__init__(client, topic, _SynchronizedInTopicReceiver(client, topic, sync))
 
 class _OutTopicAction(Enum):
   SET_REQUESTED = auto()
