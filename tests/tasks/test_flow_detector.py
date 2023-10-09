@@ -1,6 +1,8 @@
 from enum import Enum
-from typing import Iterator
+from typing import Any, Iterator
 import unittest
+
+from tests.sim import Simulator
 from .shared import TaskTestBase
 from streamtasks.tasks.flowdetector import FlowDetectorConfig, FlowDetectorState, FlowDetectorTask, FlowDetectorFailMode
 from streamtasks.message import JsonData, NumberMessage
@@ -18,17 +20,13 @@ class FDEvent(Enum):
 """
 This class simulates the expected behavior of the flow detector
 """
-class FDSim:
+class FlowDetectorSim(Simulator):
   def __init__(self, fail_mode: FlowDetectorFailMode) -> None:
+    super().__init__()
     self.state = FlowDetectorState()
     self.fail_mode = fail_mode
-    self._signals: list[float] = [not self.state.get_signal(self.fail_mode)]
-    self.update_signal()
 
-  @property
-  def signals(self): return self._signals[1:] # ignore initial value
-
-  def event(self, event: FDEvent):
+  def update_state(self, event: FDEvent):
     if event == FDEvent.pause: 
       self.state.input_paused = True
     if event == FDEvent.unpause: 
@@ -37,12 +35,10 @@ class FDSim:
       self.state.last_message_invalid = False 
     if event == FDEvent.invalid_data:
       self.state.last_message_invalid = True
-    self.update_signal()
 
-  def update_signal(self): 
-    new_signal = self.state.get_signal(self.fail_mode)
-    if self._signals[-1] != new_signal: self._signals.append(new_signal)
-  
+  def get_output(self) -> dict[str, Any]: return { "signal": self.state.get_signal(self.fail_mode) }
+  def get_state(self) -> dict[str, Any]: return self.state.as_dict()
+
 class TestFlowDetector(TaskTestBase):
 
   async def asyncSetUp(self):
@@ -82,9 +78,9 @@ class TestFlowDetector(TaskTestBase):
       await task.signal_topic.wait_requested()
       await task.out_topic.wait_requested()
       
-      sim = FDSim(fail_mode)
+      sim = FlowDetectorSim(fail_mode)
       for event in self.generate_events():
-        sim.event(event)
+        sim.on_event(event)
         if event == FDEvent.pause: 
           await self.in_topic.set_paused(True)
         if event == FDEvent.unpause:
@@ -97,15 +93,11 @@ class TestFlowDetector(TaskTestBase):
           await self.in_topic.send(JsonData({
             "value": "hello"
           }))
-
-      # TODO fix offset, this is some init problem, works otherwise
-      expected_values = list(float(s) for s in sim._signals)[:-2]
-
-      while len(expected_values) > 0:
-        data: JsonData = await self.signal_topic.recv_data()
-        message = NumberMessage.model_validate(data.data)
-        self.assertEqual(message.value, expected_values.pop(0))
-        print(f"{len(expected_values)} to go")
+        if sim.eout_changed():
+          data: JsonData = await asyncio.wait_for(self.signal_topic.recv_data(), 1)
+          message = NumberMessage.model_validate(data.data)
+          sim.on_output({ "signal": message.value > 0.5 })
+        else: sim.on_idle()
 
   async def test_fail_open(self):
     await self._test_fail_mode(FlowDetectorFailMode.OPEN)

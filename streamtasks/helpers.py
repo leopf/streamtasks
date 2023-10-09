@@ -104,6 +104,9 @@ class AsyncObservable:
     fut = asyncio.Future()
     self._observer_futures.append(fut)
     return await fut
+  
+  def as_dict(self):
+    return { k: v for k, v in self.__dict__.items() if k not in AsyncObservable.static_fields }
 
 def get_timestamp_ms(): return int(time.time() * 1000)
 
