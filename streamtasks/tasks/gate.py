@@ -23,6 +23,7 @@ class GateConfig:
   gate_topic: int
   in_topic: int
   out_topic: int
+  synchronized: bool = True
 
   @staticmethod
   def from_deployment_task(task: DeploymentTask):
@@ -52,10 +53,15 @@ class GateState(AsyncObservable):
 class GateTask(Task):
   def __init__(self, client: Client, config: GateConfig):
     super().__init__(client)
-    sync = InTopicSynchronizer()
-    self.in_topic = self.client.sync_in_topic(config.in_topic, sync)
-    self.gate_topic = self.client.sync_in_topic(config.gate_topic, sync)
-    self.out_topic = self.client.out_topic(config.out_topic)
+    if config.synchronized:
+      sync = InTopicSynchronizer()
+      self.in_topic = self.client.sync_in_topic(config.in_topic, sync)
+      self.gate_topic = self.client.sync_in_topic(config.gate_topic, sync)
+      self.out_topic = self.client.out_topic(config.out_topic)
+    else:
+      self.in_topic = self.client.in_topic(config.in_topic)
+      self.gate_topic = self.client.in_topic(config.gate_topic)
+      self.out_topic = self.client.out_topic(config.out_topic)
     self.state = GateState()
     self.fail_mode = config.fail_mode
 
@@ -72,13 +78,13 @@ class GateTask(Task):
         self.client.start()
         await asyncio.gather(*tasks)
     finally:
-      for task in tasks: task.cancle()
+      for task in tasks: task.cancel()
 
   async def run_gate_recv(self):
     while True:
       data = await self.gate_topic.recv_data_control()
       if isinstance(data, TopicControlData):
-        self.state.gate_paused = True
+        self.state.gate_paused = data.paused
       else:
         try:
           msg = NumberMessage.model_validate(data.data)

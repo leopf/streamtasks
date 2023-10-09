@@ -116,7 +116,7 @@ class InTopicSynchronizer:
     self._timestamp_waiters: dict[int, asyncio.Future] = {}
   
   @property
-  def current_timestamp(self): return min(self._topic_timestamps.values())
+  def current_timestamp(self): return 0 if len(self._topic_timestamps) == 0 else min(self._topic_timestamps.values())
 
   def set_paused(self, topic_id: int, paused: bool): 
     if paused: 
@@ -134,6 +134,7 @@ class InTopicSynchronizer:
   def _update_waiters(self):
     current_timestamp = self.current_timestamp
     resolve_timestamps = [ timestamp for timestamp in self._timestamp_waiters if timestamp <= current_timestamp ]
+    resolve_timestamps.sort() # make sure early timestamps are resolved first
     for timestamp in resolve_timestamps:
       fut = self._timestamp_waiters.pop(timestamp)
       assert fut is not None, "the selected timestamps should be present in the set when popping."
