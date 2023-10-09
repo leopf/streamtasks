@@ -2,7 +2,6 @@ from abc import abstractmethod
 import asyncio
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Coroutine, Iterable, Optional
-from streamtasks.client import Client
 from streamtasks.client.receiver import Receiver
 from streamtasks.helpers import AsyncBool
 from streamtasks.message.data import Any, SerializableData
@@ -141,7 +140,7 @@ class InTopicSynchronizer:
       fut.set_result(None)
 
 class _SynchronizedInTopicReceiver(_InTopicReceiver):
-  def __init__(self, client: Client, topic: int, sync: InTopicSynchronizer):
+  def __init__(self, client: 'Client', topic: int, sync: InTopicSynchronizer):
     super().__init__(client, topic)
     self._sync = sync
 
@@ -159,7 +158,7 @@ class _SynchronizedInTopicReceiver(_InTopicReceiver):
     return (action, data)
 
 class SynchronizedInTopic(InTopic):
-  def __init__(self, client: Client, topic: int, sync: InTopicSynchronizer) -> None:
+  def __init__(self, client: 'Client', topic: int, sync: InTopicSynchronizer) -> None:
     super().__init__(client, topic, _SynchronizedInTopicReceiver(client, topic, sync))
 
 class _OutTopicAction(Enum):

@@ -1,3 +1,7 @@
+from dataclasses import dataclass
+from streamtasks.client.topic import InTopicSynchronizer
+from streamtasks.helpers import AsyncObservable
+from streamtasks.net.types import TopicControlData
 from streamtasks.system.task import Task, TaskFactoryWorker
 from streamtasks.system.helpers import apply_task_stream_config, validate_stream_config
 from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, TaskStreamConfig, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
@@ -10,85 +14,95 @@ import asyncio
 from enum import Enum
 
 class GateFailMode(Enum):
-  FAIL_CLOSED = "fail_closed"
-  FAIL_OPEN = "fail_open"
-  PASSIVE = "passive"
+  CLOSED = "closed"
+  OPEN = "open"
+
+@dataclass
+class GateConfig: 
+  fail_mode: GateFailMode
+  gate_topic: int
+  in_topic: int
+  out_topic: int
+
+  @staticmethod
+  def from_deployment_task(task: DeploymentTask):
+    topic_id_map = task.topic_id_map
+
+    return GateConfig(
+      in_topic=topic_id_map[task.stream_groups[0].inputs[0].topic_id],
+      gate_topic=topic_id_map[task.stream_groups[0].inputs[1].topic_id],
+      out_topic=topic_id_map[task.stream_groups[0].outputs[0].topic_id],
+      fail_mode=GateFailMode(task.config.get("fail_mode", GateFailMode.OPEN.value)),
+    )
+
+class GateState(AsyncObservable):
+  def __init__(self) -> None:
+    super().__init__()
+    self.gate_paused: bool = False
+    self.gate_errored: bool = False
+    self.input_paused: bool = False
+    self.gate_value: bool = True
+  
+  def get_open(self, fail_mode: GateFailMode):
+    if self.input_paused or not self.gate_value: return False
+    if fail_mode == GateFailMode.CLOSED and (self.gate_paused or self.gate_errored): return False
+    return True
+  def get_output_paused(self, fail_mode: GateFailMode): return not self.get_open(fail_mode)
 
 class GateTask(Task):
-  def __init__(self, client: Client, deployment: DeploymentTask):
+  def __init__(self, client: Client, config: GateConfig):
     super().__init__(client)
-    self.deployment = deployment
-
-    self.input_topic = client.create_subscription_tracker()
-    self.gate_topic = client.create_subscription_tracker()
-    self.output_topic = client.create_provide_tracker()
-
-    stream_sync = StreamSynchronizer()
-    self.input_stream = SynchronizedStream(stream_sync, client.get_topics_receiver([ self.input_topic ]))
-    self.gate_stream = SynchronizedStream(stream_sync, client.get_topics_receiver([ self.gate_topic ]))
+    sync = InTopicSynchronizer()
+    self.in_topic = self.client.sync_in_topic(config.in_topic, sync)
+    self.gate_topic = self.client.sync_in_topic(config.gate_topic, sync)
+    self.out_topic = self.client.out_topic(config.out_topic)
+    self.state = GateState()
+    self.fail_mode = config.fail_mode
 
   async def start_task(self):
+    tasks: list[asyncio.Task] = []
     try:
-      await self._setup()
-      return await asyncio.gather(
-        self._process_gate_stream(),
-        self._process_input_stream(),
-        self._process_subscription_status(),
-      )
-    finally:    
-      self.input_paused = False
-      self.gate_open = self.default_gate_open
-      await self.input_topic.set_topic(None)
-      await self.gate_topic.set_topic(None)
-      await self.output_topic.set_topic(None)
-  
-  async def _setup(self):
-    topic_id_map = self.deployment.topic_id_map
-    await self.input_topic.set_topic(topic_id_map[self.deployment.stream_groups[0].inputs[0].topic_id])
-    await self.gate_topic.set_topic(topic_id_map[self.deployment.stream_groups[0].inputs[1].topic_id])
-    await self.output_topic.set_topic(topic_id_map[self.deployment.stream_groups[0].outputs[0].topic_id])
-    self.fail_mode = GateFailMode(self.deployment.config.get("fail_mode", GateFailMode.PASSIVE.value))
-    self.gate_open = self.default_gate_open
-    self.input_paused = False
-  
-  @property
-  def default_gate_open(self): return False if self.fail_mode == GateFailMode.FAIL_CLOSED else True
-  
-  async def _process_subscription_status(self):
-    async with NoopReceiver(self.client):
-      while True:
-        await self.output_topic.wait_subscribed_change()
-        await self.on_state_change()
+      async with self.in_topic, self.gate_topic, self.out_topic, self.in_topic.RegisterContext(), \
+          self.gate_topic.RegisterContext(), self.out_topic.RegisterContext():
+        
+        tasks.append(asyncio.create_task(self.run_gate_recv()))
+        tasks.append(asyncio.create_task(self.run_in_recv()))
+        tasks.append(asyncio.create_task(self.run_out_pauser()))
 
-  async def _process_gate_stream(self):
-    async with self.gate_stream:
-      while True:
-        with await self.gate_stream.recv() as message:
-          if message.data is not None: 
-            try:
-              nmessage = NumberMessage.model_validate(message.data.data)
-              self.gate_open = float(nmessage.value) > 0.5
-            except:
-              if self.fail_mode != GateFailMode.PASSIVE: self.gate_open = self.default_gate_open
-          if message.control is not None and message.control.paused and self.fail_mode != GateFailMode.PASSIVE: 
-            self.gate_open = self.default_gate_open 
-          await self.on_state_change()
+        self.client.start()
+        await asyncio.gather(*tasks)
+    finally:
+      for task in tasks: task.cancle()
 
-  async def _process_input_stream(self):
-    async with self.input_stream:
-      while True:
-        with await self.input_stream.recv() as message:
-          if message.data is not None and self.gate_open: 
-            await self.client.send_stream_data(self.output_topic.topic, message.data)
-          if message.control is not None: self.input_paused = message.control.paused
-          await self.on_state_change()
-  
-  async def on_state_change(self):
-    await self.input_topic.set_subscribed(self.output_topic.is_subscribed)
-    await self.output_topic.set_paused(self.input_paused or not self.gate_open)
+  async def run_gate_recv(self):
+    while True:
+      data = await self.gate_topic.recv_data_control()
+      if isinstance(data, TopicControlData):
+        self.state.gate_paused = True
+      else:
+        try:
+          msg = NumberMessage.model_validate(data.data)
+          self.state.gate_value = msg.value > 0.5
+          self.state.gate_errored = False
+        except:
+          self.state.gate_errored = True
+  async def run_out_pauser(self):
+    while True:
+      await self.out_topic.set_paused(self.state.get_output_paused(self.fail_mode))
+      await self.state.wait_change()
+  async def run_in_recv(self):
+    while True:
+      data = await self.in_topic.recv_data_control()
+      if isinstance(data, TopicControlData):
+        self.state.input_paused = data.paused
+      else: 
+        if self.state.get_open(self.fail_mode):
+          await self.out_topic.send(data)
 
 class GateTaskFactoryWorker(TaskFactoryWorker):
-  async def create_task(self, deployment: DeploymentTask): return GateTask(await self.create_client(), deployment)
+  async def create_task(self, deployment: DeploymentTask): 
+    return GateTask(await self.create_client(), GateConfig.from_deployment_task(deployment))
+  
   async def rpc_connect(self, req: RPCTaskConnectRequest) -> DeploymentTask:
     if req.input_id == req.task.stream_groups[0].inputs[0].ref_id:
       if req.output_stream is None:
