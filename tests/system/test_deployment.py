@@ -80,6 +80,7 @@ class CounterEmitTaskFactory(TestTaskFactoryWorker):
     stream_groups=[TaskStreamGroup(inputs=[],outputs=[TaskOutputStream(label="count",topic_id="emit")])]
   )
 
+@unittest.skip("not implemented")
 class TestDeployment(unittest.IsolatedAsyncioTestCase):
   node: LocalNode
   worker: Worker

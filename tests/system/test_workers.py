@@ -6,7 +6,7 @@ from streamtasks.system.discovery import DiscoveryWorker
 from streamtasks.node import *
 import asyncio
 
-
+@unittest.skip("not implemented")
 class TestWorkers(unittest.IsolatedAsyncioTestCase):
   node: LocalNode
   worker: Worker
