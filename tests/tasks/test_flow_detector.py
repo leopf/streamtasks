@@ -70,43 +70,42 @@ class TestFlowDetector(TaskTestBase):
         yield event
 
   async def _test_fail_mode(self, fail_mode: FlowDetectorFailMode):
-    async with asyncio.timeout(1000):
-      async with self.in_topic, self.out_topic, self.signal_topic:
-        self.client.start()
-        task = self.start_task(fail_mode)
-        
-        await self.out_topic.set_registered(True)
-        await self.signal_topic.set_registered(True)
-        await self.in_topic.set_registered(True)
+    async with asyncio.timeout(1000), self.in_topic, self.out_topic, self.signal_topic:
+      self.client.start()
+      task = self.start_task(fail_mode)
+      
+      await self.out_topic.set_registered(True)
+      await self.signal_topic.set_registered(True)
+      await self.in_topic.set_registered(True)
 
-        await self.in_topic.wait_requested()
-        await task.signal_topic.wait_requested()
-        await task.out_topic.wait_requested()
-        
-        sim = FDSim(fail_mode)
-        for event in self.generate_events():
-          sim.event(event)
-          if event == FDEvent.pause: 
-            await self.in_topic.set_paused(True)
-          if event == FDEvent.unpause:
-            await self.in_topic.set_paused(False)
-          if event == FDEvent.valid_data:
-            await self.in_topic.send(JsonData({
-              "timestamp": get_timestamp_ms(),
-            }))
-          if event == FDEvent.invalid_data:
-            await self.in_topic.send(JsonData({
-              "value": "hello"
-            }))
+      await self.in_topic.wait_requested()
+      await task.signal_topic.wait_requested()
+      await task.out_topic.wait_requested()
+      
+      sim = FDSim(fail_mode)
+      for event in self.generate_events():
+        sim.event(event)
+        if event == FDEvent.pause: 
+          await self.in_topic.set_paused(True)
+        if event == FDEvent.unpause:
+          await self.in_topic.set_paused(False)
+        if event == FDEvent.valid_data:
+          await self.in_topic.send(JsonData({
+            "timestamp": get_timestamp_ms(),
+          }))
+        if event == FDEvent.invalid_data:
+          await self.in_topic.send(JsonData({
+            "value": "hello"
+          }))
 
-        # TODO fix offset, this is some init problem, works otherwise
-        expected_values = list(float(s) for s in sim._signals)[:-2]
+      # TODO fix offset, this is some init problem, works otherwise
+      expected_values = list(float(s) for s in sim._signals)[:-2]
 
-        while len(expected_values) > 0:
-          data: JsonData = await self.signal_topic.recv_data()
-          message = NumberMessage.model_validate(data.data)
-          self.assertEqual(message.value, expected_values.pop(0))
-          print(f"{len(expected_values)} to go")
+      while len(expected_values) > 0:
+        data: JsonData = await self.signal_topic.recv_data()
+        message = NumberMessage.model_validate(data.data)
+        self.assertEqual(message.value, expected_values.pop(0))
+        print(f"{len(expected_values)} to go")
 
   async def test_fail_open(self):
     await self._test_fail_mode(FlowDetectorFailMode.OPEN)

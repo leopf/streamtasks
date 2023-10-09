@@ -5,7 +5,6 @@ from streamtasks.system.protocols import *
 from streamtasks.message.data import *
 import itertools
 from typing import Union, Optional, Any, TYPE_CHECKING
-from streamtasks.client.helpers import SubscribeTracker
 
 if TYPE_CHECKING:
   from streamtasks.client import Client
@@ -108,15 +107,12 @@ class TopicsReceiver(Receiver):
   _control_data: dict[int, TopicControlData]
   _recv_queue: asyncio.Queue[tuple[int, Optional[SerializableData], Optional[TopicControlData]]]
 
-  def __init__(self, client: 'Client', topics: Iterable[Union[int, 'SubscribeTracker']], subscribe: bool = True):
+  def __init__(self, client: 'Client', topics: Iterable[int], subscribe: bool = True):
     super().__init__(client)
-    self._topics = set(t for t in topics if isinstance(t, int))
-    self._tracked_topics = [ t for t in topics if isinstance(t, SubscribeTracker) ]
+    self._topics = set(topics)
     self._control_data = {}
     self._subscribe = subscribe
     
-  @property
-  def topics(self): return itertools.chain(self._topics, (t.topic for t in self._tracked_topics))
   def get_control_data(self, topic: int): return self._control_data.get(topic, None)
 
   async def _on_start_recv(self): 
@@ -125,7 +121,7 @@ class TopicsReceiver(Receiver):
     if self._subscribe and len(self._topics) > 0: await self._client.unregister_in_topics(self._topics)
 
   def on_message(self, message: Message):
-    if isinstance(message, TopicMessage) and message.topic in self.topics:
+    if isinstance(message, TopicMessage) and message.topic in self._topics:
       if isinstance(message, TopicDataMessage):
         sd_message: TopicDataMessage = message
         self._recv_queue.put_nowait((sd_message.topic, sd_message.data, None))

@@ -145,17 +145,19 @@ class _SynchronizedInTopicReceiver(_InTopicReceiver):
     self._sync = sync
 
   async def recv(self) -> Coroutine[Any, Any, Any]:
-    action, data = await super().recv()
-    if action == _InTopicAction.SET_CONTROL:
-      assert isinstance(data, TopicControlData)
-      self._sync.set_paused(self._topic, data.paused)
-      return data
-    elif action == _InTopicAction.DATA:
-      try:
-        timestamp = get_timestamp_from_message(data)
-        await self._sync.topic_wait_timstamp(self._topic, timestamp)
-      except ValueError: pass
-    return (action, data)
+    while True:
+      action, data = await super().recv()
+      if action == _InTopicAction.SET_CONTROL:
+        assert isinstance(data, TopicControlData)
+        self._sync.set_paused(self._topic, data.paused)
+        return data
+      elif action == _InTopicAction.DATA:
+        try:
+          timestamp = get_timestamp_from_message(data)
+          if timestamp < self._sync.current_timestamp: continue # NOTE drop the past
+          await self._sync.topic_wait_timstamp(self._topic, timestamp)
+        except ValueError: pass
+      return (action, data)
 
 class SynchronizedInTopic(InTopic):
   def __init__(self, client: 'Client', topic: int, sync: InTopicSynchronizer) -> None:

@@ -8,7 +8,6 @@ from streamtasks.message.serializers import get_core_serializers
 from streamtasks.message.data import *
 from streamtasks.client.receiver import *
 from streamtasks.client.fetch import FetchReponseReceiver, FetchRequestMessage
-from streamtasks.client.helpers import ProvideTracker, SubscribeTracker
 import secrets
 
 class Client:
@@ -29,18 +28,13 @@ class Client:
   @property
   def address(self): return self._address
 
-  def get_topics_receiver(self, topics: Iterable[Union[int, SubscribeTracker]], subscribe: bool = True): return TopicsReceiver(self, set(topics), subscribe)
+  def get_topics_receiver(self, topics: Iterable[int], subscribe: bool = True): return TopicsReceiver(self, set(topics), subscribe)
   def out_topic(self, topic: int): return OutTopic(self, topic)
   def in_topic(self, topic: int): return InTopic(self, topic)
   def sync_in_topic(self, topic: int, sync: InTopicSynchronizer): return SynchronizedInTopic(self, topic, sync)
 
   def start(self): self._started_event.set()
   def stop(self): self._started_event.clear()
-
-  # TODO remove
-  def create_subscription_tracker(self): return SubscribeTracker(self)
-  # TODO remove
-  def create_provide_tracker(self): return ProvideTracker(self)
 
   def add_serializer(self, serializer: Serializer): 
     if serializer.content_id not in self._custom_serializers: self._custom_serializers[serializer.content_id] = serializer

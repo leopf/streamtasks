@@ -67,19 +67,22 @@ class FlowDetectorTask(Task):
     self.current_signal = not self.state.get_signal(self.fail_mode) # make sure the initial state is sent
 
   async def start_task(self):
-    tasks = [
-      asyncio.create_task(self.run_main()),
-      asyncio.create_task(self.run_updater()),
-    ]
-    if self.signal_delay: tasks.append(asyncio.create_task(self.run_lighthouse()))
-    try: await asyncio.gather(*tasks)
+    tasks: list[asyncio.Task] = []
+    try: 
+      async with self.in_topic, self.out_topic, self.signal_topic, self.in_topic.RegisterContext(), \
+          self.out_topic.RegisterContext(), self.signal_topic.RegisterContext():
+      
+        tasks.append(asyncio.create_task(self.run_main()))
+        tasks.append(asyncio.create_task(self.run_updater()))
+        if self.signal_delay: tasks.append(asyncio.create_task(self.run_lighthouse()))
+      
+        self.client.start()
+        await asyncio.gather(*tasks)
     finally:
       for task in tasks: task.cancel()
 
   async def run_main(self):
-    async with self.in_topic, self.out_topic, self.signal_topic, self.in_topic.RegisterContext(), \
-        self.out_topic.RegisterContext(), self.signal_topic.RegisterContext():
-      self.client.start()
+
       while True:
         data = await self.in_topic.recv_data_control()
         print("recv: ", data)
