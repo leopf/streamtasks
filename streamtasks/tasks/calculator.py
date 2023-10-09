@@ -1,7 +1,6 @@
 from functools import cached_property
 from streamtasks.system.helpers import validate_stream_config
-from streamtasks.system.synctask import SynchronizedTask
-from streamtasks.system.task import TaskFactoryWorker
+from streamtasks.system.task import Task, TaskFactoryWorker
 from streamtasks.system.types import DeploymentTaskScaffold, RPCTaskConnectRequest, DeploymentTask, RPCTaskConnectRequest, TaskStreamConfig, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
 import socket
 from pydantic import BaseModel
@@ -170,7 +169,7 @@ def variable_name_ganerator():
         else: counts[i - 1] += 1
       else: break
 
-class CalculatorTask(SynchronizedTask):
+class CalculatorTask(Task):
   @classmethod
   def name(cls): return "Calculator"
   @classmethod
