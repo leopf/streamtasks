@@ -85,7 +85,6 @@ class FlowDetectorTask(Task):
 
       while True:
         data = await self.in_topic.recv_data_control()
-        print("recv: ", data)
         if isinstance(data, TopicControlData): 
           await self.out_topic.set_paused(data.paused)
           self.state.input_paused = data.paused
@@ -99,7 +98,6 @@ class FlowDetectorTask(Task):
 
   async def run_updater(self):
     while True:
-      print("state changed: ", self.state)
       new_signal = self.state.get_signal(self.fail_mode)
       if new_signal != self.current_signal:
         self.current_signal = new_signal

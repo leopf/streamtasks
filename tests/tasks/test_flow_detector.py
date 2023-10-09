@@ -57,14 +57,6 @@ class TestFlowDetector(TaskTestBase):
     self.tasks.append(asyncio.create_task(task.start()))
     return task
 
-  def generate_events(self) -> Iterator[FDEvent]:
-    subsequences = list(itertools.permutations(list(FDEvent)))
-    rng = random.Random(42)
-    rng.shuffle(subsequences)
-    for seq in subsequences:
-      for event in seq:
-        yield event
-
   async def _test_fail_mode(self, fail_mode: FlowDetectorFailMode):
     async with asyncio.timeout(1000), self.in_topic, self.out_topic, self.signal_topic:
       self.client.start()
@@ -79,7 +71,7 @@ class TestFlowDetector(TaskTestBase):
       await task.out_topic.wait_requested()
       
       sim = FlowDetectorSim(fail_mode)
-      for event in self.generate_events():
+      for event in sim.generate_events(list(FDEvent)):
         sim.on_event(event)
         if event == FDEvent.pause: 
           await self.in_topic.set_paused(True)
