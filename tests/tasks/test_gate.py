@@ -77,29 +77,24 @@ class TestGate(TaskTestBase):
   async def send_input_data(self, value: float):
     self.timestamp += 1
     await self.in_topic.send(MessagePackData(NumberMessage(timestamp=self.timestamp, value=value).model_dump()))
-    await asyncio.sleep(0.001)
 
   async def send_gate_data(self, value: float):
     self.timestamp += 1
     await self.gate_topic.send(MessagePackData(NumberMessage(timestamp=self.timestamp, value=value).model_dump()))
-    await asyncio.sleep(0.001)
 
   async def send_gate_invalid(self):
     self.timestamp += 1
     await self.gate_topic.send(MessagePackData({
       "timestamp": self.timestamp
     }))
-    await asyncio.sleep(0.001)
 
   async def send_gate_pause(self, paused: bool):
     self.timestamp += 1
     await self.gate_topic.set_paused(paused)
-    await asyncio.sleep(0.001)
 
   async def send_input_pause(self, paused: bool):
     self.timestamp += 1
     await self.in_topic.set_paused(paused)
-    await asyncio.sleep(0.001)
 
   async def _test_fail_mode(self, fail_mode: GateFailMode):
     async with asyncio.timeout(100), self.in_topic, self.gate_topic, self.out_topic:
