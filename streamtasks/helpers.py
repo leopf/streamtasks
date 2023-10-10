@@ -1,4 +1,4 @@
-from typing import Any, ClassVar, Iterable
+from typing import Any, ClassVar, Iterable, Optional
 import asyncio
 import time
 import os
@@ -70,43 +70,62 @@ class AwaitableIdTracker(IdTracker):
     if id not in self._waiting_ids_removed: self._waiting_ids_removed[id] = asyncio.Event()
     return await self._waiting_ids_removed[id].wait()
 
+class AsyncTrigger:
+  def __init__(self) -> None:
+    self._futs: list[asyncio.Future] = []
+  
+  async def wait(self):
+    fut = asyncio.Future()
+    self._futs.append(fut)
+    return await fut
+  
+  def trigger(self):
+    for fut in self._futs: fut.set_result(None)
+    self._futs.clear()
 
 class AsyncBool:
   def __init__(self, initial_value: bool = False) -> None:
     self._value = initial_value
-    self._waiting_futures: list[asyncio.Future] = []
+    self._change_trigger = AsyncTrigger()
   @property
   def value(self): return self._value
   def set(self, value: bool):
     if self.value != value:
       self._value = value
-      for fut in self._waiting_futures: fut.set_result(True)
-      self._waiting_futures.clear()
+      self._change_trigger.trigger()
   async def wait(self, value: bool):
     if self._value == value: return True
-    else: 
-      fut = asyncio.Future()
-      self._waiting_futures.append(fut)
-      return await fut
+    else: await self._change_trigger.wait()
 
 class AsyncObservable:
-  static_fields = set(["_observer_futures"])
+  static_fields = set(["_change_trigger"])
   def __init__(self) -> None:
-    self._observer_futures: list[asyncio.Future] = []
+    self._change_trigger = AsyncTrigger()
   def __setattr__(self, name: str, value: Any) -> None:
     if name not in AsyncObservable.static_fields and (name not in self.__dict__ or value != self.__dict__[name]):
       super().__setattr__(name, value)
-      for fut in self._observer_futures: fut.set_result(None)
-      self._observer_futures.clear()
+      self._change_trigger.trigger()
     else: super().__setattr__(name, value)
-    
-  async def wait_change(self):
-    fut = asyncio.Future()
-    self._observer_futures.append(fut)
-    return await fut
-  
+
+  async def wait_change(self): return await self._change_trigger.wait()
   def as_dict(self):
     return { k: v for k, v in self.__dict__.items() if k not in AsyncObservable.static_fields }
+
+class AsyncObservableDict:
+  def __init__(self, initial_value: Optional[dict]) -> None:
+    self._change_trigger = AsyncTrigger()
+    self._data = {} if initial_value is None else initial_value
+
+  async def wait_change(self): return await self._change_trigger.wait()
+  
+  def __getitem__(self, key: Any): return self._data[key]
+  def __delitem__(self, key: Any): 
+    del self._data[key]
+    self._change_trigger.trigger()
+  def __setitem__(self, key: Any, value: Any):
+    if not key in self._data or self._data[key] != value:
+      self._data[key] = value
+      self._change_trigger.trigger()
 
 def get_timestamp_ms(): return int(time.time() * 1000)
 

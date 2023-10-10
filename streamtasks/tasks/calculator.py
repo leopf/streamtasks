@@ -1,4 +1,14 @@
+import asyncio
+import contextlib
+from dataclasses import dataclass
 from functools import cached_property
+import functools
+from streamtasks.client import Client
+from streamtasks.client.topic import InTopic, InTopicSynchronizer
+from streamtasks.helpers import AsyncObservable, AsyncObservableDict, TimeSynchronizer
+from streamtasks.message.data import MessagePackData
+from streamtasks.message.structures import NumberMessage
+from streamtasks.net.types import TopicControlData
 from streamtasks.system.helpers import validate_stream_config
 from streamtasks.system.task import Task, TaskFactoryWorker
 from streamtasks.system.types import DeploymentTaskScaffold, RPCTaskConnectRequest, DeploymentTask, RPCTaskConnectRequest, TaskStreamConfig, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
@@ -6,7 +16,7 @@ import socket
 from pydantic import BaseModel
 from typing import Optional
 import math
-from lark import Lark, Transformer
+from lark import Lark, ParseTree, Transformer
 import re
 import itertools
 
@@ -94,21 +104,6 @@ class CalculatorEvalContext:
   def min(self, *args): return min(*args)
   def max(self, *args): return max(*args)
 
-def variable_name_is_valid(name: str) -> bool:
-  if re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", name) is None: return False
-  if name in CalculatorEvalContext.default_input_map: return False
-  return True
-
-def validate_formula(formula_ast, input_var_names):
-  for var_name in input_var_names: 
-    if not variable_name_is_valid(var_name): raise Exception(f"Invalid variable name: {var_name}, must be CNAME and not in {CalculatorEvalContext.default_input_map.keys()}")
-  extractor = CalculatorNameExtractor()
-  extractor.transform(formula_ast)
-  all_var_names = set(itertools.chain(input_var_names, CalculatorEvalContext.default_input_map.keys()))
-  if not extractor.var_names.issubset(all_var_names): raise Exception(f"Invalid variable names: {extractor.var_names - all_var_names}")
-  available_func_names = CalculatorEvalContext.__dict__.keys()
-  if not extractor.func_names.issubset(available_func_names): raise Exception(f"Invalid function names: {extractor.func_names - available_func_names}")
-
 # takes an input map and transforms bools to floats. Any float > 0.5 is considered True, otherwise False
 class CalculatorEvalTransformer(Transformer):
   def __init__(self, context: CalculatorEvalContext):
@@ -154,78 +149,120 @@ class CalculatorInputConfig(BaseModel):
   name: str
   fallback_value: Optional[float] = None
 
-def variable_name_ganerator():
-  synbols = "abcdefghijklmnopqrstuvwxyz"
-  counts = [0]
-  while True:
-    name = "".join(synbols[i] for i in counts)
-    yield name
+@dataclass
+class CalculatorInputVarConfig:
+  topic_id: int
+  name: str
+  default_value: float
+
+@dataclass(frozen=True)
+class CalculatorConfig:
+  input_vars: list[CalculatorInputVarConfig]
+  out_topic: int
+  formula: str
+  synchronized: bool = True
+
+  @functools.cached_property
+  def formula_ast(self): return CalculatorGrammar.parse(self.formula)
+
+  def validate(self):
+    ast = self.formula_ast
+    CalculatorConfig.validate_formula(ast, set(input_var.name for input_var in self.input_vars))
     
-    counts[-1] += 1
-    for i in range(len(counts) - 1, -1, -1):
-      if counts[i] >= len(synbols):
-        counts[i] = 0
-        if i == 0: counts.insert(0, 0)
-        else: counts[i - 1] += 1
-      else: break
+  @staticmethod
+  def validate_formula(ast: ParseTree, input_vars: set[str]):
+    for var_name in input_vars: 
+      if not CalculatorConfig.variable_name_is_valid(var_name): 
+        raise ValueError(f"Invalid variable name: {var_name}, must be CNAME and not in {CalculatorEvalContext.default_input_map.keys()}")
+    
+    extractor = CalculatorNameExtractor()
+    extractor.transform(ast)
+    all_var_names = input_vars | CalculatorEvalContext.default_input_map.keys()
+    if not extractor.var_names.issubset(all_var_names): 
+        raise ValueError(f"Invalid variable names: {extractor.var_names - all_var_names}")
+    
+    available_func_names = CalculatorEvalContext.__dict__.keys()
+    if not extractor.func_names.issubset(available_func_names): 
+        raise ValueError(f"Invalid function names: {extractor.func_names - available_func_names}")
+  
+  @staticmethod
+  def variable_name_is_valid(name: str) -> bool:
+    if re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", name) is None: return False
+    if name in CalculatorEvalContext.default_input_map: return False
+    return True
+  
+class CalculatorInputState(AsyncObservable):
+  def __init__(self, default_value: float) -> None:
+    super().__init__()
+    self.value: float = default_value
+    self.is_paused: bool = False
+    self.errored: bool = False
+
+  def get_value(self, default_value: float):
+    if self.is_paused: return default_value
+    else: return self._value
 
 class CalculatorTask(Task):
-  @classmethod
-  def name(cls): return "Calculator"
-  @classmethod
-  def task_scaffold(cls): return DeploymentTaskScaffold(
-    config={
-      "formula": "",
-    },
-    stream_groups=[
-      TaskStreamGroup(
-        inputs=[],    
-        outputs=[TaskOutputStream(label="output")]      
-      )
-    ]
-  )
-  @classmethod
-  async def rpc_connect(cls, req: RPCTaskConnectRequest) -> Optional[DeploymentTask]:
-    if req.output_stream is not None:
-      validate_stream_config(req.output_stream, TaskStreamConfig(content_type="number"), "Input must be a number")
-      topic_id = req.output_stream.topic_id
-    else: topic_id = None
-    for input_stream in req.task.stream_groups[0].inputs:
-      if req.input_id == input_stream.ref_id:
-        input_stream.topic_id = topic_id
-        break
-    return req.task
-  
-  @cached_property
-  def topic_label_map(self):
-    return {
-      stream.label: stream.topic_id
-      for stream in self.deployment.stream_groups[0].inputs + self.deployment.stream_groups[0].outputs
-    }
-  
-  async def setup(self):
-    self.formula_ast = CalculatorGrammar.parse(self.deployment.config["formula"])
-    input_configs = [ CalculatorInputConfig.model_validate(config) for config in self.deployment.config["input_configs"] ]
-    validate_formula(self.formula_ast, [ config.name for config in input_configs ])
-    
-  async def on_changed(self, timestamp: int, **kwargs):
-    input_map = None
-    
-  
-class CalculatorTaskFactoryWorker(TaskFactoryWorker):
-  async def create_task(self, deployment: DeploymentTask): return CalculatorTask(await self.create_client(), deployment)
-  async def rpc_connect(self, req: RPCTaskConnectRequest) -> DeploymentTask: return req.task
-  @property
-  def task_template(self): return DeploymentTask(
-    task_factory_id=self.id,
-    config={
-      "label": "Calculator",
-      "hostname": socket.gethostname(),
-    },
-    stream_groups=[
-      TaskStreamGroup(
-        inputs=[TaskInputStream(label="x"), TaskInputStream(label="y")],    
-        outputs=[TaskOutputStream(label="output")]      
-      )
-    ]
-  )
+  def __init__(self, client: Client, config: CalculatorConfig):
+    super().__init__(client)
+    config.validate()
+    self.time_sync = TimeSynchronizer()
+    self.formula_ast = config.formula_ast
+    self.out_topic = self.client.out_topic(config.out_topic)
+    self.var_values = AsyncObservableDict({ 
+      input_var.name: input_var.default_value 
+      for input_var in config.input_vars 
+    })
+    if config.synchronized:
+      sync = InTopicSynchronizer()
+      self.in_topics = [ 
+        (client.sync_in_topic(input_var.topic_id, sync), input_var.name, input_var.default_value) 
+        for input_var in config.input_vars 
+      ]
+    else:
+      self.in_topics = [ 
+        (client.in_topic(input_var.topic_id), input_var.name, input_var.default_value) 
+        for input_var in config.input_vars 
+      ]
+  async def start_task(self):
+    tasks: list[asyncio.Task] = []
+    try: 
+      async with contextlib.AsyncExitStack() as exit_stack:
+        exit_stack.enter_async_context(self.out_topic)
+        exit_stack.enter_async_context(self.out_topic.RegisterContext())
+        for in_topic, var_name, default_value in self.in_topics:
+          await exit_stack.enter_async_context(in_topic)
+          await exit_stack.enter_async_context(in_topic.RegisterContext())
+          state = CalculatorInputState(default_value)
+          tasks.append(asyncio.create_task(self.run_input_receiver(in_topic, state)))
+          tasks.append(asyncio.create_task(self.run_input_updater(state, var_name, default_value)))
+        
+    finally:
+      for task in tasks: task.cancel()
+  async def run_output_updater(self):
+    while True:
+      await self.var_values.wait_change()
+      result: float = CalculatorEvalTransformer(CalculatorEvalContext(self.var_values._data)) \
+                .transform(self.formula_ast)
+      await self.out_topic.send(MessagePackData(NumberMessage(
+        timestamp=self.time_sync.time, 
+        value=result
+      )))
+
+  async def run_input_updater(self, state: CalculatorInputState, var_name: str, default_value: float):
+    while True:
+      await state.wait_change()
+      self.var_values[var_name] = state.get_value(default_value)
+
+  async def run_input_receiver(self, in_topic: InTopic, state: CalculatorInputState):
+    while True:
+      data = in_topic.recv_data_control()
+      if isinstance(data, TopicControlData): state.is_paused = data.paused
+      else:
+        try:
+          msg = NumberMessage.model_validate(data.data)
+          self.time_sync.update(msg.timestamp)
+          state.value = msg.value
+          state.errored = False
+        except ValueError:
+          state.errored = True
