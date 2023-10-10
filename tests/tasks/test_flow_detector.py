@@ -71,6 +71,7 @@ class TestFlowDetector(TaskTestBase):
       await task.out_topic.wait_requested()
       
       sim = FlowDetectorSim(fail_mode)
+      sim.eout_changed()
       for event in sim.generate_events(list(FDEvent)):
         sim.on_event(event)
         if event == FDEvent.pause: 
@@ -86,7 +87,7 @@ class TestFlowDetector(TaskTestBase):
             "value": "hello"
           }))
         if sim.eout_changed():
-          data: JsonData = await asyncio.wait_for(self.signal_topic.recv_data(), 1)
+          data: JsonData = await sim.wait_or_fail(self.signal_topic.recv_data(), 1)
           message = NumberMessage.model_validate(data.data)
           sim.on_output({ "signal": message.value > 0.5 })
         else: sim.on_idle()

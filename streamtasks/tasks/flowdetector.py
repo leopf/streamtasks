@@ -64,7 +64,7 @@ class FlowDetectorTask(Task):
     self.fail_mode = config.fail_mode
     self.signal_delay = config.signal_delay
     self.state = FlowDetectorState()
-    self.current_signal = not self.state.get_signal(self.fail_mode) # make sure the initial state is sent
+    self.current_signal = self.state.get_signal(self.fail_mode) # make sure the initial state is sent
 
   async def start_task(self):
     tasks: list[asyncio.Task] = []
