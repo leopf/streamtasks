@@ -1,8 +1,8 @@
 import unittest
 from .shared import TaskTestBase
 from streamtasks.tasks.calculator import CalculatorGrammar, CalculatorEvalContext, CalculatorEvalTransformer
-import asyncio
 import math
+
 
 class TestCalculator(TaskTestBase):
   def test_lang(self):
@@ -13,7 +13,6 @@ class TestCalculator(TaskTestBase):
     }))
 
     self.assertEqual(transformer.transform(res), math.sin(1) + 2)
-
 
 
 if __name__ == '__main__':

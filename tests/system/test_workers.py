@@ -1,10 +1,11 @@
 import unittest
-from streamtasks.net import *
-from streamtasks.client import *
+from streamtasks.node import LocalNode
+from streamtasks.system.protocols import WorkerAddresses, WorkerTopics
 from streamtasks.worker import Worker
+from streamtasks.client import Client
 from streamtasks.system.discovery import DiscoveryWorker
-from streamtasks.node import *
 import asyncio
+
 
 @unittest.skip("not implemented")
 class TestWorkers(unittest.IsolatedAsyncioTestCase):
@@ -26,7 +27,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
   async def wait_for(self, fut): return await asyncio.wait_for(fut, 2)
 
   async def asyncTearDown(self):
-    for task in self.tasks: 
+    for task in self.tasks:
       if task.done(): await task
       else: task.cancel()
 
@@ -41,8 +42,8 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     client = Client(await self.worker.create_link(raw=True))
 
     await self.wait_for(client.wait_for_topic_signal(WorkerTopics.DISCOVERY_SIGNAL))
-    
-    own_address = await self.wait_for(client.request_address()) 
+
+    own_address = await self.wait_for(client.request_address())
     self.assertEqual(WorkerAddresses.COUNTER_INIT, own_address)
 
     expected_addresses = list(range(WorkerAddresses.COUNTER_INIT + 1, WorkerAddresses.COUNTER_INIT + 6))
@@ -56,22 +57,20 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     discovery_worker = DiscoveryWorker(await self.node.create_link(raw=True))
     await self.setup_worker(discovery_worker)
 
-
     client1 = Client(await self.worker.create_link(raw=True))
     await self.wait_for(client1.wait_for_topic_signal(WorkerTopics.DISCOVERY_SIGNAL))
 
-
-    await self.wait_for(client1.request_address()) 
+    await self.wait_for(client1.request_address())
     client2 = Client(await self.worker.create_link(raw=True))
-    await self.wait_for(client2.request_address()) 
+    await self.wait_for(client2.request_address())
     client3 = Client(await self.worker.create_link(raw=True))
-    await self.wait_for(client3.request_address()) 
+    await self.wait_for(client3.request_address())
 
     async def waiter_before():
       self.assertEqual(await self.wait_for(client3.wait_for_address_name("c1")), client1.address)
-    
+
     waiter_task = asyncio.create_task(waiter_before())
-    
+
     await client1.register_address_name("c1")
     await asyncio.sleep(0.001)
     self.assertEqual(await self.wait_for(client2.wait_for_address_name("c1")), client1.address)
@@ -83,12 +82,12 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
 
     client1 = Client(await self.worker.create_link(raw=True))
     await self.wait_for(client1.wait_for_topic_signal(WorkerTopics.DISCOVERY_SIGNAL))
-    await self.wait_for(client1.request_address()) 
+    await self.wait_for(client1.request_address())
 
-    self.assertEqual(len(client1._in_topics.items()), 0)
+    self.assertEqual(len(list(client1._in_topics.items())), 0)
 
     client2 = Client(await self.worker.create_link(raw=True))
-    await self.wait_for(client2.request_address()) 
+    await self.wait_for(client2.request_address())
 
     await client1.register_address_name("c1")
     await asyncio.sleep(0.001)
@@ -111,6 +110,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     expected_topics = list(range(WorkerTopics.COUNTER_INIT, WorkerTopics.COUNTER_INIT + 5))
     self.assertEqual(expected_topics, topics)
     self.assertEqual(set(expected_topics), client._out_topics.items())
+
 
 if __name__ == '__main__':
   unittest.main()

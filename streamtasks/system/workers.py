@@ -14,6 +14,7 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket
 import itertools
 from tinydb import TinyDB
 import tinydb.storages as tinydb_storages
+import logging
 
 # TODO: this needs the actual dashboard
 class NodeManagerWorker(Worker):

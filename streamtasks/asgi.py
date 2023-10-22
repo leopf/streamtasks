@@ -3,12 +3,12 @@ from streamtasks.client.fetch import FetchRequestReceiver, FetchRequest
 from streamtasks.net import DAddress, Endpoint
 from streamtasks.net.types import AddressedMessage, Message
 from streamtasks.message.data import MessagePackData
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from abc import ABC
 from dataclasses import dataclass
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any, Awaitable, Optional, Callable, ClassVar, Union
+from typing import TYPE_CHECKING, Any, Awaitable, Optional, Callable, ClassVar
 
 from streamtasks.system.protocols import WorkerPorts
 
@@ -106,7 +106,7 @@ class ASGIEventReceiver(Receiver):
     if not isinstance(a_message.data, MessagePackData): return
     try:
       self._recv_queue.put_nowait(ASGIEventMessage.model_validate(a_message.data.data))
-    except: pass
+    except ValidationError: pass
 
 class ASGIEventSender:
   def __init__(self, client: 'Client', remote_endpoint: Endpoint):

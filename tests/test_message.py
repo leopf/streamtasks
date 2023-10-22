@@ -1,6 +1,7 @@
 import unittest
 from streamtasks.message import NumberMessage, MessagePackData, MediaPacketData, CustomData, get_timestamp_from_message, MediaPacket, SerializationType, data_from_serialization_type, get_core_serializers
 
+
 class TestMessage(unittest.TestCase):
   def test_media_packet(self):
     core_serializers = get_core_serializers()
@@ -30,6 +31,7 @@ class TestMessage(unittest.TestCase):
     self.assertEqual(sdata.data["value"], message.value)
     self.assertEqual(get_timestamp_from_message(sdata), message.timestamp)
     self.assertEqual(get_timestamp_from_message(data), message.timestamp)
+
 
 if __name__ == '__main__':
   unittest.main()

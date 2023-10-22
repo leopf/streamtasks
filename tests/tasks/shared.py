@@ -3,6 +3,7 @@ from streamtasks.client import Client
 from streamtasks.net import Switch, create_queue_connection
 import asyncio
 
+
 class TaskTestBase(unittest.IsolatedAsyncioTestCase):
   client: Client
   worker_client: Client

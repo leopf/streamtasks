@@ -123,7 +123,7 @@ class AsyncObservableDict:
     del self._data[key]
     self._change_trigger.trigger()
   def __setitem__(self, key: Any, value: Any):
-    if not key in self._data or self._data[key] != value:
+    if key not in self._data or self._data[key] != value:
       self._data[key] = value
       self._change_trigger.trigger()
 

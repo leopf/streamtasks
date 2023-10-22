@@ -1,19 +1,18 @@
 from abc import abstractmethod
 import asyncio
 import itertools
-import random
-from typing import Any
-import unittest
+from typing import Any, Optional
 import pandas as pd
 
+
 class PrefixMap:
-  def __init__(self, l) -> None:
-    self.l = l
-    self.root = {}
+  def __init__(self, length: int) -> None:
+    self.length = length
+    self.root: dict[str, Any] = {}
 
   def insert_sequence(self, seq):
     seq = list(seq)
-    assert len(seq) == self.l
+    assert len(seq) == self.length
     current_map = self.root
     for el in seq[:-1]:
       next_map = current_map.get(el, {})
@@ -23,13 +22,13 @@ class PrefixMap:
 
   def pop_suffix(self, prefix):
     prefix = list(prefix)
-    assert len(prefix) < self.l
-    
+    assert len(prefix) < self.length
+
     current_map = self.root
     for el in prefix:
       if el not in current_map: return None
       current_map = current_map[el]
-    
+
     suffix = list(self._get_seq_from_map(current_map))
     self.delete_sequence(prefix + suffix)
     return tuple(suffix)
@@ -40,31 +39,31 @@ class PrefixMap:
     for el in seq:
       if el not in seq_maps[-1]: return
       seq_maps.append(seq_maps[-1][el])
-    
+
     pop_next = True
     for seq_map, el in list(zip(seq_maps, seq))[::-1]:
       if pop_next: seq_map.pop(el, None)
       pop_next = len(seq_map) == 0
 
-
   def _get_seq_from_map(self, m: dict):
-    seq = []
-    current_map = m
+    seq: list[Any] = []
+    current_map: dict | Any = m
     while isinstance(current_map, dict):
       item = next(current_map.items().__iter__())
       seq.append(item[0])
       current_map = item[1]
     return seq
 
+
 class SequenceGenerator:
   def __init__(self, elements: list) -> None:
     self.prefix_map = PrefixMap(len(elements))
     for seq in itertools.permutations(elements):
       self.prefix_map.insert_sequence(seq)
-  
+
   def generate_sequence(self):
-    last_elements = []
-    max_prefix_len = self.prefix_map.l - 1
+    last_elements: list[Any] = []
+    max_prefix_len = self.prefix_map.length - 1
     while not self.prefix_map.empty():
       next_seq = None
       for i in range(len(last_elements)):
@@ -80,12 +79,12 @@ class SequenceGenerator:
 
 class Simulator:
   def __init__(self) -> None:
-    self.events = []
+    self.events: list[Any] = []
     self.last_event = None
     self.log_length = 20
     self.event_count = 0
-    self.last_state = None
-    self.last_eout = None
+    self.last_state: Optional[dict[str, Any]] = None
+    self.last_eout: Optional[dict[str, Any]] = None
 
   def on_output(self, rout: dict[str, Any]):
     eout = self.get_output()
@@ -93,10 +92,10 @@ class Simulator:
     if eout != rout:
       raise AssertionError(f"Expected output does not match the received output.\n\n{self.log_to_string()}")
   def on_idle(self): self._push_event({}, self.get_output())
-  def on_event(self, event, *payload):
+  def on_event(self, event):
     self.event_count += 1
     self.last_event = event
-    self.update_state(event, *payload)
+    self.update_state(event)
 
   def state_changed(self):
     new_state = self.get_state()
@@ -117,9 +116,9 @@ class Simulator:
       raise Exception(f"Timed out!\n\nHere are the current logs:\n{self.log_to_string()}")
 
   @abstractmethod
-  def update_state(self, event, *payload): pass
+  def update_state(self, event): pass
   @abstractmethod
-  def get_output(self) -> dict[str, Any]: pass  
+  def get_output(self) -> dict[str, Any]: pass
   @abstractmethod
   def get_state(self) -> dict[str, Any]: pass
 

@@ -1,21 +1,23 @@
 import unittest
-from streamtasks.net import *
-from streamtasks.client import *
-from streamtasks.asgi import *
-from streamtasks.worker import *
-from streamtasks.node import *
 import asyncio
 from fastapi import FastAPI
 import httpx
-
+from streamtasks.asgi import ASGIAppRunner, ASGIEventReceiver, ASGIEventSender, ASGIProxyApp
+from streamtasks.client import Client
 from pydantic import BaseModel
+
+from streamtasks.net import Switch, create_queue_connection
+
 
 class TestModel(BaseModel):
   test: str
 
+
 def get_client_for_app(app):
   transport = httpx.ASGITransport(app=app)
   return httpx.AsyncClient(transport=transport, base_url="http://testserver")
+
+
 class TestASGI(unittest.IsolatedAsyncioTestCase):
   client1: Client
   client2: Client
@@ -60,7 +62,10 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
 
   async def test_app_fastapi(self):
     demo_app = FastAPI()
-    demo_app.add_api_route("/", lambda: { "text": "Hello from FastAPI!" })
+
+    @demo_app.get("/")
+    def basid_ep(): return { "text": "Hello from FastAPI!" }
+
     @demo_app.post("/post")
     async def post(data: TestModel):
       return { "data": data }
@@ -69,7 +74,7 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
     self.tasks.append(asyncio.create_task(runner.start()))
 
     proxy_app = ASGIProxyApp(self.client1, 1337)
-    
+
     client = get_client_for_app(proxy_app)
     response = await client.get("/")
     self.assertEqual(200, response.status_code)
@@ -89,13 +94,13 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
     self.tasks.append(asyncio.create_task(runner.start()))
 
     proxy_app = ASGIProxyApp(self.client1, 1337)
-    
+
     client = get_client_for_app(proxy_app)
     response = await client.get("/")
     self.assertEqual(200, response.status_code)
     self.assertEqual(b"Hello world!", response.content)
     await client.aclose()
-    
+
 
 if __name__ == '__main__':
   unittest.main()

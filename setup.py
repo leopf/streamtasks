@@ -1,24 +1,44 @@
 from setuptools import setup
 
 setup(
-    name='streamtasks',
-    version='0.1.0',
-    packages=['streamtasks', 'streamtasks.bin', 'streamtasks.comm', 'streamtasks.media', 'streamtasks.client', 
-        'streamtasks.worker', 'streamtasks.system', 'streamtasks.tasks', 'streamtasks.message'],
-    author='leopf',
-    description='A task orchestrator for Python',
-    license='MIT',
-    install_requires=['typing_extensions', 'av', "msgpack", "pydantic","fastavro", "numpy", "uvicorn", "httpx", "fastapi", "scipy", "lark", "tinydb"],
+    name="streamtasks",
+    version="0.1.0",
+    packages=[
+        "streamtasks",
+        "streamtasks.bin",
+        "streamtasks.comm",
+        "streamtasks.media",
+        "streamtasks.client",
+        "streamtasks.worker",
+        "streamtasks.system",
+        "streamtasks.tasks",
+        "streamtasks.message",
+    ],
+    author="leopf",
+    description="A task orchestrator for Python",
+    license="MIT",
+    install_requires=[
+        "typing_extensions",
+        "av",
+        "msgpack",
+        "pydantic",
+        "fastavro",
+        "numpy",
+        "uvicorn",
+        "httpx",
+        "fastapi",
+        "scipy",
+        "lark",
+        "tinydb",
+    ],
     extras_require={
-        "dev": [ "matplotlib", "simpleaudio", "opencv-python" ]
-    },
-    entry_points={
-        'console_scripts': [
-            'streamtasks = streamtasks.bin.__init__:main'
+        "dev": [
+          "matplotlib",
+          "simpleaudio",
+          "opencv-python",
+          "flake8",
+          "mypy"
         ]
-    }
+    },
+    entry_points={"console_scripts": ["streamtasks = streamtasks.bin.__init__:main"]},
 )
-
-
-
-

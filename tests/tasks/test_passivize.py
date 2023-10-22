@@ -42,7 +42,7 @@ class TestPassivize(TaskTestBase):
     return task
 
   async def test_sub(self):
-    task = self.start_task()
+    self.start_task()
     async with asyncio.timeout(1):
       async with self.client.get_topics_receiver([ self.stream_active_out_topic, self.stream_passive_out_topic ]) as receiver:
         await self.stream_active_out_topic.subscribe()
@@ -76,6 +76,3 @@ class TestPassivize(TaskTestBase):
         #   timestamp = data.data["timestamp"]
         #   self.assertIn((value, topic_id), messages)
         #   messages.remove((value, topic_id))
-
-
-
