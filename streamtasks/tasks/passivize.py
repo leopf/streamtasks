@@ -1,10 +1,11 @@
 from streamtasks.system.task import Task, TaskFactoryWorker
 from streamtasks.system.helpers import apply_task_stream_config
-from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
+from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, TaskStreamGroup, TaskInputStream, TaskOutputStream
 from streamtasks.client import Client
 from streamtasks.client.receiver import NoopReceiver
 import socket
 import asyncio
+
 
 class PassivizeTask(Task):
   def __init__(self, client: Client, deployment: DeploymentTask):
@@ -24,16 +25,16 @@ class PassivizeTask(Task):
         self._process_messages(),
         self._process_subscription_status(),
       )
-    finally:    
+    finally:
       await self.input_topic.set_topic(None)
       await self.active_output_topic.set_topic(None)
       await self.passive_output_topic.set_topic(None)
-  
+
   async def _setup(self):
     await self.message_receiver_ready.wait()
     await self.subscribe_receiver_ready.wait()
     await self._apply_deployment(self.deployment)
-  
+
   async def _process_subscription_status(self):
     async with NoopReceiver(self.client):
       self.subscribe_receiver_ready.set()
@@ -66,9 +67,10 @@ class PassivizeTask(Task):
     await self.passive_output_topic.set_topic(topic_id_map[deployment.stream_groups[0].outputs[1].topic_id])
     self.deployment = deployment
 
+
 class PassivizeTaskFactoryWorker(TaskFactoryWorker):
   async def create_task(self, deployment: DeploymentTask): return PassivizeTask(await self.create_client(), deployment)
-  async def rpc_connect(self, req: RPCTaskConnectRequest) -> DeploymentTask: 
+  async def rpc_connect(self, req: RPCTaskConnectRequest) -> DeploymentTask:
     if req.input_id != req.task.stream_groups[0].inputs[0].ref_id: raise Exception("Input stream id does not match task input stream id")
     if req.output_stream:
       req.task.stream_groups[0].inputs[0].topic_id = req.output_stream.topic_id
@@ -87,8 +89,8 @@ class PassivizeTaskFactoryWorker(TaskFactoryWorker):
     },
     stream_groups=[
       TaskStreamGroup(
-        inputs=[TaskInputStream(label="input")],    
-        outputs=[TaskOutputStream(label="active output"), TaskOutputStream(label="passive output")]      
+        inputs=[TaskInputStream(label="input")],
+        outputs=[TaskOutputStream(label="active output"), TaskOutputStream(label="passive output")]
       )
     ]
   )

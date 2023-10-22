@@ -1,14 +1,13 @@
 import asyncio
-from streamtasks.asgi import ASGIApp
-from streamtasks.client.fetch import FetchServer
-from streamtasks.system.protocols import *
+from streamtasks.asgi import ASGIApp, ASGIAppRunner
+from streamtasks.client.fetch import FetchRequest, FetchServer
 from streamtasks.client import Client
 from streamtasks.net import Link
-from streamtasks.asgi import *
+from streamtasks.system.helpers import ASGIServer, JsonLogger, SPAStaticFiles
+from streamtasks.system.protocols import AddressNames, WorkerTopics
+from streamtasks.system.store import DashboardStore, DeploymentStore, TaskFactoryStore
+from streamtasks.system.types import DashboardDeleteMessage, DashboardRegistration, Deployment, DeploymentTask, SystemLogQueryParams, TaskFactoryDeleteMessage, TaskFactoryRegistration, TaskFetchDescriptors
 from streamtasks.worker import Worker
-from streamtasks.system.types import *
-from streamtasks.system.helpers import *
-from streamtasks.system.store import *
 from uuid import uuid4
 from fastapi import FastAPI, HTTPException, Request, WebSocket
 import itertools
@@ -17,6 +16,8 @@ import tinydb.storages as tinydb_storages
 import logging
 
 # TODO: this needs the actual dashboard
+
+
 class NodeManagerWorker(Worker):
   def __init__(self, node_link: Link):
     super().__init__(node_link)
@@ -41,6 +42,7 @@ class NodeManagerWorker(Worker):
     self.async_tasks.append(asyncio.create_task(runner.start()))
     await self._client.fetch(AddressNames.TASK_MANAGER, TaskFetchDescriptors.REGISTER_DASHBOARD, dashboard.model_dump())
     return id
+
 
 class TaskManagerWorker(Worker):
   def __init__(self, node_link: Link, asgi_server: ASGIServer, db_storage: type[tinydb_storages.Storage] = tinydb_storages.MemoryStorage):
@@ -114,21 +116,21 @@ class TaskManagerWorker(Worker):
     @app.websocket("/topic/{id}/subscribe")
     async def topic_websocket(websocket: WebSocket, id: str):
       id: int = self.topic_id_map.get(id, None)
-      if id is None: raise HTTPException(status_code=404, detail=f"Topic with id {id} not found!") 
+      if id is None: raise HTTPException(status_code=404, detail=f"Topic with id {id} not found!")
       await websocket.accept()
       async with client.get_topics_receiver([ id ]) as receiver:
-        while True:          
+        while True:
           topic_id, data, _ = await receiver.recv()
           try:
             if topic_id == id and data is not None: await websocket.send_json(dict(data.data))
-          except:
+          except Exception:
             await websocket.send_json({ "error": "failed to receive data" })
 
     @app.get("/api/logs")
     def get_logs(req: Request):
       q = SystemLogQueryParams.model_validate(req.query_params)
       if q.offset == 0: return self.log_handler.log_entries[-q.count:]
-      else: return self.log_handler.log_entries[-q.offset-q.count:-q.offset]
+      else: return self.log_handler.log_entries[-q.offset - q.count:-q.offset]
 
     @app.get("/api/dashboards")
     def list_dashboards(): return self.dashboards.dashboards
@@ -152,7 +154,7 @@ class TaskManagerWorker(Worker):
       return deployment
 
     @app.get("/api/deployment/{id}/started")
-    def get_started_deployment(id: str): 
+    def get_started_deployment(id: str):
       deployment = self.deployments.get_started_deployment(id)
       if deployment is None: raise HTTPException(status_code=404, detail=f"Started deployment with id {id} not found! Maybe it hasn't been started yet?")
       return deployment
@@ -193,7 +195,7 @@ class TaskManagerWorker(Worker):
       return self._respond_deployment_status(id)
 
     app.mount("/", SPAStaticFiles(directory="./web/dist", html=True))
-    
+
     await self.asgi_server.serve(app)
 
   async def _assign_topic_ids(self, client: Client, deployment: Deployment):
@@ -207,7 +209,7 @@ class TaskManagerWorker(Worker):
   def _deployment_not_found(self, id: str): raise HTTPException(status_code=404, detail=f"Deployment with id {id} not found!")
   def _respond_deployment_status(self, id: str):
     try: return self.deployments.get_deployment_status(id)
-    except: self._deployment_not_found(id)
+    except KeyError: self._deployment_not_found(id)
 
   async def _stop_task_deployments(self, client: Client, tasks: list[DeploymentTask]):
     async def delete_task(task: DeploymentTask):
@@ -221,7 +223,7 @@ class TaskManagerWorker(Worker):
       await asyncio.wait([ asyncio.create_task(delete_task(task)) for task in tasks ])
     except Exception as e:
       logging.error(f"failed to stop deployment: {e}")
-  
+
   async def stop_deployment(self, client: Client, deployment: Deployment):
     deployment.status = "stopping"
     await self._stop_task_deployments(client, deployment.tasks)

@@ -8,6 +8,7 @@ from typing import Any, Union
 The core system uses the namespace 1000-1999 for content ids.
 """
 
+
 class MediaPacketSerializer(Serializer):
   avro_schema = fastavro.schema.parse_schema({
     "type": "record",
@@ -22,7 +23,7 @@ class MediaPacketSerializer(Serializer):
   })
   @property
   def content_id(self) -> int: return 1000
-  def serialize(self, data: Any) -> memoryview: 
+  def serialize(self, data: Any) -> memoryview:
     data: MediaPacket = data
     assert isinstance(data, MediaPacket)
     stream = BytesIO()
@@ -31,9 +32,12 @@ class MediaPacketSerializer(Serializer):
   def deserialize(self, data: memoryview) -> Any:
     stream = BytesIO(data)
     return MediaPacket(**fastavro.schemaless_reader(stream, self.avro_schema))
+
+
 class MediaPacketData(CustomData):
   def __init__(self, data: Union[Any, memoryview]): super().__init__(data, MediaPacketSerializer())
 
+
 def get_core_serializers() -> dict[int, Serializer]:
-  l = [MediaPacketSerializer()]
-  return { serializer.content_id: serializer for serializer in l }
+  serializers = [MediaPacketSerializer()]
+  return { serializer.content_id: serializer for serializer in serializers }

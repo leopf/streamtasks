@@ -1,11 +1,12 @@
 from enum import Enum
 from typing import Any
 import unittest
+from streamtasks.message.data import JsonData
+from streamtasks.message.structures import NumberMessage
 
 from tests.sim import Simulator
 from .shared import TaskTestBase
 from streamtasks.tasks.flowdetector import FlowDetectorConfig, FlowDetectorState, FlowDetectorTask, FlowDetectorFailMode
-from streamtasks.message import JsonData, NumberMessage
 from streamtasks.helpers import get_timestamp_ms
 import asyncio
 

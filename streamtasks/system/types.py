@@ -3,43 +3,54 @@ from typing import Optional, Any, Literal
 from uuid import uuid4
 import itertools
 
+
 def uuid4_str() -> str: return str(uuid4())
+
 
 class DashboardRegistration(BaseModel):
   label: str
   id: str
   address: int
 
+
 class DashboardDeleteMessage(BaseModel):
   id: str
+
 
 class DashboardInfo(BaseModel):
   id: str
   path: str
   label: str
 
+
 class TaskStreamConfig(BaseModel):
   content_type: Optional[str] = None
   encoding: Optional[str] = None
   extra: Optional[dict[str, Any]] = None
 
+
 class TaskStreamBase(TaskStreamConfig):
   label: str
+
 
 class TaskInputStream(TaskStreamBase):
   topic_id: Optional[str] = None
   ref_id: str = Field(default_factory=uuid4_str)
 
+
 class TaskOutputStream(TaskStreamBase):
   topic_id: str = Field(default_factory=uuid4_str)
+
 
 class TaskStreamGroup(BaseModel):
   inputs: list[TaskInputStream]
   outputs: list[TaskOutputStream]
 
+
 class DeploymentTaskScaffold(BaseModel):
   config: dict[str, Any] = {}
   stream_groups: list[TaskStreamGroup]
+
 
 class DeploymentTask(DeploymentTaskScaffold):
   id: str = Field(default_factory=uuid4_str)
@@ -58,6 +69,7 @@ class DeploymentTask(DeploymentTaskScaffold):
         if stream.topic_id is not None:
           yield stream.topic_id
 
+
 class TaskStatus(BaseModel):
   running: bool
   error: Optional[str] = None
@@ -67,58 +79,72 @@ class TaskStatus(BaseModel):
     if running and not self.running: raise Exception("task not running")
     if not running and self.running: raise Exception("task running but should not be")
 
+
 class TaskDeploymentDeleteMessage(BaseModel):
   id: str
+
 
 class TaskFactoryRegistration(BaseModel):
   id: str
   worker_address: int
   task_template: DeploymentTask
 
+
 class TaskFactoryDeleteMessage(BaseModel):
   id: str
 
+
 DeploymentStatus = Literal["offline", "starting", "running", "stopping", "failed"]
+
 
 class DeploymentBase(BaseModel):
   id: str = Field(default_factory=uuid4_str)
   label: str = "new deployment"
 
+
 class Deployment(DeploymentBase):
   status: DeploymentStatus = "offline"
   tasks: list[DeploymentTask] = []
 
+
 class DeploymentStatusInfo(BaseModel):
   status: DeploymentStatus
+
 
 class RPCTaskConnectRequest(BaseModel):
   input_id: str
   output_stream: Optional[TaskOutputStream] = None
   task: DeploymentTask
 
+
 class RPCTaskConnectResponse(BaseModel):
   task: Optional[DeploymentTask] = None
   error_message: Optional[str] = None
-  
+
+
 class RPCUIEventRequest(BaseModel):
   state: dict[str, Any]
   event: Optional[str]
   task: DeploymentTask
+
 
 class RPCUIEventResponse(BaseModel):
   state: dict[str, Any] = {}
   fields: list[dict[str, Any]] = []
   task: DeploymentTask
 
+
 class SystemLogQueryParams(BaseModel):
   count: int = 100
   offset: int = 0
+
 
 class SystemLogEntry(BaseModel):
   id: str = Field(default_factory=uuid4_str)
   message: str
   level: str
   timestamp: int
+
 
 class TaskFetchDescriptors:
   REGISTER_TASK_FACTORY = "register_task_factory"

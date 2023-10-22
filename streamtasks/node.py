@@ -2,6 +2,7 @@ import asyncio
 from streamtasks.net import Switch, create_queue_connection
 from abc import ABC
 
+
 class NodeBase(ABC):
   running: bool
   switch: Switch
@@ -17,6 +18,7 @@ class NodeBase(ABC):
     finally:
       self.switch.stop_receiving()
       self.running = False
+
 
 class LocalNode(NodeBase):
   def __init__(self):

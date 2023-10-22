@@ -2,10 +2,11 @@ from streamtasks.helpers import get_timestamp_ms
 from streamtasks.message.data import MessagePackData
 from streamtasks.message.structures import NumberMessage
 from streamtasks.system.task import Task, TaskFactoryWorker
-from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, TaskStreamGroup, TaskOutputStream, DeploymentTask
+from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, TaskStreamGroup, TaskOutputStream
 from streamtasks.client import Client
 import socket
 import asyncio
+
 
 class CounterTask(Task):
   def __init__(self, client: Client, deployment: DeploymentTask):
@@ -26,7 +27,8 @@ class CounterTask(Task):
     finally:
       self.count = self.deployment.config.get("initial_count", 0)
       await self.output_topic.set_topic(None)
-  
+
+
 class CounterTaskFactoryWorker(TaskFactoryWorker):
   async def create_task(self, deployment: DeploymentTask): return CounterTask(await self.create_client(), deployment)
   async def rpc_connect(self, req: RPCTaskConnectRequest) -> DeploymentTask: pass
@@ -39,8 +41,8 @@ class CounterTaskFactoryWorker(TaskFactoryWorker):
     },
     stream_groups=[
       TaskStreamGroup(
-        inputs=[],    
-        outputs=[TaskOutputStream(label="output", content_type="number")]      
+        inputs=[],
+        outputs=[TaskOutputStream(label="output", content_type="number")]
       )
     ]
   )

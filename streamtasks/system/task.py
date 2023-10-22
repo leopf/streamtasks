@@ -1,22 +1,22 @@
 import hashlib
 import socket
 import struct
-from typing import Any, ClassVar, Optional, Union
+from typing import ClassVar, Optional
 
 from fastapi import FastAPI
 from streamtasks.asgi import ASGIAppRunner
 from streamtasks.client.fetch import FetchRequest, FetchServer
 from streamtasks.net import Link
 from streamtasks.helpers import INSTANCE_ID
-from streamtasks.message.data import SerializableData
 from streamtasks.system.protocols import AddressNames, WorkerTopics
-from streamtasks.system.types import DeploymentTask, DeploymentTaskScaffold, RPCUIEventRequest, RPCUIEventResponse, RPCTaskConnectRequest, RPCTaskConnectResponse, TaskDeploymentDeleteMessage, TaskStatus, TaskFactoryRegistration, TaskFetchDescriptors
+from streamtasks.system.types import DeploymentTask, RPCUIEventRequest, RPCUIEventResponse, RPCTaskConnectRequest, RPCTaskConnectResponse, TaskDeploymentDeleteMessage, TaskStatus, TaskFactoryRegistration, TaskFetchDescriptors
 from streamtasks.system.helpers import asgi_app_not_found
-from abc import ABC, abstractclassmethod, abstractmethod, abstractproperty
+from abc import ABC, abstractmethod, abstractproperty
 import asyncio
 
 from streamtasks.client import Client
 from streamtasks.worker import Worker
+
 
 class Task(ABC):
   def __init__(self, client: Client):
@@ -24,13 +24,13 @@ class Task(ABC):
     self._task = None
     self.app = asgi_app_not_found
 
-  def get_deployment_status(self) -> TaskStatus: 
+  def get_deployment_status(self) -> TaskStatus:
     error = None if self._task is None or not self._task.done() else self._task.exception()
     return TaskStatus(
       running=self._task is not None and not self._task.done(),
       error=str(error) if error is not None else None)
 
-  async def stop(self, timeout: float = None): 
+  async def stop(self, timeout: float = None):
     if self._task is None: raise RuntimeError("Task not started")
     self._task.cancel()
   async def start(self):
@@ -40,15 +40,16 @@ class Task(ABC):
   @abstractmethod
   async def start_task(self): pass
 
+
 class TaskFactoryWorker(Worker, ABC):
   registered_ids: ClassVar[set[str]] = set()
-  
+
   def __init__(self, node_link: Link):
     super().__init__(node_link)
-    
+
     self.id = self._generate_id()
     TaskFactoryWorker.registered_ids.add(self.id)
-    
+
     self.tasks = {}
     self.setup_done = asyncio.Event()
     self.web_server_running = asyncio.Event()
@@ -56,10 +57,10 @@ class TaskFactoryWorker(Worker, ABC):
     self.stop_timeout = 2
     self._client = None
     self._task_startup_duration = 0.1
-  
+
   @property
   def name(self): return self.__class__.__name__
- 
+
   async def start(self):
     try:
       self._client = Client(await self.create_link())
@@ -81,7 +82,7 @@ class TaskFactoryWorker(Worker, ABC):
     await self._client.request_address()
     await self._client.wait_for_address_name(AddressNames.TASK_MANAGER)
     self.reg = TaskFactoryRegistration(
-      id=self.id, 
+      id=self.id,
       worker_address=self._client.address,
       task_template=self.task_template.model_dump()
     )
@@ -121,12 +122,12 @@ class TaskFactoryWorker(Worker, ABC):
         return RPCTaskConnectResponse(task=deployment, error_message=None)
       except Exception as e:
         return RPCTaskConnectResponse(task=None, error_message=str(e))
-      
+
     @app.post("/rpc/ui-event")
     async def rpc_ui_event(req: RPCUIEventRequest):
       res = await self.rpc_ui_event(req)
       return RPCUIEventResponse.model_validate(res)
-    
+
     runner = ASGIAppRunner(self._client, app, self.reg.worker_address)
     self.web_server_running.set()
     await runner.start()
@@ -141,11 +142,11 @@ class TaskFactoryWorker(Worker, ABC):
     await task.stop(self.stop_timeout)
     del self.tasks[deployment.id]
     return task.get_deployment_status()
-  
+
   async def deploy_task(self, deployment: DeploymentTask):
     if deployment.id in self.tasks:
       task: Task = self.tasks[deployment.id]
-      if task.can_update(deployment): 
+      if task.can_update(deployment):
         await task.update(deployment)
         await asyncio.sleep(self._task_startup_duration)
         return task.get_deployment_status()
@@ -155,12 +156,12 @@ class TaskFactoryWorker(Worker, ABC):
     self.tasks[deployment.id] = task
     await asyncio.sleep(self._task_startup_duration)
     return task.get_deployment_status()
-  
+
   async def create_client(self) -> Client: return Client(await self.create_link())
-  
+
   @property
   def hostname(self): return socket.gethostname()
-  
+
   @abstractproperty
   def task_template(self) -> DeploymentTask: pass
   @abstractmethod
@@ -168,7 +169,7 @@ class TaskFactoryWorker(Worker, ABC):
   async def rpc_ui_event(self, req: RPCUIEventRequest) -> RPCUIEventResponse: return RPCUIEventResponse(task=req.task)
   @abstractmethod
   async def create_task(self, deployment: DeploymentTask) -> Task: pass
-  
+
   def _generate_id(self):
     counter = 0
     while True:

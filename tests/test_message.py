@@ -1,5 +1,9 @@
 import unittest
-from streamtasks.message import NumberMessage, MessagePackData, MediaPacketData, CustomData, get_timestamp_from_message, MediaPacket, SerializationType, data_from_serialization_type, get_core_serializers
+from streamtasks.message.data import CustomData, MessagePackData, SerializationType, data_from_serialization_type
+from streamtasks.message.helpers import get_timestamp_from_message
+
+from streamtasks.message.serializers import MediaPacketData, get_core_serializers
+from streamtasks.message.structures import MediaPacket, NumberMessage
 
 
 class TestMessage(unittest.TestCase):

@@ -1,18 +1,19 @@
+from streamtasks.media.config import DEFAULT_TIME_BASE_TO_MS
+from streamtasks.media.helpers import av_packet_to_media_packat
 from streamtasks.message import MediaPacket
-from streamtasks.media.codec import CodecInfo, Transcoder, EmptyTranscoder, AVTranscoder, Decoder, CodecOptions
-from streamtasks.media.config import *
-from streamtasks.media.helpers import *
+from streamtasks.media.codec import CodecInfo, Transcoder, EmptyTranscoder, AVTranscoder, Decoder, CodecOptions, apply_codec_options
 from typing import AsyncIterable
 import av
 import asyncio
 import time
+
 
 class InputContainer:
   _container: av.container.InputContainer
   _transcoder_map: dict[int, Transcoder]
   _stream_index_map: dict[int, int]
   _t0: int
-  
+
   def __init__(self, url: str, topic_encodings: list[tuple[int, CodecInfo]], codec_options: CodecOptions = {}, **kwargs):
     self._container = av.open(url, "r", **kwargs)
     stream_codec_infos = [ (stream.index, CodecInfo.from_codec_context(stream.codec_context)) for stream in self._container.streams if stream.codec_context is not None ]
@@ -20,14 +21,14 @@ class InputContainer:
     self._stream_index_map = {}
     self._transcoder_map = {}
     self._t0 = 0
-    
+
     # assing streams to topics and create transcoders
 
     for topic, codec_info in topic_encodings:
       if topic in self._transcoder_map: continue
       for stream_index in range(len(stream_codec_infos)):
         if stream_index in self._stream_index_map: continue
-        if codec_info.compatible_with(stream_codec_infos[stream_index][1]): 
+        if codec_info.compatible_with(stream_codec_infos[stream_index][1]):
           self._stream_index_map[stream_index] = topic
           self._transcoder_map[topic] = EmptyTranscoder()
           break
@@ -40,7 +41,7 @@ class InputContainer:
           self._stream_index_map[stream_index] = topic
 
           in_codec_context = self._container.streams[stream_index].codec_context
-          CodecOptions.apply(in_codec_context, codec_options)
+          apply_codec_options(in_codec_context, codec_options)
           self._transcoder_map[topic] = AVTranscoder(Decoder(in_codec_context), codec_info.get_encoder())
           break
 
@@ -60,15 +61,15 @@ class InputContainer:
       topic = self._stream_index_map[av_packet.stream_index]
       transcoder = self._transcoder_map[topic]
 
-
       if self._t0 == 0 and av_packet.pts is not None: self._t0 = int(time.time() * 1000 - (av_packet.pts / DEFAULT_TIME_BASE_TO_MS))
       packet = av_packet_to_media_packat(av_packet, self._t0)
 
       for t_packet in await transcoder.transcode(packet):
-        yield (topic, t_packet) 
+        yield (topic, t_packet)
 
   def close(self):
     self._container.close()
+
 
 class OutputContainer:
   _container: av.container.OutputContainer
@@ -81,7 +82,7 @@ class OutputContainer:
       stream_idx = len(self._container.streams)
       self._stream_index_map[topic] = stream_idx
       self._container.add_stream(codec_name=codec_info.codec, rate=codec_info.framerate)
-      CodecOptions.apply(self._container.streams[stream_idx].codec_context, codec_options)
+      apply_codec_options(self._container.streams[stream_idx].codec_context, codec_options)
 
   def __del__(self):
     self.close()

@@ -3,6 +3,7 @@ from streamtasks.media.audio import AudioCodecInfo, AudioFrame
 import numpy as np
 import scipy
 
+
 class TestAudioCodec(unittest.IsolatedAsyncioTestCase):
   sample_rate = 44100
   freq_count = 3
@@ -24,13 +25,13 @@ class TestAudioCodec(unittest.IsolatedAsyncioTestCase):
       sample_rate=self.sample_rate,
       sample_format=pixel_format,
     )
-  
+
   def resample_audio_frame(self, frame: AudioFrame):
     return self.resampler.resample(frame)
 
   def get_spectum(self, samples: np.ndarray):
     freqs = scipy.fft.fft(samples)
-    freqs = freqs[range(int(len(freqs)/2))] # keep only first half
+    freqs = freqs[range(int(len(freqs) / 2))] # keep only first half
     freqs = abs(freqs) # get magnitude
     freqs = freqs / freqs.sum() # normalize
     return freqs
@@ -40,7 +41,7 @@ class TestAudioCodec(unittest.IsolatedAsyncioTestCase):
     b_freqs = np.argsort(b)[-self.freq_count:]
     a_freqs.sort()
     b_freqs.sort()
-    return np.abs(a_freqs-b_freqs).sum()
+    return np.abs(a_freqs - b_freqs).sum()
 
   async def test_inverse_transcoder(self):
     in_samples = self.create_track()
@@ -87,6 +88,7 @@ class TestAudioCodec(unittest.IsolatedAsyncioTestCase):
     out_freqs = self.get_spectum(out_samples)
     similarity = self.get_freq_similarity(in_freqs, out_freqs)
     self.assertLess(similarity, 40)
+
 
 if __name__ == '__main__':
   unittest.main()

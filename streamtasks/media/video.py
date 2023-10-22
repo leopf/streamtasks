@@ -1,8 +1,9 @@
 from typing import Optional
 import av
 import numpy as np
-from streamtasks.media.config import *
 from streamtasks.media.codec import CodecInfo, Frame
+from streamtasks.media.config import DEFAULT_TIME_BASE
+
 
 class VideoFrame(Frame[av.video.frame.VideoFrame]):
   def to_image(self):
@@ -20,6 +21,7 @@ class VideoFrame(Frame[av.video.frame.VideoFrame]):
   @staticmethod
   def from_ndarray(array: np.ndarray, format: str): return VideoFrame(av.video.frame.VideoFrame.from_ndarray(array))
 
+
 class VideoCodecInfoMinimal(CodecInfo[VideoFrame]):
   framerate: float
 
@@ -29,6 +31,7 @@ class VideoCodecInfoMinimal(CodecInfo[VideoFrame]):
 
   def _get_av_codec_context(self, mode: str): raise NotImplementedError("VideoCodecInfoMinimal does not have all the info.")
 
+
 class VideoCodecInfo(VideoCodecInfoMinimal):
   width: int
   height: int
@@ -36,8 +39,8 @@ class VideoCodecInfo(VideoCodecInfoMinimal):
   pixel_format: str
   crf: Optional[int] = None
 
-  def __init__(self, width: int, height: int, framerate: int, pixel_format: str = 'yuv420p', 
-                codec: str = 'h264', bitrate: Optional[int] = None, crf: Optional[int] = None):
+  def __init__(self, width: int, height: int, framerate: int, pixel_format: str = 'yuv420p',
+               codec: str = 'h264', bitrate: Optional[int] = None, crf: Optional[int] = None):
     super().__init__(codec, framerate)
     self.width = width
     self.height = height

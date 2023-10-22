@@ -1,13 +1,15 @@
 from abc import ABC, abstractmethod
 from typing import Any, TypeVar, TypedDict, Optional, Generic, Iterator
-from streamtasks.message import MediaPacket
-from streamtasks.media.config import *
-from streamtasks.media.helpers import *
+from streamtasks.media.config import DEFAULT_TIME_BASE_TO_MS
+from streamtasks.media.helpers import av_packet_to_media_packat, media_packet_to_av_packet
 
-from dataclasses import dataclass 
+from dataclasses import dataclass
 import av
 import time
 import asyncio
+
+from streamtasks.message.structures import MediaPacket
+
 
 @dataclass
 class AvailableCodec:
@@ -19,30 +21,32 @@ class AvailableCodec:
   @property
   def unique_name(self) -> str: return f'{self.codec}/{self.format}'
 
+
 def load_available_codecs() -> Iterator[AvailableCodec]:
   for name in av.codecs_available:
     for mode in ["r", "w"]:
       try:
         c = av.codec.Codec(name, mode)
         item = { "mode": mode, "codec": name, "type": c.type }
-        formats = []
         if c.type == "audio":
           for format in c.audio_formats:
             yield AvailableCodec(**item, format=format.name)
         elif c.type == "video":
           for format in c.video_formats:
             yield AvailableCodec(**item, format=format.name)
-      except BaseException as e:
-          pass
+      except BaseException: pass
+
 
 T = TypeVar('T')
+
+
 class Frame(ABC, Generic[T]):
   frame: T
 
   def __init__(self, frame: T):
     self.frame = frame
 
-  def from_av_frame(av_frame: Any) -> 'Frame[T]': 
+  def from_av_frame(av_frame: Any) -> 'Frame[T]':
     if isinstance(av_frame, av.video.frame.VideoFrame):
       from streamtasks.media.video import VideoFrame
       return VideoFrame(av_frame)
@@ -53,7 +57,10 @@ class Frame(ABC, Generic[T]):
       from streamtasks.media.subtitle import SubtitleFrame
       return SubtitleFrame(av_frame)
 
+
 F = TypeVar('F', bound=Frame)
+
+
 class Encoder(Generic[F]):
   _t0: int = 0
   codec_context: av.codec.CodecContext
@@ -62,7 +69,7 @@ class Encoder(Generic[F]):
     self.codec_context = codec_context
     self._t0 = 0
   def __del__(self): self.close()
-  
+
   async def encode(self, data: Any) -> list[MediaPacket]:
     loop = asyncio.get_running_loop()
     packets = await loop.run_in_executor(None, self._encode, data)
@@ -74,6 +81,7 @@ class Encoder(Generic[F]):
 
   def close(self): self.codec_context.close(strict=False)
   def _encode(self, frame: F) -> list[av.Packet]: return self.codec_context.encode(frame.frame)
+
 
 class Decoder(Generic[F]):
   codec_context: av.codec.CodecContext
@@ -90,9 +98,11 @@ class Decoder(Generic[F]):
   def close(self): self.codec_context.close()
   def _decode(self, packet: av.packet.Packet) -> list[F]: return self.codec_context.decode(packet)
 
+
 class Transcoder(ABC):
   @abstractmethod
   async def transcode(self, packet: MediaPacket) -> list[MediaPacket]: pass
+
 
 class AVTranscoder:
   def __init__(self, decoder: Decoder, encoder: Encoder):
@@ -106,15 +116,18 @@ class AVTranscoder:
       packets += await self.encoder.encode(frame)
     return packets
 
+
 class EmptyTranscoder:
   async def transcode(self, packet: MediaPacket) -> list[MediaPacket]: return [ packet ]
+
 
 class CodecOptions(TypedDict):
   thread_type: Optional[str]
 
-  @staticmethod 
-  def apply(ctx: av.codec.CodecContext, opt: 'CodecOptions'):
-    ctx.thread_type = opt['thread_type'] if "thread_type" in opt else "AUTO"
+
+def apply_codec_options(ctx: av.codec.CodecContext, opt: 'CodecOptions'):
+  ctx.thread_type = opt['thread_type'] if "thread_type" in opt else "AUTO"
+
 
 class CodecInfo(ABC, Generic[F]):
   codec: str
@@ -136,7 +149,7 @@ class CodecInfo(ABC, Generic[F]):
   def _get_av_codec_context(self, mode: str) -> av.codec.CodecContext: pass
   def _get_av_codec_context_with_options(self, mode: str, options: CodecOptions) -> av.codec.CodecContext:
     ctx = self._get_av_codec_context(mode)
-    CodecOptions.apply(ctx, options)
+    apply_codec_options(ctx, options)
     return ctx
 
   def get_encoder(self, options: CodecOptions = {}) -> Encoder: return Encoder[F](self._get_av_codec_context_with_options("w", options))

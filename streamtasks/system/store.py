@@ -1,9 +1,12 @@
+from typing import Optional
+from streamtasks.asgi import ASGIProxyApp
 from streamtasks.client import Client
-from streamtasks.system.types import *
-from streamtasks.asgi import *
 from streamtasks.system.helpers import ASGIIDRouter
 from tinydb.table import Table as TinyDBTable
 from tinydb import Query as TinyDBQuery
+
+from streamtasks.system.types import DashboardInfo, DashboardRegistration, Deployment, DeploymentBase, DeploymentStatusInfo, DeploymentTask, TaskDeploymentDeleteMessage, TaskFactoryRegistration, TaskFetchDescriptors, TaskStatus
+
 
 class DashboardStore:
   def __init__(self, client: Client, base_path: str):
@@ -15,16 +18,17 @@ class DashboardStore:
   @property
   def dashboards(self): return [ DashboardInfo(id=db.id, path=self.router.get_path_to_id(db.id, self.base_url), label=db.label) for db in self._dashboards ]
 
-  def add_dashboard(self, dashboard: DashboardRegistration): 
+  def add_dashboard(self, dashboard: DashboardRegistration):
     proxy_app = ASGIProxyApp(self.client, dashboard.address)
     self.router.add_app(dashboard.id, proxy_app)
     self._dashboards.append(dashboard)
 
-  def remove_dashboard(self, id: str): 
+  def remove_dashboard(self, id: str):
     self.router.remove_app(id)
     self._dashboards = [db for db in self._dashboards if db.id != id]
 
-class TaskFactoryStore: 
+
+class TaskFactoryStore:
   def __init__(self, client: Client, base_path: str):
     self.client = client
     self.base_url = base_path
@@ -46,20 +50,21 @@ class TaskFactoryStore:
     response = await self.client.fetch(factory.worker_address, TaskFetchDescriptors.DELETE_TASK, TaskDeploymentDeleteMessage(id=task_id).model_dump())
     return TaskStatus.model_validate(response)
 
-  def add_task_factory(self, task_factory: TaskFactoryRegistration): 
+  def add_task_factory(self, task_factory: TaskFactoryRegistration):
     proxy_app = ASGIProxyApp(self.client, task_factory.worker_address)
     self.router.add_app(task_factory.id, proxy_app)
     self._task_factories[task_factory.id] = task_factory
 
-  def remove_task_factory(self, id: str): 
+  def remove_task_factory(self, id: str):
     self.router.remove_app(id)
     self._task_factories.pop(id, None)
+
 
 class DeploymentStore:
   def __init__(self, table: TinyDBTable):
     self._deployments_table = table
     self._started_deployments = {}
-  
+
   @property
   def deployments(self): return [ DeploymentBase(**deployment) for deployment in self._deployments_table.all() ]
 
@@ -73,7 +78,7 @@ class DeploymentStore:
     started_deployment = self.get_started_deployment(id)
     if started_deployment is not None: return DeploymentStatusInfo(status=started_deployment.status)
     return DeploymentStatusInfo(status="offline")
-  
+
   def get_started_deployment(self, id: str) -> Optional[Deployment]: return self._started_deployments.get(id, None)
   def get_deployment(self, id: str) -> Optional[Deployment]:
     db_res = self._deployments_table.get(TinyDBQuery().id == id)
@@ -82,7 +87,7 @@ class DeploymentStore:
     status_info = self.get_deployment_status(deployment.id)
     deployment.status = status_info.status
     return deployment
-  
+
   def deployment_was_started(self, id: str) -> bool: return id in self._started_deployments
   def store_deployment(self, deployment: Deployment): self._deployments_table.upsert(deployment.model_dump(), TinyDBQuery().id == deployment.id)
   def remove_deployment(self, id: str): self._deployments_table.remove(TinyDBQuery().id == id)

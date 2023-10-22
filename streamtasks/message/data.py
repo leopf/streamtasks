@@ -5,11 +5,13 @@ import struct
 import msgpack
 from enum import Enum
 
+
 class SerializationType(Enum):
   JSON = 1
   MSGPACK = 2
   TEXT = 3
   CUSTOM = 255
+
 
 class Serializer:
   @abstractproperty
@@ -18,6 +20,7 @@ class Serializer:
   def serialize(self, data: Any) -> memoryview: pass
   @abstractmethod
   def deserialize(self, data: memoryview) -> Any: pass
+
 
 class SerializableData(ABC):
   _data: Any
@@ -36,6 +39,7 @@ class SerializableData(ABC):
   @abstractmethod
   def _deserialize(self) -> Any: pass
 
+
 class JsonData(SerializableData):
   def __init__(self, data: Union[Any, memoryview]):
     if not isinstance(data, memoryview) and hasattr(data, "__dict__"):
@@ -44,8 +48,9 @@ class JsonData(SerializableData):
   @property
   def type(self) -> SerializationType: return SerializationType.JSON
   def _deserialize(self) -> Any: return json.loads(self._raw.tobytes().decode("utf-8"))
-  def _serialize(self) -> bytes: 
+  def _serialize(self) -> bytes:
     return json.dumps(self._data if not hasattr(self._data, "__dict__") else self.data.__dict__).encode("utf-8")
+
 
 class MessagePackData(SerializableData):
   @property
@@ -53,17 +58,19 @@ class MessagePackData(SerializableData):
   def _deserialize(self) -> Any: return msgpack.unpackb(self._raw)
   def _serialize(self) -> bytes: return msgpack.packb(self._data)
 
+
 class TextData(SerializableData):
   @property
   def type(self) -> SerializationType: return SerializationType.TEXT
   def _deserialize(self) -> Any: return self._raw.tobytes().decode("utf-8")
   def _serialize(self) -> bytes: return self._data.encode("utf-8")
 
+
 class CustomData(SerializableData):
   serializer: Optional[Serializer]
   _content_id: Optional[int]
-  
-  def __init__(self, data: Union[Any, memoryview], serializer: Optional[Serializer]=None):
+
+  def __init__(self, data: Union[Any, memoryview], serializer: Optional[Serializer] = None):
     self.serializer = serializer
     if isinstance(data, memoryview):
       self._content_id = struct.unpack("<H", data[:2])[0]
@@ -81,9 +88,10 @@ class CustomData(SerializableData):
   def _deserialize(self) -> Any:
     assert self.serializer is not None, "CustomData serializer not set"
     return self.serializer.deserialize(self._raw)
-  def _serialize(self) -> bytes: 
+  def _serialize(self) -> bytes:
     assert self.serializer is not None, "CustomData serializer not set"
     return struct.pack("<H", self.content_id) + self.serializer.serialize(self.data)
+
 
 def data_from_serialization_type(data: memoryview, t: SerializationType) -> SerializableData:
   if t == SerializationType.JSON: return JsonData(data)

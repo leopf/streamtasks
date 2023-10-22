@@ -4,6 +4,7 @@ from streamtasks.tasks.passivize import PassivizeTask
 from streamtasks.system.types import DeploymentTask, TaskInputStream, TaskOutputStream, TaskStreamGroup
 import asyncio
 
+
 @unittest.skip("")
 class TestPassivize(TaskTestBase):
 
@@ -15,7 +16,6 @@ class TestPassivize(TaskTestBase):
     await self.stream_active_out_topic.set_topic(101)
     self.stream_passive_out_topic = self.client.create_subscription_tracker()
     await self.stream_passive_out_topic.set_topic(102)
-
 
   def get_deployment_config(self): return DeploymentTask(
     task_factory_id="test_factory",
@@ -44,7 +44,7 @@ class TestPassivize(TaskTestBase):
   async def test_sub(self):
     self.start_task()
     async with asyncio.timeout(1):
-      async with self.client.get_topics_receiver([ self.stream_active_out_topic, self.stream_passive_out_topic ]) as receiver:
+      async with self.client.get_topics_receiver([ self.stream_active_out_topic, self.stream_passive_out_topic ]):
         await self.stream_active_out_topic.subscribe()
         await self.stream_in_topic.wait_subscribed()
         await self.stream_passive_out_topic.subscribe()

@@ -1,20 +1,24 @@
 from dataclasses import dataclass
+from streamtasks.message.data import MessagePackData, SerializableData
+from streamtasks.message.helpers import get_timestamp_from_message
+from streamtasks.message.structures import NumberMessage
 from streamtasks.net.types import TopicControlData
 from streamtasks.system.task import Task, TaskFactoryWorker
 from streamtasks.system.helpers import apply_task_stream_config
-from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
+from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, TaskStreamGroup, TaskInputStream, TaskOutputStream
 from streamtasks.client import Client
 from streamtasks.client.receiver import NoopReceiver
-from streamtasks.message import NumberMessage, get_timestamp_from_message, SerializableData, MessagePackData
 from streamtasks.helpers import AsyncObservable, TimeSynchronizer
 import socket
 import asyncio
 from enum import Enum
 from typing import Optional
 
+
 class FlowDetectorFailMode(Enum):
   CLOSED = "closed"
   OPEN = "open"
+
 
 @dataclass
 class FlowDetectorConfig:
@@ -36,6 +40,7 @@ class FlowDetectorConfig:
       signal_delay=float(task.config["signal_delay"]) if "signal_delay" in task.config else None
     )
 
+
 class FlowDetectorState(AsyncObservable):
   last_message_invalid: bool
   input_paused: bool
@@ -53,6 +58,7 @@ class FlowDetectorState(AsyncObservable):
     else:
       return True
 
+
 class FlowDetectorTask(Task):
   def __init__(self, client: Client, config: FlowDetectorConfig):
     super().__init__(client)
@@ -68,14 +74,14 @@ class FlowDetectorTask(Task):
 
   async def start_task(self):
     tasks: list[asyncio.Task] = []
-    try: 
+    try:
       async with self.in_topic, self.out_topic, self.signal_topic, self.in_topic.RegisterContext(), \
           self.out_topic.RegisterContext(), self.signal_topic.RegisterContext():
-      
+
         tasks.append(asyncio.create_task(self.run_main()))
         tasks.append(asyncio.create_task(self.run_updater()))
         if self.signal_delay: tasks.append(asyncio.create_task(self.run_lighthouse()))
-      
+
         self.client.start()
         await asyncio.gather(*tasks)
     finally:
@@ -83,18 +89,18 @@ class FlowDetectorTask(Task):
 
   async def run_main(self):
 
-      while True:
-        data = await self.in_topic.recv_data_control()
-        if isinstance(data, TopicControlData): 
-          await self.out_topic.set_paused(data.paused)
-          self.state.input_paused = data.paused
-        else: 
-          try: 
-            self.time_sync.update(get_timestamp_from_message(data))
-            self.state.last_message_invalid = False
-          except ValueError: self.state.last_message_invalid = True
-          finally: await self.out_topic.send(data)
-        await asyncio.sleep(0.001)
+    while True:
+      data = await self.in_topic.recv_data_control()
+      if isinstance(data, TopicControlData):
+        await self.out_topic.set_paused(data.paused)
+        self.state.input_paused = data.paused
+      else:
+        try:
+          self.time_sync.update(get_timestamp_from_message(data))
+          self.state.last_message_invalid = False
+        except ValueError: self.state.last_message_invalid = True
+        finally: await self.out_topic.send(data)
+      await asyncio.sleep(0.001)
 
   async def run_updater(self):
     while True:
@@ -112,9 +118,10 @@ class FlowDetectorTask(Task):
   async def send_current_signal(self):
     await self.signal_topic.send(MessagePackData(NumberMessage(timestamp=self.time_sync.time, value=float(self.current_signal)).model_dump()))
 
+
 class FlowDetectorTask2(Task):
   def __init__(self, client: Client, deployment: DeploymentTask):
-    super().__init__(client)    
+    super().__init__(client)
     self.time_sync = TimeSynchronizer()
     self.setup_done = asyncio.Event()
 
@@ -142,7 +149,7 @@ class FlowDetectorTask2(Task):
         self._process_subscription_status(),
         self._run_signal_loop()
       )
-    finally:    
+    finally:
       self.time_sync.reset()
       self.input_paused = False
       self.failing = False
@@ -152,7 +159,7 @@ class FlowDetectorTask2(Task):
       await self.input_topic.set_topic(None)
       await self.output_topic.set_topic(None)
       await self.signal_topic.set_topic(None)
-  
+
   async def _run_signal_loop(self):
     while True:
       await asyncio.sleep(self.signal_delay)
@@ -174,10 +181,10 @@ class FlowDetectorTask2(Task):
         await self._on_state_change()
 
   async def _process_message(self, data: SerializableData):
-    try: 
+    try:
       self.time_sync.update(get_timestamp_from_message(data))
       self.failing = False
-    except Exception as e: self.failing = True
+    except ValueError: self.failing = True
     finally: await self.client.send_stream_data(self.output_topic.topic, data)
 
   async def _on_state_change(self, timestamp: Optional[int] = None):
@@ -186,13 +193,14 @@ class FlowDetectorTask2(Task):
     await self.output_topic.set_paused(self.input_paused)
     is_active = self.output_topic.is_subscribed and not self.input_paused and (not self.failing or self.fail_mode == FlowDetectorFailMode.OPEN)
     message = NumberMessage(timestamp=self.time_sync.time if timestamp is None else timestamp, value=float(is_active))
-    if self.signal_topic.topic is not None: 
+    if self.signal_topic.topic is not None:
       await self.client.send_stream_data(self.signal_topic.topic, MessagePackData(message.model_dump()))
 
+
 class FlowDetectorTaskFactoryWorker(TaskFactoryWorker):
-  async def create_task(self, deployment: DeploymentTask): 
+  async def create_task(self, deployment: DeploymentTask):
     return FlowDetectorTask(await self.create_client(), FlowDetectorConfig.from_deployment_task(deployment))
-  async def rpc_connect(self, req: RPCTaskConnectRequest) -> DeploymentTask: 
+  async def rpc_connect(self, req: RPCTaskConnectRequest) -> DeploymentTask:
     if req.input_id != req.task.stream_groups[0].inputs[0].ref_id: raise Exception("Input stream id does not match task input stream id")
     if req.output_stream:
       req.task.stream_groups[0].inputs[0].topic_id = req.output_stream.topic_id
@@ -204,14 +212,14 @@ class FlowDetectorTaskFactoryWorker(TaskFactoryWorker):
   @property
   def task_template(self): return DeploymentTask(
     task_factory_id=self.id,
-    config= {
+    config={
       "label": "Flow Detector",
       "hostname": socket.gethostname(),
     },
     stream_groups=[
       TaskStreamGroup(
-        inputs=[TaskInputStream(label="input")],    
-        outputs=[TaskOutputStream(label="output"), TaskOutputStream(label="signal", content_type="number")]      
+        inputs=[TaskInputStream(label="input")],
+        outputs=[TaskOutputStream(label="output"), TaskOutputStream(label="signal", content_type="number")]
       )
     ]
   )

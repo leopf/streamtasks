@@ -2,6 +2,7 @@ from typing import Iterable
 from streamtasks.net.types import PricedId
 from itertools import chain
 
+
 class PricedIdTracker:
   _map: dict[int, dict[int, int]]
   _computed_map: dict[int, int]
@@ -22,7 +23,7 @@ class PricedIdTracker:
       inner[id.cost] = inner.get(id.cost, 0) + 1
 
       val = self._computed_map.get(id.id, float("inf"))
-      if id.cost < val: 
+      if id.cost < val:
         self._computed_map[id.id] = id.cost
         final.add(id)
     return final
@@ -35,9 +36,9 @@ class PricedIdTracker:
       if inner is None: continue
       val = inner.get(id.cost, 0)
       if val == 0: continue
-      if val == 1: 
+      if val == 1:
         inner.pop(id.cost, None)
-        if len(inner) == 0: 
+        if len(inner) == 0:
           self._map.pop(id.id, None)
           self._computed_map.pop(id.id, None)
           final_removed.add(id.id)
@@ -49,13 +50,15 @@ class PricedIdTracker:
         inner[id.cost] = val - 1
 
     return final_removed, final_updated
-  
+
   def change_many(self, add: Iterable[PricedId], remove: Iterable[PricedId]) -> tuple[set[PricedId], set[int]]:
     removed, updated = self.remove_many(remove)
     return merge_priced_topics(chain(iter(self.add_many(add)), iter(updated))), removed
 
-def ids_to_priced_ids(ids: set[int], cost: int=0):
+
+def ids_to_priced_ids(ids: set[int], cost: int = 0):
   return set(PricedId(id, cost) for id in ids)
+
 
 def merge_priced_topics(topics: Iterable[PricedId]) -> set[PricedId]:
   topic_map = {}

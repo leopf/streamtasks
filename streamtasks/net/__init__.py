@@ -1,17 +1,20 @@
 from typing import Union
-from streamtasks.net.types import *
-from streamtasks.net.helpers import *
+from streamtasks.net.helpers import PricedIdTracker
 from streamtasks.net.serialize import serialize_message, deserialize_message
 from streamtasks.helpers import IdTracker
 from abc import ABC, abstractmethod
 import logging
 import asyncio
 
+from streamtasks.net.types import AddressedMessage, AddressesChangedMessage, AddressesChangedRecvMessage, InTopicsChangedMessage, Message, OutTopicsChangedMessage, OutTopicsChangedRecvMessage, PricedId, TopicControlData, TopicControlMessage, TopicMessage
+
 DAddress = Union[str, int] # dynamic address, which allows names or ints
 Endpoint = tuple[DAddress, int]
 
+
 class ConnectionClosedError(Exception):
   def __init__(self, message: str = "Connection closed"): super().__init__(message)
+
 
 class Link(ABC):
   in_topics: set[int]
@@ -97,14 +100,14 @@ class Link(ABC):
       itc_message: InTopicsChangedMessage = message
       message = InTopicsChangedMessage(itc_message.add.difference(self.in_topics), itc_message.remove.intersection(self.in_topics))
       self.in_topics = self.in_topics.union(message.add).difference(message.remove)
-      
+
       if len(message.add) == 0 and len(message.remove) == 0:
         return None
 
     elif isinstance(message, OutTopicsChangedMessage):
       otc_message: OutTopicsChangedMessage = message
       message = OutTopicsChangedRecvMessage(
-        set(PricedId(pt.id, pt.cost + self.cost) for pt in otc_message.add), 
+        set(PricedId(pt.id, pt.cost + self.cost) for pt in otc_message.add),
         set(PricedId(t, self.out_topics[t]) for t in otc_message.remove if t in self.out_topics))
       for address in otc_message.remove: self.out_topics.pop(address, None)
       for pt in message.add: self.out_topics[pt.id] = pt.cost
@@ -112,12 +115,13 @@ class Link(ABC):
     elif isinstance(message, AddressesChangedMessage):
       ac_message: AddressesChangedMessage = message
       message = AddressesChangedRecvMessage(
-        set(PricedId(pa.id, pa.cost + self.cost) for pa in ac_message.add), 
+        set(PricedId(pa.id, pa.cost + self.cost) for pa in ac_message.add),
         set(PricedId(a, self.addresses[a]) for a in ac_message.remove if a in self.addresses))
       for address in ac_message.remove: self.addresses.pop(address, None)
       for pa in message.add: self.addresses[pa.id] = pa.cost
 
     return message
+
 
 class QueueLink(Link):
   out_messages: asyncio.Queue[Message]
@@ -138,7 +142,7 @@ class QueueLink(Link):
     self._validate_open()
     await self.out_messages.put(message)
 
-  async def _wait_closed(self): 
+  async def _wait_closed(self):
     await asyncio.wait([
       asyncio.create_task(super()._wait_closed()),
       asyncio.create_task(self._wait_closed_external())
@@ -157,6 +161,7 @@ class QueueLink(Link):
       if not self.closed.is_set(): self.close()
       raise ConnectionClosedError()
 
+
 class RawQueuelink(QueueLink):
   out_messages: asyncio.Queue[bytes]
   in_messages: asyncio.Queue[bytes]
@@ -169,6 +174,7 @@ class RawQueuelink(QueueLink):
     self._validate_open()
     return deserialize_message(await self.in_messages.get())
 
+
 def create_queue_connection(raw: bool = False) -> tuple[Link, Link]:
   close_signal = asyncio.Event()
   messages_a, messages_b = asyncio.Queue(), asyncio.Queue()
@@ -177,17 +183,19 @@ def create_queue_connection(raw: bool = False) -> tuple[Link, Link]:
   else:
     return QueueLink(close_signal, messages_a, messages_b), QueueLink(close_signal, messages_b, messages_a)
 
+
 class LinkManager:
   def __init__(self): self._link_recv_tasks = {}
   @property
-  def links(self): return self._link_recv_tasks.keys()  
+  def links(self): return self._link_recv_tasks.keys()
   def has_link(self, link: Link): return link in self._link_recv_tasks
   def accept_link(self, link: Link, receiver_task: asyncio.Task): self._link_recv_tasks[link] = receiver_task
   def remove_link(self, link: Link):
     if link in self._link_recv_tasks: self._link_recv_tasks.pop(link).cancel()
-  def cancel_all(self): 
+  def cancel_all(self):
     for task in self._link_recv_tasks.values(): task.cancel()
     self._link_recv_tasks.clear()
+
 
 class Switch:
   def __init__(self):
@@ -204,7 +212,7 @@ class Switch:
 
     switch_addresses = set(self.addresses.items())
     if len(switch_addresses) > 0: await link.send(AddressesChangedMessage(switch_addresses, set()))
-  
+
     added_out_topics = self.out_topics.add_many(link.get_priced_out_topics())
     if len(added_out_topics) > 0: await self.broadcast(OutTopicsChangedMessage(added_out_topics, set()))
 
@@ -215,7 +223,7 @@ class Switch:
     if len(added_in_topics) > 0: await self.request_in_topics_change(added_in_topics, set())
 
     self.link_manager.accept_link(link, asyncio.create_task(self._run_link_receiving(link)))
-  
+
   async def remove_link(self, link: Link):
     self.link_manager.remove_link(link)
 
@@ -225,7 +233,7 @@ class Switch:
 
     if len(updated_in_topics) > 0:
       await self.request_in_topics_change(set(updated_in_topics), set())
-    
+
     if len(removed_topics) > 0 or len(updated_topics) > 0:
       await self.broadcast(OutTopicsChangedMessage(updated_topics, removed_topics))
 
@@ -234,10 +242,10 @@ class Switch:
       await self.broadcast(AddressesChangedMessage(updated_addresses, removed_addresses))
 
   def stop_receiving(self): self.link_manager.cancel_all()
-  async def send_to(self, message: Message, links: list[Link]): 
+  async def send_to(self, message: Message, links: list[Link]):
     for link in links: await link.send(message)
   async def broadcast(self, message: Message): await self.send_to(message, self.link_manager.links)
-  
+
   async def send_remove_in_topic(self, topic: int):
     await self.send_to(InTopicsChangedMessage(set(), set([topic])), [ conn for conn in self.link_manager.links if topic in conn.recv_topics ])
 
@@ -250,14 +258,14 @@ class Switch:
       if topic not in best_link.out_topics: continue
       if best_link not in change_map: change_map[best_link] = InTopicsChangedMessage(set(), set())
       change_map[best_link].add.add(topic)
-    
+
     if len(remove_topics_set) > 0:
       for conn in self.link_manager.links:
         remove_sub = conn.recv_topics.intersection(remove_topics_set)
         if len(remove_sub) > 0:
           if conn not in change_map: change_map[conn] = InTopicsChangedMessage(set(), set())
           for topic in remove_sub: change_map[conn].remove.add(topic)
-    
+
     for conn, message in change_map.items(): await conn.send(message)
 
   async def on_in_topics_changed(self, message: InTopicsChangedMessage, origin: Link):
@@ -265,8 +273,8 @@ class Switch:
     final_add = self.in_topics.add_many(message.add)
     final_remove = self.in_topics.remove_many(message.remove)
 
-    for control_message in [ self.stream_controls[topic].to_message(topic) for topic in message.add if topic in self.stream_controls ]: 
-      await origin.send(control_message) 
+    for control_message in [ self.stream_controls[topic].to_message(topic) for topic in message.add if topic in self.stream_controls ]:
+      await origin.send(control_message)
 
     await self.request_in_topics_change(final_add, final_remove)
 
@@ -288,7 +296,7 @@ class Switch:
     for pt in message.add:
       if pt.id in self.in_topics:
         topic_provider = next((conn for conn in self.link_manager.links if pt.id in conn.recv_topics), None)
-        if topic_provider is None or topic_provider.out_topics[pt.id] > pt.cost: 
+        if topic_provider is None or topic_provider.out_topics[pt.id] > pt.cost:
           resub_topics.add(pt.id)
     await self.request_in_topics_change(resub_topics, resub_topics) # resub to the better providers
 
@@ -314,14 +322,14 @@ class Switch:
       logging.warning(f"Unhandled message {message}")
 
   async def _run_link_receiving(self, link: Link):
-    try: 
-      while True: 
+    try:
+      while True:
         message = await link.recv()
         await self.handle_message(message, link)
     except asyncio.CancelledError: pass
     except ConnectionClosedError: pass
-    except BaseException as e: 
+    except BaseException as e:
       logging.error(f"Error receiving from link: {e}")
       raise e
-    finally: 
+    finally:
       await self.remove_link(link)

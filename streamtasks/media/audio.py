@@ -1,9 +1,11 @@
 from typing import Optional
-from streamtasks.media.config import *
 from streamtasks.media.codec import CodecInfo, Frame
 import numpy as np
 import asyncio
 import av
+
+from streamtasks.media.config import DEFAULT_TIME_BASE
+
 
 class AudioFrame(Frame[av.audio.frame.AudioFrame]):
   def to_ndarray(self):
@@ -14,6 +16,7 @@ class AudioFrame(Frame[av.audio.frame.AudioFrame]):
     av_frame = av.audio.frame.AudioFrame.from_ndarray(ndarray, sample_format, channels)
     av_frame.sample_rate = sample_rate
     return AudioFrame(av_frame)
+
 
 class AudioCodecInfo(CodecInfo[AudioFrame]):
   channels: int # NOTE: may be insufficient
@@ -69,6 +72,7 @@ class AudioCodecInfo(CodecInfo[AudioFrame]):
   def from_codec_context(ctx: av.codec.CodecContext):
     format = ctx.format
     return AudioCodecInfo(ctx.name, ctx.channels, ctx.sample_rate, format.name, ctx.bit_rate, ctx.options.get('crf', None))
+
 
 class AudioResampler:
   def __init__(self, format: av.audio.format.AudioFormat, layout: av.audio.layout.AudioLayout, rate: int):

@@ -1,14 +1,15 @@
 from streamtasks.client.receiver import AddressReceiver
+from streamtasks.system.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesResponseMessage, GenerateTopicsRequestBody, GenerateTopicsResponseBody, RegisterAddressRequestBody, ResolveAddressRequestBody, ResolveAddressResonseBody, WorkerAddresses, WorkerFetchDescriptors, WorkerPorts, WorkerTopics
 from streamtasks.worker import Worker
 from streamtasks.client import Client
 from streamtasks.client.fetch import FetchRequest, FetchServer
-from streamtasks.system.protocols import *
 from streamtasks.message.data import TextData, MessagePackData
 from streamtasks.net.types import TopicControlData
 from streamtasks.net import Link
 import pydantic
 import logging
 import asyncio
+
 
 class DiscoveryWorker(Worker):
   _address_counter: int
@@ -84,13 +85,13 @@ class DiscoveryWorker(Worker):
           logging.info(f"generating {request.count} addresses")
           addresses = self.generate_addresses(request.count)
           await client.send_stream_data(WorkerTopics.ADDRESSES_CREATED, MessagePackData(GenerateAddressesResponseMessage(
-            request_id=request.request_id, 
+            request_id=request.request_id,
             addresses=addresses
           ).model_dump()))
-        except pydantic.ValidationError as e: pass
-        except Exception as e: 
+        except pydantic.ValidationError: pass
+        except Exception as e:
           logging.error(e)
-  
+
   def generate_topics(self, count: int) -> set[int]:
     res = set(self._topics_counter + i for i in range(count))
     self._topics_counter += count
@@ -100,5 +101,3 @@ class DiscoveryWorker(Worker):
     res = set(self._address_counter + i for i in range(count))
     self._address_counter += count
     return res
-
-

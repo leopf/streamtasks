@@ -65,14 +65,14 @@ class CounterIncrementTaskFactory(TestTaskFactoryWorker):
   async def create_task(self, deployment: DeploymentTask) -> Task: return CounterMultipyTask(await self.create_client(), deployment)
   @property
   def task_template(self): return DeploymentTask(
-      id="counter_increment",
-      task_factory_id=self.id,
-      config={},
-      stream_groups=[TaskStreamGroup(
-        inputs=[TaskInputStream(ref_id="in1", label="value in", topic_id="emit")],
-        outputs=[TaskOutputStream(label="value out", topic_id="increment")]
-      )]
-    )
+    id="counter_increment",
+    task_factory_id=self.id,
+    config={},
+    stream_groups=[TaskStreamGroup(
+      inputs=[TaskInputStream(ref_id="in1", label="value in", topic_id="emit")],
+      outputs=[TaskOutputStream(label="value out", topic_id="increment")]
+    )]
+  )
 
 
 class CounterEmitTaskFactory(TestTaskFactoryWorker):

@@ -3,13 +3,14 @@ from streamtasks.net import Endpoint
 from streamtasks.net.types import AddressedMessage, Message
 from streamtasks.message.data import MessagePackData
 import asyncio
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from typing import TYPE_CHECKING, Any, Optional, Callable, Awaitable
 import logging
 
 from streamtasks.system.protocols import WorkerPorts
 if TYPE_CHECKING:
-    from streamtasks.client import Client
+  from streamtasks.client import Client
+
 
 class FetchRequestMessage(BaseModel):
   return_address: int
@@ -17,8 +18,10 @@ class FetchRequestMessage(BaseModel):
   descriptor: str
   body: Any
 
+
 class FetchResponseMessage(BaseModel):
   body: Any
+
 
 class FetchRequest:
   def __init__(self, client: 'Client', return_endpoint: Endpoint, body: Any):
@@ -30,6 +33,7 @@ class FetchRequest:
   async def respond(self, body: Any):
     await self._client.send_to(self._return_endpoint, MessagePackData(FetchResponseMessage(body=body).model_dump()))
     self.response_sent = True
+
 
 class FetchReponseReceiver(Receiver):
   _recv_queue: asyncio.Queue[Any]
@@ -45,7 +49,8 @@ class FetchReponseReceiver(Receiver):
     try:
       fr_message = FetchResponseMessage.model_validate(a_message.data.data)
       self._recv_queue.put_nowait(fr_message.body)
-    except: pass
+    except ValidationError: pass
+
 
 class FetchServer(Receiver):
   _recv_queue: asyncio.Queue[tuple[str, FetchRequest]]
@@ -72,7 +77,7 @@ class FetchServer(Receiver):
       fr_message = FetchRequestMessage.model_validate(a_message.data.data)
       if fr_message.descriptor in self._descriptor_mapping:
         self._recv_queue.put_nowait((fr_message.descriptor, FetchRequest(self._client, (fr_message.return_address, fr_message.return_port), fr_message.body)))
-    except: pass
+    except ValidationError: pass
 
   async def start(self):
     async with self:
@@ -81,8 +86,9 @@ class FetchServer(Receiver):
         if descriptor in self._descriptor_mapping:
           try:
             await self._descriptor_mapping[descriptor](fr)
-            if not fr.response_sent: await fr.respond(None) 
+            if not fr.response_sent: await fr.respond(None)
           except Exception as e: logging.error(e, fr, descriptor)
+
 
 class FetchRequestReceiver(Receiver):
   _recv_queue: asyncio.Queue[FetchRequest]
@@ -102,4 +108,4 @@ class FetchRequestReceiver(Receiver):
       fr_message = FetchRequestMessage.model_validate(a_message.data.data)
       if fr_message.descriptor == self._descriptor:
         self._recv_queue.put_nowait(FetchRequest(self._client, (fr_message.return_address, fr_message.return_port), fr_message.body))
-    except: pass
+    except ValidationError: pass

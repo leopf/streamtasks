@@ -1,24 +1,26 @@
 from dataclasses import dataclass
+
+from pydantic import ValidationError
 from streamtasks.client.topic import InTopicSynchronizer
 from streamtasks.helpers import AsyncObservable
+from streamtasks.message.structures import NumberMessage
 from streamtasks.net.types import TopicControlData
 from streamtasks.system.task import Task, TaskFactoryWorker
 from streamtasks.system.helpers import apply_task_stream_config, validate_stream_config
-from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, TaskStreamConfig, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
+from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, TaskStreamConfig, TaskStreamGroup, TaskInputStream, TaskOutputStream
 from streamtasks.client import Client
-from streamtasks.client.receiver import NoopReceiver
-from streamtasks.message import NumberMessage
-from streamtasks.streams import StreamSynchronizer, SynchronizedStream
 import socket
 import asyncio
 from enum import Enum
+
 
 class GateFailMode(Enum):
   CLOSED = "closed"
   OPEN = "open"
 
+
 @dataclass
-class GateConfig: 
+class GateConfig:
   fail_mode: GateFailMode
   gate_topic: int
   in_topic: int
@@ -36,6 +38,7 @@ class GateConfig:
       fail_mode=GateFailMode(task.config.get("fail_mode", GateFailMode.OPEN.value)),
     )
 
+
 class GateState(AsyncObservable):
   def __init__(self) -> None:
     super().__init__()
@@ -43,12 +46,13 @@ class GateState(AsyncObservable):
     self.gate_errored: bool = False
     self.input_paused: bool = False
     self.gate_value: bool = True
-  
+
   def get_open(self, fail_mode: GateFailMode):
     if self.input_paused or not self.gate_value: return False
     if fail_mode == GateFailMode.CLOSED and (self.gate_paused or self.gate_errored): return False
     return True
   def get_output_paused(self, fail_mode: GateFailMode): return not self.get_open(fail_mode)
+
 
 class GateTask(Task):
   def __init__(self, client: Client, config: GateConfig):
@@ -90,7 +94,7 @@ class GateTask(Task):
           msg = NumberMessage.model_validate(data.data)
           self.state.gate_value = msg.value > 0.5
           self.state.gate_errored = False
-        except:
+        except ValidationError:
           self.state.gate_errored = True
   async def run_out_pauser(self):
     while True:
@@ -101,14 +105,15 @@ class GateTask(Task):
       data = await self.in_topic.recv_data_control()
       if isinstance(data, TopicControlData):
         self.state.input_paused = data.paused
-      else: 
+      else:
         if self.state.get_open(self.fail_mode):
           await self.out_topic.send(data)
 
+
 class GateTaskFactoryWorker(TaskFactoryWorker):
-  async def create_task(self, deployment: DeploymentTask): 
+  async def create_task(self, deployment: DeploymentTask):
     return GateTask(await self.create_client(), GateConfig.from_deployment_task(deployment))
-  
+
   async def rpc_connect(self, req: RPCTaskConnectRequest) -> DeploymentTask:
     if req.input_id == req.task.stream_groups[0].inputs[0].ref_id:
       if req.output_stream is None:
@@ -117,10 +122,10 @@ class GateTaskFactoryWorker(TaskFactoryWorker):
         apply_task_stream_config(req.task.stream_groups[0].inputs[0], req.output_stream)
         req.task.stream_groups[0].inputs[0].topic_id = req.output_stream.topic_id
         apply_task_stream_config(req.task.stream_groups[0].outputs[0], req.output_stream)
-      
+
       return req.task
     elif req.input_id == req.task.stream_groups[0].inputs[1].ref_id:
-      if req.output_stream is None: 
+      if req.output_stream is None:
         req.task.stream_groups[0].inputs[1].topic_id = None
         return req.task
       else:
@@ -138,8 +143,8 @@ class GateTaskFactoryWorker(TaskFactoryWorker):
     },
     stream_groups=[
       TaskStreamGroup(
-        inputs=[TaskInputStream(label="input"), TaskInputStream(label="gate", content_type="number")],    
-        outputs=[TaskOutputStream(label="output")]      
+        inputs=[TaskInputStream(label="input"), TaskInputStream(label="gate", content_type="number")],
+        outputs=[TaskOutputStream(label="output")]
       )
     ]
   )

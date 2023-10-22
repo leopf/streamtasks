@@ -1,6 +1,7 @@
 import fastavro
-from streamtasks.net.types import *
 from io import BytesIO
+
+from streamtasks.net.types import AddressedMessage, AddressesChangedMessage, InTopicsChangedMessage, Message, OutTopicsChangedMessage, TopicControlMessage, TopicDataMessage
 
 PRICED_ID_SCHEMA = fastavro.parse_schema({
   "type": "record",
@@ -74,6 +75,7 @@ SCHEMA_MAP = {
   }),
 }
 
+
 def serialize_message(message: Message) -> bytes:
   stream = BytesIO()
   id = MESSAGE_SCHEMA_ID_MAP[type(message)]
@@ -81,6 +83,7 @@ def serialize_message(message: Message) -> bytes:
   schema = SCHEMA_MAP[id]
   fastavro.schemaless_writer(stream, schema, message.as_dict())
   return stream.getvalue()
+
 
 def deserialize_message(data: bytes) -> Message:
   stream = BytesIO(data)

@@ -1,14 +1,17 @@
-from typing import Optional, Any
+from typing import Iterable, Optional, Any, Union
 import asyncio
+from streamtasks.client.receiver import AddressNameAssignedReceiver, Receiver, ResolveAddressesReceiver, TopicSignalReceiver, TopicsReceiver
 from streamtasks.client.topic import InTopic, InTopicSynchronizer, OutTopic, InTopicsContext, OutTopicsContext, SynchronizedInTopic
-from streamtasks.net import *
 from streamtasks.helpers import IdGenerator, IdTracker, AwaitableIdTracker
-from streamtasks.system.protocols import WorkerAddresses, WorkerFetchDescriptors
+from streamtasks.message.data import MessagePackData, SerializableData, SerializationType, Serializer
+from streamtasks.net import Endpoint, Link
+from streamtasks.net.helpers import ids_to_priced_ids
+from streamtasks.net.types import AddressedMessage, AddressesChangedMessage, DataMessage, InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicDataMessage, TopicMessage
+from streamtasks.system.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesResponseMessage, GenerateTopicsRequestBody, GenerateTopicsResponseBody, RegisterAddressRequestBody, ResolveAddressRequestBody, ResolveAddressResonseBody, WorkerAddresses, WorkerFetchDescriptors, WorkerPorts
 from streamtasks.message.serializers import get_core_serializers
-from streamtasks.message.data import *
-from streamtasks.client.receiver import *
 from streamtasks.client.fetch import FetchReponseReceiver, FetchRequestMessage
 import secrets
+
 
 class Client:
   def __init__(self, link: Link):
@@ -36,7 +39,7 @@ class Client:
   def start(self): self._started_event.set()
   def stop(self): self._started_event.clear()
 
-  def add_serializer(self, serializer: Serializer): 
+  def add_serializer(self, serializer: Serializer):
     if serializer.content_id not in self._custom_serializers: self._custom_serializers[serializer.content_id] = serializer
   def remove_serializer(self, content_id: int): self._custom_serializers.pop(content_id, None)
 
@@ -64,17 +67,17 @@ class Client:
 
     return found_address
 
-  async def send_to(self, endpoint: Endpoint, data: SerializableData): 
+  async def send_to(self, endpoint: Endpoint, data: SerializableData):
     await self._link.send(AddressedMessage(
-      await self._get_address(endpoint[0]), 
-      endpoint[1], 
+      await self._get_address(endpoint[0]),
+      endpoint[1],
       data
     ))
   async def send_stream_control(self, topic: int, control_data: TopicControlData): await self._link.send(control_data.to_message(topic))
   async def send_stream_data(self, topic: int, data: SerializableData): await self._link.send(TopicDataMessage(topic, data))
 
   async def unregister_address_name(self, name: str): await self._register_address_name(name, None)
-  async def register_address_name(self, name: str, address: Optional[int] = None): 
+  async def register_address_name(self, name: str, address: Optional[int] = None):
     address = address or self.address
     if address is None: raise Exception("No local address")
     await self._register_address_name(name, address)
@@ -88,11 +91,11 @@ class Client:
   async def request_address(self):
     addresses = await self._request_addresses(1)
     new_address = next(iter(addresses))
-    assert self._address is None, "there cant be an address already present, when requesting one" 
+    assert self._address is None, "there cant be an address already present, when requesting one"
     await self.set_address(new_address)
     return new_address
 
-  async def request_topic_ids(self, count: int, apply: bool=False) -> set[int]:
+  async def request_topic_ids(self, count: int, apply: bool = False) -> set[int]:
     raw_res = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.GENERATE_TOPICS, GenerateTopicsRequestBody(count=count).model_dump())
     res = GenerateTopicsResponseBody.model_validate(raw_res)
     if len(res.topics) != count: raise Exception("The fetch request returned an invalid number of topics")
@@ -110,7 +113,7 @@ class Client:
 
   def out_topics_context(self, topics: Iterable[int]): return OutTopicsContext(self, topics)
   def in_topics_context(self, topics: Iterable[int]): return InTopicsContext(self, topics)
-  
+
   async def register_out_topics(self, topics: Iterable[int]):
     actually_added = self._out_topics.add_many(topics)
     if len(actually_added) > 0: await self._link.send(OutTopicsChangedMessage(ids_to_priced_ids(actually_added), set()))
@@ -129,9 +132,9 @@ class Client:
     return_port = self.get_free_port()
     async with FetchReponseReceiver(self, return_port) as receiver:
       await self.send_to((address, port), MessagePackData(FetchRequestMessage(
-        return_address=self.address, 
-        return_port=return_port, 
-        descriptor=descriptor, 
+        return_address=self.address,
+        return_port=return_port,
+        descriptor=descriptor,
         body=body).model_dump()))
       response_data = await receiver.recv()
     return response_data
@@ -139,19 +142,19 @@ class Client:
   async def enable_receiver(self, receiver: Receiver):
     self._receivers.append(receiver)
     self._receive_task = self._receive_task or asyncio.create_task(self._task_receive())
-  async def disable_receiver(self, receiver: Receiver): 
+  async def disable_receiver(self, receiver: Receiver):
     self._receivers.remove(receiver)
-    if len(self._receivers) == 0 and self._receive_task is not None: 
+    if len(self._receivers) == 0 and self._receive_task is not None:
       self._receive_task.cancel()
       try: await self._receive_task
-      except: pass
+      except asyncio.CancelledError: pass
 
   async def _request_addresses(self, count: int) -> set[int]:
-    request_id = secrets.randbelow(1<<64)
+    request_id = secrets.randbelow(1 << 64)
     async with ResolveAddressesReceiver(self, request_id) as receiver:
       await self.send_to(
-          (WorkerAddresses.ID_DISCOVERY, WorkerPorts.DISCOVERY_REQUEST_ADDRESS),
-          MessagePackData(GenerateAddressesRequestMessage(request_id=request_id, count=count).model_dump()))
+        (WorkerAddresses.ID_DISCOVERY, WorkerPorts.DISCOVERY_REQUEST_ADDRESS),
+        MessagePackData(GenerateAddressesRequestMessage(request_id=request_id, count=count).model_dump()))
       data: GenerateAddressesResponseMessage = await receiver.recv()
       addresses = set(data.addresses)
     if len(addresses) != count: raise Exception("The response returned an invalid number of addresses")

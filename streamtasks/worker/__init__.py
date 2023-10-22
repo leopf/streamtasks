@@ -1,7 +1,8 @@
-from streamtasks.net import *
 from typing import Optional
 import asyncio
-from streamtasks.message.data import *
+
+from streamtasks.net import Link, Switch, create_queue_connection
+
 
 class Worker:
   def __init__(self, node_link: Link, switch: Optional[Switch] = None):

@@ -1,6 +1,10 @@
 import unittest
-from streamtasks.net import *
-from streamtasks.message.data import *
+import asyncio
+from streamtasks.message.data import TextData
+
+from streamtasks.net import Link, Switch, create_queue_connection
+from streamtasks.net.types import InTopicsChangedMessage, OutTopicsChangedMessage, OutTopicsChangedRecvMessage, PricedId, TopicDataMessage
+
 
 class TestSwitch(unittest.IsolatedAsyncioTestCase):
   a: Link
@@ -48,7 +52,7 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
 
     self.assertNotIn(1, self.switch.in_topics)
     self.assertNotIn(1, self.switch_links[1].in_topics)
-  
+
   async def test_provider_added(self):
     await self.b.send(InTopicsChangedMessage(set([1]), set()))
     await self.a.send(OutTopicsChangedMessage(set([ PricedId(1, 0) ]), set()))
@@ -81,11 +85,11 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     self.assertIsInstance(received, InTopicsChangedMessage)
     self.assertIn(2, received.remove)
     self.assertNotIn(1, received.remove)
-  
+
   async def test_subscribe_flow(self):
     await self.a.send(OutTopicsChangedMessage(set([ PricedId(1, 0) ]), set()))
     await self.b.send(InTopicsChangedMessage(set([1]), set()))
-    
+
     received = await self.a.recv()
     self.assertIsInstance(received, InTopicsChangedMessage)
     self.assertIn(1, received.add)
@@ -99,8 +103,8 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     received = await self.a.recv()
     self.assertIsInstance(received, InTopicsChangedMessage)
     self.assertIn(1, received.remove)
-    
-  async def test_close(self):    
+
+  async def test_close(self):
     async with asyncio.timeout(1):
       self.a.close()
       while len(self.switch.link_manager.links) != 1: await asyncio.sleep(0.001)
@@ -109,6 +113,7 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
       self.b.close()
       while len(self.switch.link_manager.links) != 0: await asyncio.sleep(0.001)
       self.assertEqual(len(self.switch.link_manager.links), 0)
-    
+
+
 if __name__ == '__main__':
   unittest.main()

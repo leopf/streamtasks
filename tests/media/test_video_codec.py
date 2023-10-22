@@ -1,7 +1,9 @@
 import unittest
 from streamtasks.media.video import VideoCodecInfo, VideoFrame
-from streamtasks.message import MediaPacket
 import numpy as np
+
+from streamtasks.message.structures import MediaPacket
+
 
 class TestVideoCodec(unittest.IsolatedAsyncioTestCase):
   w = 480
@@ -15,7 +17,7 @@ class TestVideoCodec(unittest.IsolatedAsyncioTestCase):
       # draw 40x40 square at (i, i)
       y = i % (h - 40)
       x = i % (w - 40)
-      arr[y:y+40, x:x+40] = 255
+      arr[y:y + 40, x:x + 40] = 255
       yield arr
 
   def get_video_codec(self, crf, codec='h264', pixel_format='yuv420p'):
@@ -66,6 +68,7 @@ class TestVideoCodec(unittest.IsolatedAsyncioTestCase):
             decoded_frame = self.normalize_video_frame(d)
             self.assertTrue(np.array_equal(decoded_frame, created_frames.pop(0)))
     self.assertLess(len(created_frames), frame_count) # make sure we actually tested something
+
 
 if __name__ == '__main__':
   unittest.main()

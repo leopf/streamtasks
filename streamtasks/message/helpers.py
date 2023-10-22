@@ -1,5 +1,6 @@
 from streamtasks.message.data import SerializableData
 
+
 def get_timestamp_from_message(data: SerializableData) -> int:
   content = data.data
   timestamp = None

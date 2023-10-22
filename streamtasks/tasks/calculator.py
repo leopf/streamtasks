@@ -1,7 +1,6 @@
 import asyncio
 import contextlib
 from dataclasses import dataclass
-from functools import cached_property
 import functools
 from streamtasks.client import Client
 from streamtasks.client.topic import InTopic, InTopicSynchronizer
@@ -9,26 +8,22 @@ from streamtasks.helpers import AsyncObservable, AsyncObservableDict, TimeSynchr
 from streamtasks.message.data import MessagePackData
 from streamtasks.message.structures import NumberMessage
 from streamtasks.net.types import TopicControlData
-from streamtasks.system.helpers import validate_stream_config
-from streamtasks.system.task import Task, TaskFactoryWorker
-from streamtasks.system.types import DeploymentTaskScaffold, RPCTaskConnectRequest, DeploymentTask, RPCTaskConnectRequest, TaskStreamConfig, TaskStreamGroup, TaskInputStream, TaskOutputStream, DeploymentTask
-import socket
+from streamtasks.system.task import Task
 from pydantic import BaseModel
 from typing import Optional
 import math
 from lark import Lark, ParseTree, Transformer
 import re
-import itertools
 
 CalculatorGrammar = Lark(r"""
 start: expr
 
 ?expr: inline_if
 
-?inline_if: comparsion 
+?inline_if: comparsion
     | expr "?" expr ":" expr -> inline_if
 
-?comparsion: binary_op 
+?comparsion: binary_op
     | expr ">" expr -> gt
     | expr "<" expr -> lt
     | expr ">=" expr -> ge
@@ -70,6 +65,8 @@ start: expr
 """)
 
 # defines all helper functions for the calculator language and provides the variables
+
+
 class CalculatorEvalContext:
   default_input_map = {
     "pi": math.pi,
@@ -105,6 +102,8 @@ class CalculatorEvalContext:
   def max(self, *args): return max(*args)
 
 # takes an input map and transforms bools to floats. Any float > 0.5 is considered True, otherwise False
+
+
 class CalculatorEvalTransformer(Transformer):
   def __init__(self, context: CalculatorEvalContext):
     super().__init__()
@@ -135,6 +134,7 @@ class CalculatorEvalTransformer(Transformer):
   def ne(self, args): return 1.0 if args[0] != args[1] else 0.0
   def inline_if(self, args): return args[1] if args[0] > 0.5 else args[2]
 
+
 class CalculatorNameExtractor(Transformer):
   def __init__(self):
     super().__init__()
@@ -145,15 +145,18 @@ class CalculatorNameExtractor(Transformer):
   def variable(self, args): self.var_names.add(args[0])
   def func(self, args): self.func_names.add(args[0])
 
+
 class CalculatorInputConfig(BaseModel):
   name: str
   fallback_value: Optional[float] = None
+
 
 @dataclass
 class CalculatorInputVarConfig:
   topic_id: int
   name: str
   default_value: float
+
 
 @dataclass(frozen=True)
 class CalculatorConfig:
@@ -168,29 +171,30 @@ class CalculatorConfig:
   def validate(self):
     ast = self.formula_ast
     CalculatorConfig.validate_formula(ast, set(input_var.name for input_var in self.input_vars))
-    
+
   @staticmethod
   def validate_formula(ast: ParseTree, input_vars: set[str]):
-    for var_name in input_vars: 
-      if not CalculatorConfig.variable_name_is_valid(var_name): 
+    for var_name in input_vars:
+      if not CalculatorConfig.variable_name_is_valid(var_name):
         raise ValueError(f"Invalid variable name: {var_name}, must be CNAME and not in {CalculatorEvalContext.default_input_map.keys()}")
-    
+
     extractor = CalculatorNameExtractor()
     extractor.transform(ast)
     all_var_names = input_vars | CalculatorEvalContext.default_input_map.keys()
-    if not extractor.var_names.issubset(all_var_names): 
-        raise ValueError(f"Invalid variable names: {extractor.var_names - all_var_names}")
-    
+    if not extractor.var_names.issubset(all_var_names):
+      raise ValueError(f"Invalid variable names: {extractor.var_names - all_var_names}")
+
     available_func_names = CalculatorEvalContext.__dict__.keys()
-    if not extractor.func_names.issubset(available_func_names): 
-        raise ValueError(f"Invalid function names: {extractor.func_names - available_func_names}")
-  
+    if not extractor.func_names.issubset(available_func_names):
+      raise ValueError(f"Invalid function names: {extractor.func_names - available_func_names}")
+
   @staticmethod
   def variable_name_is_valid(name: str) -> bool:
     if re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", name) is None: return False
     if name in CalculatorEvalContext.default_input_map: return False
     return True
-  
+
+
 class CalculatorInputState(AsyncObservable):
   def __init__(self, default_value: float) -> None:
     super().__init__()
@@ -202,6 +206,7 @@ class CalculatorInputState(AsyncObservable):
     if self.is_paused: return default_value
     else: return self._value
 
+
 class CalculatorTask(Task):
   def __init__(self, client: Client, config: CalculatorConfig):
     super().__init__(client)
@@ -209,24 +214,24 @@ class CalculatorTask(Task):
     self.time_sync = TimeSynchronizer()
     self.formula_ast = config.formula_ast
     self.out_topic = self.client.out_topic(config.out_topic)
-    self.var_values = AsyncObservableDict({ 
-      input_var.name: input_var.default_value 
-      for input_var in config.input_vars 
+    self.var_values = AsyncObservableDict({
+      input_var.name: input_var.default_value
+      for input_var in config.input_vars
     })
     if config.synchronized:
       sync = InTopicSynchronizer()
-      self.in_topics = [ 
-        (client.sync_in_topic(input_var.topic_id, sync), input_var.name, input_var.default_value) 
-        for input_var in config.input_vars 
+      self.in_topics = [
+        (client.sync_in_topic(input_var.topic_id, sync), input_var.name, input_var.default_value)
+        for input_var in config.input_vars
       ]
     else:
-      self.in_topics = [ 
-        (client.in_topic(input_var.topic_id), input_var.name, input_var.default_value) 
-        for input_var in config.input_vars 
+      self.in_topics = [
+        (client.in_topic(input_var.topic_id), input_var.name, input_var.default_value)
+        for input_var in config.input_vars
       ]
   async def start_task(self):
     tasks: list[asyncio.Task] = []
-    try: 
+    try:
       async with contextlib.AsyncExitStack() as exit_stack:
         exit_stack.enter_async_context(self.out_topic)
         exit_stack.enter_async_context(self.out_topic.RegisterContext())
@@ -236,16 +241,16 @@ class CalculatorTask(Task):
           state = CalculatorInputState(default_value)
           tasks.append(asyncio.create_task(self.run_input_receiver(in_topic, state)))
           tasks.append(asyncio.create_task(self.run_input_updater(state, var_name, default_value)))
-        
+
     finally:
       for task in tasks: task.cancel()
   async def run_output_updater(self):
     while True:
       await self.var_values.wait_change()
       result: float = CalculatorEvalTransformer(CalculatorEvalContext(self.var_values._data)) \
-                .transform(self.formula_ast)
+        .transform(self.formula_ast)
       await self.out_topic.send(MessagePackData(NumberMessage(
-        timestamp=self.time_sync.time, 
+        timestamp=self.time_sync.time,
         value=result
       )))
 

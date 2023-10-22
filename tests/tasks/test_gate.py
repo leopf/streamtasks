@@ -1,9 +1,10 @@
 from enum import Enum
 from typing import Any
 import unittest
+from streamtasks.message.data import MessagePackData
+from streamtasks.message.structures import NumberMessage
 from streamtasks.net.types import TopicControlData
 from streamtasks.tasks.gate import GateConfig, GateState, GateTask, GateFailMode
-from streamtasks.message import NumberMessage, MessagePackData
 import asyncio
 
 from tests.sim import Simulator
@@ -122,8 +123,8 @@ class TestGate(TaskTestBase):
         if sim.eout_changed() or sim.expect_receive_data:
           data = await sim.wait_or_fail(self.out_topic.recv_data_control())
           sim.on_output({
-              "output_paused": self.out_topic.is_paused,
-              "recv_data": not isinstance(data, TopicControlData)
+            "output_paused": self.out_topic.is_paused,
+            "recv_data": not isinstance(data, TopicControlData)
           })
         else: sim.on_idle()
 

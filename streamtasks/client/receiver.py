@@ -1,13 +1,16 @@
 from abc import ABC, abstractmethod
 import asyncio
-from streamtasks.net import *
-from streamtasks.system.protocols import *
-from streamtasks.message.data import *
-import itertools
-from typing import Union, Optional, Any, TYPE_CHECKING
+
+from pydantic import ValidationError
+from streamtasks.message.data import MessagePackData, SerializableData
+from streamtasks.net.types import AddressedMessage, Message, TopicControlData, TopicControlMessage, TopicDataMessage, TopicMessage
+from typing import Iterable, Optional, Any, TYPE_CHECKING
+
+from streamtasks.system.protocols import AddressNameAssignmentMessage, GenerateAddressesResponseMessage, WorkerTopics
 
 if TYPE_CHECKING:
   from streamtasks.client import Client
+
 
 class Receiver(ABC):
   _client: 'Client'
@@ -17,22 +20,22 @@ class Receiver(ABC):
     self._recv_queue = asyncio.Queue()
     self._client = client
     self._receiving_count = 0
-  
+
   async def start_recv(self):
-    self._receiving_count += 1 
+    self._receiving_count += 1
     if self._receiving_count > 1: return
     await self._client.enable_receiver(self)
     await asyncio.sleep(0)
     await self._on_start_recv()
 
-  async def stop_recv(self): 
+  async def stop_recv(self):
     self._receiving_count = max(0, self._receiving_count - 1)
     if self._receiving_count > 0: return
     await self._client.disable_receiver(self)
     await asyncio.sleep(0)
     await self._on_stop_recv()
 
-  async def __aenter__(self): 
+  async def __aenter__(self):
     await self.start_recv()
     return self
   async def __aexit__(self, *_): await self.stop_recv()
@@ -51,6 +54,7 @@ class Receiver(ABC):
     async with self:
       return await self._recv_queue.get()
 
+
 class NoopReceiver(Receiver):
   def __init__(self, client: 'Client'):
     super().__init__(client)
@@ -59,6 +63,7 @@ class NoopReceiver(Receiver):
   def empty(self): return True
   async def get(self): raise NotImplementedError("A noop receiver will never receive any messages")
   async def recv(self): raise NotImplementedError("A noop receiver will never receive any messages")
+
 
 class AddressReceiver(Receiver):
   def __init__(self, client: 'Client', address: int, port: int):
@@ -72,6 +77,7 @@ class AddressReceiver(Receiver):
     if a_message.address == self._address and a_message.port == self._port:
       self._recv_queue.put_nowait((a_message.address, a_message.data))
 
+
 class TopicSignalReceiver(Receiver):
   def __init__(self, client: 'Client', topic: int):
     super().__init__(client)
@@ -79,9 +85,9 @@ class TopicSignalReceiver(Receiver):
     self._signal_event = asyncio.Event()
 
   async def _on_start_recv(self): await self._client.register_in_topics([self._topic])
-  async def _on_stop_recv(self): await self._client.unregister_in_topics([self._topic]) 
+  async def _on_stop_recv(self): await self._client.unregister_in_topics([self._topic])
 
-  async def wait(self): 
+  async def wait(self):
     async with self:
       await self._signal_event.wait()
 
@@ -89,6 +95,7 @@ class TopicSignalReceiver(Receiver):
     if not isinstance(message, TopicMessage): return
     if message.topic != self._topic: return
     self._signal_event.set()
+
 
 class AddressNameAssignedReceiver(Receiver):
   _recv_queue: asyncio.Queue[AddressNameAssignmentMessage]
@@ -100,7 +107,8 @@ class AddressNameAssignedReceiver(Receiver):
     if not isinstance(message.data, MessagePackData): return
     try:
       self._recv_queue.put_nowait(AddressNameAssignmentMessage.model_validate(message.data.data))
-    except: pass
+    except ValidationError: pass
+
 
 class TopicsReceiver(Receiver):
   _topics: set[int]
@@ -112,12 +120,12 @@ class TopicsReceiver(Receiver):
     self._topics = set(topics)
     self._control_data = {}
     self._subscribe = subscribe
-    
+
   def get_control_data(self, topic: int): return self._control_data.get(topic, None)
 
-  async def _on_start_recv(self): 
+  async def _on_start_recv(self):
     if self._subscribe and len(self._topics) > 0: await self._client.register_in_topics(self._topics)
-  async def _on_stop_recv(self): 
+  async def _on_stop_recv(self):
     if self._subscribe and len(self._topics) > 0: await self._client.unregister_in_topics(self._topics)
 
   def on_message(self, message: Message):
@@ -129,6 +137,7 @@ class TopicsReceiver(Receiver):
         sc_message: TopicControlMessage = message
         self._control_data[sc_message.topic] = control_data = sc_message.to_data()
         self._recv_queue.put_nowait((sc_message.topic, None, control_data))
+
 
 class ResolveAddressesReceiver(Receiver):
   _recv_queue: asyncio.Queue[GenerateAddressesResponseMessage]
@@ -149,4 +158,4 @@ class ResolveAddressesReceiver(Receiver):
           ra_message = GenerateAddressesResponseMessage.model_validate(sd_message.data.data)
           if ra_message.request_id == self._request_id:
             self._recv_queue.put_nowait(ra_message)
-        except: pass
+        except ValidationError: pass

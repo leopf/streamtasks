@@ -1,13 +1,18 @@
 import unittest
-from streamtasks.net import *
-from streamtasks.client import *
+import asyncio
+from streamtasks.client import Client
 from streamtasks.client.fetch import FetchRequest, FetchRequestReceiver
+from streamtasks.client.receiver import AddressReceiver, TopicsReceiver
+from streamtasks.message.data import TextData
+from streamtasks.net import Switch, create_queue_connection
+from streamtasks.system.protocols import WorkerPorts
+
 
 class TestClient(unittest.IsolatedAsyncioTestCase):
   a: Client
   b: Client
   tasks: list[asyncio.Task]
-  
+
   async def asyncSetUp(self):
     conn1 = create_queue_connection(raw=False)
     conn2 = create_queue_connection(raw=True)
@@ -17,7 +22,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     await self.switch.add_link(conn2[0])
 
     self.tasks = []
-    
+
     self.a = Client(conn1[1])
     self.a.start()
     self.b = Client(conn2[1])
@@ -70,6 +75,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
   async def test_topic_signal(self):
     await self.b.register_in_topics([1])
     await asyncio.sleep(0.001)
+
     async def wait_for_topic_signal():
       await asyncio.wait_for(self.b.wait_for_topic_signal(1), 1)
     receiver_task = asyncio.create_task(wait_for_topic_signal())
@@ -88,13 +94,14 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
     async with FetchRequestReceiver(self.a, "test") as a_recv:
       b_fetch_task = asyncio.create_task(b_fetch())
-      req: FetchRequest  = await asyncio.wait_for(a_recv.recv(), 1)
+      req: FetchRequest = await asyncio.wait_for(a_recv.recv(), 1)
       self.assertEqual(req.body, "Hello 1")
       self.assertEqual(req._return_endpoint, (2, WorkerPorts.DYNAMIC_START))
       await req.respond("Hello 2")
-    
+
     await b_fetch_task
     self.assertEqual(b_result, "Hello 2")
+
 
 if __name__ == '__main__':
   unittest.main()
