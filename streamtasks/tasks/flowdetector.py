@@ -76,7 +76,7 @@ class FlowDetectorTask(Task):
     tasks: list[asyncio.Task] = []
     try:
       async with self.in_topic, self.out_topic, self.signal_topic, self.in_topic.RegisterContext(), \
-          self.out_topic.RegisterContext(), self.signal_topic.RegisterContext():
+              self.out_topic.RegisterContext(), self.signal_topic.RegisterContext():
 
         tasks.append(asyncio.create_task(self.run_main()))
         tasks.append(asyncio.create_task(self.run_updater()))

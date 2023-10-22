@@ -1,8 +1,0 @@
-[flake8]
-filename =
-    */streamtasks/*.py,
-    */tests/*.py
-indent-size=2
-extend-ignore=E501,E261,W292,E701,E301,E201,E202
-exclude=
-    ./tests/tasks/test_passivize.py

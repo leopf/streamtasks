@@ -73,7 +73,7 @@ class GateTask(Task):
     tasks: list[asyncio.Task] = []
     try:
       async with self.in_topic, self.gate_topic, self.out_topic, self.in_topic.RegisterContext(), \
-          self.gate_topic.RegisterContext(), self.out_topic.RegisterContext():
+              self.gate_topic.RegisterContext(), self.out_topic.RegisterContext():
 
         tasks.append(asyncio.create_task(self.run_gate_recv()))
         tasks.append(asyncio.create_task(self.run_in_recv()))
