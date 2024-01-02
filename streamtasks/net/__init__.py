@@ -17,25 +17,16 @@ class ConnectionClosedError(Exception):
 
 
 class Link(ABC):
-  in_topics: set[int]
-  addresses: dict[int, int]
-  out_topics: dict[int, int]
-  recv_topics: set[int]
-  cost: int
-
-  closed: asyncio.Event
-  ignore_internal: bool
-
   def __init__(self, cost: int = 1):
-    self.in_topics = set()
-    self.out_topics = dict()
-    self.addresses = dict()
-    self.recv_topics = set()
+    self.in_topics: set[int] = set()
+    self.recv_topics: set[int] = set()
+    self.out_topics: dict[int, int] = dict()
+    self.addresses: dict[int, int] = dict()
 
     self.closed = asyncio.Event()
 
     if cost == 0: raise ValueError("Cost must be greater than 0")
-    self.cost = cost
+    self.cost: int = cost
 
   def __del__(self): self.close()
   def close(self): self.closed.set()
