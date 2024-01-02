@@ -1,7 +1,6 @@
 from typing import Optional
-import asyncio
-
 from streamtasks.net import Link, Switch, create_queue_connection
+import asyncio
 
 
 class Worker:
