@@ -3,18 +3,13 @@ from fastapi import Response
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import Headers
 from starlette.types import Scope
-from streamtasks.asgi import ASGIApp
+from streamtasks.asgi import ASGIApp, asgi_app_not_found
 from streamtasks.system.types import TaskStreamBase, SystemLogEntry, TaskStreamConfig
 import urllib.parse
 import uvicorn
 import asyncio
 import httpx
 import logging
-
-
-async def asgi_app_not_found(scope, receive, send):
-  await send({"type": "http.response.start", "status": 404})
-  await send({"type": "http.response.body", "body": b"404 Not Found"})
 
 
 def apply_task_stream_config(target: TaskStreamBase, source: TaskStreamBase):

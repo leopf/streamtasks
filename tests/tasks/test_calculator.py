@@ -1,6 +1,6 @@
 import unittest
 from .shared import TaskTestBase
-from streamtasks.tasks.calculator import CalculatorGrammar, CalculatorEvalContext, CalculatorEvalTransformer
+from streamtasks.system.tasks.calculator import CalculatorGrammar, CalculatorEvalContext, CalculatorEvalTransformer
 import math
 
 

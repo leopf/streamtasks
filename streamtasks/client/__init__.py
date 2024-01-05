@@ -7,7 +7,7 @@ from streamtasks.message.data import MessagePackData, SerializableData, Serializ
 from streamtasks.net import Endpoint, Link
 from streamtasks.net.helpers import ids_to_priced_ids
 from streamtasks.net.types import AddressedMessage, AddressesChangedMessage, DataMessage, InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicDataMessage, TopicMessage
-from streamtasks.system.protocols import GenerateAddressesRequestMessage, GenerateAddressesResponseMessage, GenerateTopicsRequestBody, GenerateTopicsResponseBody, ResolveAddressRequestBody, ResolveAddressResonseBody, WorkerAddresses, WorkerFetchDescriptors, WorkerPorts
+from streamtasks.services.protocols import GenerateAddressesRequestMessage, GenerateAddressesResponseMessage, GenerateTopicsRequestBody, GenerateTopicsResponseBody, ResolveAddressRequestBody, ResolveAddressResonseBody, WorkerAddresses, WorkerFetchDescriptors, WorkerPorts
 from streamtasks.message.serializers import get_core_serializers
 from streamtasks.client.fetch import FetchReponseReceiver, FetchRequestMessage
 import secrets

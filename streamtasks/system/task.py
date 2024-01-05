@@ -4,14 +4,13 @@ import struct
 from typing import ClassVar, Optional
 
 from fastapi import FastAPI
-from streamtasks.asgi import ASGIAppRunner
+from streamtasks.asgi import ASGIAppRunner, asgi_app_not_found
 from streamtasks.client.discovery import wait_for_topic_signal
 from streamtasks.client.fetch import FetchRequest, FetchServer
 from streamtasks.net import Link
 from streamtasks.helpers import INSTANCE_ID
-from streamtasks.system.protocols import AddressNames, WorkerTopics
+from streamtasks.services.protocols import AddressNames, WorkerTopics
 from streamtasks.system.types import DeploymentTask, RPCUIEventRequest, RPCUIEventResponse, RPCTaskConnectRequest, RPCTaskConnectResponse, TaskDeploymentDeleteMessage, TaskStatus, TaskFactoryRegistration, TaskFetchDescriptors
-from streamtasks.system.helpers import asgi_app_not_found
 from abc import ABC, abstractmethod, abstractproperty
 import asyncio
 

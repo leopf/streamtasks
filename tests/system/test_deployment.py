@@ -8,7 +8,7 @@ from streamtasks.message.data import MessagePackData
 from streamtasks.system.task import Task, TaskFactoryWorker
 from streamtasks.system.workers import TaskManagerWorker
 from streamtasks.system.helpers import ASGITestServer
-from streamtasks.system.discovery import DiscoveryWorker
+from streamtasks.services.discovery import DiscoveryWorker
 import asyncio
 from pydantic import TypeAdapter
 import json

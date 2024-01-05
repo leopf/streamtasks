@@ -6,7 +6,7 @@ from streamtasks.client.fetch import FetchRequest, FetchRequestReceiver
 from streamtasks.client.receiver import AddressReceiver, TopicsReceiver
 from streamtasks.message.data import TextData
 from streamtasks.net import Switch, create_queue_connection
-from streamtasks.system.protocols import WorkerPorts
+from streamtasks.services.protocols import WorkerPorts
 
 
 class TestClient(unittest.IsolatedAsyncioTestCase):

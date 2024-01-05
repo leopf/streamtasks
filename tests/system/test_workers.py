@@ -1,10 +1,10 @@
 import unittest
 from streamtasks.client.discovery import wait_for_topic_signal
 from streamtasks.node import LocalNode
-from streamtasks.system.protocols import WorkerAddresses, WorkerTopics
+from streamtasks.services.protocols import WorkerAddresses, WorkerTopics
 from streamtasks.worker import Worker
 from streamtasks.client import Client
-from streamtasks.system.discovery import DiscoveryWorker
+from streamtasks.services.discovery import DiscoveryWorker
 import asyncio
 
 

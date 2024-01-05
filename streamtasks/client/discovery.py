@@ -4,7 +4,7 @@ from streamtasks.client import Client
 from streamtasks.client.receiver import Receiver
 from streamtasks.message.data import MessagePackData
 from streamtasks.net.types import Message, TopicDataMessage, TopicMessage
-from streamtasks.system.protocols import AddressNameAssignmentMessage, RegisterAddressRequestBody, WorkerAddresses, WorkerFetchDescriptors, WorkerTopics
+from streamtasks.services.protocols import AddressNameAssignmentMessage, RegisterAddressRequestBody, WorkerAddresses, WorkerFetchDescriptors, WorkerTopics
 import asyncio
 
 

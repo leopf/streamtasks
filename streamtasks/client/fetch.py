@@ -7,7 +7,7 @@ from pydantic import BaseModel, ValidationError
 from typing import TYPE_CHECKING, Any, Optional, Callable, Awaitable
 import logging
 
-from streamtasks.system.protocols import WorkerPorts
+from streamtasks.services.protocols import WorkerPorts
 if TYPE_CHECKING:
   from streamtasks.client import Client
 

@@ -4,7 +4,7 @@ import unittest
 from streamtasks.message.data import MessagePackData
 from streamtasks.message.structures import NumberMessage
 from streamtasks.net.types import TopicControlData
-from streamtasks.tasks.gate import GateConfig, GateState, GateTask, GateFailMode
+from streamtasks.system.tasks.gate import GateConfig, GateState, GateTask, GateFailMode
 import asyncio
 
 from tests.sim import Simulator

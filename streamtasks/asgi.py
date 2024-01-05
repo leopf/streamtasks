@@ -10,7 +10,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any, Awaitable, Optional, Callable, ClassVar
 
-from streamtasks.system.protocols import WorkerPorts
+from streamtasks.services.protocols import WorkerPorts
 
 if TYPE_CHECKING:
   from streamtasks.client import Client
@@ -228,3 +228,8 @@ class ASGIProxyApp:
     await receiver.stop_recv()
     recv_task.cancel()
     send_task.cancel()
+
+
+async def asgi_app_not_found(_scope, _receive, send):
+  await send({"type": "http.response.start", "status": 404})
+  await send({"type": "http.response.body", "body": b"404 Not Found"})

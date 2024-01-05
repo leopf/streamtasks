@@ -5,7 +5,7 @@ from streamtasks.client.fetch import FetchRequest, FetchServer
 from streamtasks.client import Client
 from streamtasks.net import Link
 from streamtasks.system.helpers import ASGIServer, JsonLogger, SPAStaticFiles
-from streamtasks.system.protocols import AddressNames, WorkerTopics
+from streamtasks.services.protocols import AddressNames, WorkerTopics
 from streamtasks.system.store import DashboardStore, DeploymentStore, TaskFactoryStore
 from streamtasks.system.types import DashboardDeleteMessage, DashboardRegistration, Deployment, DeploymentTask, SystemLogQueryParams, TaskFactoryDeleteMessage, TaskFactoryRegistration, TaskFetchDescriptors
 from streamtasks.worker import Worker

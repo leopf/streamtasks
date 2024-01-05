@@ -1,5 +1,5 @@
 from streamtasks.client.receiver import AddressReceiver
-from streamtasks.system.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesResponseMessage, GenerateTopicsRequestBody, GenerateTopicsResponseBody, RegisterAddressRequestBody, ResolveAddressRequestBody, ResolveAddressResonseBody, WorkerAddresses, WorkerFetchDescriptors, WorkerPorts, WorkerTopics
+from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesResponseMessage, GenerateTopicsRequestBody, GenerateTopicsResponseBody, RegisterAddressRequestBody, ResolveAddressRequestBody, ResolveAddressResonseBody, WorkerAddresses, WorkerFetchDescriptors, WorkerPorts, WorkerTopics
 from streamtasks.worker import Worker
 from streamtasks.client import Client
 from streamtasks.client.fetch import FetchRequest, FetchServer
