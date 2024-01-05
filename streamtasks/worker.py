@@ -1,4 +1,5 @@
 from typing import Optional
+from streamtasks.client import Client
 from streamtasks.net import Link, Switch, create_queue_connection
 import asyncio
 
@@ -9,6 +10,7 @@ class Worker:
     self.switch = switch if switch is not None else Switch()
     self.connected = asyncio.Event()
 
+  async def create_client(self) -> Client: return Client(await self.create_link())
   async def create_link(self, raw: bool = False) -> Link:
     connection = create_queue_connection(raw)
     await self.switch.add_link(connection[0])

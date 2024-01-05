@@ -241,7 +241,7 @@ class CalculatorTask(Task):
           state = CalculatorInputState(default_value)
           tasks.append(asyncio.create_task(self.run_input_receiver(in_topic, state)))
           tasks.append(asyncio.create_task(self.run_input_updater(state, var_name, default_value)))
-
+      await asyncio.gather(*tasks)
     finally:
       for task in tasks: task.cancel()
   async def run_output_updater(self):

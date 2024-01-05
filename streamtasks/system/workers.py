@@ -27,7 +27,7 @@ class NodeManagerWorker(Worker):
 
   async def start(self):
     try:
-      self._client = Client(await self.create_link())
+      self._client = await self.create_client()
       await asyncio.gather(
         super().start()
       )
@@ -61,7 +61,7 @@ class TaskManagerWorker(Worker):
   async def start(self):
     try:
       logging.getLogger().addHandler(self.log_handler)
-      client = Client(await self.create_link())
+      client = await self.create_client()
       self.dashboards = DashboardStore(client, "/dashboard/")
       self.task_factories = TaskFactoryStore(client, "/task-factory/")
 
