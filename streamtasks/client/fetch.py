@@ -36,10 +36,9 @@ class FetchRequest:
 
 
 class FetchReponseReceiver(Receiver):
-  _recv_queue: asyncio.Queue[Any]
-
   def __init__(self, client: 'Client', return_port: int):
     super().__init__(client)
+    self._recv_queue: asyncio.Queue[Any] = self._recv_queue
     self._return_port = return_port
 
   def on_message(self, message: Message):
@@ -53,10 +52,9 @@ class FetchReponseReceiver(Receiver):
 
 
 class FetchServer(Receiver):
-  _recv_queue: asyncio.Queue[tuple[str, FetchRequest]]
-
   def __init__(self, client: 'Client', port: int = WorkerPorts.FETCH):
     super().__init__(client)
+    self._recv_queue: asyncio.Queue[tuple[str, FetchRequest]] = self._recv_queue
     self._descriptor_mapping = {}
     self._port: dict[str, Callable[[FetchRequest], Awaitable[Any]]] = port
 
@@ -91,10 +89,9 @@ class FetchServer(Receiver):
 
 
 class FetchRequestReceiver(Receiver):
-  _recv_queue: asyncio.Queue[FetchRequest]
-
   def __init__(self, client: 'Client', descriptor: str, address: Optional[int] = None, port: int = WorkerPorts.FETCH):
     super().__init__(client)
+    self._recv_queue: asyncio.Queue[FetchRequest] = self._recv_queue
     self._descriptor = descriptor
     self._address = address
     self._port = port

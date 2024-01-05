@@ -55,16 +55,6 @@ class Receiver(ABC):
       return await self._recv_queue.get()
 
 
-class NoopReceiver(Receiver):
-  def __init__(self, client: 'Client'):
-    super().__init__(client)
-    self._recv_queue = None
-  def on_message(self, message: Message): pass
-  def empty(self): return True
-  async def get(self): raise NotImplementedError("A noop receiver will never receive any messages")
-  async def recv(self): raise NotImplementedError("A noop receiver will never receive any messages")
-
-
 class AddressReceiver(Receiver):
   def __init__(self, client: 'Client', address: int, port: int):
     super().__init__(client)

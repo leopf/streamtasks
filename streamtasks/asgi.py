@@ -70,7 +70,7 @@ class ValueTransformer(ABC):
       elif isinstance(value, bool): return ["bool", value]
       elif isinstance(value, str): return ["str", value]
       elif isinstance(value, type(None)): return ["none"]
-      else: return ["unknown"]
+      else: return ["unknown"] # TODO: raise?
 
   @classmethod
   def deannotate_value(cls, value: Any):

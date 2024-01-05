@@ -1,26 +1,12 @@
 Refactor:
 - better imports, find a unified way of doing this
-- client
-    - needs a uniform implementation of topics
-        - noop receiver must go
-          - how do we solve topic_is_subscribed in a better way
-    - simplify receivers
-        - one topic per receiver
-        - have multi receivers that can turn on / off multiple receivers
-        - must retain information like topics
-    - receivers should be created outside the client
-    - start stop client, with some standard receivers
-    - reorder
 
 Testing:
 - topic control data
 
-
 General:
 - auto restarting tasks if they fail and are configured to do so
 - every task factory provides a topic, this way the management server can subscribe and find out, if it is still running
-
-
 
 Add task with:
 https://github.com/cloudflare/stpyv8
@@ -29,7 +15,6 @@ Questions:
 How do i solve topic remapping?
 
 BUGS:
-- ASGI
 - Deployment reload
 
 Media:
