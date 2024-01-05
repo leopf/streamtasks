@@ -1,4 +1,5 @@
 import unittest
+from streamtasks.client.discovery import wait_for_topic_signal
 from streamtasks.node import LocalNode
 from streamtasks.system.protocols import WorkerAddresses, WorkerTopics
 from streamtasks.worker import Worker
@@ -41,7 +42,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
 
     client = Client(await self.worker.create_link(raw=True))
 
-    await self.wait_for(client.wait_for_topic_signal(WorkerTopics.DISCOVERY_SIGNAL))
+    await self.wait_for(wait_for_topic_signal(client, WorkerTopics.DISCOVERY_SIGNAL))
 
     own_address = await self.wait_for(client.request_address())
     self.assertEqual(WorkerAddresses.COUNTER_INIT, own_address)
@@ -58,7 +59,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     await self.setup_worker(discovery_worker)
 
     client1 = Client(await self.worker.create_link(raw=True))
-    await self.wait_for(client1.wait_for_topic_signal(WorkerTopics.DISCOVERY_SIGNAL))
+    await self.wait_for(wait_for_topic_signal(client1, WorkerTopics.DISCOVERY_SIGNAL))
 
     await self.wait_for(client1.request_address())
     client2 = Client(await self.worker.create_link(raw=True))
@@ -81,7 +82,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     await self.setup_worker(discovery_worker)
 
     client1 = Client(await self.worker.create_link(raw=True))
-    await self.wait_for(client1.wait_for_topic_signal(WorkerTopics.DISCOVERY_SIGNAL))
+    await self.wait_for(wait_for_topic_signal(client1, WorkerTopics.DISCOVERY_SIGNAL))
     await self.wait_for(client1.request_address())
 
     self.assertEqual(len(list(client1._in_topics.items())), 0)
@@ -99,7 +100,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
 
     client = Client(await self.worker.create_link(raw=True))
 
-    await self.wait_for(client.wait_for_topic_signal(WorkerTopics.DISCOVERY_SIGNAL))
+    await self.wait_for(wait_for_topic_signal(client, WorkerTopics.DISCOVERY_SIGNAL))
 
     await self.wait_for(client.request_address()) # make sure we have an address
     topics = await self.wait_for(client.request_topic_ids(5, apply=True))

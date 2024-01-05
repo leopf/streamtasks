@@ -5,6 +5,7 @@ from typing import ClassVar, Optional
 
 from fastapi import FastAPI
 from streamtasks.asgi import ASGIAppRunner
+from streamtasks.client.discovery import wait_for_topic_signal
 from streamtasks.client.fetch import FetchRequest, FetchServer
 from streamtasks.net import Link
 from streamtasks.helpers import INSTANCE_ID
@@ -78,7 +79,7 @@ class TaskFactoryWorker(Worker, ABC):
 
   async def _setup(self):
     await self.connected.wait()
-    await self._client.wait_for_topic_signal(WorkerTopics.DISCOVERY_SIGNAL)
+    wait_for_topic_signal(self._client, WorkerTopics.DISCOVERY_SIGNAL)
     await self._client.request_address()
     await self._client.wait_for_address_name(AddressNames.TASK_MANAGER)
     self.reg = TaskFactoryRegistration(

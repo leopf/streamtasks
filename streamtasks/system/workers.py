@@ -1,5 +1,6 @@
 import asyncio
 from streamtasks.asgi import ASGIApp, ASGIAppRunner
+from streamtasks.client.discovery import wait_for_topic_signal
 from streamtasks.client.fetch import FetchRequest, FetchServer
 from streamtasks.client import Client
 from streamtasks.net import Link
@@ -76,7 +77,7 @@ class TaskManagerWorker(Worker):
 
   async def _setup(self, client: Client):
     await self.connected.wait()
-    await client.wait_for_topic_signal(WorkerTopics.DISCOVERY_SIGNAL)
+    await wait_for_topic_signal(client, WorkerTopics.DISCOVERY_SIGNAL)
     await client.request_address()
     self.ready.set()
     await client.register_address_name(AddressNames.TASK_MANAGER)

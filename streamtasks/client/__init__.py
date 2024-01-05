@@ -1,13 +1,13 @@
 from typing import Iterable, Optional, Any, Union
 import asyncio
-from streamtasks.client.receiver import AddressNameAssignedReceiver, Receiver, ResolveAddressesReceiver, TopicSignalReceiver, TopicsReceiver
+from streamtasks.client.receiver import Receiver, ResolveAddressesReceiver, TopicsReceiver
 from streamtasks.client.topic import InTopic, InTopicSynchronizer, OutTopic, InTopicsContext, OutTopicsContext, SynchronizedInTopic
 from streamtasks.helpers import IdGenerator, IdTracker, AwaitableIdTracker
 from streamtasks.message.data import MessagePackData, SerializableData, SerializationType, Serializer
 from streamtasks.net import Endpoint, Link
 from streamtasks.net.helpers import ids_to_priced_ids
 from streamtasks.net.types import AddressedMessage, AddressesChangedMessage, DataMessage, InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicDataMessage, TopicMessage
-from streamtasks.system.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesResponseMessage, GenerateTopicsRequestBody, GenerateTopicsResponseBody, RegisterAddressRequestBody, ResolveAddressRequestBody, ResolveAddressResonseBody, WorkerAddresses, WorkerFetchDescriptors, WorkerPorts
+from streamtasks.system.protocols import GenerateAddressesRequestMessage, GenerateAddressesResponseMessage, GenerateTopicsRequestBody, GenerateTopicsResponseBody, ResolveAddressRequestBody, ResolveAddressResonseBody, WorkerAddresses, WorkerFetchDescriptors, WorkerPorts
 from streamtasks.message.serializers import get_core_serializers
 from streamtasks.client.fetch import FetchReponseReceiver, FetchRequestMessage
 import secrets
@@ -45,28 +45,6 @@ class Client:
 
   def get_free_port(self): return self._port_generator.next()
 
-  async def wait_for_topic_signal(self, topic: int): return await TopicSignalReceiver(self, topic).wait()
-  async def wait_for_address_name(self, name: str):
-    found_address = self._address_resolver_cache.get(name, None)
-    if found_address is not None: return found_address
-
-    receiver = AddressNameAssignedReceiver(self)
-    async with receiver:
-      result = await self.resolve_address_name(name)
-      if result is not None:
-        self._set_address_name(name, result)
-        found_address = result
-      while found_address is None:
-        data = await receiver.recv()
-        self._set_address_name(data.address_name, data.address)
-        if data.address_name == name: found_address = data.address
-
-    while not receiver.empty():
-      data: AddressNameAssignmentMessage = await receiver.get()
-      self._set_address_name(data.address_name, data.address)
-
-    return found_address
-
   async def send_to(self, endpoint: Endpoint, data: SerializableData):
     await self._link.send(AddressedMessage(
       await self._get_address(endpoint[0]),
@@ -75,12 +53,6 @@ class Client:
     ))
   async def send_stream_control(self, topic: int, control_data: TopicControlData): await self._link.send(control_data.to_message(topic))
   async def send_stream_data(self, topic: int, data: SerializableData): await self._link.send(TopicDataMessage(topic, data))
-
-  async def unregister_address_name(self, name: str): await self._register_address_name(name, None)
-  async def register_address_name(self, name: str, address: Optional[int] = None):
-    address = address or self.address
-    if address is None: raise Exception("No local address")
-    await self._register_address_name(name, address)
   async def resolve_address_name(self, name: str) -> Optional[int]:
     if name in self._address_resolver_cache: return self._address_resolver_cache[name]
     raw_res = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.RESOLVE_ADDRESS, ResolveAddressRequestBody(address_name=name).model_dump())
@@ -149,6 +121,10 @@ class Client:
       try: await self._receive_task
       except asyncio.CancelledError: pass
 
+  def set_address_name(self, name: str, address: Optional[int]):
+    if address is None: self._address_resolver_cache.pop(name, None)
+    else: self._address_resolver_cache[name] = address
+
   async def _request_addresses(self, count: int) -> set[int]:
     request_id = secrets.randbelow(1 << 64)
     async with ResolveAddressesReceiver(self, request_id) as receiver:
@@ -160,12 +136,6 @@ class Client:
     if len(addresses) != count: raise Exception("The response returned an invalid number of addresses")
     return addresses
   async def _get_address(self, address: Union[int, str]) -> int: return await self.resolve_address_name(address) if isinstance(address, str) else address
-  async def _register_address_name(self, name: str, address: Optional[int]):
-    await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.REGISTER_ADDRESS, RegisterAddressRequestBody(address_name=name, address=address).model_dump())
-    self._set_address_name(name, address)
-  def _set_address_name(self, name: str, address: Optional[int]):
-    if address is None: self._address_resolver_cache.pop(name, None)
-    else: self._address_resolver_cache[name] = address
 
   async def _task_receive(self):
     try:

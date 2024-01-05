@@ -1,12 +1,10 @@
 from abc import ABC, abstractmethod
-import asyncio
-
 from pydantic import ValidationError
 from streamtasks.message.data import MessagePackData, SerializableData
 from streamtasks.net.types import AddressedMessage, Message, TopicControlData, TopicControlMessage, TopicDataMessage, TopicMessage
 from typing import Iterable, Optional, Any, TYPE_CHECKING
-
-from streamtasks.system.protocols import AddressNameAssignmentMessage, GenerateAddressesResponseMessage, WorkerTopics
+from streamtasks.system.protocols import GenerateAddressesResponseMessage, WorkerTopics
+import asyncio
 
 if TYPE_CHECKING:
   from streamtasks.client import Client
@@ -66,38 +64,6 @@ class AddressReceiver(Receiver):
     a_message: AddressedMessage = message
     if a_message.address == self._address and a_message.port == self._port:
       self._recv_queue.put_nowait((a_message.address, a_message.data))
-
-
-class TopicSignalReceiver(Receiver):
-  def __init__(self, client: 'Client', topic: int):
-    super().__init__(client)
-    self._topic = topic
-    self._signal_event = asyncio.Event()
-
-  async def _on_start_recv(self): await self._client.register_in_topics([self._topic])
-  async def _on_stop_recv(self): await self._client.unregister_in_topics([self._topic])
-
-  async def wait(self):
-    async with self:
-      await self._signal_event.wait()
-
-  def on_message(self, message: Message):
-    if not isinstance(message, TopicMessage): return
-    if message.topic != self._topic: return
-    self._signal_event.set()
-
-
-class AddressNameAssignedReceiver(Receiver):
-  _recv_queue: asyncio.Queue[AddressNameAssignmentMessage]
-  async def _on_start_recv(self): await self._client.register_in_topics([WorkerTopics.ADDRESS_NAME_ASSIGNED])
-  async def _on_stop_recv(self): await self._client.unregister_in_topics([WorkerTopics.ADDRESS_NAME_ASSIGNED])
-  def on_message(self, message: Message):
-    if not isinstance(message, TopicDataMessage): return
-    if message.topic != WorkerTopics.ADDRESS_NAME_ASSIGNED: return
-    if not isinstance(message.data, MessagePackData): return
-    try:
-      self._recv_queue.put_nowait(AddressNameAssignmentMessage.model_validate(message.data.data))
-    except ValidationError: pass
 
 
 class TopicsReceiver(Receiver):

@@ -1,6 +1,7 @@
 import unittest
 import asyncio
 from streamtasks.client import Client
+from streamtasks.client.discovery import wait_for_topic_signal
 from streamtasks.client.fetch import FetchRequest, FetchRequestReceiver
 from streamtasks.client.receiver import AddressReceiver, TopicsReceiver
 from streamtasks.message.data import TextData
@@ -76,9 +77,9 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     await self.b.register_in_topics([1])
     await asyncio.sleep(0.001)
 
-    async def wait_for_topic_signal():
-      await asyncio.wait_for(self.b.wait_for_topic_signal(1), 1)
-    receiver_task = asyncio.create_task(wait_for_topic_signal())
+    async def wait_topic():
+      await asyncio.wait_for(wait_for_topic_signal(self.b, 1), 1)
+    receiver_task = asyncio.create_task(wait_topic())
     await self.a.send_stream_data(1, TextData("Hello!"))
     await receiver_task
 
