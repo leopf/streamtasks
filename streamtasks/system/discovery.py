@@ -3,7 +3,7 @@ from streamtasks.system.protocols import AddressNameAssignmentMessage, GenerateA
 from streamtasks.worker import Worker
 from streamtasks.client import Client
 from streamtasks.client.fetch import FetchRequest, FetchServer
-from streamtasks.message.data import TextData, MessagePackData
+from streamtasks.message.data import SerializableData, TextData, MessagePackData
 from streamtasks.net.types import TopicControlData
 from streamtasks.net import Link
 import pydantic
@@ -80,7 +80,7 @@ class DiscoveryWorker(Worker):
     async with AddressReceiver(client, WorkerAddresses.ID_DISCOVERY, WorkerPorts.DISCOVERY_REQUEST_ADDRESS) as receiver:
       while True:
         try:
-          address, message = await receiver.recv()
+          message: SerializableData = (await receiver.recv())[1]
           request = GenerateAddressesRequestMessage.model_validate(message.data)
           logging.info(f"generating {request.count} addresses")
           addresses = self.generate_addresses(request.count)

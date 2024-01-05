@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from pydantic import ValidationError
 from streamtasks.message.data import MessagePackData, SerializableData
 from streamtasks.net.types import AddressedMessage, Message, TopicControlData, TopicControlMessage, TopicDataMessage, TopicMessage
-from typing import Iterable, Optional, Any, TYPE_CHECKING
+from typing import Iterable, Optional, TYPE_CHECKING
 from streamtasks.system.protocols import GenerateAddressesResponseMessage, WorkerTopics
 import asyncio
 
@@ -47,8 +47,8 @@ class Receiver(ABC):
   async def _on_start_recv(self): pass
   async def _on_stop_recv(self): pass
 
-  async def get(self) -> Any: return await self._recv_queue.get()
-  async def recv(self) -> Any:
+  async def get(self): return await self._recv_queue.get()
+  async def recv(self):
     async with self:
       return await self._recv_queue.get()
 
@@ -56,6 +56,7 @@ class Receiver(ABC):
 class AddressReceiver(Receiver):
   def __init__(self, client: 'Client', address: int, port: int):
     super().__init__(client)
+    self._recv_queue: asyncio.Queue[tuple[int, SerializableData]]
     self._address = address
     self._port = port
 
