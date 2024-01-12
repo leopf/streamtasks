@@ -1,3 +1,4 @@
+from types import CoroutineType
 from typing import Any, ClassVar, Iterable, Optional
 import asyncio
 import time
@@ -6,15 +7,21 @@ import functools
 from contextlib import ContextDecorator
 
 
+class AsyncTaskManager:
+  def __init__(self) -> None: self._tasks: set[asyncio.Task] = set()
+  def create(self, corroutine: CoroutineType):
+    task = asyncio.create_task(corroutine)
+    self._tasks.add(task)
+    task.add_done_callback(self._tasks.discard)
+    return task
+  def cancel_all(self):
+    for task in self._tasks: task.cancel()
+
+
 class IdTracker:
-  _map: dict[int, int]
-
-  def __init__(self):
-    self._map = {}
-
+  def __init__(self): self._map: dict[int, int] = {}
   def __contains__(self, id: int): return id in self._map
   def items(self) -> Iterable[int]: return self._map.keys()
-
   def add_many(self, ids: Iterable[int]):
     final = set()
     for id in ids:
@@ -22,7 +29,6 @@ class IdTracker:
       if val == 0: final.add(id)
       self._map[id] = val + 1
     return final
-
   def remove_many(self, ids: Iterable[int], force: bool = False):
     if force:
       for id in ids: self._map.pop(id, None)
@@ -37,7 +43,6 @@ class IdTracker:
           final.add(id)
         else: self._map[id] = val - 1
       return final
-
   def change_many(self, add: Iterable[int], remove: Iterable[int]):
     return self.add_many(add), self.remove_many(remove)
 

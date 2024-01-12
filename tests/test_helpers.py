@@ -1,7 +1,7 @@
 import asyncio
 import unittest
 
-from streamtasks.helpers import AsyncBool, AsyncObservable
+from streamtasks.helpers import AsyncBool, AsyncObservable, AsyncTaskManager
 
 
 class TestHelpers(unittest.IsolatedAsyncioTestCase):
@@ -28,6 +28,16 @@ class TestHelpers(unittest.IsolatedAsyncioTestCase):
     obs.test = 1
     await asyncio.sleep(0)
     self.assertTrue(task.done())
+
+  async def test_task_manager(self):
+    m = AsyncTaskManager()
+    async def routine(): await asyncio.Future()
+    t1 = m.create(routine())
+    t2 = m.create(routine())
+    m.cancel_all()
+    await asyncio.wait([ t1, t2 ], timeout=1)
+    self.assertTrue(t1.cancelled())
+    self.assertTrue(t2.cancelled())
 
 
 if __name__ == '__main__':

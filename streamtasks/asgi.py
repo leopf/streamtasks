@@ -1,5 +1,6 @@
 from streamtasks.client.receiver import Receiver
 from streamtasks.client.fetch import FetchRequestReceiver, FetchRequest
+from streamtasks.helpers import AsyncTaskManager
 from streamtasks.net import DAddress, Endpoint
 from streamtasks.net.types import AddressedMessage, Message
 from streamtasks.message.data import MessagePackData
@@ -139,20 +140,24 @@ class ASGIAppRunner:
     self._address = address if address is not None else client.address
     self._port = port
     self._init_receiver = FetchRequestReceiver(client, ASGIDefaults.INIT_DESCRIPTOR, self._address, self._port)
+    self._connection_tasks = AsyncTaskManager()
 
   async def start(self): # TODO: use fetch server
-    async with self._init_receiver:
-      while True:
-        raw_request: FetchRequest = await self._init_receiver.recv()
-        init_request = ASGIInitRequest.model_validate(raw_request.body)
+    try:
+      async with self._init_receiver:
+        while True:
+          raw_request: FetchRequest = await self._init_receiver.recv()
+          init_request = ASGIInitRequest.model_validate(raw_request.body)
 
-        config = ASGIConnectionConfig(
-          scope=JSONValueTransformer.deannotate_value(init_request.scope),
-          port=self._client.get_free_port(),
-          remote_endpoint=(init_request.address, init_request.port))
+          config = ASGIConnectionConfig(
+            scope=JSONValueTransformer.deannotate_value(init_request.scope),
+            port=self._client.get_free_port(),
+            remote_endpoint=(init_request.address, init_request.port))
 
-        self._start_connection(config)
-        await raw_request.respond(ASGIInitResponse(port=config.port).model_dump())
+          self._start_connection(config)
+          await raw_request.respond(ASGIInitResponse(port=config.port).model_dump())
+    finally:
+      self._connection_tasks.cancel_all()
 
   def _start_connection(self, config: ASGIConnectionConfig):
     receiver = ASGIEventReceiver(self._client, self._address, config.port)
@@ -175,14 +180,16 @@ class ASGIAppRunner:
       return await recv_queue.get()
 
     async def run():
-      logging.info(f"ASGI instance ({config.port}) starting!")
-      async with receiver:
-        await self._app(config.scope, receive, send)
-      await sender.close()
-      stop_signal.set()
-      logging.info(f"ASGI instance ({config.port}) finished!")
+      try:
+        logging.info(f"ASGI instance ({config.port}) starting!")
+        async with receiver:
+          await self._app(config.scope, receive, send)
+      finally:
+        await sender.close()
+        stop_signal.set()
+        logging.info(f"ASGI instance ({config.port}) finished!")
 
-    return asyncio.create_task(run())
+    self._connection_tasks.create(run())
 
 
 class ASGIProxyApp:
