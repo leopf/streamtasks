@@ -5,11 +5,9 @@ from streamtasks.client.topic import InTopicSynchronizer
 from streamtasks.utils import AsyncObservable
 from streamtasks.net.message.structures import NumberMessage
 from streamtasks.net.message.types import TopicControlData
-from streamtasks.system.task import Task, TaskFactoryWorker
-from streamtasks.system.helpers import apply_task_stream_config, validate_stream_config
-from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, TaskStreamConfig, TaskStreamGroup, TaskInputStream, TaskOutputStream
+from streamtasks.system.task import Task
+from streamtasks.system.types import DeploymentTask
 from streamtasks.client import Client
-import socket
 import asyncio
 from enum import Enum
 
@@ -108,43 +106,3 @@ class GateTask(Task):
       else:
         if self.state.get_open(self.fail_mode):
           await self.out_topic.send(data)
-
-
-class GateTaskFactoryWorker(TaskFactoryWorker):
-  async def create_task(self, deployment: DeploymentTask):
-    return GateTask(await self.create_client(), GateConfig.from_deployment_task(deployment))
-
-  async def rpc_connect(self, req: RPCTaskConnectRequest) -> DeploymentTask:
-    if req.input_id == req.task.stream_groups[0].inputs[0].ref_id:
-      if req.output_stream is None:
-        req.task.stream_groups[0].inputs[0].topic_id = None
-      else:
-        apply_task_stream_config(req.task.stream_groups[0].inputs[0], req.output_stream)
-        req.task.stream_groups[0].inputs[0].topic_id = req.output_stream.topic_id
-        apply_task_stream_config(req.task.stream_groups[0].outputs[0], req.output_stream)
-
-      return req.task
-    elif req.input_id == req.task.stream_groups[0].inputs[1].ref_id:
-      if req.output_stream is None:
-        req.task.stream_groups[0].inputs[1].topic_id = None
-        return req.task
-      else:
-        validate_stream_config(req.output_stream, TaskStreamConfig(content_type="number"), "Gate input must be a number")
-        req.task.stream_groups[0].inputs[1].topic_id = req.output_stream.topic_id
-        return req.task
-
-  @property
-  def task_template(self): return DeploymentTask(
-    id="gate",
-    task_factory_id=self.id,
-    config={
-      "label": "Gate",
-      "hostname": socket.gethostname(),
-    },
-    stream_groups=[
-      TaskStreamGroup(
-        inputs=[TaskInputStream(label="input"), TaskInputStream(label="gate", content_type="number")],
-        outputs=[TaskOutputStream(label="output")]
-      )
-    ]
-  )

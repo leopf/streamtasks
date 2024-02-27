@@ -3,12 +3,10 @@ from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.utils import get_timestamp_from_message
 from streamtasks.net.message.structures import NumberMessage
 from streamtasks.net.message.types import TopicControlData
-from streamtasks.system.task import Task, TaskFactoryWorker
-from streamtasks.system.helpers import apply_task_stream_config
-from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, TaskStreamGroup, TaskInputStream, TaskOutputStream
+from streamtasks.system.task import Task
+from streamtasks.system.types import DeploymentTask
 from streamtasks.client import Client
 from streamtasks.utils import AsyncObservable, TimeSynchronizer
-import socket
 import asyncio
 from enum import Enum
 from typing import Optional
@@ -116,31 +114,3 @@ class FlowDetectorTask(Task):
 
   async def send_current_signal(self):
     await self.signal_topic.send(MessagePackData(NumberMessage(timestamp=self.time_sync.time, value=float(self.current_signal)).model_dump()))
-
-
-class FlowDetectorTaskFactoryWorker(TaskFactoryWorker):
-  async def create_task(self, deployment: DeploymentTask):
-    return FlowDetectorTask(await self.create_client(), FlowDetectorConfig.from_deployment_task(deployment))
-  async def rpc_connect(self, req: RPCTaskConnectRequest) -> DeploymentTask:
-    if req.input_id != req.task.stream_groups[0].inputs[0].ref_id: raise Exception("Input stream id does not match task input stream id")
-    if req.output_stream:
-      req.task.stream_groups[0].inputs[0].topic_id = req.output_stream.topic_id
-      apply_task_stream_config(req.task.stream_groups[0].inputs[0], req.output_stream)
-      apply_task_stream_config(req.task.stream_groups[0].outputs[0], req.output_stream)
-    else:
-      req.task.stream_groups[0].inputs[0].topic_id = None
-    return req.task
-  @property
-  def task_template(self): return DeploymentTask(
-    task_factory_id=self.id,
-    config={
-      "label": "Flow Detector",
-      "hostname": socket.gethostname(),
-    },
-    stream_groups=[
-      TaskStreamGroup(
-        inputs=[TaskInputStream(label="input")],
-        outputs=[TaskOutputStream(label="output"), TaskOutputStream(label="signal", content_type="number")]
-      )
-    ]
-  )
