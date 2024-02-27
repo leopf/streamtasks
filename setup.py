@@ -12,7 +12,7 @@ setup(
         "streamtasks.worker",
         "streamtasks.system",
         "streamtasks.tasks",
-        "streamtasks.message",
+        "streamtasks.net.message",
     ],
     author="leopf",
     description="A task orchestrator for Python",

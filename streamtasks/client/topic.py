@@ -4,8 +4,8 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Coroutine, Iterable, Optional
 from streamtasks.client.receiver import Receiver
 from streamtasks.helpers import AsyncBool
-from streamtasks.message.data import SerializableData
-from streamtasks.message.helpers import get_timestamp_from_message
+from streamtasks.net.message.data import SerializableData
+from streamtasks.net.message.helpers import get_timestamp_from_message
 from streamtasks.net import Message
 from streamtasks.net.types import InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicControlMessage, TopicDataMessage
 

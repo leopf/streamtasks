@@ -4,7 +4,7 @@ from streamtasks.client import Client
 from streamtasks.client.discovery import wait_for_topic_signal
 from streamtasks.client.fetch import FetchRequest, FetchRequestReceiver
 from streamtasks.client.receiver import AddressReceiver, TopicsReceiver
-from streamtasks.message.data import TextData
+from streamtasks.net.message.data import TextData
 from streamtasks.net import Switch, create_queue_connection
 from streamtasks.services.protocols import WorkerPorts
 

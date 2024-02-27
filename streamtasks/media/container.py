@@ -1,6 +1,6 @@
 from streamtasks.media.config import DEFAULT_TIME_BASE_TO_MS
 from streamtasks.media.helpers import av_packet_to_media_packat
-from streamtasks.message import MediaPacket
+from streamtasks.net.message import MediaPacket
 from streamtasks.media.codec import CodecInfo, Transcoder, EmptyTranscoder, AVTranscoder, Decoder, CodecOptions, apply_codec_options
 from typing import AsyncIterable
 import av

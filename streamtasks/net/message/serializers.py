@@ -1,5 +1,5 @@
-from streamtasks.message.data import Serializer, CustomData
-from streamtasks.message.structures import MediaPacket
+from streamtasks.net.message.data import Serializer, CustomData
+from streamtasks.net.message.structures import MediaPacket
 import fastavro
 from io import BytesIO
 from typing import Any, Union

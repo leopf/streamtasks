@@ -3,7 +3,7 @@ from streamtasks.client.fetch import FetchRequestReceiver, FetchRequest
 from streamtasks.helpers import AsyncTaskManager
 from streamtasks.net import DAddress, Endpoint
 from streamtasks.net.types import AddressedMessage, Message
-from streamtasks.message.data import MessagePackData
+from streamtasks.net.message.data import MessagePackData
 from pydantic import BaseModel, ValidationError
 from abc import ABC
 from dataclasses import dataclass

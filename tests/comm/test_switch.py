@@ -1,6 +1,6 @@
 import unittest
 import asyncio
-from streamtasks.message.data import TextData
+from streamtasks.net.message.data import TextData
 
 from streamtasks.net import Link, Switch, create_queue_connection
 from streamtasks.net.types import InTopicsChangedMessage, OutTopicsChangedMessage, OutTopicsChangedRecvMessage, PricedId, TopicDataMessage

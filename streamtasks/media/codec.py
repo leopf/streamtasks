@@ -8,7 +8,7 @@ import av
 import time
 import asyncio
 
-from streamtasks.message.structures import MediaPacket
+from streamtasks.net.message.structures import MediaPacket
 
 
 @dataclass

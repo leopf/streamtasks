@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Any
 from abc import ABC
 from typing_extensions import Self
-from streamtasks.message.data import SerializableData, SerializationType, data_from_serialization_type
+from streamtasks.net.message.data import SerializableData, SerializationType, data_from_serialization_type
 
 
 class Message(ABC):

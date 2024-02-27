@@ -1,7 +1,7 @@
 from dataclasses import dataclass
-from streamtasks.message.data import MessagePackData
-from streamtasks.message.helpers import get_timestamp_from_message
-from streamtasks.message.structures import NumberMessage
+from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.helpers import get_timestamp_from_message
+from streamtasks.net.message.structures import NumberMessage
 from streamtasks.net.types import TopicControlData
 from streamtasks.system.task import Task, TaskFactoryWorker
 from streamtasks.system.helpers import apply_task_stream_config

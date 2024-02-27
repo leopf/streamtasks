@@ -3,7 +3,7 @@ from streamtasks.services.protocols import AddressNameAssignmentMessage, Generat
 from streamtasks.worker import Worker
 from streamtasks.client import Client
 from streamtasks.client.fetch import FetchRequest, FetchServer
-from streamtasks.message.data import SerializableData, TextData, MessagePackData
+from streamtasks.net.message.data import SerializableData, TextData, MessagePackData
 from streamtasks.net.types import TopicControlData
 from streamtasks.net import Link
 import pydantic

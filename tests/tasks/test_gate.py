@@ -1,8 +1,8 @@
 from enum import Enum
 from typing import Any
 import unittest
-from streamtasks.message.data import MessagePackData
-from streamtasks.message.structures import NumberMessage
+from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.structures import NumberMessage
 from streamtasks.net.types import TopicControlData
 from streamtasks.system.tasks.gate import GateConfig, GateState, GateTask, GateFailMode
 import asyncio

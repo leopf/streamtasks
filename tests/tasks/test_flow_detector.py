@@ -1,8 +1,8 @@
 from enum import Enum
 from typing import Any
 import unittest
-from streamtasks.message.data import JsonData
-from streamtasks.message.structures import NumberMessage
+from streamtasks.net.message.data import JsonData
+from streamtasks.net.message.structures import NumberMessage
 
 from tests.sim import Simulator
 from .shared import TaskTestBase

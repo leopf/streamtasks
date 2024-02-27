@@ -1,7 +1,7 @@
 from streamtasks.media.config import DEFAULT_TIME_BASE, DEFAULT_TIME_BASE_TO_MS
 import av
 
-from streamtasks.message.structures import MediaPacket
+from streamtasks.net.message.structures import MediaPacket
 
 
 def av_packet_to_media_packat(packet: av.Packet, t0: int):

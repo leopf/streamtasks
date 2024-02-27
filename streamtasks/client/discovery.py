@@ -3,7 +3,7 @@ from typing import Optional
 from pydantic import ValidationError
 from streamtasks.client import Client
 from streamtasks.client.receiver import Receiver
-from streamtasks.message.data import MessagePackData
+from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.types import Message, TopicDataMessage, TopicMessage
 from streamtasks.services.protocols import AddressNameAssignmentMessage, RegisterAddressRequestBody, WorkerAddresses, WorkerFetchDescriptors, WorkerTopics
 import asyncio

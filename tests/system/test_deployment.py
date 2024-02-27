@@ -4,7 +4,7 @@ from streamtasks.client import Client
 from streamtasks.node import LocalNode
 from streamtasks.system.types import Deployment, DeploymentTask, RPCTaskConnectRequest, TaskInputStream, TaskOutputStream, TaskStreamGroup
 from streamtasks.worker import Worker
-from streamtasks.message.data import MessagePackData
+from streamtasks.net.message.data import MessagePackData
 from streamtasks.system.task import Task, TaskFactoryWorker
 from streamtasks.system.workers import TaskManagerWorker
 from streamtasks.system.helpers import ASGITestServer

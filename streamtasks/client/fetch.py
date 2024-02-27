@@ -1,7 +1,7 @@
 from streamtasks.client.receiver import Receiver
 from streamtasks.net import Endpoint
 from streamtasks.net.types import AddressedMessage, Message
-from streamtasks.message.data import MessagePackData
+from streamtasks.net.message.data import MessagePackData
 import asyncio
 from pydantic import BaseModel, ValidationError
 from typing import TYPE_CHECKING, Any, Optional, Callable, Awaitable
