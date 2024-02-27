@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from typing import Optional
 from pydantic import ValidationError
 from streamtasks.client import Client
@@ -49,6 +50,15 @@ async def register_address_name(client: Client, name: str, address: int): return
 
 
 async def unregister_address_name(client: Client, name: str): return await _register_address_name(client, name, None)
+
+
+@asynccontextmanager
+async def address_name_context(client: Client, name: str, address: int):
+  try:
+    await register_address_name(client, name, address)
+    yield None
+  finally:
+    await unregister_address_name(client, name)
 
 
 async def wait_for_topic_signal(client: Client, topic: int): return await TopicSignalReceiver(client, topic).wait()
