@@ -1,7 +1,7 @@
 import asyncio
 import unittest
 
-from streamtasks.helpers import AsyncBool, AsyncObservable, AsyncTaskManager
+from streamtasks.utils import AsyncBool, AsyncObservable, AsyncTaskManager
 
 
 class TestHelpers(unittest.IsolatedAsyncioTestCase):

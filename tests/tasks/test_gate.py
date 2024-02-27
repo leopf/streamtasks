@@ -3,7 +3,7 @@ from typing import Any
 import unittest
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import NumberMessage
-from streamtasks.net.types import TopicControlData
+from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.tasks.gate import GateConfig, GateState, GateTask, GateFailMode
 import asyncio
 

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from pydantic import ValidationError
 from streamtasks.net.message.data import MessagePackData, SerializableData
-from streamtasks.net.types import AddressedMessage, Message, TopicControlData, TopicControlMessage, TopicDataMessage, TopicMessage
+from streamtasks.net.message.types import AddressedMessage, Message, TopicControlData, TopicControlMessage, TopicDataMessage, TopicMessage
 from typing import Iterable, Optional, TYPE_CHECKING
 from streamtasks.services.protocols import GenerateAddressesResponseMessage, WorkerTopics
 import asyncio

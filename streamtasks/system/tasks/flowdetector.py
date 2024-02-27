@@ -1,13 +1,13 @@
 from dataclasses import dataclass
 from streamtasks.net.message.data import MessagePackData
-from streamtasks.net.message.helpers import get_timestamp_from_message
+from streamtasks.net.message.utils import get_timestamp_from_message
 from streamtasks.net.message.structures import NumberMessage
-from streamtasks.net.types import TopicControlData
+from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.task import Task, TaskFactoryWorker
 from streamtasks.system.helpers import apply_task_stream_config
 from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, TaskStreamGroup, TaskInputStream, TaskOutputStream
 from streamtasks.client import Client
-from streamtasks.helpers import AsyncObservable, TimeSynchronizer
+from streamtasks.utils import AsyncObservable, TimeSynchronizer
 import socket
 import asyncio
 from enum import Enum

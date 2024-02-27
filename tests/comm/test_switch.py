@@ -3,7 +3,7 @@ import asyncio
 from streamtasks.net.message.data import TextData
 
 from streamtasks.net import Link, Switch, create_queue_connection
-from streamtasks.net.types import InTopicsChangedMessage, OutTopicsChangedMessage, OutTopicsChangedRecvMessage, PricedId, TopicDataMessage
+from streamtasks.net.message.types import InTopicsChangedMessage, OutTopicsChangedMessage, OutTopicsChangedRecvMessage, PricedId, TopicDataMessage
 
 
 class TestSwitch(unittest.IsolatedAsyncioTestCase):

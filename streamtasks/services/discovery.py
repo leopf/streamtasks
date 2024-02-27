@@ -1,10 +1,13 @@
 from streamtasks.client.receiver import AddressReceiver
+
+# NOTE: move this in here?
 from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesResponseMessage, GenerateTopicsRequestBody, GenerateTopicsResponseBody, RegisterAddressRequestBody, ResolveAddressRequestBody, ResolveAddressResonseBody, WorkerAddresses, WorkerFetchDescriptors, WorkerPorts, WorkerTopics
+
 from streamtasks.worker import Worker
 from streamtasks.client import Client
 from streamtasks.client.fetch import FetchRequest, FetchServer
 from streamtasks.net.message.data import SerializableData, TextData, MessagePackData
-from streamtasks.net.types import TopicControlData
+from streamtasks.net.message.types import TopicControlData
 from streamtasks.net import Link
 import pydantic
 import logging

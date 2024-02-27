@@ -1,12 +1,12 @@
 from typing import Union
 from streamtasks.net.helpers import PricedIdTracker
-from streamtasks.net.serialize import serialize_message, deserialize_message
-from streamtasks.helpers import IdTracker
+from streamtasks.net.message.serialize import serialize_message, deserialize_message
+from streamtasks.utils import IdTracker
 from abc import ABC, abstractmethod
 import logging
 import asyncio
 
-from streamtasks.net.types import AddressedMessage, AddressesChangedMessage, AddressesChangedRecvMessage, InTopicsChangedMessage, Message, OutTopicsChangedMessage, OutTopicsChangedRecvMessage, PricedId, TopicControlData, TopicControlMessage, TopicMessage
+from streamtasks.net.message.types import AddressedMessage, AddressesChangedMessage, AddressesChangedRecvMessage, InTopicsChangedMessage, Message, OutTopicsChangedMessage, OutTopicsChangedRecvMessage, PricedId, TopicControlData, TopicControlMessage, TopicMessage
 
 DAddress = Union[str, int] # dynamic address, which allows names or ints
 Endpoint = tuple[DAddress, int]

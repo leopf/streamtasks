@@ -7,7 +7,7 @@ from streamtasks.net.message.structures import NumberMessage
 from tests.sim import Simulator
 from .shared import TaskTestBase
 from streamtasks.system.tasks.flowdetector import FlowDetectorConfig, FlowDetectorState, FlowDetectorTask, FlowDetectorFailMode
-from streamtasks.helpers import get_timestamp_ms
+from streamtasks.utils import get_timestamp_ms
 import asyncio
 
 

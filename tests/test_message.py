@@ -1,6 +1,6 @@
 import unittest
 from streamtasks.net.message.data import CustomData, MessagePackData, SerializationType, data_from_serialization_type
-from streamtasks.net.message.helpers import get_timestamp_from_message
+from streamtasks.net.message.utils import get_timestamp_from_message
 
 from streamtasks.net.message.serializers import MediaPacketData, get_core_serializers
 from streamtasks.net.message.structures import MediaPacket, NumberMessage

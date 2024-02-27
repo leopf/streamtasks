@@ -2,9 +2,9 @@ from dataclasses import dataclass
 
 from pydantic import ValidationError
 from streamtasks.client.topic import InTopicSynchronizer
-from streamtasks.helpers import AsyncObservable
+from streamtasks.utils import AsyncObservable
 from streamtasks.net.message.structures import NumberMessage
-from streamtasks.net.types import TopicControlData
+from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.task import Task, TaskFactoryWorker
 from streamtasks.system.helpers import apply_task_stream_config, validate_stream_config
 from streamtasks.system.types import RPCTaskConnectRequest, DeploymentTask, TaskStreamConfig, TaskStreamGroup, TaskInputStream, TaskOutputStream

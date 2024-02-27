@@ -4,10 +4,10 @@ from dataclasses import dataclass
 import functools
 from streamtasks.client import Client
 from streamtasks.client.topic import InTopic, InTopicSynchronizer
-from streamtasks.helpers import AsyncObservable, AsyncObservableDict, TimeSynchronizer
+from streamtasks.utils import AsyncObservable, AsyncObservableDict, TimeSynchronizer
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import NumberMessage
-from streamtasks.net.types import TopicControlData
+from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.task import Task
 from pydantic import BaseModel
 from typing import Optional

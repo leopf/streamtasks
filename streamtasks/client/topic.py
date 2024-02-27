@@ -3,11 +3,11 @@ import asyncio
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Coroutine, Iterable, Optional
 from streamtasks.client.receiver import Receiver
-from streamtasks.helpers import AsyncBool
+from streamtasks.utils import AsyncBool
 from streamtasks.net.message.data import SerializableData
-from streamtasks.net.message.helpers import get_timestamp_from_message
+from streamtasks.net.message.utils import get_timestamp_from_message
 from streamtasks.net import Message
-from streamtasks.net.types import InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicControlMessage, TopicDataMessage
+from streamtasks.net.message.types import InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicControlMessage, TopicDataMessage
 
 if TYPE_CHECKING:
   from streamtasks.client import Client

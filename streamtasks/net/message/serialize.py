@@ -1,7 +1,7 @@
 import fastavro
 from io import BytesIO
 
-from streamtasks.net.types import AddressedMessage, AddressesChangedMessage, InTopicsChangedMessage, Message, OutTopicsChangedMessage, TopicControlMessage, TopicDataMessage
+from streamtasks.net.message.types import AddressedMessage, AddressesChangedMessage, InTopicsChangedMessage, Message, OutTopicsChangedMessage, TopicControlMessage, TopicDataMessage
 
 PRICED_ID_SCHEMA = fastavro.parse_schema({
   "type": "record",
