@@ -4,7 +4,6 @@ from streamtasks.net.message.utils import get_timestamp_from_message
 from streamtasks.net.message.structures import NumberMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.task import Task
-from streamtasks.system.types import DeploymentTask
 from streamtasks.client import Client
 from streamtasks.utils import AsyncObservable, TimeSynchronizer
 import asyncio
@@ -24,18 +23,6 @@ class FlowDetectorConfig:
   signal_topic: int
   fail_mode: FlowDetectorFailMode
   signal_delay: Optional[float] = None
-
-  @staticmethod
-  def from_deployment_task(task: DeploymentTask):
-    topic_id_map = task.topic_id_map
-
-    return FlowDetectorConfig(
-      in_topic=topic_id_map[task.stream_groups[0].inputs[0].topic_id],
-      out_topic=topic_id_map[task.stream_groups[0].outputs[0].topic_id],
-      signal_topic=topic_id_map[task.stream_groups[0].outputs[1].topic_id],
-      fail_mode=FlowDetectorFailMode(task.config.get("fail_mode", FlowDetectorFailMode.PASSIVE.value)),
-      signal_delay=float(task.config["signal_delay"]) if "signal_delay" in task.config else None
-    )
 
 
 class FlowDetectorState(AsyncObservable):

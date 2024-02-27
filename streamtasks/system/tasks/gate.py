@@ -6,7 +6,6 @@ from streamtasks.utils import AsyncObservable
 from streamtasks.net.message.structures import NumberMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.task import Task
-from streamtasks.system.types import DeploymentTask
 from streamtasks.client import Client
 import asyncio
 from enum import Enum
@@ -24,17 +23,6 @@ class GateConfig:
   in_topic: int
   out_topic: int
   synchronized: bool = True
-
-  @staticmethod
-  def from_deployment_task(task: DeploymentTask):
-    topic_id_map = task.topic_id_map
-
-    return GateConfig(
-      in_topic=topic_id_map[task.stream_groups[0].inputs[0].topic_id],
-      gate_topic=topic_id_map[task.stream_groups[0].inputs[1].topic_id],
-      out_topic=topic_id_map[task.stream_groups[0].outputs[0].topic_id],
-      fail_mode=GateFailMode(task.config.get("fail_mode", GateFailMode.OPEN.value)),
-    )
 
 
 class GateState(AsyncObservable):
