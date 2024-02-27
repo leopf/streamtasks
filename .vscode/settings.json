@@ -12,8 +12,5 @@
     "python.languageServer": "Pylance",
     "python.testing.pytestArgs": [
         "--timeout=10"
-    ],
-    "[python]": {
-        "editor.defaultFormatter": "ms-python.autopep8"
-    }
+    ]
 }

@@ -36,9 +36,6 @@ setup(
           "matplotlib",
           "simpleaudio",
           "opencv-python",
-          "flake8",
-          "mypy"
         ]
-    },
-    entry_points={"console_scripts": ["streamtasks = streamtasks.bin.__init__:main"]},
+    }
 )
