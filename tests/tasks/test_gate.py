@@ -6,10 +6,8 @@ from streamtasks.net.message.structures import NumberMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.tasks.gate import GateConfig, GateState, GateTask, GateFailMode
 import asyncio
-
 from tests.sim import Simulator
-
-from .shared import TaskTestBase
+from .shared import TaskTestBase, start_task
 
 
 class GateSimEvent(Enum):
@@ -74,7 +72,7 @@ class TestGate(TaskTestBase):
       out_topic=self.out_topic.topic,
       synchronized=False
     ))
-    self.tasks.append(asyncio.create_task(task.start()))
+    self.tasks.append(asyncio.create_task(start_task(task)))
     return task
 
   async def send_input_data(self, value: float):

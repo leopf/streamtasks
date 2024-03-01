@@ -48,12 +48,10 @@ class IdTracker:
 
 
 class AwaitableIdTracker(IdTracker):
-  _waiting_ids: dict[int, asyncio.Event]
-
   def __init__(self):
     super().__init__()
-    self._waiting_ids_added = {}
-    self._waiting_ids_removed = {}
+    self._waiting_ids_added: dict[int, asyncio.Event] = {}
+    self._waiting_ids_removed: dict[int, asyncio.Event] = {}
 
   def add_many(self, ids: Iterable[int]):
     added = super().add_many(ids)

@@ -11,9 +11,9 @@
 
  ## Task System
  The task system consists of 3 parts.
- - the task itself
- - the task host, responsible for starting tasks and communicating with the management system
- - the task management system, which is responsible for managing running tasks and for communicating with the task hosts
+ 1. the task itself
+ 1. the task host, responsible for starting tasks and communicating with the management system
+ 1. the task management system, which is responsible for managing running tasks and for communicating with the task hosts
 
 Task host can live in seperate processes and connect to the system via IPC. 
 This means, you can start the same host twice. 

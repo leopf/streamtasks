@@ -55,7 +55,7 @@ class GateTask(Task):
     self.state = GateState()
     self.fail_mode = config.fail_mode
 
-  async def start_task(self):
+  async def run(self):
     tasks: list[asyncio.Task] = []
     try:
       async with self.in_topic, self.gate_topic, self.out_topic, self.in_topic.RegisterContext(), \

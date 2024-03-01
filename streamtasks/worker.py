@@ -16,9 +16,9 @@ class Worker:
     await self.switch.add_link(connection[0])
     return connection[1]
 
-  async def start(self):
-    try:
-      await self.switch.add_link(self.node_link)
-      self.connected.set()
-      await asyncio.Future() # wait for cancellation
-    finally: self.switch.stop_receiving()
+  async def setup(self):
+    await self.switch.add_link(self.node_link)
+    self.connected.set()
+    
+  async def shutdown(self):
+    self.switch.stop_receiving()

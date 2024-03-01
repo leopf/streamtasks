@@ -22,6 +22,7 @@ class DiscoveryWorker(Worker):
     self._address_map: dict[str, int] = {}
 
   async def start(self):
+    await self.setup()
     client = await self.create_client()
     await client.set_address(WorkerAddresses.ID_DISCOVERY)
 
@@ -31,12 +32,12 @@ class DiscoveryWorker(Worker):
           self._run_address_generator(client),
           self._run_fetch_server(client),
           self._run_lighthouse(client),
-          super().start()
         )
     finally:
       self._address_counter = WorkerAddresses.COUNTER_INIT
       self._topics_counter = WorkerTopics.COUNTER_INIT
       self._address_map = {}
+      await self.shutdown()
 
   async def _run_lighthouse(self, client: Client):
     await self.connected.wait()

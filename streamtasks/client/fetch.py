@@ -55,7 +55,7 @@ class FetchServer(Receiver):
   def __init__(self, client: 'Client', port: int = WorkerPorts.FETCH):
     super().__init__(client)
     self._recv_queue: asyncio.Queue[tuple[str, FetchRequest]]
-    self._descriptor_mapping = {}
+    self._descriptor_mapping: dict[str, Callable[[FetchRequest], Awaitable[Any]]] = {}
     self._port: dict[str, Callable[[FetchRequest], Awaitable[Any]]] = port
 
   def add_route(self, descriptor: str, func: Callable[[FetchRequest], Awaitable[Any]]): self._descriptor_mapping[descriptor] = func
@@ -85,7 +85,7 @@ class FetchServer(Receiver):
           try:
             await self._descriptor_mapping[descriptor](fr)
             if not fr.response_sent: await fr.respond(None)
-          except Exception as e: logging.error(e, fr, descriptor)
+          except Exception as e: logging.debug(e, fr, descriptor)
 
 
 class FetchRequestReceiver(Receiver):

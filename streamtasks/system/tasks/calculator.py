@@ -229,7 +229,7 @@ class CalculatorTask(Task):
         (client.in_topic(input_var.topic_id), input_var.name, input_var.default_value)
         for input_var in config.input_vars
       ]
-  async def start_task(self):
+  async def run(self):
     tasks: list[asyncio.Task] = []
     try:
       async with contextlib.AsyncExitStack() as exit_stack:

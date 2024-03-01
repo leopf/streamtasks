@@ -5,7 +5,7 @@ from streamtasks.net.message.data import JsonData
 from streamtasks.net.message.structures import NumberMessage
 
 from tests.sim import Simulator
-from .shared import TaskTestBase
+from .shared import TaskTestBase, start_task
 from streamtasks.system.tasks.flowdetector import FlowDetectorConfig, FlowDetectorState, FlowDetectorTask, FlowDetectorFailMode
 from streamtasks.utils import get_timestamp_ms
 import asyncio
@@ -54,7 +54,7 @@ class TestFlowDetector(TaskTestBase):
       out_topic=self.out_topic.topic,
       signal_topic=self.signal_topic.topic,
     ))
-    self.tasks.append(asyncio.create_task(task.start()))
+    self.tasks.append(asyncio.create_task(start_task(task)))
     return task
 
   async def _test_fail_mode(self, fail_mode: FlowDetectorFailMode):
