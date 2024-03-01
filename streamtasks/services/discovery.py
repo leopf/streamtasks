@@ -89,8 +89,7 @@ class DiscoveryWorker(Worker):
             addresses=addresses
           ).model_dump()))
         except pydantic.ValidationError: pass
-        except Exception as e:
-          logging.error(e)
+        except Exception as e: logging.error(e)
 
   def generate_topics(self, count: int) -> set[int]:
     res = set(self._topics_counter + i for i in range(count))
