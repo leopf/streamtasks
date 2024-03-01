@@ -7,7 +7,7 @@ from streamtasks.client import Client
 import asyncio
 
 from streamtasks.client.fetch import FetchRequest, FetchServer
-from streamtasks.net import Link, Switch
+from streamtasks.net import Endpoint, Link, Switch
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.worker import Worker
 
@@ -22,8 +22,11 @@ class Task(ABC):
 
 class TaskStartRequest(BaseModel):
   id: str
-  report_server: tuple[int, int]
+  report_server: Endpoint
   config: Any
+
+class TaskCancelRequest(BaseModel):
+  id: str
 
 class TaskStartResponse(BaseModel):
   id: str
@@ -71,12 +74,18 @@ class TaskHost(Worker):
         task = await self.create_task(body.config)
         metadata = await asyncio.wait_for(task.setup(), 1) # NOTE: make this configurable
         self.tasks[body.id] = asyncio.create_task(self.run_task(body.id, task, body.report_server))
-        await req.respond(TaskStartResponse(
-          id=body.id,
-          metadata=metadata,
-          error=None
-        ))
+        await req.respond(TaskStartResponse(id=body.id, metadata=metadata, error=None))
       except BaseException as e:
         await req.respond(TaskStartResponse(id=body.id, error=str(e), metadata={}))
+    
+    @fetch_server.route("cancel")
+    async def _(req: FetchRequest):
+      body = TaskCancelRequest.model_validate(req.body)
+      try:
+        task = self.tasks[body.id]
+        task.cancel("Cancelled remotely!")
+        req.respond("OK")
+      except BaseException as e:
+        req.respond(f"ERROR - {str(e)}")
       
     await fetch_server.start()
