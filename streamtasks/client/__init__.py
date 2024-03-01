@@ -9,7 +9,7 @@ from streamtasks.net.helpers import ids_to_priced_ids
 from streamtasks.net.message.types import AddressedMessage, AddressesChangedMessage, DataMessage, InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicDataMessage, TopicMessage
 from streamtasks.services.protocols import GenerateAddressesRequestMessage, GenerateAddressesResponseMessage, GenerateTopicsRequestBody, GenerateTopicsResponseBody, ResolveAddressRequestBody, ResolveAddressResonseBody, WorkerAddresses, WorkerFetchDescriptors, WorkerPorts
 from streamtasks.net.message.serializers import get_core_serializers
-from streamtasks.client.fetch import FetchReponseReceiver, FetchRequestMessage
+from streamtasks.client.fetch import FetchError, FetchReponseReceiver, FetchRequestMessage, FetchResponseMessage
 import secrets
 
 
@@ -108,8 +108,9 @@ class Client:
         return_port=return_port,
         descriptor=descriptor,
         body=body).model_dump()))
-      response_data = await receiver.recv()
-    return response_data
+      response_data: FetchResponseMessage = await receiver.recv()
+    if response_data.error: raise FetchError(response_data.body)
+    return response_data.body
 
   async def enable_receiver(self, receiver: Receiver):
     self._receivers.append(receiver)
