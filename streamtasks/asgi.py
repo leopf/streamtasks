@@ -142,7 +142,7 @@ class ASGIAppRunner:
     self._init_receiver = FetchRequestReceiver(client, ASGI_CONSTANTS.INIT_DESCRIPTOR, self._address, self._port)
     self._connection_tasks = AsyncTaskManager()
 
-  async def start(self): # TODO: use fetch server
+  async def run(self): # TODO: use fetch server
     try:
       async with self._init_receiver:
         while True:

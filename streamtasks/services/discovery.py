@@ -21,7 +21,7 @@ class DiscoveryWorker(Worker):
     self._topics_counter = WorkerTopics.COUNTER_INIT
     self._address_map: dict[str, int] = {}
 
-  async def start(self):
+  async def run(self):
     await self.setup()
     client = await self.create_client()
     await client.set_address(WorkerAddresses.ID_DISCOVERY)
@@ -74,7 +74,7 @@ class DiscoveryWorker(Worker):
       topics = self.generate_topics(request.count)
       await req.respond(GenerateTopicsResponseBody(topics=topics).model_dump())
 
-    await server.start()
+    await server.run()
 
   async def _run_address_generator(self, client: Client):
     async with AddressReceiver(client, WorkerAddresses.ID_DISCOVERY, WorkerPorts.DISCOVERY_REQUEST_ADDRESS) as receiver:

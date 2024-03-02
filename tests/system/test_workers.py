@@ -21,7 +21,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     self.worker = Worker(await self.node.create_link(raw=True))
     await self.setup_worker(self.worker)
 
-    self.tasks.append(asyncio.create_task(self.node.start()))
+    self.tasks.append(asyncio.create_task(self.node.run()))
 
     await asyncio.sleep(0.001)
 

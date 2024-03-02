@@ -71,7 +71,7 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
       return { "data": data }
 
     runner = ASGIAppRunner(self.client2, demo_app)
-    self.tasks.append(asyncio.create_task(runner.start()))
+    self.tasks.append(asyncio.create_task(runner.run()))
 
     proxy_app = ASGIProxyApp(self.client1, 1337)
 
@@ -91,7 +91,7 @@ class TestASGI(unittest.IsolatedAsyncioTestCase):
       await send({"type": "http.response.body", "body": b"Hello world!"})
 
     runner = ASGIAppRunner(self.client2, demo_app)
-    self.tasks.append(asyncio.create_task(runner.start()))
+    self.tasks.append(asyncio.create_task(runner.run()))
 
     proxy_app = ASGIProxyApp(self.client1, 1337)
 

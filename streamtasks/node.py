@@ -11,7 +11,7 @@ class NodeBase(ABC):
     self.running = False
     self.switch = switch
 
-  async def start(self):
+  async def run(self):
     try:
       self.running = True
       await asyncio.Future() # wait for cancellation

@@ -99,7 +99,7 @@ class FetchServer(Receiver):
         self._recv_queue.put_nowait((fr_message.descriptor, FetchRequest(self._client, (fr_message.return_address, fr_message.return_port), fr_message.body)))
     except ValidationError: pass
 
-  async def start(self):
+  async def run(self):
     async with self:
       while True:
         req_message: tuple[str, FetchRequest] = await self.get()

@@ -5,7 +5,7 @@ import asyncio
 from streamtasks.system.task import Task
 
 
-async def start_task(task: Task):
+async def run_task(task: Task):
   await task.setup()
   await task.run()
 

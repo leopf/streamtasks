@@ -103,12 +103,12 @@ class TaskHost(Worker):
     registration = TaskHostRegistration(id=uuid4(), address=self.client.address, metadata=self.metadata)
     await self.client.fetch(address, TASK_CONSTANTS.FD_REGISTER_TASK_HOST, registration.model_dump())
   
-  async def start(self):
+  async def run(self):
     try:
       await self.setup()
       self.client = await self.create_client()
       await self.client.request_address()
-      await asyncio.gather(self.start_receiver())
+      await asyncio.gather(self.run_api())
     finally:
       for task in self.tasks.values(): task.cancel()
       await asyncio.wait(self.tasks.values(), 1) # NOTE: make configurable
@@ -125,7 +125,7 @@ class TaskHost(Worker):
     await self.client.send_to((report_address, TASK_CONSTANTS.PORT_TASK_STATUS_REPORT_SERVER), MessagePackData(TaskShutdownReport(id=id, error=error_text).model_dump()))
     self.tasks.pop(id, None)
     
-  async def start_receiver(self):
+  async def run_api(self):
     fetch_server = FetchServer(self.client)
     
     @fetch_server.route(TASK_CONSTANTS.FD_TASK_START)
@@ -149,7 +149,7 @@ class TaskHost(Worker):
       except KeyError as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
       except BaseException as e: await req.respond_error(new_fetch_body_general_error(str(e)))
       
-    await fetch_server.start()
+    await fetch_server.run()
 
 
 class TaskManager(Worker):
@@ -159,20 +159,20 @@ class TaskManager(Worker):
     self.task_hosts: dict[UUID4, TaskHostRegistration] = {}
     self.tasks: dict[UUID4, TaskInstance] = {}
   
-  async def start(self):
+  async def run(self):
     try:
       await self.setup()
       self.client = await self.create_client()
       await self.client.request_address()
       await asyncio.gather(
-        self.start_fetch_server(),
-        self.start_report_server(),
+        self.run_api(),
+        self.run_report_server(),
         self.bc_server.start()
       )
     finally: 
       await self.shutdown()
   
-  async def start_report_server(self):
+  async def run_report_server(self):
     async with AddressReceiver(self.client, self.client.address, TASK_CONSTANTS.PORT_TASK_STATUS_REPORT_SERVER) as receiver:
       while True:
         try:
@@ -189,7 +189,7 @@ class TaskManager(Worker):
         except asyncio.CancelledError: raise
         except BaseException as e: logging.debug(e)
   
-  async def start_fetch_server(self):
+  async def run_api(self):
     fetch_server = FetchServer(self.client)
     
     @fetch_server.route(TASK_CONSTANTS.FD_REGISTER_TASK_HOST)
@@ -249,4 +249,4 @@ class TaskManager(Worker):
       except (ValidationError, KeyError) as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
       except BaseException as e: await req.respond_error(new_fetch_body_general_error(str(e)))
 
-    await fetch_server.start()
+    await fetch_server.run()
