@@ -42,14 +42,20 @@ class FetchRequest:
 
 class FetchErrorStatusCode(Enum):
   BAD_REQUEST = "bad_request"
+  GENERAL = "general"
   
 def new_fetch_body_bad_request(message: str): return (FetchErrorStatusCode.BAD_REQUEST.value, message)
-def new_fetch_body_general_error(message: str): return (FetchErrorStatusCode.BAD_REQUEST.value, message)
+def new_fetch_body_general_error(message: str): return (FetchErrorStatusCode.GENERAL.value, message)
 
 class FetchError(BaseException):
   def __init__(self, body: Any) -> None:
     super().__init__()
     self.body = body
+    
+  def __repr__(self) -> str:
+    if isinstance(self.body, tuple) and len(self.body) == 2 and self.body[0] in FetchErrorStatusCode._value2member_map_:
+      return f"<FetchError {FetchErrorStatusCode(self.body[0])}: {self.body[1]}>"
+    return f"<FetchError {self.body}>"
     
 class FetchReponseReceiver(Receiver):
   def __init__(self, client: 'Client', return_port: int):
@@ -96,12 +102,16 @@ class FetchServer(Receiver):
   async def start(self):
     async with self:
       while True:
-        descriptor, fr = await self.get()
+        req_message: tuple[str, FetchRequest] = await self.get()
+        descriptor, fr = req_message
+        
         if descriptor in self._descriptor_mapping:
           try:
             await self._descriptor_mapping[descriptor](fr)
             if not fr.response_sent: await fr.respond(None)
-          except Exception as e: logging.debug(e, fr, descriptor)
+          except BaseException as e: 
+            if not fr.response_sent: await fr.respond_error(new_fetch_body_general_error(str(e)))
+            logging.debug(e, fr, descriptor)
 
 
 class FetchRequestReceiver(Receiver):

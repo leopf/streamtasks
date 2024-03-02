@@ -146,8 +146,8 @@ class TaskHost(Worker):
         task = self.tasks[body.id]
         task.cancel("Cancelled remotely!")
         await req.respond("OK")
-      except BaseException as e:
-        await req.respond(f"ERROR - {str(e)}")
+      except KeyError as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
+      except BaseException as e: await req.respond_error(new_fetch_body_general_error(str(e)))
       
     await fetch_server.start()
 
@@ -188,9 +188,11 @@ class TaskManager(Worker):
     
     @fetch_server.route(TASK_CONSTANTS.FD_REGISTER_TASK_HOST)
     async def _(req: FetchRequest):
-      reg = TaskHostRegistration.model_validate(req.body)
-      self.task_hosts[reg.id] = reg
-      await req.respond("OK")
+      try:
+        reg = TaskHostRegistration.model_validate(req.body)
+        self.task_hosts[reg.id] = reg
+        await req.respond("OK")
+      except (ValidationError, KeyError) as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
       
     @fetch_server.route(TASK_CONSTANTS.FD_LIST_TASK_HOSTS) 
     async def _(req: FetchRequest): await req.respond(TaskHostRegistrationList.dump_python(list(self.task_hosts.values())))
@@ -207,25 +209,38 @@ class TaskManager(Worker):
           config=body.config
         )
         
-        task_start_result = await self.client.fetch(task_host.address, TASK_CONSTANTS.FD_TASK_START, th_req.model_dump())
-        task_start_result: TaskStartResponse = TaskStartResponse.model_validate(task_start_result)
-        
         inst = TaskInstance(
           id= th_req.id,
           host_id=body.task_host_id,
           config=body.config,
-          metadata=task_start_result.metadata,
-          error=task_start_result.error,
-          running=task_start_result.error is None
+          metadata={},
+          error=None,
+          running=True
         )
         self.tasks[inst.id] = inst
+        
+        task_start_result = await self.client.fetch(task_host.address, TASK_CONSTANTS.FD_TASK_START, th_req.model_dump())
+        task_start_result: TaskStartResponse = TaskStartResponse.model_validate(task_start_result)
+        
+        inst.metadata=task_start_result.metadata,
+        inst.error=task_start_result.error,
+        inst.running=task_start_result.error is None
+        
         await req.respond(inst.model_dump())
       except (ValidationError, KeyError) as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
-      except e: await req.respond_error(new_fetch_body_general_error(str(e)))
+      except BaseException as e: await req.respond_error(new_fetch_body_general_error(str(e)))
     
     @fetch_server.route(TASK_CONSTANTS.FD_TM_TASK_CANCEL)
     async def _(req: FetchRequest):
-      body = TMTaskRequestBase.model_validate(req.body)
-      
-      
+      try:
+        body = TMTaskRequestBase.model_validate(req.body)
+        task_inst = self.tasks[body.id]
+        task_host = self.task_hosts[task_inst.host_id]
+        tc_req = TaskCancelRequest(id=task_inst.id)
+        task_cancel_result = await self.client.fetch(task_host.address, TASK_CONSTANTS.FD_TASK_CANCEL, tc_req.model_dump())
+        if task_cancel_result != "OK": raise Exception("Failed to cancel task!")
+        await req.respond("OK")
+      except (ValidationError, KeyError) as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
+      except BaseException as e: await req.respond_error(new_fetch_body_general_error(str(e)))
+
     await fetch_server.start()
