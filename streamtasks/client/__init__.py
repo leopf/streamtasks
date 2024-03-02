@@ -4,7 +4,7 @@ from streamtasks.client.receiver import Receiver, ResolveAddressesReceiver, Topi
 from streamtasks.client.topic import InTopic, InTopicSynchronizer, OutTopic, InTopicsContext, OutTopicsContext, SynchronizedInTopic
 from streamtasks.utils import IdGenerator, IdTracker, AwaitableIdTracker
 from streamtasks.net.message.data import MessagePackData, SerializableData, SerializationType, Serializer
-from streamtasks.net import Endpoint, Link
+from streamtasks.net import Endpoint, EndpointOrAddress, Link, endpoint_or_address_to_endpoint
 from streamtasks.net.helpers import ids_to_priced_ids
 from streamtasks.net.message.types import AddressedMessage, AddressesChangedMessage, DataMessage, InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicDataMessage, TopicMessage
 from streamtasks.services.protocols import GenerateAddressesRequestMessage, GenerateAddressesResponseMessage, GenerateTopicsRequestBody, GenerateTopicsResponseBody, ResolveAddressRequestBody, ResolveAddressResonseBody, WorkerAddresses, WorkerFetchDescriptors, WorkerPorts
@@ -99,11 +99,11 @@ class Client:
     actually_removed = self._in_topics.remove_many(topics, force=force)
     if len(actually_removed) > 0: await self._link.send(InTopicsChangedMessage(set(), set(actually_removed)))
 
-  async def fetch(self, address: str | int, descriptor: str, body: Any, port=WorkerPorts.FETCH):
+  async def fetch(self, endpoint: EndpointOrAddress, descriptor: str, body: Any):
     if self.address is None: raise Exception("No local address")
     return_port = self.get_free_port()
     async with FetchReponseReceiver(self, return_port) as receiver:
-      await self.send_to((address, port), MessagePackData(FetchRequestMessage(
+      await self.send_to(endpoint_or_address_to_endpoint(endpoint, WorkerPorts.FETCH), MessagePackData(FetchRequestMessage(
         return_address=self.address,
         return_port=return_port,
         descriptor=descriptor,

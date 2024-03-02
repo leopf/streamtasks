@@ -11,13 +11,10 @@ if TYPE_CHECKING:
 
 
 class Receiver(ABC):
-  _client: 'Client'
-  _receiving_count: int
-
   def __init__(self, client: 'Client'):
     self._recv_queue = asyncio.Queue()
-    self._client = client
-    self._receiving_count = 0
+    self._client: 'Client' = client
+    self._receiving_count: int = 0
 
   async def start_recv(self):
     self._receiving_count += 1
@@ -68,15 +65,12 @@ class AddressReceiver(Receiver):
 
 
 class TopicsReceiver(Receiver):
-  _topics: set[int]
-  _control_data: dict[int, TopicControlData]
-  _recv_queue: asyncio.Queue[tuple[int, Optional[SerializableData], Optional[TopicControlData]]]
-
   def __init__(self, client: 'Client', topics: Iterable[int], subscribe: bool = True):
     super().__init__(client)
-    self._topics = set(topics)
-    self._control_data = {}
+    self._topics: set[int] = set(topics)
+    self._control_data: dict[int, TopicControlData] = {}
     self._subscribe = subscribe
+    self._recv_queue: asyncio.Queue[tuple[int, Optional[SerializableData], Optional[TopicControlData]]]
 
   def get_control_data(self, topic: int): return self._control_data.get(topic, None)
 
@@ -97,12 +91,10 @@ class TopicsReceiver(Receiver):
 
 
 class ResolveAddressesReceiver(Receiver):
-  _recv_queue: asyncio.Queue[GenerateAddressesResponseMessage]
-  _request_id: int
-
   def __init__(self, client: 'Client', request_id: int):
     super().__init__(client)
     self._request_id = request_id
+    self._recv_queue: asyncio.Queue[GenerateAddressesResponseMessage]
 
   async def _on_start_recv(self): await self._client.register_in_topics([WorkerTopics.ADDRESSES_CREATED])
   async def _on_stop_recv(self): await self._client.unregister_in_topics([WorkerTopics.ADDRESSES_CREATED])

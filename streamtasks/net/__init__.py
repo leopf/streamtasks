@@ -10,7 +10,10 @@ from streamtasks.net.message.types import AddressedMessage, AddressesChangedMess
 
 DAddress = Union[str, int] # dynamic address, which allows names or ints
 Endpoint = tuple[DAddress, int]
+EndpointOrAddress = DAddress | Endpoint
 
+def endpoint_or_address_to_endpoint(ep: EndpointOrAddress, default_port: int):
+  return (ep, default_port) if isinstance(ep, str) or isinstance(ep, int) else ep 
 
 class ConnectionClosedError(Exception):
   def __init__(self, message: str = "Connection closed"): super().__init__(message)

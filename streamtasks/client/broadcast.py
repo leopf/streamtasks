@@ -1,0 +1,61 @@
+import asyncio
+from typing import Iterable
+from pydantic import TypeAdapter, ValidationError
+from streamtasks.client import Client
+from streamtasks.client.fetch import FetchRequest, FetchRequestReceiver, new_fetch_body_bad_request, new_fetch_body_general_error
+from streamtasks.client.receiver import Receiver
+from streamtasks.client.topic import TopicRequestedReceiver
+from streamtasks.net import EndpointOrAddress, endpoint_or_address_to_endpoint
+from streamtasks.net.message.data import SerializableData
+from streamtasks.net.message.types import Message, TopicDataMessage
+from streamtasks.services.protocols import WorkerPorts
+      
+class BroadcastingServer:
+  def __init__(self, client: 'Client', port: int = WorkerPorts.BROADCAST) -> None:
+    self.port = port
+    self.client = client
+    self.namespaces: dict[str, int] = {}
+    self.subbed_receiver = TopicRequestedReceiver(client)
+    
+  async def broadcast(self, ns: str, data: SerializableData):
+    if (topic_id := self.namespaces.get(ns, None)) != None and topic_id in self.subbed_receiver.requested_topics:
+      await self.client.send_stream_data(topic_id, data)
+  
+  async def run(self):
+    NamespaceList = TypeAdapter(list[str])    
+    try: 
+      async with self.subbed_receiver, FetchRequestReceiver(self.client, "gettopics", self.port) as fetch_receiver:
+        while True:
+          req: FetchRequest = await fetch_receiver.recv()
+          try:
+            req_namespaces = NamespaceList.validate_python(req.body)
+            missing_namespaces = [ ns for ns in req_namespaces if ns not in self.namespaces ]
+            new_topic_ids = await self.client.request_topic_ids(len(missing_namespaces), apply=True)
+            for ns, topic_id in zip(missing_namespaces, new_topic_ids): self.namespaces[ns] = topic_id
+            await req.respond({ topic_id: ns for ns, topic_id in self.namespaces if ns in req_namespaces })
+          except asyncio.CancelledError: raise
+          except ValidationError as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
+          except BaseException as e: await req.respond_error(new_fetch_body_general_error(str(e)))
+    finally: 
+      await self.client.unregister_out_topics(self.namespaces.values(), force=True)
+      self.namespaces = {}
+      self.subbed_receiver.requested_topics.clear()
+
+
+class BroadcastReceiver(Receiver):
+  def __init__(self, client: 'Client', namespaces: Iterable[str], endpoint: EndpointOrAddress):
+    super().__init__(client)
+    self._namespaces = set(namespaces)
+    self._endpoint = endpoint_or_address_to_endpoint(endpoint, WorkerPorts.BROADCAST)
+    self._topics_ns_map: dict[int, str] = {}
+    self._recv_queue: asyncio.Queue[tuple[str, SerializableData]]
+
+  async def _on_start_recv(self):
+    self._topics_ns_map: dict[int, str] = await self._client.fetch(self._endpoint, "gettopics", list(self._namespaces))
+    await self._client.register_in_topics(self._topics_ns_map.keys())
+  async def _on_stop_recv(self):
+    await self._client.unregister_in_topics(self._topics_ns_map.keys())
+
+  def on_message(self, message: Message):
+    if isinstance(message, TopicDataMessage) and message.topic in self._topics_ns_map: 
+      self._recv_queue.put_nowait((self._topics_ns_map[message.topic], message.data))

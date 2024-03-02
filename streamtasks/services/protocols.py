@@ -12,6 +12,7 @@ class WorkerPorts:
   DYNAMIC_START = 10000
   FETCH = 100
   ASGI = 101
+  BROADCAST = 102
 
 
 class WorkerTopics:

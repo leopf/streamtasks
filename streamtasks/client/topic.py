@@ -172,16 +172,25 @@ class SynchronizedInTopic(InTopic):
     super().__init__(client, topic, _SynchronizedInTopicReceiver(client, topic, sync))
 
 
+class TopicRequestedReceiver(Receiver):
+  def __init__(self, client: 'Client'):
+    super().__init__(client)
+    self.requested_topics: set[int] = set()
+  
+  def on_message(self, message: Message):
+    if isinstance(message, InTopicsChangedMessage):
+      for tid in message.add: self.requested_topics.add(tid)
+      for tid in message.remove: self.requested_topics.remove(tid)
+
 class _OutTopicAction(Enum):
   SET_REQUESTED = auto()
 
 
 class _OutTopicReceiver(Receiver):
-  _recv_queue: asyncio.Queue[(_OutTopicAction, Any)]
-
   def __init__(self, client: 'Client', topic: int):
     super().__init__(client)
     self._topic = topic
+    self._recv_queue: asyncio.Queue[(_OutTopicAction, Any)]
 
   def _put_msg(self, action: _OutTopicAction, data: Any):
     self._recv_queue.put_nowait((action, data))

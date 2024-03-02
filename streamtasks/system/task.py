@@ -164,7 +164,11 @@ class TaskManager(Worker):
       await self.setup()
       self.client = await self.create_client()
       await self.client.request_address()
-      await asyncio.gather(self.start_fetch_server(), self.start_report_server())
+      await asyncio.gather(
+        self.start_fetch_server(),
+        self.start_report_server(),
+        self.bc_server.start()
+      )
     finally: 
       await self.shutdown()
   
@@ -179,8 +183,10 @@ class TaskManager(Worker):
           task.running = False
           task.error = report.error
           
+          await self.bc_server.send(f"/task/{report.id}")
+          
           # TODO: boadcast shutdown
-        except asyncio.CancelledError: break
+        except asyncio.CancelledError: raise
         except BaseException as e: logging.debug(e)
   
   async def start_fetch_server(self):
