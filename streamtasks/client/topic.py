@@ -171,17 +171,6 @@ class SynchronizedInTopic(InTopic):
   def __init__(self, client: 'Client', topic: int, sync: InTopicSynchronizer) -> None:
     super().__init__(client, topic, _SynchronizedInTopicReceiver(client, topic, sync))
 
-
-class TopicRequestedReceiver(Receiver):
-  def __init__(self, client: 'Client'):
-    super().__init__(client)
-    self.requested_topics: set[int] = set()
-  
-  def on_message(self, message: Message):
-    if isinstance(message, InTopicsChangedMessage):
-      for tid in message.add: self.requested_topics.add(tid)
-      for tid in message.remove: self.requested_topics.remove(tid)
-
 class _OutTopicAction(Enum):
   SET_REQUESTED = auto()
 

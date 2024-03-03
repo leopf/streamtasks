@@ -109,7 +109,8 @@ class Client:
         descriptor=descriptor,
         body=body).model_dump()))
       response_data: FetchResponseMessage = await receiver.recv()
-    if response_data.error: raise FetchError(response_data.body)
+    if response_data.error: 
+      raise FetchError(response_data.body)
     return response_data.body
 
   async def enable_receiver(self, receiver: Receiver):

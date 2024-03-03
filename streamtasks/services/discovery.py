@@ -24,6 +24,7 @@ class DiscoveryWorker(Worker):
   async def run(self):
     await self.setup()
     client = await self.create_client()
+    client.start()
     await client.set_address(WorkerAddresses.ID_DISCOVERY)
 
     try:

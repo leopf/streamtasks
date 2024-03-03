@@ -1,12 +1,14 @@
 import unittest
 import asyncio
 from streamtasks.client import Client
+from streamtasks.client.broadcast import BroadcastReceiver, BroadcastingServer
 from streamtasks.client.discovery import wait_for_topic_signal
 from streamtasks.client.fetch import FetchRequest, FetchRequestReceiver
 from streamtasks.client.receiver import AddressReceiver, TopicsReceiver
 from streamtasks.net.message.data import TextData
 from streamtasks.net import Switch, create_queue_connection
-from streamtasks.services.protocols import WorkerPorts
+from streamtasks.services.discovery import DiscoveryWorker
+from streamtasks.services.protocols import WorkerPorts, WorkerTopics
 
 
 class TestClient(unittest.IsolatedAsyncioTestCase):
@@ -103,6 +105,37 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     await b_fetch_task
     self.assertEqual(b_result, "Hello 2")
 
+  async def test_broadcast(self):
+    discovery_conn = create_queue_connection()
+    discovery_worker = DiscoveryWorker(discovery_conn[0])
+    await self.switch.add_link(discovery_conn[1])
+    self.tasks.append(asyncio.create_task(discovery_worker.run()))
+    
+    await self.a.set_address(100)
+    await self.b.set_address(101)
+    
+    await wait_for_topic_signal(self.a, WorkerTopics.DISCOVERY_SIGNAL)
+    await self.a.request_topic_ids(1)
+    
+    server = BroadcastingServer(self.a)
+    
+    self.tasks.append(asyncio.create_task(server.run()))
+                      
+    receiver = BroadcastReceiver(self.b, [ "test/1" ], self.a.address)
+    
+    await server.broadcast("test/1", TextData("Hello1"))
+    await server.broadcast("test/2", TextData("Hello2"))
+    await receiver.start_recv()
+    await server.broadcast("test/1", TextData("Hello1"))
+    await server.broadcast("test/2", TextData("Hello2"))
+    ns, data = await receiver.get()
+    self.assertEqual(ns, "test/1")
+    self.assertEqual(data.data, "Hello1")
+    await receiver.stop_recv()
+    await server.broadcast("test/1", TextData("Hello1"))
+    await server.broadcast("test/2", TextData("Hello2"))
+    await asyncio.sleep(0)
+    self.assertTrue(receiver.empty())
 
 if __name__ == '__main__':
   unittest.main()
