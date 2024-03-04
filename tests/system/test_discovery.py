@@ -1,5 +1,5 @@
 import unittest
-from streamtasks.client.discovery import register_address_name, wait_for_address_name, wait_for_topic_signal
+from streamtasks.client.discovery import register_address_name, request_addresses, wait_for_address_name, wait_for_topic_signal
 from streamtasks.net import Switch, create_queue_connection
 from streamtasks.node import LocalNode
 from streamtasks.services.protocols import WorkerAddresses, WorkerTopics
@@ -51,7 +51,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     self.assertEqual(WorkerAddresses.COUNTER_INIT, own_address)
 
     expected_addresses = list(range(WorkerAddresses.COUNTER_INIT + 1, WorkerAddresses.COUNTER_INIT + 6))
-    addresses = await client._request_addresses(5)
+    addresses = await request_addresses(client, 5)
     addresses = list(addresses)
 
     self.assertEqual(5, len(addresses))

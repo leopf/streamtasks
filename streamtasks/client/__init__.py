@@ -1,16 +1,16 @@
 from typing import Iterable, Optional, Any, Union
 import asyncio
-from streamtasks.client.receiver import Receiver, ResolveAddressesReceiver, TopicsReceiver
+from streamtasks.client.discovery import request_addresses
+from streamtasks.client.receiver import Receiver, TopicsReceiver
 from streamtasks.client.topic import InTopic, InTopicSynchronizer, OutTopic, InTopicsContext, OutTopicsContext, SynchronizedInTopic
 from streamtasks.utils import IdGenerator, IdTracker, AwaitableIdTracker
 from streamtasks.net.message.data import MessagePackData, SerializableData, SerializationType, Serializer
 from streamtasks.net import Endpoint, EndpointOrAddress, Link, endpoint_or_address_to_endpoint
 from streamtasks.net.helpers import ids_to_priced_ids
 from streamtasks.net.message.types import AddressedMessage, AddressesChangedMessage, DataMessage, InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicDataMessage, TopicMessage
-from streamtasks.services.protocols import GenerateAddressesRequestMessage, GenerateAddressesResponseMessage, GenerateTopicsRequestBody, GenerateTopicsResponseBody, ResolveAddressRequestBody, ResolveAddressResonseBody, WorkerAddresses, WorkerFetchDescriptors, WorkerPorts
+from streamtasks.services.protocols import GenerateTopicsRequestBody, GenerateTopicsResponseBody, ResolveAddressRequestBody, ResolveAddressResonseBody, WorkerAddresses, WorkerFetchDescriptors, WorkerPorts
 from streamtasks.net.message.serializers import get_core_serializers
 from streamtasks.client.fetch import FetchError, FetchReponseReceiver, FetchRequestMessage, FetchResponseMessage
-import secrets
 
 
 class Client:
@@ -61,7 +61,7 @@ class Client:
     return res.address
 
   async def request_address(self):
-    addresses = await self._request_addresses(1)
+    addresses = await request_addresses(self, 1)
     new_address = next(iter(addresses))
     assert self._address is None, "there cant be an address already present, when requesting one"
     await self.set_address(new_address)
@@ -127,16 +127,6 @@ class Client:
     if address is None: self._address_resolver_cache.pop(name, None)
     else: self._address_resolver_cache[name] = address
 
-  async def _request_addresses(self, count: int) -> set[int]:
-    request_id = secrets.randbelow(1 << 64)
-    async with ResolveAddressesReceiver(self, request_id) as receiver:
-      await self.send_to(
-        (WorkerAddresses.ID_DISCOVERY, WorkerPorts.DISCOVERY_REQUEST_ADDRESS),
-        MessagePackData(GenerateAddressesRequestMessage(request_id=request_id, count=count).model_dump()))
-      data: GenerateAddressesResponseMessage = await receiver.recv()
-      addresses = set(data.addresses)
-    if len(addresses) != count: raise Exception("The response returned an invalid number of addresses")
-    return addresses
   async def _get_address(self, address: Union[int, str]) -> int: return await self.resolve_address_name(address) if isinstance(address, str) else address
 
   async def _task_receive(self):

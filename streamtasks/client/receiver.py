@@ -88,23 +88,3 @@ class TopicsReceiver(Receiver):
         sc_message: TopicControlMessage = message
         self._control_data[sc_message.topic] = control_data = sc_message.to_data()
         self._recv_queue.put_nowait((sc_message.topic, None, control_data))
-
-
-class ResolveAddressesReceiver(Receiver):
-  def __init__(self, client: 'Client', request_id: int):
-    super().__init__(client)
-    self._request_id = request_id
-    self._recv_queue: asyncio.Queue[GenerateAddressesResponseMessage]
-
-  async def _on_start_recv(self): await self._client.register_in_topics([WorkerTopics.ADDRESSES_CREATED])
-  async def _on_stop_recv(self): await self._client.unregister_in_topics([WorkerTopics.ADDRESSES_CREATED])
-
-  def on_message(self, message: Message):
-    if isinstance(message, TopicDataMessage) and message.topic == WorkerTopics.ADDRESSES_CREATED:
-      sd_message: TopicDataMessage = message
-      if isinstance(sd_message.data, MessagePackData):
-        try:
-          ra_message = GenerateAddressesResponseMessage.model_validate(sd_message.data.data)
-          if ra_message.request_id == self._request_id:
-            self._recv_queue.put_nowait(ra_message)
-        except ValidationError: pass
