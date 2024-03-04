@@ -6,7 +6,7 @@ from streamtasks.client.broadcast import BroadcastReceiver, BroadcastingServer
 from streamtasks.client.discovery import wait_for_topic_signal
 from streamtasks.client.fetch import FetchRequest, FetchRequestReceiver
 from streamtasks.client.receiver import AddressReceiver, TopicsReceiver
-from streamtasks.client.signal import SignalRequestReceiver, send_signal
+from streamtasks.client.signal import SignalRequestReceiver, SignalServer, send_signal
 from streamtasks.net.message.data import TextData
 from streamtasks.net import Switch, create_queue_connection
 from streamtasks.services.discovery import DiscoveryWorker
@@ -117,19 +117,35 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     await b_fetch_task
     self.assertEqual(b_result, "Hello 2")
 
-  @async_timeout(10)
+  @async_timeout(1)
   async def test_signal(self):
     await self.a.set_address(1)
-
-    async def b_signal(): await send_signal(self.b, 1, "test", "Hello 1")
-
     async with SignalRequestReceiver(self.a, "test") as a_recv:
-      b_fetch_task = asyncio.create_task(b_signal())
+      self.tasks.append(asyncio.create_task(send_signal(self.b, self.a.address, "test", "Hello 1")))
       data: Any = await a_recv.recv()
       self.assertEqual(data, "Hello 1")
 
-    await b_fetch_task
-
+  @async_timeout(1000)
+  async def test_signal_server(self):
+    await self.a.set_address(1)
+    event_test1, event_test2 = asyncio.Event(), asyncio.Event()
+    signal_server = SignalServer(self.a)
+    @signal_server.route("test1")
+    def _(data: str):
+      self.assertEqual(data, "hello1")
+      event_test1.set()
+      
+    @signal_server.route("test2")
+    def _(data: str):
+      self.assertEqual(data, "hello2")
+      event_test2.set()
+      
+    self.tasks.append(asyncio.create_task(signal_server.run()))
+    await send_signal(self.b, self.a.address, "test1", "hello1")
+    await event_test1.wait()
+    await send_signal(self.b, self.a.address, "test2", "hello2")
+    await event_test2.wait()
+    
   @async_timeout(1)
   async def test_broadcast(self):
     discovery_conn = create_queue_connection()
