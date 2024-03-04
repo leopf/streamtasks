@@ -10,7 +10,12 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "justMyCode": true
+            "cwd": "${workspaceFolder}",
+            "justMyCode": true,
+            "purpose": ["debug-test"],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
         },
         {
             "name": "Python: Current File (+External Libraries)",
@@ -18,7 +23,11 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "justMyCode": false
+            "cwd": "${workspaceFolder}",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
         }
     ]
 }

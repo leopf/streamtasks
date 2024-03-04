@@ -76,9 +76,9 @@ class FetchReponseReceiver(Receiver):
 class FetchServer(Receiver):
   def __init__(self, client: 'Client', port: int = WorkerPorts.FETCH):
     super().__init__(client)
-    self._recv_queue: asyncio.Queue[tuple[str, FetchRequest]]
     self._descriptor_mapping: dict[str, Callable[[FetchRequest], Awaitable[Any]]] = {}
-    self._port: dict[str, Callable[[FetchRequest], Awaitable[Any]]] = port
+    self._port = port
+    self._recv_queue: asyncio.Queue[tuple[str, FetchRequest]]
 
   def add_route(self, descriptor: str, func: Callable[[FetchRequest], Awaitable[Any]]): self._descriptor_mapping[descriptor] = func
   def remove_route(self, descriptor: str): self._descriptor_mapping.pop(descriptor, None)
@@ -109,6 +109,7 @@ class FetchServer(Receiver):
           try:
             await self._descriptor_mapping[descriptor](fr)
             if not fr.response_sent: await fr.respond(None)
+          except asyncio.CancelledError: raise
           except BaseException as e: 
             if not fr.response_sent: await fr.respond_error(new_fetch_body_general_error(str(e)))
             logging.debug(e, fr, descriptor)
@@ -117,10 +118,10 @@ class FetchServer(Receiver):
 class FetchRequestReceiver(Receiver):
   def __init__(self, client: 'Client', descriptor: str, address: Optional[int] = None, port: int = WorkerPorts.FETCH):
     super().__init__(client)
-    self._recv_queue: asyncio.Queue[FetchRequest]
     self._descriptor = descriptor
     self._address = address
     self._port = port
+    self._recv_queue: asyncio.Queue[FetchRequest]
 
   def on_message(self, message: Message):
     if not isinstance(message, AddressedMessage): return

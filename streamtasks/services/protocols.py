@@ -13,6 +13,7 @@ class WorkerPorts:
   FETCH = 100
   ASGI = 101
   BROADCAST = 102
+  SIGNAL = 103
 
 
 class WorkerTopics:

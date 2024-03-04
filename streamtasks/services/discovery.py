@@ -48,10 +48,10 @@ class DiscoveryWorker(Worker):
       await asyncio.sleep(1)
 
   async def _run_fetch_server(self, client: Client):
-    server = FetchServer(client, WorkerPorts.FETCH)
+    server = FetchServer(client)
 
     @server.route(WorkerFetchDescriptors.REGISTER_ADDRESS)
-    async def register_address(req: FetchRequest):
+    async def _(req: FetchRequest):
       request: RegisterAddressRequestBody = RegisterAddressRequestBody.model_validate(req.body)
       logging.info(f"registering address name {request.address_name} for address {request.address}")
       if request.address is None: self._address_map.pop(request.address_name, None)
@@ -63,13 +63,13 @@ class DiscoveryWorker(Worker):
       ).model_dump()))
 
     @server.route(WorkerFetchDescriptors.RESOLVE_ADDRESS)
-    async def resolve_address(req: FetchRequest):
+    async def _(req: FetchRequest):
       request: ResolveAddressRequestBody = ResolveAddressRequestBody.model_validate(req.body)
       logging.info(f"resolving the address for {request.address_name}")
       await req.respond(ResolveAddressResonseBody(address=self._address_map.get(request.address_name, None)).model_dump())
 
     @server.route(WorkerFetchDescriptors.GENERATE_TOPICS)
-    async def generate_topics(req: FetchRequest):
+    async def _(req: FetchRequest):
       request = GenerateTopicsRequestBody.model_validate(req.body)
       logging.info(f"generating {request.count} topics")
       topics = self.generate_topics(request.count)

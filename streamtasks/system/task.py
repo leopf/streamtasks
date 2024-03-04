@@ -8,6 +8,7 @@ from streamtasks.asgi import asgi_app_not_found
 from abc import ABC, abstractmethod, abstractproperty
 from streamtasks.client import Client
 import asyncio
+from streamtasks.client.broadcast import BroadcastingServer
 
 from streamtasks.client.fetch import FetchRequest, FetchServer, new_fetch_body_bad_request, new_fetch_body_general_error
 from streamtasks.client.receiver import AddressReceiver
@@ -155,19 +156,21 @@ class TaskHost(Worker):
 class TaskManager(Worker):
   def __init__(self, node_link: Link, switch: Switch | None = None):
     super().__init__(node_link, switch)
-    self.client: Client
     self.task_hosts: dict[UUID4, TaskHostRegistration] = {}
     self.tasks: dict[UUID4, TaskInstance] = {}
+    self.client: Client
+    self.bc_server: BroadcastingServer
   
   async def run(self):
     try:
       await self.setup()
       self.client = await self.create_client()
       await self.client.request_address()
+      self.bc_server = BroadcastingServer(self.client)
       await asyncio.gather(
         self.run_api(),
         self.run_report_server(),
-        self.bc_server.start()
+        self.bc_server.run()
       )
     finally: 
       await self.shutdown()
@@ -178,14 +181,11 @@ class TaskManager(Worker):
         try:
           message: SerializableData = (await receiver.recv())[1]
           report = TaskShutdownReport.model_validate(message.data)
-          
           task = self.tasks[report.id]
           task.running = False
           task.error = report.error
-          
-          await self.bc_server.send(f"/task/{report.id}")
-          
-          # TODO: boadcast shutdown
+          self.tasks.pop(report.id, None)
+          await self.bc_server.broadcast(f"/task/{report.id}", MessagePackData(task.model_dump()))
         except asyncio.CancelledError: raise
         except BaseException as e: logging.debug(e)
   
@@ -197,7 +197,7 @@ class TaskManager(Worker):
       try:
         reg = TaskHostRegistration.model_validate(req.body)
         self.task_hosts[reg.id] = reg
-        await req.respond("OK")
+        await req.respond(None)
       except (ValidationError, KeyError) as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
       
     @fetch_server.route(TASK_CONSTANTS.FD_LIST_TASK_HOSTS) 

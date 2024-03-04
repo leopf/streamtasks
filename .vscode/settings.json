@@ -7,10 +7,8 @@
         "-p",
         "test_*.py"
     ],
+    "python.testing.cwd": "${workspaceFolder}",
     "python.testing.pytestEnabled": false,
     "python.testing.unittestEnabled": true,
-    "python.languageServer": "Pylance",
-    "python.testing.pytestArgs": [
-        "--timeout=10"
-    ]
+    "python.languageServer": "Pylance"
 }
