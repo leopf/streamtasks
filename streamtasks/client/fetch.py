@@ -110,6 +110,7 @@ class FetchServer(Receiver):
             await self._descriptor_mapping[descriptor](fr)
             if not fr.response_sent: await fr.respond(None)
           except asyncio.CancelledError: raise
+          except ValidationError as e: await fr.respond_error(new_fetch_body_bad_request(str(e)))
           except BaseException as e: 
             if not fr.response_sent: await fr.respond_error(new_fetch_body_general_error(str(e)))
             logging.debug(e, fr, descriptor)

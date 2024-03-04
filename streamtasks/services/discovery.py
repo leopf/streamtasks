@@ -1,7 +1,9 @@
+from typing import Any
 from streamtasks.client.receiver import AddressReceiver
+from streamtasks.client.signal import SignalRequestReceiver
 
 # NOTE: move this in here?
-from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesResponseMessage, GenerateTopicsRequestBody, GenerateTopicsResponseBody, RegisterAddressRequestBody, ResolveAddressRequestBody, ResolveAddressResonseBody, WorkerAddresses, WorkerFetchDescriptors, WorkerPorts, WorkerTopics
+from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, GenerateTopicsRequestBody, GenerateTopicsResponseBody, RegisterAddressRequestBody, ResolveAddressRequestBody, ResolveAddressResonseBody, WorkerAddresses, WorkerRequestDescriptors, WorkerPorts, WorkerTopics
 
 from streamtasks.worker import Worker
 from streamtasks.client import Client
@@ -50,7 +52,7 @@ class DiscoveryWorker(Worker):
   async def _run_fetch_server(self, client: Client):
     server = FetchServer(client)
 
-    @server.route(WorkerFetchDescriptors.REGISTER_ADDRESS)
+    @server.route(WorkerRequestDescriptors.REGISTER_ADDRESS)
     async def _(req: FetchRequest):
       request: RegisterAddressRequestBody = RegisterAddressRequestBody.model_validate(req.body)
       logging.info(f"registering address name {request.address_name} for address {request.address}")
@@ -62,27 +64,34 @@ class DiscoveryWorker(Worker):
         address=self._address_map.get(request.address_name, None)
       ).model_dump()))
 
-    @server.route(WorkerFetchDescriptors.RESOLVE_ADDRESS)
+    @server.route(WorkerRequestDescriptors.RESOLVE_ADDRESS)
     async def _(req: FetchRequest):
       request: ResolveAddressRequestBody = ResolveAddressRequestBody.model_validate(req.body)
       logging.info(f"resolving the address for {request.address_name}")
       await req.respond(ResolveAddressResonseBody(address=self._address_map.get(request.address_name, None)).model_dump())
 
-    @server.route(WorkerFetchDescriptors.GENERATE_TOPICS)
+    @server.route(WorkerRequestDescriptors.REQUEST_TOPICS)
     async def _(req: FetchRequest):
       request = GenerateTopicsRequestBody.model_validate(req.body)
       logging.info(f"generating {request.count} topics")
       topics = self.generate_topics(request.count)
       await req.respond(GenerateTopicsResponseBody(topics=topics).model_dump())
+      
+    @server.route(WorkerRequestDescriptors.REQUEST_ADDRESSES)
+    async def _(req: FetchRequest):
+      request = GenerateAddressesRequestMessageBase.model_validate(req.body)
+      logging.info(f"generating {request.count} addresses")
+      addresses = self.generate_addresses(request.count)
+      await req.respond(GenerateAddressesResponseMessageBase(addresses=addresses).model_dump())
 
     await server.run()
 
   async def _run_address_generator(self, client: Client):
-    async with AddressReceiver(client, WorkerAddresses.ID_DISCOVERY, WorkerPorts.DISCOVERY_REQUEST_ADDRESS) as receiver:
+    async with SignalRequestReceiver(client, WorkerRequestDescriptors.REQUEST_ADDRESSES) as receiver:
       while True:
         try:
-          message: SerializableData = (await receiver.recv())[1]
-          request = GenerateAddressesRequestMessage.model_validate(message.data)
+          message_data: Any = await receiver.recv()
+          request = GenerateAddressesRequestMessage.model_validate(message_data)
           logging.info(f"generating {request.count} addresses")
           addresses = self.generate_addresses(request.count)
           await client.send_stream_data(WorkerTopics.ADDRESSES_CREATED, MessagePackData(GenerateAddressesResponseMessage(

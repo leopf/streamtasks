@@ -23,8 +23,9 @@ class WorkerTopics:
   COUNTER_INIT = 1000000
 
 
-class WorkerFetchDescriptors:
-  GENERATE_TOPICS = "request_topics"
+class WorkerRequestDescriptors:
+  REQUEST_TOPICS = "request_topics"
+  REQUEST_ADDRESSES = "request_addresses"
   RESOLVE_ADDRESS = "resolve_address_name"
   REGISTER_ADDRESS = "register_address_name"
 
@@ -32,16 +33,17 @@ class WorkerFetchDescriptors:
 class AddressNames:
   TASK_MANAGER = "task_manager"
 
-
-class GenerateAddressesRequestMessage(BaseModel):
-  request_id: int
+class GenerateAddressesRequestMessageBase(BaseModel):
   count: int
 
-
-class GenerateAddressesResponseMessage(BaseModel):
+class GenerateAddressesRequestMessage(GenerateAddressesRequestMessageBase):
   request_id: int
+
+class GenerateAddressesResponseMessageBase(BaseModel):
   addresses: list[int]
 
+class GenerateAddressesResponseMessage(GenerateAddressesResponseMessageBase):
+  request_id: int
 
 class GenerateTopicsRequestBody(BaseModel):
   count: int

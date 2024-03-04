@@ -8,7 +8,7 @@ from streamtasks.net.message.data import MessagePackData, SerializableData, Seri
 from streamtasks.net import Endpoint, EndpointOrAddress, Link, endpoint_or_address_to_endpoint
 from streamtasks.net.helpers import ids_to_priced_ids
 from streamtasks.net.message.types import AddressedMessage, AddressesChangedMessage, DataMessage, InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicDataMessage, TopicMessage
-from streamtasks.services.protocols import GenerateTopicsRequestBody, GenerateTopicsResponseBody, ResolveAddressRequestBody, ResolveAddressResonseBody, WorkerAddresses, WorkerFetchDescriptors, WorkerPorts
+from streamtasks.services.protocols import GenerateTopicsRequestBody, GenerateTopicsResponseBody, ResolveAddressRequestBody, ResolveAddressResonseBody, WorkerAddresses, WorkerRequestDescriptors, WorkerPorts
 from streamtasks.net.message.serializers import get_core_serializers
 from streamtasks.client.fetch import FetchError, FetchReponseReceiver, FetchRequestMessage, FetchResponseMessage
 
@@ -55,7 +55,7 @@ class Client:
   async def send_stream_data(self, topic: int, data: SerializableData): await self._link.send(TopicDataMessage(topic, data))
   async def resolve_address_name(self, name: str) -> Optional[int]:
     if name in self._address_resolver_cache: return self._address_resolver_cache[name]
-    raw_res = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.RESOLVE_ADDRESS, ResolveAddressRequestBody(address_name=name).model_dump())
+    raw_res = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.RESOLVE_ADDRESS, ResolveAddressRequestBody(address_name=name).model_dump())
     res: ResolveAddressResonseBody = ResolveAddressResonseBody.model_validate(raw_res)
     if res.address is not None: self._address_resolver_cache[name] = res.address
     return res.address
@@ -68,7 +68,7 @@ class Client:
     return new_address
 
   async def request_topic_ids(self, count: int, apply: bool = False) -> set[int]:
-    raw_res = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.GENERATE_TOPICS, GenerateTopicsRequestBody(count=count).model_dump())
+    raw_res = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REQUEST_TOPICS, GenerateTopicsRequestBody(count=count).model_dump())
     res = GenerateTopicsResponseBody.model_validate(raw_res)
     if len(res.topics) != count: raise Exception("The fetch request returned an invalid number of topics")
     if apply: await self.register_out_topics(res.topics)

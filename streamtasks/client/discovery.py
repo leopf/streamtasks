@@ -3,9 +3,10 @@ import secrets
 from typing import TYPE_CHECKING, Optional
 from pydantic import ValidationError
 from streamtasks.client.receiver import Receiver
+from streamtasks.client.signal import send_signal
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.types import Message, TopicDataMessage, TopicMessage
-from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesResponseMessage, RegisterAddressRequestBody, WorkerAddresses, WorkerFetchDescriptors, WorkerPorts, WorkerTopics
+from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, RegisterAddressRequestBody, WorkerAddresses, WorkerRequestDescriptors, WorkerPorts, WorkerTopics
 import asyncio
 if TYPE_CHECKING:
   from streamtasks.client import Client
@@ -61,18 +62,26 @@ class ResolveAddressesReceiver(Receiver):
         except ValidationError: pass
 
 async def request_addresses(client: 'Client', count: int) -> set[int]:
-  request_id = secrets.randbelow(1 << 64)
-  async with ResolveAddressesReceiver(client, request_id) as receiver:
-    await client.send_to(
-      (WorkerAddresses.ID_DISCOVERY, WorkerPorts.DISCOVERY_REQUEST_ADDRESS),
-      MessagePackData(GenerateAddressesRequestMessage(request_id=request_id, count=count).model_dump()))
-    data: GenerateAddressesResponseMessage = await receiver.recv()
-    addresses = set(data.addresses)
+  data: GenerateAddressesResponseMessageBase
+  if client.address is None:
+    request_id = secrets.randbelow(1 << 64)
+    async with ResolveAddressesReceiver(client, request_id) as receiver:
+      await send_signal(
+        client,
+        WorkerAddresses.ID_DISCOVERY,
+        WorkerRequestDescriptors.REQUEST_ADDRESSES,
+        GenerateAddressesRequestMessage(request_id=request_id, count=count).model_dump()
+      )
+      data: GenerateAddressesResponseMessage = await receiver.recv()
+  else: 
+    res = await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REQUEST_ADDRESSES, GenerateAddressesRequestMessageBase(count=count).model_dump())
+    data = GenerateAddressesResponseMessageBase.model_validate(res)
+  addresses = set(data.addresses)
   if len(addresses) != count: raise Exception("The response returned an invalid number of addresses")
   return addresses
 
 async def _register_address_name(client: 'Client', name: str, address: Optional[int]):
-  await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerFetchDescriptors.REGISTER_ADDRESS, RegisterAddressRequestBody(address_name=name, address=address).model_dump())
+  await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REGISTER_ADDRESS, RegisterAddressRequestBody(address_name=name, address=address).model_dump())
   client.set_address_name(name, address)
 
 async def register_address_name(client: 'Client', name: str, address: int): return await _register_address_name(client, name, address)
