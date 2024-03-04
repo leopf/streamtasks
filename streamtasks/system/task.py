@@ -8,7 +8,8 @@ import asyncio
 from streamtasks.client.broadcast import BroadcastingServer
 from streamtasks.client.fetch import FetchRequest, FetchServer, new_fetch_body_bad_request, new_fetch_body_general_error
 from streamtasks.client.receiver import AddressReceiver
-from streamtasks.net import Link, Switch
+from streamtasks.client.signal import SignalServer, send_signal
+from streamtasks.net import DAddress, Link, Switch
 from streamtasks.net.message.data import MessagePackData, SerializableData
 from streamtasks.worker import Worker
 
@@ -21,30 +22,29 @@ class Task(ABC):
   @abstractmethod
   async def run(self): pass
 
-class TaskStartRequest(BaseModel):
-  id: str
+class ModelWithId(BaseModel):
+  id: UUID4
+  
+  @field_serializer("id")
+  def serialize_id(self, id: UUID4): return str(id)
+
+class TaskStartRequest(ModelWithId):
   report_address: int
   config: Any
-
-class TaskCancelRequest(BaseModel):
-  id: str
 
 class TaskStartResponse(BaseModel):
   id: str
   error: Optional[str]
   metadata: dict[str, Any]
+
+TaskCancelRequest = ModelWithId
   
-class TaskShutdownReport(BaseModel):
-  id: str
+class TaskStatusReport(ModelWithId):
   error: Optional[str]
 
-class TaskHostRegistration(BaseModel):
-  id: UUID4
+class TaskHostRegistration(ModelWithId):
   address: int
   metadata: dict[str, Any]
-  
-  @field_serializer("id")
-  def serialize_id(self, id: UUID4): return str(id)
   
 TaskHostRegistrationList = TypeAdapter(list[TaskHostRegistration])
 
@@ -55,20 +55,15 @@ class TMTaskStartRequest(BaseModel):
   @field_serializer("task_host_id")
   def serialize_task_host_id(self, id: UUID4): return str(id)
 
-class TMTaskRequestBase(BaseModel):
-  id: UUID4
-  
-  @field_serializer("id")
-  def serialize_id(self, id: UUID4): return str(id)
+TMTaskRequestBase = ModelWithId
 
-class TaskInstance(BaseModel):
+class TaskInstance(ModelWithId):
   id: UUID4
   host_id: UUID4
   config: Any
   metadata: dict[str, Any]
   error: Optional[str]
   running: bool
-  
 
 class TASK_CONSTANTS:
   # fetch descriptors
@@ -81,8 +76,9 @@ class TASK_CONSTANTS:
   FD_TASK_START = "start"
   FD_TASK_CANCEL = "cancel"
   
-  # ports
-  PORT_TASK_STATUS_REPORT_SERVER = 1000
+  # signal descriptors
+  SD_TM_TASK_REPORT = "report_task_status"
+  SD_UNREGISTER_TASK_HOST = "unregister_task_host"
 
 class TaskHost(Worker):
   def __init__(self, node_link: Link, switch: Switch | None = None):
@@ -93,13 +89,17 @@ class TaskHost(Worker):
   @property
   def metadata(self): return {}
 
-  # TODO: deregister
-  async def register(self, address: int):
+  async def register(self, address: DAddress) -> TaskHostRegistration:
     if not hasattr(self, "client"): raise ValueError("Client not created yet!")
     if self.client.address is None: raise ValueError("Client had no address!")
     registration = TaskHostRegistration(id=uuid4(), address=self.client.address, metadata=self.metadata)
     await self.client.fetch(address, TASK_CONSTANTS.FD_REGISTER_TASK_HOST, registration.model_dump())
+    return registration
   
+  async def unregister(self, address: DAddress, registration_id: UUID4):
+    # TODO: kills tasks under this reg
+    await send_signal(self.client, address, TASK_CONSTANTS.SD_UNREGISTER_TASK_HOST, ModelWithId(id=registration_id).model_dump())
+
   async def run(self):
     try:
       await self.setup()
@@ -119,7 +119,7 @@ class TaskHost(Worker):
       await task.run()
     except BaseException as e:
       error_text = str(e)
-    await self.client.send_to((report_address, TASK_CONSTANTS.PORT_TASK_STATUS_REPORT_SERVER), MessagePackData(TaskShutdownReport(id=id, error=error_text).model_dump()))
+    await send_signal(self.client, report_address, TASK_CONSTANTS.SD_TM_TASK_REPORT, MessagePackData(TaskStatusReport(id=id, error=error_text).model_dump()))
     self.tasks.pop(id, None)
     
   async def run_api(self):
@@ -164,31 +164,37 @@ class TaskManager(Worker):
       await self.client.request_address()
       self.bc_server = BroadcastingServer(self.client)
       await asyncio.gather(
-        self.run_api(),
-        self.run_report_server(),
+        self.run_fetch_api(),
+        self.run_signal_api(),
         self.bc_server.run()
       )
     finally: 
       await self.shutdown()
   
-  async def run_report_server(self):
-    async with AddressReceiver(self.client, self.client.address, TASK_CONSTANTS.PORT_TASK_STATUS_REPORT_SERVER) as receiver:
-      while True:
-        try:
-          message: SerializableData = (await receiver.recv())[1]
-          report = TaskShutdownReport.model_validate(message.data)
-          task = self.tasks[report.id]
-          task.running = False
-          task.error = report.error
-          self.tasks.pop(report.id, None)
-          await self.bc_server.broadcast(f"/task/{report.id}", MessagePackData(task.model_dump()))
-        except asyncio.CancelledError: raise
-        except BaseException as e: logging.debug(e)
-  
-  async def run_api(self):
-    fetch_server = FetchServer(self.client)
+  async def run_signal_api(self):
+    server = SignalServer(self.client)
     
-    @fetch_server.route(TASK_CONSTANTS.FD_REGISTER_TASK_HOST)
+    @server.route(TASK_CONSTANTS.SD_TM_TASK_REPORT)
+    async def _(message_data: Any):
+      report = TaskStatusReport.model_validate(message_data)
+      task = self.tasks[report.id]
+      task.running = report.error is not None
+      task.error = report.error
+      if not task.running: self.tasks.pop(task.id, None)
+      await self.bc_server.broadcast(f"/task/{task.id}", MessagePackData(task.model_dump()))
+  
+    @server.route(TASK_CONSTANTS.SD_UNREGISTER_TASK_HOST)
+    async def _(message_data: Any):
+      data = ModelWithId.model_validate(message_data)
+      self.task_hosts.pop(data.id, None)
+      self.tasks = { tid: task for tid, task in self.tasks.items() if task.host_id != data.id }
+
+    await server.run()
+  
+  async def run_fetch_api(self):
+    server = FetchServer(self.client)
+    
+    @server.route(TASK_CONSTANTS.FD_REGISTER_TASK_HOST)
     async def _(req: FetchRequest):
       try:
         reg = TaskHostRegistration.model_validate(req.body)
@@ -196,10 +202,10 @@ class TaskManager(Worker):
         await req.respond(None)
       except (ValidationError, KeyError) as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
       
-    @fetch_server.route(TASK_CONSTANTS.FD_LIST_TASK_HOSTS) 
+    @server.route(TASK_CONSTANTS.FD_LIST_TASK_HOSTS) 
     async def _(req: FetchRequest): await req.respond(TaskHostRegistrationList.dump_python(list(self.task_hosts.values())))
       
-    @fetch_server.route(TASK_CONSTANTS.FD_TM_TASK_START)
+    @server.route(TASK_CONSTANTS.FD_TM_TASK_START)
     async def _(req: FetchRequest):
       try:
         body = TMTaskStartRequest.model_validate(req.body)
@@ -232,7 +238,7 @@ class TaskManager(Worker):
       except (ValidationError, KeyError) as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
       except BaseException as e: await req.respond_error(new_fetch_body_general_error(str(e)))
     
-    @fetch_server.route(TASK_CONSTANTS.FD_TM_TASK_CANCEL)
+    @server.route(TASK_CONSTANTS.FD_TM_TASK_CANCEL)
     async def _(req: FetchRequest):
       try:
         body = TMTaskRequestBase.model_validate(req.body)
@@ -245,4 +251,4 @@ class TaskManager(Worker):
       except (ValidationError, KeyError) as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
       except BaseException as e: await req.respond_error(new_fetch_body_general_error(str(e)))
 
-    await fetch_server.run()
+    await server.run()
