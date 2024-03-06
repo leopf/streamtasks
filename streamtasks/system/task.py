@@ -13,6 +13,7 @@ from streamtasks.net import DAddress, Link, Switch
 from streamtasks.net.message.data import MessagePackData, SerializableData
 from streamtasks.worker import Worker
 
+MetadataDict = dict[str, int|float|str|bool]
 
 class Task(ABC):
   def __init__(self, client: Client):
@@ -35,7 +36,7 @@ class TaskStartRequest(ModelWithId):
 class TaskStartResponse(BaseModel):
   id: str
   error: Optional[str]
-  metadata: dict[str, Any]
+  metadata: MetadataDict
 
 TaskCancelRequest = ModelWithId
   
@@ -44,7 +45,7 @@ class TaskStatusReport(ModelWithId):
 
 class TaskHostRegistration(ModelWithId):
   address: int
-  metadata: dict[str, Any]
+  metadata: MetadataDict
   
 TaskHostRegistrationList = TypeAdapter(list[TaskHostRegistration])
 
@@ -61,7 +62,7 @@ class TaskInstance(ModelWithId):
   id: UUID4
   host_id: UUID4
   config: Any
-  metadata: dict[str, Any]
+  metadata: MetadataDict
   error: Optional[str]
   running: bool
 
@@ -87,7 +88,7 @@ class TaskHost(Worker):
     self.tasks: dict[str, asyncio.Task] = {}
   
   @property
-  def metadata(self): return {}
+  def metadata(self) -> MetadataDict: return {}
 
   async def register(self, address: DAddress) -> TaskHostRegistration:
     if not hasattr(self, "client"): raise ValueError("Client not created yet!")
