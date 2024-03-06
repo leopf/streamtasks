@@ -1,16 +1,18 @@
-import logging
-from typing import Any, Optional
+from enum import Enum
+from typing import Any, Iterable, Optional
 from uuid import uuid4
 from pydantic import UUID4, BaseModel, TypeAdapter, ValidationError, field_serializer
 from abc import ABC, abstractmethod
 from streamtasks.client import Client
 import asyncio
-from streamtasks.client.broadcast import BroadcastingServer
+from streamtasks.client.broadcast import BroadcastReceiver, BroadcastingServer
+from streamtasks.client.discovery import register_address_name
 from streamtasks.client.fetch import FetchRequest, FetchServer, new_fetch_body_bad_request, new_fetch_body_general_error
-from streamtasks.client.receiver import AddressReceiver
 from streamtasks.client.signal import SignalServer, send_signal
 from streamtasks.net import DAddress, Link, Switch
-from streamtasks.net.message.data import MessagePackData, SerializableData
+from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.types import Message, TopicDataMessage
+from streamtasks.services.protocols import AddressNames
 from streamtasks.worker import Worker
 
 MetadataDict = dict[str, int|float|str|bool]
@@ -33,15 +35,22 @@ class TaskStartRequest(ModelWithId):
   report_address: int
   config: Any
 
-class TaskStartResponse(BaseModel):
-  id: str
+class TaskStartResponse(ModelWithId):
   error: Optional[str]
   metadata: MetadataDict
 
 TaskCancelRequest = ModelWithId
   
-class TaskStatusReport(ModelWithId):
+class TaskStatus(Enum):
+  starting = 0
+  running = 1
+  stopped = 2
+  ended = 3
+  failed = 4
+  
+class TaskReport(ModelWithId):
   error: Optional[str]
+  status: TaskStatus
 
 class TaskHostRegistration(ModelWithId):
   address: int
@@ -64,7 +73,7 @@ class TaskInstance(ModelWithId):
   config: Any
   metadata: MetadataDict
   error: Optional[str]
-  running: bool
+  status: TaskStatus
 
 class TASK_CONSTANTS:
   # fetch descriptors
@@ -86,6 +95,7 @@ class TaskHost(Worker):
     super().__init__(node_link, switch)
     self.client: Client
     self.tasks: dict[str, asyncio.Task] = {}
+    self.ready = asyncio.Event()
   
   @property
   def metadata(self) -> MetadataDict: return {}
@@ -105,22 +115,30 @@ class TaskHost(Worker):
     try:
       await self.setup()
       self.client = await self.create_client()
+      self.client.start()
       await self.client.request_address()
+      self.ready.set()
       await asyncio.gather(self.run_api())
     finally:
       for task in self.tasks.values(): task.cancel()
-      await asyncio.wait(self.tasks.values(), 1) # NOTE: make configurable
+      if len(self.tasks) > 0: await asyncio.wait(self.tasks.values(), timeout=1) # NOTE: make configurable
       await self.shutdown()
+      self.ready.clear()
     
   @abstractmethod
   async def create_task(self, config: Any) -> Task: pass
-  async def run_task(self, id: str, task: Task, report_address: int):
+  async def run_task(self, id: UUID4, task: Task, report_address: int):
     error_text = None
+    status = TaskStatus.running
     try:
       await task.run()
+      status = TaskStatus.ended
+    except asyncio.CancelledError: status = TaskStatus.stopped
     except BaseException as e:
+      status = TaskStatus.failed
       error_text = str(e)
-    await send_signal(self.client, report_address, TASK_CONSTANTS.SD_TM_TASK_REPORT, MessagePackData(TaskStatusReport(id=id, error=error_text).model_dump()))
+    
+    await send_signal(self.client, report_address, TASK_CONSTANTS.SD_TM_TASK_REPORT, TaskReport(id=id, status=status, error=error_text).model_dump())
     self.tasks.pop(id, None)
     
   async def run_api(self):
@@ -149,12 +167,14 @@ class TaskHost(Worker):
       
     await fetch_server.run()
 
+def get_namespace_by_task_id(task_id: UUID4): return f"/task/{task_id}"
 
 class TaskManager(Worker):
-  def __init__(self, node_link: Link, switch: Switch | None = None):
+  def __init__(self, node_link: Link, switch: Switch | None = None, address_name: str = AddressNames.TASK_MANAGER):
     super().__init__(node_link, switch)
     self.task_hosts: dict[UUID4, TaskHostRegistration] = {}
     self.tasks: dict[UUID4, TaskInstance] = {}
+    self.address_name = address_name
     self.client: Client
     self.bc_server: BroadcastingServer
   
@@ -162,7 +182,9 @@ class TaskManager(Worker):
     try:
       await self.setup()
       self.client = await self.create_client()
+      self.client.start()
       await self.client.request_address()
+      await register_address_name(self.client, self.address_name)
       self.bc_server = BroadcastingServer(self.client)
       await asyncio.gather(
         self.run_fetch_api(),
@@ -177,12 +199,12 @@ class TaskManager(Worker):
     
     @server.route(TASK_CONSTANTS.SD_TM_TASK_REPORT)
     async def _(message_data: Any):
-      report = TaskStatusReport.model_validate(message_data)
+      report = TaskReport.model_validate(message_data)
       task = self.tasks[report.id]
-      task.running = report.error is not None
+      task.status = report.status
       task.error = report.error
-      if not task.running: self.tasks.pop(task.id, None)
-      await self.bc_server.broadcast(f"/task/{task.id}", MessagePackData(task.model_dump()))
+      if task.status is not TaskStatus.running: self.tasks.pop(task.id, None)
+      await self.bc_server.broadcast(get_namespace_by_task_id(task.id), MessagePackData(task.model_dump()))
   
     @server.route(TASK_CONSTANTS.SD_UNREGISTER_TASK_HOST)
     async def _(message_data: Any):
@@ -224,20 +246,21 @@ class TaskManager(Worker):
           config=body.config,
           metadata={},
           error=None,
-          running=True
+          status=TaskStatus.starting
         )
         self.tasks[inst.id] = inst
         
         task_start_result = await self.client.fetch(task_host.address, TASK_CONSTANTS.FD_TASK_START, th_req.model_dump())
         task_start_result: TaskStartResponse = TaskStartResponse.model_validate(task_start_result)
         
-        inst.metadata=task_start_result.metadata,
-        inst.error=task_start_result.error,
-        inst.running=task_start_result.error is None
+        inst.metadata=task_start_result.metadata
+        inst.error=task_start_result.error
+        inst.status=TaskStatus.running if task_start_result.error is None else TaskStatus.failed
         
         await req.respond(inst.model_dump())
       except (ValidationError, KeyError) as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
-      except BaseException as e: await req.respond_error(new_fetch_body_general_error(str(e)))
+      except BaseException as e: 
+        await req.respond_error(new_fetch_body_general_error(str(e)))
     
     @server.route(TASK_CONSTANTS.FD_TM_TASK_CANCEL)
     async def _(req: FetchRequest):
@@ -253,3 +276,29 @@ class TaskManager(Worker):
       except BaseException as e: await req.respond_error(new_fetch_body_general_error(str(e)))
 
     await server.run()
+
+class TaskBroadcastReceiver(BroadcastReceiver):
+  def __init__(self, client: Client, namespaces: Iterable[str], endpoint: str | int | tuple[str | int, int]):
+    super().__init__(client, namespaces, endpoint)
+    self._recv_queue: asyncio.Queue[TaskInstance]
+  async def get(self) -> TaskInstance: return await super().get()
+  def on_message(self, message: Message):
+    if isinstance(message, TopicDataMessage) and message.topic in self._topics_ns_map:
+      try: self._recv_queue.put_nowait(TaskInstance.model_validate(message.data.data))
+      except ValidationError as e: pass 
+  
+class TaskManagerClient:
+  def __init__(self, client: Client, address_name: str = AddressNames.TASK_MANAGER) -> None:
+    self.address_name = address_name
+    self.client = client
+    
+  async def list_task_hosts(self):
+    result = await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_LIST_TASK_HOSTS, None)
+    return TaskHostRegistrationList.validate_python(result)
+  async def start_task(self, task_host_id: UUID4, config: Any):
+    result = await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_TM_TASK_START, TMTaskStartRequest(task_host_id=task_host_id, config=config).model_dump())
+    return TaskInstance.model_validate(result)
+  async def cancel_task(self, task_id: UUID4):
+    await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_TM_TASK_CANCEL, TMTaskRequestBase(id=task_id).model_dump()) 
+  
+  def task_message_receiver(self, task_ids: Iterable[UUID4]): return TaskBroadcastReceiver(self.client, [ get_namespace_by_task_id(task_id) for task_id in task_ids ], self.address_name)

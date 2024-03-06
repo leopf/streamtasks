@@ -130,21 +130,27 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     await self.a.set_address(1)
     event_test1, event_test2 = asyncio.Event(), asyncio.Event()
     signal_server = SignalServer(self.a)
+    received = None
     @signal_server.route("test1")
     def _(data: str):
-      self.assertEqual(data, "hello1")
+      nonlocal received
+      received = data
       event_test1.set()
       
     @signal_server.route("test2")
     def _(data: str):
-      self.assertEqual(data, "hello2")
+      nonlocal received
+      received = data
       event_test2.set()
       
     self.tasks.append(asyncio.create_task(signal_server.run()))
     await send_signal(self.b, self.a.address, "test1", "hello1")
     await event_test1.wait()
+    self.assertEqual(received, "hello1")
     await send_signal(self.b, self.a.address, "test2", "hello2")
     await event_test2.wait()
+    self.assertEqual(received, "hello2")
+    
     
   @async_timeout(1)
   async def test_broadcast(self):

@@ -1,28 +1,28 @@
 import unittest
 from streamtasks.client.discovery import register_address_name, request_addresses, wait_for_address_name, wait_for_topic_signal
 from streamtasks.net import Switch, create_queue_connection
-from streamtasks.node import LocalNode
 from streamtasks.services.protocols import WorkerAddresses, WorkerTopics
-from streamtasks.worker import Worker
 from streamtasks.client import Client
 from streamtasks.services.discovery import DiscoveryWorker
 import asyncio
-
 from tests.shared import async_timeout
 
 
-# @unittest.skip("not implemented")
 class TestWorkers(unittest.IsolatedAsyncioTestCase):
-  node: LocalNode
-  worker: Worker
-  tasks: list[asyncio.Task]
-
   async def asyncSetUp(self):
-    self.tasks = []
+    self.tasks: list[asyncio.Task] = []
     self.switch = Switch()
     self.discovery_worker = DiscoveryWorker(await self.create_link())
     self.tasks.append(asyncio.create_task(self.discovery_worker.run()))
     await asyncio.sleep(0.001)
+  
+  async def asyncTearDown(self):
+    self.switch.stop_receiving()
+    for task in self.tasks: task.cancel()
+    for task in self.tasks: 
+      try: await task
+      except asyncio.CancelledError: pass
+      except: raise
 
   async def create_link(self):
     conn = create_queue_connection()
@@ -33,14 +33,6 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     client = Client(await self.create_link())
     client.start()
     return client
-
-  async def asyncTearDown(self):
-    self.switch.stop_receiving()
-    for task in self.tasks: task.cancel()
-    for task in self.tasks: 
-      try: await task
-      except asyncio.CancelledError: pass
-      except: raise
 
   @async_timeout(1)
   async def test_address_discovery(self):

@@ -84,7 +84,9 @@ async def _register_address_name(client: 'Client', name: str, address: Optional[
   await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REGISTER_ADDRESS, RegisterAddressRequestBody(address_name=name, address=address).model_dump())
   client.set_address_name(name, address)
 
-async def register_address_name(client: 'Client', name: str, address: int): return await _register_address_name(client, name, address)
+async def register_address_name(client: 'Client', name: str, address: int | None = None): 
+  if address is None and client.address is None: raise ValueError("Missing address! You must either provide and address or the client must have one assigned!")
+  return await _register_address_name(client, name, address or client.address)
 
 async def unregister_address_name(client: 'Client', name: str): return await _register_address_name(client, name, None)
 

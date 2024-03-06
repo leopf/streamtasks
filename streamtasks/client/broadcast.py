@@ -57,3 +57,7 @@ class BroadcastReceiver(Receiver):
   def on_message(self, message: Message):
     if isinstance(message, TopicDataMessage) and message.topic in self._topics_ns_map: 
       self._recv_queue.put_nowait((self._topics_ns_map[message.topic], message.data))
+
+async def broadcast_receive(client: 'Client', namespaces: Iterable[str], endpoint: EndpointOrAddress):
+  async with BroadcastReceiver(client, namespaces, endpoint) as receiver:
+    while True: yield await receiver.get()
