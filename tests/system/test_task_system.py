@@ -80,14 +80,12 @@ class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
     self.assertEqual(len(self.demo_task_host.tasks), 1)
     self.assertIn(task.id, self.demo_task_host.tasks)
     
-    async with self.tm_client.task_message_receiver([ task.id ]) as receiver:
-      await self.tm_client.cancel_task(task.id)
-      updated_task = await receiver.get()
-      self.assertIs(updated_task.status, TaskStatus.stopped)
-      self.assertIsNone(updated_task.error)
-      self.assertEqual(updated_task.id, task.id)
+    updated_task = await self.tm_client.cancel_task_wait(task.id)
+    self.assertIs(updated_task.status, TaskStatus.stopped)
+    self.assertIsNone(updated_task.error)
+    self.assertEqual(updated_task.id, task.id)
       
-  @async_timeout(1000)
+  @async_timeout(1)
   async def test_start_shutdown(self):
     reg = await self.demo_task_host.register(AddressNames.TASK_MANAGER)
     task = await self.tm_client.start_task(reg.id, None)
@@ -102,5 +100,6 @@ class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
       self.assertIs(updated_task.status, TaskStatus.ended)
       self.assertIsNone(updated_task.error)
       self.assertEqual(updated_task.id, task.id)
+
 if __name__ == '__main__':
   unittest.main()

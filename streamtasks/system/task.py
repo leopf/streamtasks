@@ -48,6 +48,9 @@ class TaskStatus(Enum):
   ended = 3
   failed = 4
   
+  @property
+  def is_active(self): return self in { TaskStatus.running, TaskStatus.starting }
+  
 class TaskReport(ModelWithId):
   error: Optional[str]
   status: TaskStatus
@@ -300,5 +303,11 @@ class TaskManagerClient:
     return TaskInstance.model_validate(result)
   async def cancel_task(self, task_id: UUID4):
     await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_TM_TASK_CANCEL, TMTaskRequestBase(id=task_id).model_dump()) 
+  async def cancel_task_wait(self, task_id: UUID4):
+    async with self.task_message_receiver([ task_id ]) as receiver:
+      await self.cancel_task(task_id)
+      while True:
+        task_instance = await receiver.get()
+        if not task_instance.status.is_active: return task_instance
   
   def task_message_receiver(self, task_ids: Iterable[UUID4]): return TaskBroadcastReceiver(self.client, [ get_namespace_by_task_id(task_id) for task_id in task_ids ], self.address_name)
