@@ -294,7 +294,7 @@ class TaskManagerClient:
   def __init__(self, client: Client, address_name: str = AddressNames.TASK_MANAGER) -> None:
     self.address_name = address_name
     self.client = client
-    
+
   async def list_task_hosts(self):
     result = await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_LIST_TASK_HOSTS, None)
     return TaskHostRegistrationList.validate_python(result)

@@ -1,7 +1,7 @@
 from streamtasks.client.receiver import Receiver
 from streamtasks.client.fetch import FetchRequestReceiver, FetchRequest, new_fetch_body_bad_request, new_fetch_body_general_error
 from streamtasks.utils import AsyncTaskManager
-from streamtasks.net import Endpoint, EndpointOrAddress, endpoint_or_address_to_endpoint
+from streamtasks.net import Endpoint, EndpointOrAddress, Link, Switch, endpoint_or_address_to_endpoint
 from streamtasks.net.message.types import AddressedMessage, Message
 from streamtasks.net.message.data import MessagePackData
 from pydantic import BaseModel, ValidationError
@@ -9,9 +9,11 @@ from abc import ABC
 from dataclasses import dataclass
 import asyncio
 import logging
+import uvicorn
 from typing import TYPE_CHECKING, Any, Awaitable, Optional, Callable, ClassVar
 
 from streamtasks.services.protocols import WorkerPorts
+from streamtasks.worker import Worker
 
 if TYPE_CHECKING:
   from streamtasks.client import Client
@@ -240,6 +242,24 @@ class ASGIProxyApp:
     recv_task.cancel()
     send_task.cancel()
 
+class HTTPServerOverASGI(Worker):
+  def __init__(self, node_link: Link, http_endpoint: tuple[str, int], asgi_endpoint: EndpointOrAddress, http_config: dict[str, Any] = {}, switch: Switch | None = None):
+    super().__init__(node_link, switch)
+    self.asgi_endpoint = endpoint_or_address_to_endpoint(asgi_endpoint, WorkerPorts.ASGI)
+    self.http_endpoint = http_endpoint
+    self.http_config = http_config
+  async def run(self):
+    try:
+      await self.setup()
+      client = await self.create_client()
+      client.start()
+      await client.request_address()
+      app = ASGIProxyApp(client, self.asgi_endpoint)
+      server_config = uvicorn.Config(app, host=self.http_endpoint[0], port=self.http_endpoint[1], **self.http_config)
+      server = uvicorn.Server(server_config)
+      await server.serve()
+    finally:
+      await self.shutdown()
 
 async def asgi_app_not_found(_scope, _receive, send):
   await send({"type": "http.response.start", "status": 404})
