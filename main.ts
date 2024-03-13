@@ -34,7 +34,6 @@ interface StoredTaskInstance {
 
 
 /**
- * We need ID generators everywhere, where we allow to edit the instance in any way.
  * What do we do about changing task host ids?
  */
 
@@ -47,7 +46,7 @@ interface TaskConfigurator {
     toStartConfig: (taskInstance: TaskInstance, context: TaskConfiguratorContext) => (any | Promise<any>);
 
     // the editor can dispatch an event on element (or bubble it) with the name "task-instance-updated" to tell the system the instance has updated
-    renderEditor: (taskInstance: TaskInstance, element: HTMLElement, context: TaskConfiguratorContext) => void;
+    renderEditor?: (taskInstance: TaskInstance, element: HTMLElement, context: TaskConfiguratorContext) => void;
 }
 
 class ManagedTaskInstance {
@@ -70,6 +69,10 @@ class ManagedTaskInstance {
         };
     }
 
+    public get hasEditor() {
+        return this.configurator.renderEditor;
+    }
+
     constructor(taskInstance: TaskInstance, configurator: TaskConfigurator, configuratorContext: TaskConfiguratorContext) {
         this.taskInstance = taskInstance
         this.configurator = configurator
@@ -89,6 +92,9 @@ class ManagedTaskInstance {
     }
 
     public renderEditor(element: HTMLElement) {
+        if (!this.configurator.renderEditor) {
+            return;
+        }
         this.renderedEditorContainers.add(element);
         element.addEventListener("task-instance-updated", this.onTaskInstanceUpdatedListener);
         this.configurator.renderEditor(this.taskInstance, element, this.configuratorContext);
@@ -105,6 +111,9 @@ class ManagedTaskInstance {
         }
     }
     private handleTaskInstanceUpdated() {
+        if (!this.configurator.renderEditor) {
+            return;
+        }
         for (const container of this.renderedEditorContainers) {
             this.configurator.renderEditor(this.taskInstance, container, this.configuratorContext);
         }
