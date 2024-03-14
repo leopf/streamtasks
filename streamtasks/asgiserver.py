@@ -42,7 +42,7 @@ class HTTPBodyWriter:
     
   def write(self, data: ByteString): self._buffer.write(data)
   async def flush(self, close: bool = False):
-    self._send({
+    await self._send({
       "type": "http.response.body",
       "body": self._buffer.getvalue(),
       "more_body": not close
@@ -57,7 +57,7 @@ class ASGIContext:
     self._receive = receive
     self._send = send
     self._nextHdl: Callable | None = None
-    if "state" in scope["state"] and SN_NEXT_FN in scope["state"] and callable(scope["state"][SN_NEXT_FN]):
+    if "state" in scope and SN_NEXT_FN in scope["state"] and callable(scope["state"][SN_NEXT_FN]):
       self._nextHdl = scope["state"][SN_NEXT_FN]
   
   # strip query
@@ -67,7 +67,7 @@ class ASGIContext:
   @property
   def fullpath(self): return self._scope["rawpath"].decode("utf-8")
   @property
-  def method(self): return str(self._scope["method"]).lower()
+  def method(self): return str(self._scope["method"]).lower() if "method" in self._scope else None
   @property
   def raw_scope(self): return self._scope
 
@@ -85,7 +85,11 @@ class ASGIContext:
     })
     return HTTPBodyWriter(self._wsend)
 
-  async def http_respond_status(self, status: int, text: str | None = None, content_type: str | None = None):
+  async def http_respond_status(self, status: int):
+    await self.http_respond_text({ 404: "Not found" }.get(status, "-"), status=status)
+  async def http_respond_text(self, text: str, status: int = 200, content_type: str = "text/plain"):
+    await self.http_respond_fixed(status, text, content_type)
+  async def http_respond_fixed(self, status: int, text: str, content_type: str):
     text = text or "Not found"
     content_type = (content_type or "text/plain") + "; charset=utf-8"
     
@@ -96,7 +100,7 @@ class ASGIContext:
     writer.write(text.encode("utf-8"))
     await writer.close()
   
-  async def _wsend(self, data: dict): await self._send(dict)
+  async def _wsend(self, data: dict): await self._send(data)
   async def _wreceive(self) -> dict: return await self._receive()
 
 ASGIContextHandler = Callable[['ASGIContext'], Awaitable[Any]]
@@ -104,7 +108,7 @@ class ASGIContextHandlerWrapper:
   def __init__(self, handler: ASGIContextHandler) -> None:
     self.handler = handler
   async def __call__(self, scope: ASGIScope, receive: ASGIFnReceive, send: ASGIFnSend) -> Any:
-    return await self.handler(ASGIContext(scope, send, receive))
+    return await self.handler(ASGIContext(scope, receive, send))
 
 def asgi_context_handler(fn: ASGIContextHandler): return ASGIContextHandlerWrapper(fn)
 
@@ -159,7 +163,10 @@ class PathMatcher:
       if "}" in part: raise ValueError("Invalid pattern. Found closing brace without an opening brace.")
 
   def match(self, path: str) -> dict[str,str] | None:
-    params: dict[str, str] = {}
+    if len(self.parts) == 1:
+      return {} if path == self.parts[0] else None
+    
+    params: dict[str, str] = {}  
     current_index = 0
     for idx in range(0, len(self.parts) - 1):
       part1 = self.parts[idx]
@@ -179,7 +186,8 @@ class PathMatcher:
 
       if "/" in param_val and not param_allow_slash: return None
       if param_name is not None: params[param_name] = param_val
-      
+    return params  
+    
 class ASGIRoute:
   def __init__(self, handler: ASGIHandler, path_matcher: PathMatcher, methods: Iterable[str]) -> None:
     self.handler = handler
