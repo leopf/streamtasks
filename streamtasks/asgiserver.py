@@ -1,14 +1,18 @@
+import functools
 from io import BytesIO
 import re
-from typing import Any, Awaitable, Callable, Iterable, Literal, NotRequired, TypedDict
+from typing import Any, Awaitable, Callable, Iterable, Literal, NotRequired, TypedDict, cast
 from collections.abc import ByteString
 
-class ASGIScope(TypedDict):
-  type: Literal["http", "websocket"]
+class ASGIScopeBase(TypedDict):
   asgi: dict[Literal["version", "spec_version"], str]
+  state: NotRequired[dict[str,Any]]
+
+class LifespanScope(ASGIScopeBase):
+  type: Literal["lifespan"]
+
+class TransportScope(ASGIScopeBase):
   http_version: str
-  method: NotRequired[str] # http only
-  scheme: Literal["http", "https", "ws", "wss"]
   path: str
   raw_path: ByteString | None
   query_string: ByteString | None
@@ -16,9 +20,18 @@ class ASGIScope(TypedDict):
   headers: Iterable[tuple[ByteString, ByteString]]
   client: tuple[str, int]
   server: tuple[str, int]
-  subprotocols: NotRequired[Iterable[str]] # websocket only
-  state: NotRequired[dict[str,Any]]
+
+class HTTPScope(TransportScope):
+  type: Literal["http"]
+  scheme: Literal["http", "https"]
+  method: str
+
+class WebsocketScope(TransportScope):
+  type: Literal["websocket"]
+  scheme: Literal["ws", "wss"]
+  subprotocols: Iterable[str]
   
+ASGIScope = HTTPScope | WebsocketScope | LifespanScope | dict
 ASGIFnSend = Callable[[dict], Awaitable[Any]]
 ASGIFnReceive = Callable[[], Awaitable[dict]]
 
@@ -27,13 +40,84 @@ SN_PARAMS = "params"
 
 ASGIHandler = Callable[[ASGIScope, ASGIFnReceive, ASGIFnSend], Awaitable[Any]]
 
+def asgi_type_handler(supported_types: set[str]):
+  def decorator(fn):
+    @functools.wraps(fn)
+    async def handler(*args):
+      scope, receive, send = tuple(args[:3]) if len(args) == 3 else tuple(args[1:4])
+      if not isinstance(scope, dict) or not callable(receive) or not callable(send): raise ValueError("Invalid arguments!")
+      if scope.get("type", None) in supported_types: await fn(*args)
+      else: await asgi_scope_get_next_fn(scope)(scope, receive, send)
+    return handler
+  return decorator
+
 def asgi_scope_set_state(scope: ASGIScope, state: dict[str, Any]):
   new_scope: ASGIScope = { **scope }
   if not "state" in new_scope: new_scope["state"] = {}
   new_scope["state"].update(state)
   return new_scope
 
-class NotFoundError(BaseException): pass
+def asgi_scope_get_next_fn(scope: ASGIScope) -> ASGIHandler:
+  if "state" in scope and SN_NEXT_FN in scope["state"] and callable(scope["state"][SN_NEXT_FN]): return scope["state"][SN_NEXT_FN]
+  else: return ASGINext([])
+
+class NoHandlerError(BaseException): pass
+
+class ContextBase:
+  def __init__(self, scope: ASGIScope, receive: ASGIFnReceive, send: ASGIFnSend) -> None:
+    self._scope = scope
+    self._receive = receive
+    self._send = send
+  
+  async def delegate(self, app: ASGIHandler, scope: ASGIScope | None = None): await app(scope or self._scope, self._wreceive, self._wsend)
+  async def next(self, scope: ASGIScope | None = None): await self.delegate(asgi_scope_get_next_fn(self._scope), scope)
+
+  async def _wsend(self, data: dict): await self._send(data)
+  async def _wreceive(self) -> dict: return await self._receive()
+
+class TransportContext(ContextBase):
+  def __init__(self, scope: ASGIScope, receive: ASGIFnReceive, send: ASGIFnSend) -> None:
+    super().__init__(scope, receive, send)
+    self._scope: TransportScope
+  @property
+  def params(self) -> dict[str, str]: return self._scope.get("state", {}).get(SN_PARAMS, {})
+  @property
+  def path(self): return self._scope["path"]
+  @property
+  def fullpath(self): return (self._scope["raw_path"] or b"").decode("utf-8").split("&", 1)[0]
+  @property
+  def scope(self): return { **self._scope }
+
+class WebsocketContext(TransportContext):
+  close_reasons = {
+    1000: 'Normal Closure', 1001: 'Going Away', 1002: 'Protocol Error',
+    1003: 'Unsupported Data', 1004: '(For future)', 1005: 'No Status Received',
+    1006: 'Abnormal Closure', 1007: 'Invalid frame payload data', 1008: 'Policy Violation',
+    1009: 'Message too big', 1010: 'Missing Extension', 1011: 'Internal Error',
+    1012: 'Service Restart', 1013: 'Try Again Later', 1014: 'Bad Gateway',
+    1015: 'TLS Handshake'
+  }
+  
+  def __init__(self, scope: WebsocketScope, receive: ASGIFnReceive, send: ASGIFnSend) -> None:
+    super().__init__(scope, receive, send)
+    self._scope: WebsocketScope
+    
+  async def send_accept(self, headers: Iterable[tuple[ByteString, ByteString]], subprotocol: str | None = None):
+    await self._wsend({ "type": "websocket.accept", "subprotocol": subprotocol, "headers": [ (name.lower(), value) for name, value in headers ] })
+
+  async def receive_connect(self):
+    event = await self._wreceive()
+    event_type = event.get("type", None)
+    if event_type != "websocket.connect": raise ValueError(f"Expected message 'websocket.connect', received '{event_type}'.")
+
+  async def send_message(self, data: str | ByteString):
+    event: dict[str, Any] = { "type": "websocket.send", "bytes": None, "text": None }
+    if isinstance(data, str): event["text"] = data
+    else: event["bytes"] = data
+    await self._wsend(event)
+
+  async def close(self, code: int = 1000, reason: str | None = None): 
+    await self._wsend({ "type": "websocket.close", "code": code, "reason": WebsocketContext.close_reasons.get(code, "") if reason is None else reason })
 
 class HTTPBodyWriter:
   def __init__(self, send: ASGIFnSend) -> None:
@@ -50,32 +134,15 @@ class HTTPBodyWriter:
     self._buffer.seek(0)
     self._buffer.truncate(0)
   async def close(self): await self.flush(True)
-    
-class ASGIContext:
-  def __init__(self, scope: ASGIScope, receive: ASGIFnReceive, send: ASGIFnSend) -> None:
-    self._scope = scope
-    self._receive = receive
-    self._send = send
-    self._nextHdl: Callable | None = None
-    if "state" in scope and SN_NEXT_FN in scope["state"] and callable(scope["state"][SN_NEXT_FN]):
-      self._nextHdl = scope["state"][SN_NEXT_FN]
+
+class HTTPContext(TransportContext):
+  def __init__(self, scope: HTTPScope, receive: ASGIFnReceive, send: ASGIFnSend) -> None:
+    super().__init__(scope, receive, send)
+    self._scope: HTTPScope
   
-  # strip query
   @property
-  def path(self): return self._scope["path"]
-  # strip query
-  @property
-  def fullpath(self): return self._scope["rawpath"].decode("utf-8")
-  @property
-  def method(self): return str(self._scope["method"]).lower() if "method" in self._scope else None
-  @property
-  def raw_scope(self): return self._scope
-
-  async def delegate(self, app: ASGIHandler, scope: ASGIScope | None = None): await app(scope or self._scope, self._wreceive, self._wsend)
-  async def next(self, scope: ASGIScope | None = None): 
-    if self._nextHdl is None: raise ValueError("No next handler found in scope!")
-    await self.delegate(self._nextHdl, scope)
-
+  def method(self): return self._scope["method"]
+  
   async def http_respond(self, status: int, headers: Iterable[tuple[ByteString, ByteString]], trailers: bool = False):
     await self._wsend({
       "type": "http.response.start",
@@ -99,23 +166,17 @@ class ASGIContext:
     ])
     writer.write(text.encode("utf-8"))
     await writer.close()
-  
-  async def _wsend(self, data: dict): await self._send(data)
-  async def _wreceive(self) -> dict: return await self._receive()
 
-ASGIContextHandler = Callable[['ASGIContext'], Awaitable[Any]]
-class ASGIContextHandlerWrapper:
-  def __init__(self, handler: ASGIContextHandler) -> None:
-    self.handler = handler
-  async def __call__(self, scope: ASGIScope, receive: ASGIFnReceive, send: ASGIFnSend) -> Any:
-    return await self.handler(ASGIContext(scope, receive, send))
-
-def asgi_context_handler(fn: ASGIContextHandler): return ASGIContextHandlerWrapper(fn)
+def http_context_handler(fn: Callable[[HTTPContext], Awaitable[Any]]):
+  async def decordator(scope: ASGIScope, receive: ASGIFnReceive, send: ASGIFnSend):
+    if scope.get("type", None) != "http": await asgi_scope_get_next_fn(scope)(scope, receive, send)
+    else: await fn(HTTPContext(scope, receive, send)) 
+  return decordator
 
 class ASGINext:
   def __init__(self, handlers: list[ASGIHandler]) -> None: self._handlers = handlers
   async def __call__(self, scope: ASGIScope, receive: ASGIFnReceive, send: ASGIFnSend) -> Any:
-    if len(self._handlers) == 0: raise NotFoundError()
+    if len(self._handlers) == 0: raise NoHandlerError()
     new_scope = asgi_scope_set_state(scope, { SN_NEXT_FN: ASGINext(self._handlers[1:]) })
     await self._handlers[0](new_scope, receive, send)
 
@@ -128,7 +189,7 @@ class ASGIServer(ASGIHandlerStack):
   async def __call__(self, scope: ASGIScope, receive: ASGIFnReceive, send: ASGIFnSend) -> Any:
     try:
       await super().__call__(scope, receive, send)
-    except NotFoundError:
+    except NoHandlerError:
       pass
 
 # TODO: replace with something more powerful and performant
@@ -188,39 +249,60 @@ class PathMatcher:
       if param_name is not None: params[param_name] = param_val
     return params  
     
-class ASGIRoute:
+class HTTPRoute:
   def __init__(self, handler: ASGIHandler, path_matcher: PathMatcher, methods: Iterable[str]) -> None:
     self.handler = handler
     self.path_matcher = path_matcher
-    self.methods = set(m.lower() for m in methods)
-  
-  async def __call__(self, scope: ASGIScope, receive: ASGIFnReceive, send: ASGIFnSend) -> Any:
-    ctx = ASGIContext(scope, receive, send)
+    self.methods = set(m.upper() for m in methods)
+
+  @asgi_type_handler({ "http" })
+  async def __call__(self, scope: HTTPScope, receive: ASGIFnReceive, send: ASGIFnSend) -> Any:
+    ctx = HTTPContext(scope, receive, send)
     if ctx.method not in self.methods or \
       (params := self.path_matcher.match(ctx.path)) is None: 
         return await ctx.next()
     await ctx.delegate(self.handler, asgi_scope_set_state(scope, { SN_PARAMS: params, SN_NEXT_FN: ASGINext([]) }))    
-    
+
+class WebsocketRoute:
+  def __init__(self, handler: ASGIHandler, path_matcher: PathMatcher) -> None:
+    self.handler = handler
+    self.path_matcher = path_matcher
+
+  @asgi_type_handler({ "websocket" })
+  async def __call__(self, scope: WebsocketScope, receive: ASGIFnReceive, send: ASGIFnSend) -> Any:
+    ctx = WebsocketContext(scope, receive, send)
+    if (params := self.path_matcher.match(ctx.path)) is None: return await ctx.next()
+    await ctx.delegate(self.handler, asgi_scope_set_state(scope, { SN_PARAMS: params, SN_NEXT_FN: ASGINext([]) }))  
+
 class ASGIRouter(ASGIHandlerStack):
-  def add_route(self, handler: ASGIHandler, path: str, methods: Iterable[str]):
-    self.add_handler(ASGIRoute(handler, PathMatcher(path), methods))
-  def route(self, path: str, methods: Iterable[str]):
+  def add_http_route(self, handler: ASGIHandler, path: str, methods: Iterable[str]):
+    self.add_handler(HTTPRoute(handler, PathMatcher(path), methods))
+  def http_route(self, path: str, methods: Iterable[str]):
     def decorator(fn: ASGIHandler):
-      self.add_route(fn, path, methods)
+      self.add_http_route(fn, path, methods)
       return fn
     return decorator
   
-  def get(self, path: str): return self.route(path, [ "get" ])
-  def head(self, path: str): return self.route(path, [ "head" ])
-  def post(self, path: str): return self.route(path, [ "post" ])
-  def put(self, path: str): return self.route(path, [ "put" ])
-  def delete(self, path: str): return self.route(path, [ "delete" ])
-  def connect(self, path: str): return self.route(path, [ "connect" ])
-  def options(self, path: str): return self.route(path, [ "options" ])
-  def trace(self, path: str): return self.route(path, [ "trace" ])
-  def patch(self, path: str): return self.route(path, [ "patch" ])
+  def add_websocket_route(self, handler: ASGIHandler, path: str):
+    self.add_handler(WebsocketRoute(handler, PathMatcher(path)))
+  def websocket_route(self, path: str):
+    def decorator(fn: ASGIHandler):
+      self.add_websocket_route(fn, path)
+      return fn
+    return decorator
+  
+  def get(self, path: str): return self.http_route(path, [ "get" ])
+  def head(self, path: str): return self.http_route(path, [ "head" ])
+  def post(self, path: str): return self.http_route(path, [ "post" ])
+  def put(self, path: str): return self.http_route(path, [ "put" ])
+  def delete(self, path: str): return self.http_route(path, [ "delete" ])
+  def connect(self, path: str): return self.http_route(path, [ "connect" ])
+  def options(self, path: str): return self.http_route(path, [ "options" ])
+  def trace(self, path: str): return self.http_route(path, [ "trace" ])
+  def patch(self, path: str): return self.http_route(path, [ "patch" ])
     
   async def __call__(self, scope: ASGIScope, receive: ASGIFnReceive, send: ASGIFnSend) -> Any:
-    ctx = ASGIContext(scope, receive, send)
     try: return await super().__call__(scope, receive, send)
-    except NotFoundError: await ctx.http_respond_status(404)
+    except NoHandlerError:
+      if scope.get("type", None) == "http": await HTTPContext(scope, receive, send).http_respond_status(404)
+      elif scope.get("type", None) == "websocket": await WebsocketContext(scope, receive, send).close(reason="No handler found.")
