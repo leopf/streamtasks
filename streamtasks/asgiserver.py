@@ -1,8 +1,11 @@
+import asyncio
 import functools
 from io import BytesIO
 import re
 from typing import Any, Awaitable, Callable, Iterable, Literal, NotRequired, TypedDict, cast
 from collections.abc import ByteString
+
+from streamtasks.utils import AsyncBool
 
 class ASGIScopeBase(TypedDict):
   asgi: dict[Literal["version", "spec_version"], str]
@@ -72,7 +75,7 @@ class ContextBase:
   async def delegate(self, app: ASGIHandler, scope: ASGIScope | None = None): await app(scope or self._scope, self._wreceive, self._wsend)
   async def next(self, scope: ASGIScope | None = None): await self.delegate(asgi_scope_get_next_fn(self._scope), scope)
 
-  async def _wsend(self, data: dict): await self._send(data)
+  async def _wsend(self, event: dict): await self._send(event)
   async def _wreceive(self) -> dict: return await self._receive()
 
 class TransportContext(ContextBase):
@@ -100,16 +103,41 @@ class WebsocketContext(TransportContext):
   
   def __init__(self, scope: WebsocketScope, receive: ASGIFnReceive, send: ASGIFnSend) -> None:
     super().__init__(scope, receive, send)
+    self._connected = False
+    self._accepted = False
+    self._add_accept_headers: list[tuple[ByteString, ByteString]] = []
     self._scope: WebsocketScope
+   
+  @property
+  def connected(self): return self._connected
+  
+  @property
+  def accepted(self): return self._accepted
+
+  def add_accept_headers(self, headers: Iterable[tuple[ByteString, ByteString]]): self._add_accept_headers.extend(headers)
+
+  async def messages(self, headers: Iterable[tuple[ByteString, ByteString]] = [], subprotocol: str | None = None):
+    await self.accept(headers, subprotocol)
+    while self._connected:
+      event_type, data = await self.receive()
+      if event_type == "message" and data is not None: yield data
     
-  async def send_accept(self, headers: Iterable[tuple[ByteString, ByteString]], subprotocol: str | None = None):
+  async def accept(self, headers: Iterable[tuple[ByteString, ByteString]] = [], subprotocol: str | None = None):
+    if self._accepted: return
+    if not self._connected:
+      event_type, _ = await self.receive()
+      if event_type != "connect": raise RuntimeError(f"Expected 'websocket.connect' event. '{event_type}' received.")
+    await self.send_accept(headers, subprotocol)
+    
+  async def send_accept(self, headers: Iterable[tuple[ByteString, ByteString]] = [], subprotocol: str | None = None):
     await self._wsend({ "type": "websocket.accept", "subprotocol": subprotocol, "headers": [ (name.lower(), value) for name, value in headers ] })
-
-  async def receive_connect(self):
+    
+  async def receive(self) -> tuple[Literal["message", "connect", "disconnect"], str | ByteString | None]:
     event = await self._wreceive()
-    event_type = event.get("type", None)
-    if event_type != "websocket.connect": raise ValueError(f"Expected message 'websocket.connect', received '{event_type}'.")
-
+    if event["type"] == "websocket.connect": return "connect", None
+    if event["type"] == "websocket.disconnect": return "disconnect", None
+    if event["type"] == "websocket.receive": return "message", event.get("bytes", None) or event.get("text", None)
+  
   async def send_message(self, data: str | ByteString):
     event: dict[str, Any] = { "type": "websocket.send", "bytes": None, "text": None }
     if isinstance(data, str): event["text"] = data
@@ -118,6 +146,18 @@ class WebsocketContext(TransportContext):
 
   async def close(self, code: int = 1000, reason: str | None = None): 
     await self._wsend({ "type": "websocket.close", "code": code, "reason": WebsocketContext.close_reasons.get(code, "") if reason is None else reason })
+
+  async def _wsend(self, event: dict):
+    if event["type"] == "websocket.accept":
+      self._accepted = True
+      event = { **event, "headers": event.get("headers", []) + self._add_accept_headers }
+    await super()._wsend(event)
+
+  async def _wreceive(self) -> dict:
+    event = await super()._wreceive()
+    if event["type"] == "websocket.connect": self._connected = True
+    elif event["type"] == "websocket.disconnect": self._connected = False
+    return event
 
 class HTTPBodyWriter:
   def __init__(self, send: ASGIFnSend) -> None:
@@ -135,15 +175,50 @@ class HTTPBodyWriter:
     self._buffer.truncate(0)
   async def close(self): await self.flush(True)
 
+class HTTPBodyReader:
+  def __init__(self, receive: ASGIFnReceive) -> None:
+    self._receive = receive
+    self._ended = False
+    
+  @property
+  def ended(self): return self._ended
+  
+  async def read_all(self):
+    body = BytesIO()
+    while not self._ended: body.write(await self.read())
+    return body.getvalue()
+  
+  async def read(self):
+    event = await self._receive()
+    event_type = event.get("type", None)
+    if event_type == "http.disconnect": self._ended = True
+    if event_type == "http.request": 
+      self._ended = not event.get("more_body", False)
+      return event.get("body", b"")
+    return b""
+
 class HTTPContext(TransportContext):
   def __init__(self, scope: HTTPScope, receive: ASGIFnReceive, send: ASGIFnSend) -> None:
     super().__init__(scope, receive, send)
+    self._connected: bool = True
+    self._more_request_body: bool = True
+    self._more_response_body: bool = True
+    self._add_response_headers: list[tuple[ByteString, ByteString]] = []
     self._scope: HTTPScope
   
   @property
+  def connected(self): return self._connected
+  @property
+  def more_request_body(self): return self._more_request_body
+  @property
+  def more_response_body(self): return self._more_response_body
+  @property
   def method(self): return self._scope["method"]
   
-  async def http_respond(self, status: int, headers: Iterable[tuple[ByteString, ByteString]], trailers: bool = False):
+  def add_response_headers(self, headers: Iterable[tuple[ByteString, ByteString]]): self._add_response_headers.extend(headers)
+  def body(self): return HTTPBodyReader(self._wreceive)
+  
+  async def respond(self, status: int, headers: Iterable[tuple[ByteString, ByteString]], trailers: bool = False):
     await self._wsend({
       "type": "http.response.start",
       "status": status,
@@ -151,22 +226,32 @@ class HTTPContext(TransportContext):
       "trailers": trailers
     })
     return HTTPBodyWriter(self._wsend)
-
-  async def http_respond_status(self, status: int):
-    await self.http_respond_text({ 404: "Not found" }.get(status, "-"), status=status)
-  async def http_respond_text(self, text: str, status: int = 200, content_type: str = "text/plain"):
-    await self.http_respond_fixed(status, text, content_type)
-  async def http_respond_fixed(self, status: int, text: str, content_type: str):
+  async def respond_status(self, status: int):
+    await self.respond_text({ 404: "Not found" }.get(status, "-"), status=status)
+  async def respond_text(self, text: str, status: int = 200, content_type: str = "text/plain"):
+    await self.respond_string(status, text, content_type)
+  async def respond_string(self, status: int, text: str, content_type: str):
     text = text or "Not found"
     content_type = (content_type or "text/plain") + "; charset=utf-8"
-    
-    writer = await self.http_respond(status, headers=[
+    writer = await self.respond(status, headers=[
       (b"content-length", str(len(text)).encode("utf-8")),
       (b"content-type", content_type.encode("utf-8"))
     ])
     writer.write(text.encode("utf-8"))
     await writer.close()
-
+  
+  async def _wsend(self, event: dict):
+    event_type = event.get("type", None)
+    if event_type == "http.response.start": event = { **event, "headers": event.get("headers", []) + self._add_response_headers }
+    if event_type == "http.response.body": self._more_response_body = event.get("more_body", False)
+    return await super()._wsend(event)
+  async def _wreceive(self) -> dict:
+    event = await super()._wreceive()
+    event_type = event.get("type", None)
+    if event_type == "http.disconnect": self._connected = False
+    if event_type == "http.request": self._more_request_body = event.get("more_body", False)
+    return event
+  
 def http_context_handler(fn: Callable[[HTTPContext], Awaitable[Any]]):
   async def decordator(scope: ASGIScope, receive: ASGIFnReceive, send: ASGIFnSend):
     if scope.get("type", None) != "http": await asgi_scope_get_next_fn(scope)(scope, receive, send)
@@ -304,5 +389,5 @@ class ASGIRouter(ASGIHandlerStack):
   async def __call__(self, scope: ASGIScope, receive: ASGIFnReceive, send: ASGIFnSend) -> Any:
     try: return await super().__call__(scope, receive, send)
     except NoHandlerError:
-      if scope.get("type", None) == "http": await HTTPContext(scope, receive, send).http_respond_status(404)
+      if scope.get("type", None) == "http": await HTTPContext(scope, receive, send).respond_status(404)
       elif scope.get("type", None) == "websocket": await WebsocketContext(scope, receive, send).close(reason="No handler found.")
