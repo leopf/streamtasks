@@ -2,6 +2,9 @@ import codecs
 import functools
 from io import BytesIO
 import json
+import mimetypes
+import os
+import pathlib
 import re
 from typing import Any, Awaitable, Callable, Iterable, Literal, NotRequired, TypedDict
 from collections.abc import ByteString
@@ -89,7 +92,7 @@ class TransportContext(ContextBase):
   @property
   def fullpath(self): return (self._scope["raw_path"] or b"").decode("utf-8").split("&", 1)[0]
   @property
-  def scope(self): return { **self._scope }
+  def scope(self) -> TransportScope: return { **self._scope }
   @functools.cached_property
   def headers(self):
     res: dict[str, list[str]] = {}
@@ -237,20 +240,10 @@ class HTTPContext(TransportContext):
   
   def add_response_headers(self, headers: Iterable[tuple[ByteString, ByteString]]): self._add_response_headers.extend(headers)
   
-  async def respond(self, status: int, headers: Iterable[tuple[ByteString, ByteString]], trailers: bool = False):
-    await self._wsend({
-      "type": "http.response.start",
-      "status": status,
-      "headers": headers,
-      "trailers": trailers
-    })
-    return HTTPBodyWriter(self._wsend)
-  async def respond_status(self, status: int):
-    await self.respond_text({ 404: "Not found" }.get(status, "-"), status=status)
+  async def respond_status(self, status: int): await self.respond_text({ 404: "Not found" }.get(status, "-"), status=status)
   async def respond_json(self, json_data: Any, status: int = 200): await self.respond_json_raw(json.dumps(json_data), status=status)
   async def respond_json_raw(self, json_string: str, status: int = 200): await self.respond_text(json_string, mime_type="application/json", status=status)
-  async def respond_text(self, text: str, status: int = 200, mime_type: str = "text/plain"):
-    await self.respond_string(status, text, mime_type)
+  async def respond_text(self, text: str, status: int = 200, mime_type: str = "text/plain"): await self.respond_string(status, text, mime_type)
   async def respond_string(self, status: int, text: str, mime_type: str):
     text = text or "Not found"
     content_type = (mime_type or "text/plain") + "; charset=utf-8"
@@ -260,6 +253,32 @@ class HTTPContext(TransportContext):
     ])
     writer.write(text.encode("utf-8"))
     await writer.close()
+  async def respond_file(self, path: str | pathlib.Path, status: int = 200, mime_type: str | None = None, buffer_size: int = -1):
+    buffer_size = int(buffer_size)
+    st = os.stat(path)
+    mime_type = mime_type or mimetypes.guess_type(path)[0]
+    if mime_type is None: raise ValueError("Unknown mime type!")
+    
+    content_type = mime_type
+    writer = await self.respond(status, headers=[
+      (b"content-length", str(st.st_size).encode("utf-8")),
+      (b"content-type", content_type.encode("utf-8"))
+    ])
+    
+    with open(path, "rb") as fd:
+      while len(buf := fd.read(buffer_size)) == buffer_size: 
+        writer.write(buf)
+        await writer.flush()
+      writer.write(buf) 
+      await writer.flush(close=True)
+  async def respond(self, status: int, headers: Iterable[tuple[ByteString, ByteString]], trailers: bool = False):
+    await self._wsend({
+      "type": "http.response.start",
+      "status": status,
+      "headers": headers,
+      "trailers": trailers
+    })
+    return HTTPBodyWriter(self._wsend)
   
   async def receive_json(self): return json.loads(await self.receive_json_raw())
   async def receive_json_raw(self): return await self.receive_text({ "application/json" })
@@ -291,6 +310,15 @@ def http_context_handler(fn: Callable[[HTTPContext], Awaitable[Any]]):
     else: await fn(HTTPContext(scope, receive, send)) 
   return decordator
 
+  
+def transport_context_handler(fn: Callable[[HTTPContext], Awaitable[Any]]):
+  async def decordator(scope: ASGIScope, receive: ASGIFnReceive, send: ASGIFnSend):
+    scope_type = scope.get("type", None)
+    if scope_type == "http": await fn(HTTPContext(scope, receive, send))
+    elif scope_type == "websocket": await fn(WebsocketContext(scope, receive, send))
+    else: await asgi_scope_get_next_fn(scope)(scope, receive, send)
+  return decordator
+
 class ASGINext:
   def __init__(self, handlers: list[ASGIHandler]) -> None: self._handlers = handlers
   async def __call__(self, scope: ASGIScope, receive: ASGIFnReceive, send: ASGIFnSend) -> Any:
@@ -313,10 +341,13 @@ class ASGIServer(ASGIHandlerStack):
     except NoHandlerError:
       if scope.get("type", None) == "http": await HTTPContext(scope, receive, send).respond_status(404)
       elif scope.get("type", None) == "websocket": await WebsocketContext(scope, receive, send).close(reason="No handler found.")
-
+    except BaseException:
+      if scope.get("type", None) == "http": await HTTPContext(scope, receive, send).respond_status(500)
+      elif scope.get("type", None) == "websocket": await WebsocketContext(scope, receive, send).close(reason="An internal exception occured.")
 # TODO: replace with something more powerful and performant
-class PathMatcher:
+class PathPattern:
   def __init__(self, pattern: str) -> None:
+    pattern = pattern.rstrip("/")
     param_ranges: list[tuple[int, int]] = []
     param_search_start = 0
     while (param_start := pattern.find("{", param_search_start)) != -1:
@@ -345,7 +376,22 @@ class PathMatcher:
     for part in self.parts: 
       if "}" in part: raise ValueError("Invalid pattern. Found closing brace without an opening brace.")
 
+  def construct(self, params: dict[str, str], default_value: str | None = None) -> str:
+    param_parts = []
+    for param_name, param_allow_slash in self.params:
+      v = params.get(param_name, default_value)
+      if v is None: raise ValueError("Param can not be None!")
+      if not param_allow_slash and "/" in v: raise ValueError("Found flash in param name, which is not allowed!")
+      param_parts.append(v)
+    result_parts = []
+    for idx in range(len(self.params)):
+      result_parts.append(self.parts[idx])
+      result_parts.append(param_parts[idx])
+    result_parts.append(self.parts[-1])
+    return "".join(result_parts)
+    
   def match(self, path: str) -> dict[str,str] | None:
+    path = path.rstrip("/")
     if len(self.parts) == 1:
       return {} if path == self.parts[0] else None
     
@@ -372,7 +418,7 @@ class PathMatcher:
     return params  
     
 class HTTPRoute:
-  def __init__(self, handler: ASGIHandler, path_matcher: PathMatcher, methods: Iterable[str]) -> None:
+  def __init__(self, handler: ASGIHandler, path_matcher: PathPattern, methods: Iterable[str]) -> None:
     self.handler = handler
     self.path_matcher = path_matcher
     self.methods = set(m.upper() for m in methods)
@@ -383,11 +429,10 @@ class HTTPRoute:
     if ctx.method not in self.methods or \
       (params := self.path_matcher.match(ctx.path)) is None: 
         return await ctx.next()
-    # TODO: path rewrite
     await ctx.delegate(self.handler, asgi_scope_set_state(scope, { SN_PARAMS: params, SN_NEXT_FN: ASGINext([]) }))    
 
 class WebsocketRoute:
-  def __init__(self, handler: ASGIHandler, path_matcher: PathMatcher) -> None:
+  def __init__(self, handler: ASGIHandler, path_matcher: PathPattern) -> None:
     self.handler = handler
     self.path_matcher = path_matcher
 
@@ -399,7 +444,7 @@ class WebsocketRoute:
 
 class ASGIRouter(ASGIHandlerStack):
   def add_http_route(self, handler: ASGIHandler, path: str, methods: Iterable[str]):
-    self.add_handler(HTTPRoute(handler, PathMatcher(path), methods))
+    self.add_handler(HTTPRoute(handler, PathPattern(path), methods))
   def http_route(self, path: str, methods: Iterable[str]):
     def decorator(fn: ASGIHandler):
       self.add_http_route(fn, path, methods)
@@ -407,7 +452,7 @@ class ASGIRouter(ASGIHandlerStack):
     return decorator
   
   def add_websocket_route(self, handler: ASGIHandler, path: str):
-    self.add_handler(WebsocketRoute(handler, PathMatcher(path)))
+    self.add_handler(WebsocketRoute(handler, PathPattern(path)))
   def websocket_route(self, path: str):
     def decorator(fn: ASGIHandler):
       self.add_websocket_route(fn, path)
@@ -423,3 +468,36 @@ class ASGIRouter(ASGIHandlerStack):
   def options(self, path: str): return self.http_route(path, [ "options" ])
   def trace(self, path: str): return self.http_route(path, [ "trace" ])
   def patch(self, path: str): return self.http_route(path, [ "patch" ])
+
+def path_rewrite(fn: ASGIHandler, pattern: str | PathPattern, default_param_value: str | None = None):
+  pattern = PathPattern(pattern) if isinstance(pattern, str) else pattern
+  @transport_context_handler
+  async def handler(ctx: TransportContext):
+    await ctx.delegate(fn, { **ctx.scope, "path": pattern.construct(ctx.params, default_value=default_param_value) })
+  return handler
+  
+def path_rewrite_handler(pattern: str | PathPattern, default_param_value: str | None = None):
+  def decorator(fn: ASGIHandler): return path_rewrite(fn, pattern, default_param_value=default_param_value)
+  return decorator
+
+def static_file_handler(path: str | pathlib.Path, response_buffer_size=1000_000):
+  path = pathlib.Path(path).resolve(strict=True)
+  @http_context_handler
+  async def handler(ctx: HTTPContext): await ctx.respond_file(path, buffer_size=response_buffer_size)
+  return handler
+    
+def static_files_handler(path: str | pathlib.Path, index_files: Iterable[str], response_buffer_size=1000_000):
+  if any(True for p in index_files if "/" in p or "\\" in p): raise ValueError("Index files can not have a slash!")
+  index_files = list(index_files)
+  directory_path = pathlib.Path(path).resolve(strict=True)
+  if not directory_path.is_dir(): return False # return file handler
+  
+  @http_context_handler
+  async def handler(ctx: HTTPContext):
+    request_path = directory_path.joinpath(ctx.path.lstrip("/\\")).resolve()
+    if directory_path not in request_path.parents and directory_path != request_path: return await ctx.respond_status(404)
+    if request_path.is_dir(): request_path = next((p for p in (request_path.joinpath(idx_file) for idx_file in index_files) if p.exists()), None)
+    if request_path is None or not request_path.exists() or request_path.is_dir(): return await ctx.respond_status(404)
+    await ctx.delegate(static_file_handler(request_path, response_buffer_size=response_buffer_size))
+    
+  return handler
