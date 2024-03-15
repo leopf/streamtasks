@@ -267,7 +267,10 @@ class ASGINext:
 
 class ASGIHandlerStack:
   def __init__(self) -> None: self._handlers: list[ASGIHandler] = []
-  def add_handler(self, handler: ASGIHandler): self._handlers.append(handler) 
+  def add_handler(self, handler: ASGIHandler): self._handlers.append(handler)
+  def handler(self, handler: ASGIHandler):
+    self.add_handler(handler)
+    return handler
   async def __call__(self, scope: ASGIScope, receive: ASGIFnReceive, send: ASGIFnSend): await ASGINext(self._handlers)(scope, receive, send)
     
 class ASGIServer(ASGIHandlerStack):
@@ -346,6 +349,7 @@ class HTTPRoute:
     if ctx.method not in self.methods or \
       (params := self.path_matcher.match(ctx.path)) is None: 
         return await ctx.next()
+    # TODO: path rewrite
     await ctx.delegate(self.handler, asgi_scope_set_state(scope, { SN_PARAMS: params, SN_NEXT_FN: ASGINext([]) }))    
 
 class WebsocketRoute:
