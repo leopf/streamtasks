@@ -1,11 +1,11 @@
-import asyncio
+import codecs
 import functools
 from io import BytesIO
+import json
 import re
-from typing import Any, Awaitable, Callable, Iterable, Literal, NotRequired, TypedDict, cast
+from typing import Any, Awaitable, Callable, Iterable, Literal, NotRequired, TypedDict
 from collections.abc import ByteString
 
-from streamtasks.utils import AsyncBool
 
 class ASGIScopeBase(TypedDict):
   asgi: dict[Literal["version", "spec_version"], str]
@@ -90,7 +90,25 @@ class TransportContext(ContextBase):
   def fullpath(self): return (self._scope["raw_path"] or b"").decode("utf-8").split("&", 1)[0]
   @property
   def scope(self): return { **self._scope }
-
+  @functools.cached_property
+  def headers(self):
+    res: dict[str, list[str]] = {}
+    for k, v in self._scope["headers"]:
+      key = k.decode(errors="ignore").lower()
+      res[key] = res.get(key, []) + [v.decode(errors="ignore")] # TODO improve this...
+    return res
+  @functools.cached_property
+  def content_type(self): 
+    ct = self.headers.get("content-type", None)
+    if ct is None or len(ct) == 0: raise ValueError("No content type specified on request!")
+    if len(ct) > 1: raise ValueError("More than one content-type was specified!")
+    ct = ct[0]
+    parts = [ p.strip() for p in ct.split(";") ]
+    mime_type = parts[0].lower()
+    params = { k.lower(): v for k, v in (tuple(p.split("=") for p in parts[1:] if p.count("=") == 1)) }
+    return mime_type, params
+    
+    
 class WebsocketContext(TransportContext):
   close_reasons = {
     1000: 'Normal Closure', 1001: 'Going Away', 1002: 'Protocol Error',
@@ -214,9 +232,10 @@ class HTTPContext(TransportContext):
   def more_response_body(self): return self._more_response_body
   @property
   def method(self): return self._scope["method"]
+  @functools.cached_property
+  def body(self): return HTTPBodyReader(self._wreceive)
   
   def add_response_headers(self, headers: Iterable[tuple[ByteString, ByteString]]): self._add_response_headers.extend(headers)
-  def body(self): return HTTPBodyReader(self._wreceive)
   
   async def respond(self, status: int, headers: Iterable[tuple[ByteString, ByteString]], trailers: bool = False):
     await self._wsend({
@@ -228,17 +247,31 @@ class HTTPContext(TransportContext):
     return HTTPBodyWriter(self._wsend)
   async def respond_status(self, status: int):
     await self.respond_text({ 404: "Not found" }.get(status, "-"), status=status)
-  async def respond_text(self, text: str, status: int = 200, content_type: str = "text/plain"):
-    await self.respond_string(status, text, content_type)
-  async def respond_string(self, status: int, text: str, content_type: str):
+  async def respond_json(self, json_data: Any, status: int = 200): await self.respond_json_raw(json.dumps(json_data), status=status)
+  async def respond_json_raw(self, json_string: str, status: int = 200): await self.respond_text(json_string, mime_type="application/json", status=status)
+  async def respond_text(self, text: str, status: int = 200, mime_type: str = "text/plain"):
+    await self.respond_string(status, text, mime_type)
+  async def respond_string(self, status: int, text: str, mime_type: str):
     text = text or "Not found"
-    content_type = (content_type or "text/plain") + "; charset=utf-8"
+    content_type = (mime_type or "text/plain") + "; charset=utf-8"
     writer = await self.respond(status, headers=[
       (b"content-length", str(len(text)).encode("utf-8")),
       (b"content-type", content_type.encode("utf-8"))
     ])
     writer.write(text.encode("utf-8"))
     await writer.close()
+  
+  async def receive_json(self): return json.loads(await self.receive_json_raw())
+  async def receive_json_raw(self): return await self.receive_text({ "application/json" })
+  async def receive_text(self, allowed_mime_types: Iterable[str]):
+    allowed_mime_types = allowed_mime_types if isinstance(allowed_mime_types, set) else set(allowed_mime_types)
+    mime_type, ct_params = self.content_type
+    if mime_type not in allowed_mime_types: raise ValueError(f"Mime type '{mime_type}' is not in allowed types!")
+    charset = ct_params.get("charset", "utf-8")
+    try: decoder = codecs.getdecoder(charset)
+    except LookupError: raise ValueError("Invalid content-type encoding!")
+    data = await self.body.read_all()
+    return decoder(data, "ignore")[0]
   
   async def _wsend(self, event: dict):
     event_type = event.get("type", None)
@@ -278,7 +311,8 @@ class ASGIServer(ASGIHandlerStack):
     try:
       await super().__call__(scope, receive, send)
     except NoHandlerError:
-      pass
+      if scope.get("type", None) == "http": await HTTPContext(scope, receive, send).respond_status(404)
+      elif scope.get("type", None) == "websocket": await WebsocketContext(scope, receive, send).close(reason="No handler found.")
 
 # TODO: replace with something more powerful and performant
 class PathMatcher:
@@ -389,9 +423,3 @@ class ASGIRouter(ASGIHandlerStack):
   def options(self, path: str): return self.http_route(path, [ "options" ])
   def trace(self, path: str): return self.http_route(path, [ "trace" ])
   def patch(self, path: str): return self.http_route(path, [ "patch" ])
-    
-  async def __call__(self, scope: ASGIScope, receive: ASGIFnReceive, send: ASGIFnSend) -> Any:
-    try: return await super().__call__(scope, receive, send)
-    except NoHandlerError:
-      if scope.get("type", None) == "http": await HTTPContext(scope, receive, send).respond_status(404)
-      elif scope.get("type", None) == "websocket": await WebsocketContext(scope, receive, send).close(reason="No handler found.")
