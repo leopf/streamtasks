@@ -13,7 +13,7 @@ class TestASGIServer(unittest.IsolatedAsyncioTestCase):
     
     transport = httpx.ASGITransport(app=self.server)
     self.client = httpx.AsyncClient(transport=transport, base_url="http://testserver")
-    
+
   async def asyncTearDown(self) -> None:
     await self.client.aclose()
   
@@ -45,9 +45,16 @@ class TestASGIServer(unittest.IsolatedAsyncioTestCase):
     async def _(ctx: HTTPContext):
       await ctx.respond_text(f"Hello World from {ctx.params.get('name', '')}!")
       
+    @router.get("/test4/{name*}/yo")
+    @http_context_handler
+    async def _(ctx: HTTPContext):
+      await ctx.respond_text(f"Hello World from {ctx.params.get('name', '')}!")
+      
     self.assertEqual((await self.client.get("/test1")).text, "Hello World!")
     self.assertEqual((await self.client.get("/test2/earth")).text, "Hello earth!")
     self.assertEqual((await self.client.get("/test3/earth/milkyway")).text, "Hello World from earth/milkyway!")
+    self.assertEqual((await self.client.get("/test4/earth/andromeda/yo")).text, "Hello World from earth/andromeda!")
+
 
 
 
