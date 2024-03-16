@@ -115,9 +115,9 @@ class TransportContext(ContextBase):
 class WebsocketContext(TransportContext):
   close_reasons = {
     1000: 'Normal Closure', 1001: 'Going Away', 1002: 'Protocol Error',
-    1003: 'Unsupported Data', 1004: '(For future)', 1005: 'No Status Received',
+    1003: 'Unsupported Data', 1004: 'Reserved', 1005: 'No Status Rcvd',
     1006: 'Abnormal Closure', 1007: 'Invalid frame payload data', 1008: 'Policy Violation',
-    1009: 'Message too big', 1010: 'Missing Extension', 1011: 'Internal Error',
+    1009: 'Message too big', 1010: 'Mandatory Ext.', 1011: 'Internal Error',
     1012: 'Service Restart', 1013: 'Try Again Later', 1014: 'Bad Gateway',
     1015: 'TLS Handshake'
   }
@@ -343,7 +343,7 @@ class ASGIServer(ASGIHandlerStack):
       elif scope.get("type", None) == "websocket": await WebsocketContext(scope, receive, send).close(reason="No handler found.")
     except BaseException:
       if scope.get("type", None) == "http": await HTTPContext(scope, receive, send).respond_status(500)
-      elif scope.get("type", None) == "websocket": await WebsocketContext(scope, receive, send).close(reason="An internal exception occured.")
+      elif scope.get("type", None) == "websocket": await WebsocketContext(scope, receive, send).close(code=1011)
 # TODO: replace with something more powerful and performant
 class PathPattern:
   def __init__(self, pattern: str) -> None:
