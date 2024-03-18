@@ -1,3 +1,4 @@
+import base64
 import codecs
 import functools
 from io import BytesIO
@@ -8,6 +9,7 @@ import pathlib
 import re
 from typing import Any, Awaitable, Callable, Iterable, Literal, NotRequired, TypedDict
 from collections.abc import ByteString
+from urllib.parse import unquote_plus
 
 
 class ASGIScopeBase(TypedDict):
@@ -244,14 +246,15 @@ class HTTPContext(TransportContext):
   async def respond_json(self, json_data: Any, status: int = 200): await self.respond_json_raw(json.dumps(json_data), status=status)
   async def respond_json_raw(self, json_string: str, status: int = 200): await self.respond_text(json_string, mime_type="application/json", status=status)
   async def respond_text(self, text: str, status: int = 200, mime_type: str = "text/plain"): await self.respond_string(status, text, mime_type)
-  async def respond_string(self, status: int, text: str, mime_type: str):
-    text = text or "Not found"
-    content_type = (mime_type or "text/plain") + "; charset=utf-8"
+  async def respond_string(self, status: int, text: str, mime_type: str): await self.respond_buffer(status, text.encode("utf-8"), mime_type, "utf-8")
+  async def respond_buffer(self, status: int, content: bytes, mime_type: str, charset: str | None = None):
+    content_type = mime_type
+    if charset is not None: content_type += f"; charset={charset}"
     writer = await self.respond(status, headers=[
-      (b"content-length", str(len(text)).encode("utf-8")),
+      (b"content-length", str(len(content)).encode("utf-8")),
       (b"content-type", content_type.encode("utf-8"))
     ])
-    writer.write(text.encode("utf-8"))
+    writer.write(content)
     await writer.close()
   async def respond_file(self, path: str | pathlib.Path, status: int = 200, mime_type: str | None = None, buffer_size: int = -1):
     buffer_size = int(buffer_size)
@@ -480,6 +483,14 @@ def path_rewrite_handler(pattern: str | PathPattern, default_param_value: str | 
   def decorator(fn: ASGIHandler): return path_rewrite(fn, pattern, default_param_value=default_param_value)
   return decorator
 
+@http_context_handler
+async def http_not_found_handler(ctx: HTTPContext): await ctx.respond_status(404)
+
+def static_content_handler(content: ByteString, mime_type: str, charset: str | None = None):
+  @http_context_handler
+  async def handler(ctx: HTTPContext): await ctx.respond_buffer(200, content, mime_type, charset)
+  return handler
+
 def static_file_handler(path: str | pathlib.Path, response_buffer_size=1000_000):
   path = pathlib.Path(path).resolve(strict=True)
   @http_context_handler
@@ -501,3 +512,20 @@ def static_files_handler(path: str | pathlib.Path, index_files: Iterable[str], r
     await ctx.delegate(static_file_handler(request_path, response_buffer_size=response_buffer_size))
     
   return handler
+
+def decode_data_uri(data_uri: str, default_mime_type="text/plain", default_charset="utf-8"):
+  if not data_uri.startswith("data:"): raise ValueError("Invalid Data URI: Does not start with 'data:'")
+  metadata, encoded_data = data_uri[5:].split(',', 1)
+  metadata_parts = metadata.lower().split(';')
+  mime_type = metadata_parts[0] or default_mime_type
+  is_base64 = 'base64' in metadata_parts
+  
+  if is_base64:
+    charset = next((p for p in metadata_parts if p.startswith("charset=")), None)
+    if charset is not None: charset = charset[8:].strip()
+    byte_data = base64.b64decode(encoded_data)
+  else:
+    charset = default_charset
+    byte_data = unquote_plus(encoded_data).encode(default_charset)
+  
+  return byte_data, mime_type, charset

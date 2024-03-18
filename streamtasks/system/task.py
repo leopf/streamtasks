@@ -31,6 +31,9 @@ class ModelWithId(BaseModel):
   @field_serializer("id")
   def serialize_id(self, id: UUID4): return str(id)
 
+class ModelWithStrId(BaseModel):
+  id: str
+
 class TaskStartRequest(ModelWithId):
   report_address: int
   config: Any
@@ -55,24 +58,20 @@ class TaskReport(ModelWithId):
   error: Optional[str]
   status: TaskStatus
 
-class TaskHostRegistration(ModelWithId):
+class TaskHostRegistration(ModelWithStrId):
   address: int
   metadata: MetadataDict
   
 TaskHostRegistrationList = TypeAdapter(list[TaskHostRegistration])
 
 class TMTaskStartRequest(BaseModel):
-  task_host_id: UUID4
+  host_id: str
   config: Any
-  
-  @field_serializer("task_host_id")
-  def serialize_task_host_id(self, id: UUID4): return str(id)
 
 TMTaskRequestBase = ModelWithId
 
 class TaskInstance(ModelWithId):
-  id: UUID4
-  host_id: UUID4
+  host_id: str
   config: Any
   metadata: MetadataDict
   error: Optional[str]
@@ -82,6 +81,7 @@ class TASK_CONSTANTS:
   # fetch descriptors
   FD_REGISTER_TASK_HOST = "register_task_host"
   FD_LIST_TASK_HOSTS = "list_task_hosts"
+  FD_GET_TASK_HOST = "get_task_host"
   
   FD_TM_TASK_START = "start_task"
   FD_TM_TASK_CANCEL = "cancel_task"
@@ -93,12 +93,16 @@ class TASK_CONSTANTS:
   SD_TM_TASK_REPORT = "report_task_status"
   SD_UNREGISTER_TASK_HOST = "unregister_task_host"
 
+class MetadataFields:
+  ASGISERVER = "asgiserver"
+
 class TaskHost(Worker):
   def __init__(self, node_link: Link, switch: Switch | None = None):
     super().__init__(node_link, switch)
     self.client: Client
     self.tasks: dict[str, asyncio.Task] = {}
     self.ready = asyncio.Event()
+    self.id = str(uuid4())
   
   @property
   def metadata(self) -> MetadataDict: return {}
@@ -106,13 +110,13 @@ class TaskHost(Worker):
   async def register(self, address: DAddress) -> TaskHostRegistration:
     if not hasattr(self, "client"): raise ValueError("Client not created yet!")
     if self.client.address is None: raise ValueError("Client had no address!")
-    registration = TaskHostRegistration(id=uuid4(), address=self.client.address, metadata=self.metadata)
+    registration = TaskHostRegistration(id=self.id, address=self.client.address, metadata=self.metadata)
     await self.client.fetch(address, TASK_CONSTANTS.FD_REGISTER_TASK_HOST, registration.model_dump())
     return registration
   
-  async def unregister(self, address: DAddress, registration_id: UUID4):
+  async def unregister(self, address: DAddress, registration_id: str):
     # TODO: kills tasks under this reg
-    await send_signal(self.client, address, TASK_CONSTANTS.SD_UNREGISTER_TASK_HOST, ModelWithId(id=registration_id).model_dump())
+    await send_signal(self.client, address, TASK_CONSTANTS.SD_UNREGISTER_TASK_HOST, ModelWithStrId(id=registration_id).model_dump())
 
   async def run(self):
     try:
@@ -175,7 +179,7 @@ def get_namespace_by_task_id(task_id: UUID4): return f"/task/{task_id}"
 class TaskManager(Worker):
   def __init__(self, node_link: Link, switch: Switch | None = None, address_name: str = AddressNames.TASK_MANAGER):
     super().__init__(node_link, switch)
-    self.task_hosts: dict[UUID4, TaskHostRegistration] = {}
+    self.task_hosts: dict[str, TaskHostRegistration] = {}
     self.tasks: dict[UUID4, TaskInstance] = {}
     self.address_name = address_name
     self.client: Client
@@ -211,7 +215,7 @@ class TaskManager(Worker):
   
     @server.route(TASK_CONSTANTS.SD_UNREGISTER_TASK_HOST)
     async def _(message_data: Any):
-      data = ModelWithId.model_validate(message_data)
+      data = ModelWithStrId.model_validate(message_data)
       self.task_hosts.pop(data.id, None)
       self.tasks = { tid: task for tid, task in self.tasks.items() if task.host_id != data.id }
 
@@ -231,11 +235,16 @@ class TaskManager(Worker):
     @server.route(TASK_CONSTANTS.FD_LIST_TASK_HOSTS) 
     async def _(req: FetchRequest): await req.respond(TaskHostRegistrationList.dump_python(list(self.task_hosts.values())))
       
+    @server.route(TASK_CONSTANTS.FD_GET_TASK_HOST) 
+    async def _(req: FetchRequest):
+      id = ModelWithStrId.model_validate(req.body).id
+      await req.respond(None if id not in self.task_hosts else self.task_hosts[id].model_dump())
+      
     @server.route(TASK_CONSTANTS.FD_TM_TASK_START)
     async def _(req: FetchRequest):
       try:
         body = TMTaskStartRequest.model_validate(req.body)
-        task_host = self.task_hosts[body.task_host_id]
+        task_host = self.task_hosts[body.host_id]
         
         th_req = TaskStartRequest(
           id=uuid4(),
@@ -245,7 +254,7 @@ class TaskManager(Worker):
         
         inst = TaskInstance(
           id= th_req.id,
-          host_id=body.task_host_id,
+          host_id=body.host_id,
           config=body.config,
           metadata={},
           error=None,
@@ -298,8 +307,11 @@ class TaskManagerClient:
   async def list_task_hosts(self):
     result = await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_LIST_TASK_HOSTS, None)
     return TaskHostRegistrationList.validate_python(result)
-  async def start_task(self, task_host_id: UUID4, config: Any):
-    result = await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_TM_TASK_START, TMTaskStartRequest(task_host_id=task_host_id, config=config).model_dump())
+  async def get_task_host(self, id: str):
+    result = await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_GET_TASK_HOST, ModelWithStrId(id=id).model_dump())
+    return TaskHostRegistration.model_validate(result)
+  async def start_task(self, host_id: str, config: Any):
+    result = await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_TM_TASK_START, TMTaskStartRequest(host_id=host_id, config=config).model_dump())
     return TaskInstance.model_validate(result)
   async def cancel_task(self, task_id: UUID4):
     await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_TM_TASK_CANCEL, TMTaskRequestBase(id=task_id).model_dump()) 
