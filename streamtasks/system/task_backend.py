@@ -2,7 +2,6 @@
 
 import asyncio
 import mimetypes
-
 from pydantic import UUID4
 from streamtasks.asgi import ASGIAppRunner, ASGIProxyApp
 from streamtasks.asgiserver import ASGIHandler, ASGIRouter, ASGIServer, HTTPContext, TransportContext, decode_data_uri, http_context_handler, http_not_found_handler, path_rewrite_handler, static_content_handler, transport_context_handler
@@ -10,7 +9,7 @@ from streamtasks.client import Client
 from streamtasks.net import Link, Switch
 from streamtasks.net.utils import str_to_endpoint
 from streamtasks.services.protocols import AddressNames
-from streamtasks.system.task import MetadataDict, MetadataFields, TMTaskStartRequest, TaskHostRegistration, TaskHostRegistrationList, TaskManagerClient
+from streamtasks.system.task import MetadataDict, MetadataFields, TMTaskStartRequest, TaskHostRegistration, TaskHostRegistrationList, TaskInstance, TaskManagerClient
 from streamtasks.worker import Worker
 
 class ASGITaskManagementBackend(Worker):
@@ -18,6 +17,7 @@ class ASGITaskManagementBackend(Worker):
     super().__init__(node_link, switch)
     self.task_manager_address_name = task_manager_address_name
     self.task_host_asgi_handlers: dict[str, ASGIHandler] = {}
+    self.task_asgi_handlers: dict[UUID4, ASGIHandler] = {}
     self.client: Client
     self.tm_client: TaskManagerClient
   
@@ -63,6 +63,13 @@ class ASGITaskManagementBackend(Worker):
       await self.tm_client.cancel_task(id)
       await ctx.respond_status(200)
 
+    @router.http_route("/task/{id}/{path*}", methods=[]) # TODO: more abstract way of doing this
+    @path_rewrite_handler
+    @transport_context_handler
+    async def _(ctx: TransportContext):
+      id: UUID4 = UUID4(ctx.params.get("id", ""))
+      await ctx.delegate(await self.get_task_asgi_handler(id))
+
     @router.http_route("/task-host/{id}/{path*}", methods=[]) # TODO: more abstract way of doing this
     @path_rewrite_handler
     @transport_context_handler
@@ -75,20 +82,26 @@ class ASGITaskManagementBackend(Worker):
     
   async def get_task_host_asgi_handler(self, id: str) -> ASGIHandler:
     if (router := self.task_host_asgi_handlers.get(id, None)) is None:
-      reg: TaskHostRegistration | None = await self.tm_client.get_task_host(id)
-      if reg is None: return http_not_found_handler
+      reg: TaskHostRegistration = await self.tm_client.get_task_host(id)
       self.task_host_asgi_handlers[id] = router = self._metadata_to_router(reg.metadata)
+    return router
+
+  async def get_task_asgi_handler(self, id: UUID4) -> ASGIHandler:
+    if (router := self.task_asgi_handlers.get(id, None)) is None:
+      reg: TaskInstance = await self.tm_client.get_task_host(id)
+      self.task_asgi_handlers[id] = router = self._metadata_to_router(reg.metadata)
     return router
   
   def _metadata_to_router(self, metadata: MetadataDict) -> ASGIHandler:
     router = ASGIRouter()
     for (path, content) in ((k[5:], v) for k, v in metadata.items() if isinstance(v, str) and k.lower().startswith("file:")):
+      guessed_mime_type = mimetypes.guess_type(path)[0]
       if content.startswith("data:"):
-        # TODO: different default type for base64/urlencoded, better validation
-        data, mime_type, charset = decode_data_uri(content, "application/octet-stream")
+        # TODO: better validation
+        data, mime_type, charset = decode_data_uri(content, (guessed_mime_type,)*2)
         router.add_http_route(static_content_handler(data, mime_type, charset), path, { "get" })
       else:
-        router.add_http_route(static_content_handler(content.encode("utf-8"), mimetypes.guess_type(path) or "text/plain"), path, { "get" })
+        router.add_http_route(static_content_handler(content.encode("utf-8"), guessed_mime_type or "text/plain"), path, { "get" })
     if MetadataFields.ASGISERVER in metadata:
       router.add_handler(ASGIProxyApp(self.client, str_to_endpoint(metadata[MetadataFields.ASGISERVER])))
     return router

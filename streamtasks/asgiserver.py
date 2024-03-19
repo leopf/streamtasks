@@ -513,12 +513,12 @@ def static_files_handler(path: str | pathlib.Path, index_files: Iterable[str], r
     
   return handler
 
-def decode_data_uri(data_uri: str, default_mime_type="text/plain", default_charset="utf-8"):
+def decode_data_uri(data_uri: str, default_mime_types: tuple[str | None, str | None]=(None, None), default_charset="utf-8"):
   if not data_uri.startswith("data:"): raise ValueError("Invalid Data URI: Does not start with 'data:'")
   metadata, encoded_data = data_uri[5:].split(',', 1)
   metadata_parts = metadata.lower().split(';')
-  mime_type = metadata_parts[0] or default_mime_type
   is_base64 = 'base64' in metadata_parts
+  mime_type = metadata_parts[0] or ((default_mime_types[1] or "application/octet-stream") if is_base64 else (default_mime_types[0] or "text/plain"))
   
   if is_base64:
     charset = next((p for p in metadata_parts if p.startswith("charset=")), None)
