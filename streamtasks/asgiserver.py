@@ -313,7 +313,12 @@ def http_context_handler(fn: Callable[[HTTPContext], Awaitable[Any]]):
     else: await fn(HTTPContext(scope, receive, send)) 
   return decordator
 
-  
+def websocket_context_handler(fn: Callable[[WebsocketContext], Awaitable[Any]]):
+  async def decordator(scope: ASGIScope, receive: ASGIFnReceive, send: ASGIFnSend):
+    if scope.get("type", None) != "websocket": await asgi_scope_get_next_fn(scope)(scope, receive, send)
+    else: await fn(WebsocketContext(scope, receive, send)) 
+  return decordator
+
 def transport_context_handler(fn: Callable[[HTTPContext], Awaitable[Any]]):
   async def decordator(scope: ASGIScope, receive: ASGIFnReceive, send: ASGIFnSend):
     scope_type = scope.get("type", None)

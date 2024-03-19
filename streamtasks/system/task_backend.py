@@ -4,7 +4,7 @@ import asyncio
 import mimetypes
 from pydantic import UUID4
 from streamtasks.asgi import ASGIAppRunner, ASGIProxyApp
-from streamtasks.asgiserver import ASGIHandler, ASGIRouter, ASGIServer, HTTPContext, TransportContext, decode_data_uri, http_context_handler, http_not_found_handler, path_rewrite_handler, static_content_handler, transport_context_handler
+from streamtasks.asgiserver import ASGIHandler, ASGIRouter, ASGIServer, HTTPContext, TransportContext, WebsocketContext, decode_data_uri, http_context_handler, http_not_found_handler, path_rewrite_handler, static_content_handler, transport_context_handler, websocket_context_handler
 from streamtasks.client import Client
 from streamtasks.net import Link, Switch
 from streamtasks.net.utils import str_to_endpoint
@@ -63,6 +63,21 @@ class ASGITaskManagementBackend(Worker):
       await self.tm_client.cancel_task(id)
       await ctx.respond_status(200)
 
+    @router.websocket_route("/rtopic/{id}")
+    @websocket_context_handler
+    async def _(ctx: WebsocketContext):
+      id = ctx.params.get("id", "")
+      
+      await ctx.accept()
+      try: id = int(id)
+      except ValueError: return await ctx.close(reason="invalid id")
+      
+      async with self.client.in_topic(id) as topic:
+        data = await topic.recv_data()
+        # serialize data and send, close if ctx is closed
+        
+      await ctx.close()
+      
     @router.http_route("/task/{id}/{path*}", methods=[]) # TODO: more abstract way of doing this
     @path_rewrite_handler
     @transport_context_handler

@@ -95,7 +95,7 @@ class InTopic(_TopicBase):
   async def start(self): await self._receiver.start_recv()
   async def stop(self): await self._receiver.stop_recv()
   async def wait_paused(self, value: bool = True): return await self._a_is_paused.wait(value)
-  async def recv_data(self):
+  async def recv_data(self) -> SerializableData:
     while True:
       data = await self.recv_data_control()
       if not isinstance(data, TopicControlData): return data
