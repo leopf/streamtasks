@@ -200,6 +200,10 @@ class Switch:
     self.stream_controls: dict[int, TopicControlData] = {}
   def __del__(self): self.link_manager.cancel_all()
 
+  async def add_local_connection(self) -> Link:
+    a, b = create_queue_connection()
+    await self.add_link(a)
+    return b
   async def add_link(self, link: Link):
     switch_out_topics = set(self.out_topics.items())
     if len(switch_out_topics) > 0: await link.send(OutTopicsChangedMessage(switch_out_topics, set()))

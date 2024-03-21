@@ -352,7 +352,8 @@ class ASGIServer(ASGIHandlerStack):
     except BaseException:
       if scope.get("type", None) == "http": await HTTPContext(scope, receive, send).respond_status(500)
       elif scope.get("type", None) == "websocket": await WebsocketContext(scope, receive, send).close(code=1011)
-# TODO: replace with something more powerful and performant
+
+# TODO: matching needs improvements 
 class PathPattern:
   def __init__(self, pattern: str) -> None:
     pattern = pattern.rstrip("/")
@@ -399,7 +400,7 @@ class PathPattern:
     return "".join(result_parts)
     
   def match(self, path: str) -> dict[str,str] | None:
-    path = path.rstrip("/")
+    # path = path.rstrip("/")
     if len(self.parts) == 1:
       return {} if path == self.parts[0] else None
     
@@ -420,7 +421,7 @@ class PathPattern:
         part2_start = path.find(part2, current_index)
         if part2_start == -1: return None
         param_val = path[current_index:part2_start]
-
+      current_index += len(param_val)
       if "/" in param_val and not param_allow_slash: return None
       if param_name is not None: params[param_name] = param_val
     return params  
@@ -450,7 +451,25 @@ class WebsocketRoute:
     if (params := self.path_matcher.match(ctx.path)) is None: return await ctx.next()
     await ctx.delegate(self.handler, asgi_scope_set_state(scope, { SN_PARAMS: params, SN_NEXT_FN: ASGINext([]) }))  
 
+class TransportRoute:
+  def __init__(self, handler: ASGIHandler, path_matcher: PathPattern) -> None:
+    self.handler = handler
+    self.path_matcher = path_matcher
+    
+  @asgi_type_handler({ "websocket", "http" })
+  async def __call__(self, scope: HTTPScope | WebsocketScope, receive: ASGIFnReceive, send: ASGIFnSend) -> Any:
+    ctx = TransportContext(scope, receive, send)
+    if (params := self.path_matcher.match(ctx.path)) is None: return await ctx.next()
+    await ctx.delegate(self.handler, asgi_scope_set_state(scope, { SN_PARAMS: params, SN_NEXT_FN: ASGINext([]) }))  
+
 class ASGIRouter(ASGIHandlerStack):
+  def add_transport_route(self, handler: ASGIHandler, path: str): self.add_handler(TransportRoute(handler, PathPattern(path)))
+  def transport_route(self, path: str):
+    def decorator(fn: ASGIHandler):
+      self.add_transport_route(fn, path)
+      return fn
+    return decorator
+  
   def add_http_route(self, handler: ASGIHandler, path: str, methods: Iterable[str]):
     self.add_handler(HTTPRoute(handler, PathPattern(path), methods))
   def http_route(self, path: str, methods: Iterable[str]):

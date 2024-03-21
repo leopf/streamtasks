@@ -32,6 +32,7 @@ class WorkerRequestDescriptors:
 
 class AddressNames:
   TASK_MANAGER = "task_manager"
+  TASK_MANAGER_WEB = "task_manager_web"
 
 class GenerateAddressesRequestMessageBase(BaseModel):
   count: int

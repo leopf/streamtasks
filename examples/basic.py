@@ -1,0 +1,42 @@
+import asyncio
+import logging
+from typing import Any
+from streamtasks.asgi import HTTPServerOverASGI
+from streamtasks.client import Client
+from streamtasks.client.discovery import wait_for_topic_signal
+from streamtasks.net import Switch
+from streamtasks.services.discovery import DiscoveryWorker
+from streamtasks.services.protocols import AddressNames, WorkerTopics
+from streamtasks.system.task import MetadataDict, Task, TaskHost, TaskManager, TaskManagerWeb
+from streamtasks.worker import Worker
+
+logging.basicConfig(level=logging.INFO)
+
+class DemoTask(Task):
+  async def setup(self) -> dict[str, Any]: return { "file:/test.js": "console.log('hello world!');" }
+  async def run(self): return await asyncio.Future()
+
+class DemoTaskHost(TaskHost):
+  @property
+  def metadata(self) -> MetadataDict: return { "file:/hello.txt": "Hello World!" }
+  async def create_task(self, config: Any) -> Task: return DemoTask(await self.create_client())
+
+async def main():
+  switch = Switch()
+  client = Client(await switch.add_local_connection())
+  client.start()
+  
+  discovery = DiscoveryWorker(await switch.add_local_connection())
+  discovery_task = asyncio.create_task(discovery.run())
+  await wait_for_topic_signal(client, WorkerTopics.DISCOVERY_SIGNAL)
+  
+  workers: list[Worker] = [
+    TaskManager(await switch.add_local_connection()),
+    TaskManagerWeb(await switch.add_local_connection()),
+    HTTPServerOverASGI(await switch.add_local_connection(), ("127.0.0.1", 8080), AddressNames.TASK_MANAGER_WEB),
+    DemoTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER])
+  ]
+  
+  await asyncio.wait([discovery_task] + [ asyncio.create_task(worker.run()) for worker in workers ], return_when="FIRST_COMPLETED")
+
+asyncio.run(main())

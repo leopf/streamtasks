@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from typing import Optional
 from streamtasks.client import Client
 from streamtasks.net import Link, Switch, create_queue_connection
@@ -15,6 +16,9 @@ class Worker:
     connection = create_queue_connection(raw)
     await self.switch.add_link(connection[0])
     return connection[1]
+
+  @abstractmethod
+  async def run(self): pass
 
   async def setup(self):
     await self.switch.add_link(self.node_link)

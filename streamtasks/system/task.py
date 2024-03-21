@@ -1,18 +1,24 @@
 from enum import Enum
+import hashlib
+import mimetypes
 from typing import Any, Iterable, Optional
 from uuid import uuid4
 from pydantic import UUID4, BaseModel, TypeAdapter, ValidationError, field_serializer
 from abc import ABC, abstractmethod
+from streamtasks.asgi import ASGIAppRunner, ASGIProxyApp
+from streamtasks.asgiserver import ASGIHandler, ASGIRouter, ASGIServer, HTTPContext, TransportContext, WebsocketContext, decode_data_uri, http_context_handler, path_rewrite_handler, static_content_handler, transport_context_handler, websocket_context_handler
 from streamtasks.client import Client
 import asyncio
 from streamtasks.client.broadcast import BroadcastReceiver, BroadcastingServer
 from streamtasks.client.discovery import register_address_name
 from streamtasks.client.fetch import FetchRequest, FetchServer, new_fetch_body_bad_request, new_fetch_body_general_error
 from streamtasks.client.signal import SignalServer, send_signal
-from streamtasks.net import DAddress, Link, Switch
+from streamtasks.net import DAddress, EndpointOrAddress, Link, Switch
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.types import Message, TopicDataMessage
+from streamtasks.net.utils import str_to_endpoint
 from streamtasks.services.protocols import AddressNames
+from streamtasks.utils import INSTANCE_ID
 from streamtasks.worker import Worker
 
 MetadataDict = dict[str, int|float|str|bool]
@@ -98,21 +104,28 @@ class MetadataFields:
   ASGISERVER = "asgiserver"
 
 class TaskHost(Worker):
-  def __init__(self, node_link: Link, switch: Switch | None = None):
+  def __init__(self, node_link: Link, switch: Switch | None = None, register_endpoits: list[EndpointOrAddress] = []):
     super().__init__(node_link, switch)
     self.client: Client
     self.tasks: dict[str, asyncio.Task] = {}
     self.ready = asyncio.Event()
-    self.id = str(uuid4())
+    self.register_endpoits = register_endpoits
+    
+    id_hash = hashlib.sha256()
+    id_hash.update(b"TaskHost")
+    id_hash.update(self.__class__.__name__.encode("utf-8"))
+    id_hash.update(INSTANCE_ID.value.encode("utf-8"))
+    self.id = id_hash.hexdigest()[:16]
   
   @property
   def metadata(self) -> MetadataDict: return {}
 
-  async def register(self, address: DAddress) -> TaskHostRegistration:
+  async def register(self, endpoint: EndpointOrAddress) -> TaskHostRegistration:
     if not hasattr(self, "client"): raise ValueError("Client not created yet!")
     if self.client.address is None: raise ValueError("Client had no address!")
     registration = TaskHostRegistration(id=self.id, address=self.client.address, metadata=self.metadata)
-    await self.client.fetch(address, TASK_CONSTANTS.FD_REGISTER_TASK_HOST, registration.model_dump())
+    await self.client.fetch(endpoint, TASK_CONSTANTS.FD_REGISTER_TASK_HOST, registration.model_dump())
+    # TODO store info for unregister
     return registration
   
   async def unregister(self, address: DAddress, registration_id: str):
@@ -126,8 +139,10 @@ class TaskHost(Worker):
       self.client.start()
       await self.client.request_address()
       self.ready.set()
+      for register_ep in self.register_endpoits: await self.register(register_ep)
       await asyncio.gather(self.run_api())
     finally:
+      # TODO: unregister all
       for task in self.tasks.values(): task.cancel()
       if len(self.tasks) > 0: await asyncio.wait(self.tasks.values(), timeout=1) # NOTE: make configurable
       await self.shutdown()
@@ -333,3 +348,116 @@ class TaskManagerClient:
         if not task_instance.status.is_active: return task_instance
   
   def task_message_receiver(self, task_ids: Iterable[UUID4]): return TaskBroadcastReceiver(self.client, [ get_namespace_by_task_id(task_id) for task_id in task_ids ], self.address_name)
+
+
+class TaskManagerWeb(Worker):
+  def __init__(self, node_link: Link, switch: Switch | None = None, address_name: str = AddressNames.TASK_MANAGER_WEB, task_manager_address_name: str = AddressNames.TASK_MANAGER):
+    super().__init__(node_link, switch)
+    self.task_manager_address_name = task_manager_address_name
+    self.address_name = address_name
+    self.task_host_asgi_handlers: dict[str, ASGIHandler] = {}
+    self.task_asgi_handlers: dict[UUID4, ASGIHandler] = {}
+    self.client: Client
+    self.tm_client: TaskManagerClient
+  
+  async def run(self):
+    try:
+      await self.setup()
+      self.client = await self.create_client()
+      self.client.start()
+      await self.client.request_address()
+      await register_address_name(self.client, self.address_name)
+      self.tm_client = TaskManagerClient(self.client, self.task_manager_address_name)
+      await asyncio.gather(self.run_asgi_server())
+    finally:
+      await self.shutdown()
+      
+  async def run_asgi_server(self):
+    app = ASGIServer()
+    router = ASGIRouter()
+    app.add_handler(router)
+    
+    @router.get("/api/task-hosts")
+    @http_context_handler
+    async def _(ctx: HTTPContext): await ctx.respond_json(TaskHostRegistrationList.dump_python(await self.tm_client.list_task_hosts()))
+    
+    @router.post("/api/task/start")
+    @http_context_handler
+    async def _(ctx: HTTPContext):
+      req = TMTaskStartRequest(**(await ctx.receive_json()))
+      task_instance = await self.tm_client.start_task(req.host_id, req.config)
+      await ctx.respond_json(task_instance.model_dump())
+    
+    @router.post("/api/task/stop/{id}")
+    @http_context_handler
+    async def _(ctx: HTTPContext):
+      id = UUID4(ctx.params.get("id", ""))
+      task_instance = await self.tm_client.cancel_task_wait(id)
+      await ctx.respond_json(task_instance.model_dump())
+    
+    @router.post("/api/task/cancel/{id}")
+    @http_context_handler
+    async def _(ctx: HTTPContext):
+      id = UUID4(ctx.params.get("id", ""))
+      await self.tm_client.cancel_task(id)
+      await ctx.respond_status(200)
+
+    @router.websocket_route("/rtopic/{id}")
+    @websocket_context_handler
+    async def _(ctx: WebsocketContext):
+      id = ctx.params.get("id", "")
+      
+      await ctx.accept()
+      try: id = int(id)
+      except ValueError: return await ctx.close(reason="invalid id")
+      
+      async with self.client.in_topic(id) as topic:
+        data = await topic.recv_data()
+        # serialize data and send, close if ctx is closed
+        
+      await ctx.close()
+    
+    # TODO: lifecycle api support
+    @router.transport_route("/task/{id}/{path*}")
+    @path_rewrite_handler("/{path*}")
+    @transport_context_handler
+    async def _(ctx: TransportContext):
+      id: UUID4 = UUID4(ctx.params.get("id", ""))
+      await ctx.delegate(await self.get_task_asgi_handler(id))
+
+    # TODO: lifecycle api support
+    @router.transport_route("/task-host/{id}/{path*}")
+    @path_rewrite_handler("/{path*}")
+    @transport_context_handler
+    async def _(ctx: TransportContext):
+      id = ctx.params.get("id", "")
+      await ctx.delegate(await self.get_task_host_asgi_handler(id))
+    
+    runner = ASGIAppRunner(self.client, app)
+    await runner.run()
+    
+  async def get_task_host_asgi_handler(self, id: str) -> ASGIHandler:
+    if (router := self.task_host_asgi_handlers.get(id, None)) is None:
+      reg: TaskHostRegistration = await self.tm_client.get_task_host(id)
+      self.task_host_asgi_handlers[id] = router = self._metadata_to_router(reg.metadata)
+    return router
+
+  async def get_task_asgi_handler(self, id: UUID4) -> ASGIHandler:
+    if (router := self.task_asgi_handlers.get(id, None)) is None:
+      reg: TaskInstance = await self.tm_client.get_task_host(id)
+      self.task_asgi_handlers[id] = router = self._metadata_to_router(reg.metadata)
+    return router
+  
+  def _metadata_to_router(self, metadata: MetadataDict) -> ASGIHandler:
+    router = ASGIRouter()
+    for (path, content) in ((k[5:], v) for k, v in metadata.items() if isinstance(v, str) and k.lower().startswith("file:")):
+      guessed_mime_type = mimetypes.guess_type(path)[0]
+      if content.startswith("data:"):
+        # TODO: better validation
+        data, mime_type, charset = decode_data_uri(content, (guessed_mime_type,)*2)
+        router.add_http_route(static_content_handler(data, mime_type, charset), path, { "get" })
+      else:
+        router.add_http_route(static_content_handler(content.encode("utf-8"), guessed_mime_type or "text/plain"), path, { "get" })
+    if MetadataFields.ASGISERVER in metadata:
+      router.add_handler(ASGIProxyApp(self.client, str_to_endpoint(metadata[MetadataFields.ASGISERVER])))
+    return router

@@ -144,7 +144,7 @@ class ASGIAppRunner:
     self._init_receiver = FetchRequestReceiver(client, ASGI_CONSTANTS.INIT_DESCRIPTOR, self._address, self._port)
     self._connection_tasks = AsyncTaskManager()
 
-  async def run(self): # TODO: use fetch server
+  async def run(self):
     try:
       async with self._init_receiver:
         while True:
@@ -257,6 +257,7 @@ class HTTPServerOverASGI(Worker):
       app = ASGIProxyApp(client, self.asgi_endpoint)
       server_config = uvicorn.Config(app, host=self.http_endpoint[0], port=self.http_endpoint[1], **self.http_config)
       server = uvicorn.Server(server_config)
+      logging.info(f"Serving [{self.asgi_endpoint[0]}, {self.asgi_endpoint[1]}] on http://{self.http_endpoint[0]}:{self.http_endpoint[1]}/")
       await server.serve()
     finally:
       await self.shutdown()
