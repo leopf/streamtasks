@@ -2,7 +2,7 @@ from enum import Enum
 import hashlib
 import mimetypes
 from typing import Any, Iterable, Optional
-from uuid import uuid4
+from uuid import UUID, uuid4
 from pydantic import UUID4, BaseModel, TypeAdapter, ValidationError, field_serializer
 from abc import ABC, abstractmethod
 from streamtasks.asgi import ASGIAppRunner, ASGIProxyApp
@@ -379,50 +379,50 @@ class TaskManagerWeb(Worker):
     
     @router.get("/api/task-hosts")
     @http_context_handler
-    async def _(ctx: HTTPContext): await ctx.respond_json(TaskHostRegistrationList.dump_python(await self.tm_client.list_task_hosts()))
+    async def _(ctx: HTTPContext): await ctx.respond_json_raw(TaskHostRegistrationList.dump_json(await self.tm_client.list_task_hosts()).decode("utf-8"))
     
     @router.post("/api/task/start")
     @http_context_handler
     async def _(ctx: HTTPContext):
       req = TMTaskStartRequest(**(await ctx.receive_json()))
       task_instance = await self.tm_client.start_task(req.host_id, req.config)
-      await ctx.respond_json(task_instance.model_dump())
+      await ctx.respond_json_raw(task_instance.model_dump_json())
     
     @router.post("/api/task/stop/{id}")
     @http_context_handler
     async def _(ctx: HTTPContext):
-      id = UUID4(ctx.params.get("id", ""))
+      id = UUID(ctx.params.get("id", ""))
       task_instance = await self.tm_client.cancel_task_wait(id)
-      await ctx.respond_json(task_instance.model_dump())
+      await ctx.respond_json_raw(task_instance.model_dump_json())
     
     @router.post("/api/task/cancel/{id}")
     @http_context_handler
     async def _(ctx: HTTPContext):
-      id = UUID4(ctx.params.get("id", ""))
+      id = UUID(ctx.params.get("id", ""))
       await self.tm_client.cancel_task(id)
       await ctx.respond_status(200)
 
-    @router.websocket_route("/rtopic/{id}")
-    @websocket_context_handler
-    async def _(ctx: WebsocketContext):
-      id = ctx.params.get("id", "")
+    # @router.websocket_route("/rtopic/{id}")
+    # @websocket_context_handler
+    # async def _(ctx: WebsocketContext):
+    #   id = ctx.params.get("id", "")
       
-      await ctx.accept()
-      try: id = int(id)
-      except ValueError: return await ctx.close(reason="invalid id")
+    #   await ctx.accept()
+    #   try: id = int(id)
+    #   except ValueError: return await ctx.close(reason="invalid id")
       
-      async with self.client.in_topic(id) as topic:
-        data = await topic.recv_data()
-        # serialize data and send, close if ctx is closed
+    #   async with self.client.in_topic(id) as topic:
+    #     data = await topic.recv_data()
+    #     # serialize data and send, close if ctx is closed
         
-      await ctx.close()
+    #   await ctx.close()
     
     # TODO: lifecycle api support
     @router.transport_route("/task/{id}/{path*}")
     @path_rewrite_handler("/{path*}")
     @transport_context_handler
     async def _(ctx: TransportContext):
-      id: UUID4 = UUID4(ctx.params.get("id", ""))
+      id: UUID4 = UUID(ctx.params.get("id", ""))
       await ctx.delegate(await self.get_task_asgi_handler(id))
 
     # TODO: lifecycle api support
@@ -444,7 +444,7 @@ class TaskManagerWeb(Worker):
 
   async def get_task_asgi_handler(self, id: UUID4) -> ASGIHandler:
     if (router := self.task_asgi_handlers.get(id, None)) is None:
-      reg: TaskInstance = await self.tm_client.get_task_host(id)
+      reg: TaskInstance = await self.tm_client.get_task(id)
       self.task_asgi_handlers[id] = router = self._metadata_to_router(reg.metadata)
     return router
   

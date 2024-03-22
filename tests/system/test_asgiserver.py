@@ -1,9 +1,10 @@
+import base64
 import json
 import pathlib
 import tempfile
 import unittest
 import httpx
-from streamtasks.asgiserver import ASGIRouter, ASGIServer, HTTPContext, http_context_handler, path_rewrite_handler, static_files_handler
+from streamtasks.asgiserver import ASGIRouter, ASGIServer, HTTPContext, decode_data_uri, http_context_handler, path_rewrite_handler, static_content_handler, static_files_handler
 from pydantic import BaseModel
 
 class TestModel(BaseModel):
@@ -105,11 +106,21 @@ class TestASGIServer(unittest.IsolatedAsyncioTestCase):
       
       index_res = await self.client.get("/")
       self.assertEqual(index_res.text, "Test1")
-      self.assertTrue(index_res.headers.get("content-type", ""), "text/plain")
+      self.assertTrue(index_res.headers.get("content-type", "").startswith("text/plain"))
       
       index_res = await self.client.get("/test.html")
       self.assertEqual(index_res.text, "<h1>Yo</h1>")
-      self.assertTrue(index_res.headers.get("content-type", ""), "text/html")
+      self.assertTrue(index_res.headers.get("content-type", "").startswith("text/html"))
 
+  async def test_static_content(self):
+    data, mime_type, charset = decode_data_uri("data:text/plain;charset=UTF-8;base64," + base64.b64encode(b"Hello World").decode("ascii"))
+    
+    self.server.add_handler(static_content_handler(data, mime_type, charset))
+    res = await self.client.get("/")
+    self.assertTrue(res.headers.get("content-type", "").startswith("text/plain"))
+    self.assertIn("utf-8", res.headers.get("content-type", ""))
+    self.assertEqual(res.text, "Hello World")
+
+    
 if __name__ == '__main__':
   unittest.main()

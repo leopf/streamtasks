@@ -1,9 +1,12 @@
 from typing import Any
 import unittest
+
+import httpx
+from streamtasks.asgi import ASGIProxyApp
 from streamtasks.client.discovery import wait_for_topic_signal
 from streamtasks.net import Link, Switch, create_queue_connection
 from streamtasks.services.protocols import AddressNames, WorkerTopics
-from streamtasks.system.task import Task, TaskHost, TaskManager, TaskManagerClient, TaskStatus
+from streamtasks.system.task import ModelWithId, TMTaskStartRequest, Task, TaskHost, TaskHostRegistrationList, TaskInstance, TaskManager, TaskManagerClient, TaskManagerWeb, TaskStatus
 from streamtasks.client import Client
 from streamtasks.services.discovery import DiscoveryWorker
 import asyncio
@@ -13,6 +16,7 @@ class DemoTask(Task):
   def __init__(self, client: Client, stop_event: asyncio.Event): 
     super().__init__(client)
     self.stop_event = stop_event
+  async def setup(self) -> dict[str, Any]: return { "file:/task-name.txt": "DemoTask" }
   async def run(self): await self.stop_event.wait()
 
 class DemoTaskHost(TaskHost):
@@ -20,16 +24,17 @@ class DemoTaskHost(TaskHost):
     super().__init__(node_link, switch)
     self.stop_event = asyncio.Event()
   @property
-  def metadata(self): return { "name": "demo" }
+  def metadata(self): return { "name": "demo", "file:/task-host-name.txt": "DemoTaskHost" }
   async def create_task(self, config: Any) -> Task: return DemoTask(await self.create_client(), self.stop_event)
 
 class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
   async def asyncSetUp(self):
     self.tasks: list[asyncio.Task] = []
     self.switch = Switch()
-    self.discovery_worker = DiscoveryWorker(await self.create_link())
-    self.task_manager = TaskManager(await self.create_link())
-    self.demo_task_host = DemoTaskHost(await self.create_link())
+    self.discovery_worker = DiscoveryWorker(await self.switch.add_local_connection())
+    self.task_manager = TaskManager(await self.switch.add_local_connection())
+    self.task_manager_web = TaskManagerWeb(await self.switch.add_local_connection())
+    self.demo_task_host = DemoTaskHost(await self.switch.add_local_connection())
     self.client = await self.create_client()
     self.client.start()
     self.tm_client = TaskManagerClient(self.client)
@@ -38,8 +43,10 @@ class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
     await wait_for_topic_signal(self.client, WorkerTopics.DISCOVERY_SIGNAL)
     
     self.tasks.append(asyncio.create_task(self.task_manager.run()))
+    self.tasks.append(asyncio.create_task(self.task_manager_web.run()))
     self.tasks.append(asyncio.create_task(self.demo_task_host.run()))
     await self.client.request_address()
+    self.web_client = httpx.AsyncClient(transport=httpx.ASGITransport(app=ASGIProxyApp(self.client, AddressNames.TASK_MANAGER_WEB)), base_url="http://testserver")
     await self.demo_task_host.ready.wait()
 
   async def asyncTearDown(self):
@@ -50,13 +57,8 @@ class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
       except asyncio.CancelledError: pass
       except: raise
 
-  async def create_link(self):
-    conn = create_queue_connection()
-    await self.switch.add_link(conn[0])
-    return conn[1]
-  
   async def create_client(self):
-    client = Client(await self.create_link())
+    client = Client(await self.switch.add_local_connection())
     client.start()
     return client
 
@@ -100,6 +102,24 @@ class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
       self.assertIs(updated_task.status, TaskStatus.ended)
       self.assertIsNone(updated_task.error)
       self.assertEqual(updated_task.id, task.id)
+      
+  async def test_web_api(self):
+    reg = await self.demo_task_host.register(AddressNames.TASK_MANAGER)
+    task_start_res = await self.web_client.post("/api/task/start", content=TMTaskStartRequest(host_id=reg.id, config=None).model_dump_json(), headers={ "content-type": "application/json" })
+    task = TaskInstance.model_validate_json(task_start_res.text)
+
+    registered_task_hosts = TaskHostRegistrationList.validate_json((await self.web_client.get("/api/task-hosts")).text)
+    self.assertEqual(len(registered_task_hosts), 1)
+    self.assertEqual(registered_task_hosts[0].id, reg.id)
+    
+    self.assertEqual((await self.web_client.get(f"/task-host/{reg.id}/task-host-name.txt")).text, "DemoTaskHost")
+    self.assertEqual((await self.web_client.get(f"/task/{task.id}/task-name.txt")).text, "DemoTask")
+    
+    task_stop_res = await self.web_client.post(f"/api/task/stop/{task.id}")
+    stopped_task = TaskInstance.model_validate_json(task_stop_res.text)
+    
+    self.assertEqual(stopped_task.id, task.id)
+    self.assertEqual(stopped_task.status, TaskStatus.stopped)
 
 if __name__ == '__main__':
   unittest.main()
