@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 from pydantic import UUID4, BaseModel, TypeAdapter, ValidationError, field_serializer
 from abc import ABC, abstractmethod
 from streamtasks.asgi import ASGIAppRunner, ASGIProxyApp
-from streamtasks.asgiserver import ASGIHandler, ASGIRouter, ASGIServer, HTTPContext, TransportContext, WebsocketContext, decode_data_uri, http_context_handler, path_rewrite_handler, static_content_handler, transport_context_handler, websocket_context_handler
+from streamtasks.asgiserver import ASGIHandler, ASGIRouter, ASGIServer, HTTPContext, TransportContext, decode_data_uri, http_context_handler, path_rewrite_handler, static_content_handler, transport_context_handler
 from streamtasks.client import Client
 import asyncio
 from streamtasks.client.broadcast import BroadcastReceiver, BroadcastingServer

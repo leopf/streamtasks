@@ -1,12 +1,11 @@
 from typing import Any
 import unittest
-
 import httpx
 from streamtasks.asgi import ASGIProxyApp
 from streamtasks.client.discovery import wait_for_topic_signal
-from streamtasks.net import Link, Switch, create_queue_connection
+from streamtasks.net import Link, Switch
 from streamtasks.services.protocols import AddressNames, WorkerTopics
-from streamtasks.system.task import ModelWithId, TMTaskStartRequest, Task, TaskHost, TaskHostRegistrationList, TaskInstance, TaskManager, TaskManagerClient, TaskManagerWeb, TaskStatus
+from streamtasks.system.task import TMTaskStartRequest, Task, TaskHost, TaskHostRegistrationList, TaskInstance, TaskManager, TaskManagerClient, TaskManagerWeb, TaskStatus
 from streamtasks.client import Client
 from streamtasks.services.discovery import DiscoveryWorker
 import asyncio
