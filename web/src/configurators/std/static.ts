@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { Metadata, TaskConfigurator, TaskConfiguratorContext, TaskInstance, TaskOutput } from "../../types/task";
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4 } from "uuid";
 import { MetadataModel, TaskInputModel, TaskOutputModel } from "../../model/task";
 
 export const TaskPartialInputModel = MetadataModel.and(z.object({

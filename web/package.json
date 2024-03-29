@@ -4,14 +4,36 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "mgulp": "NODE_OPTIONS=\"--no-warnings --loader ts-node/esm\" gulp"
   },
   "keywords": [],
   "author": "",
+  "type": "module",
   "license": "ISC",
   "dependencies": {
-    "esbuild": "^0.20.2",
+    "@types/react": "^18.2.73",
+    "@types/react-dom": "^18.2.23",
+    "http-server": "^14.1.1",
+    "lru-cache": "^10.2.0",
+    "object-hash": "^3.0.0",
+    "pixi-viewport": "^5.0.2",
+    "pixi.js": "^7",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "uuid": "^9.0.1",
     "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/gulp": "^4.0.17",
+    "@types/node": "^20.11.30",
+    "@types/object-hash": "^3.0.6",
+    "@types/uuid": "^9.0.8",
+    "esbuild": "^0.20.2",
+    "fs-extra": "^11.2.0",
+    "glob": "^10.3.12",
+    "gulp": "^5.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.3"
   }
 }
