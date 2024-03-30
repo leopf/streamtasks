@@ -120,7 +120,7 @@ export class NodeRenderer {
         this._relConnectorPositions.clear();
         this.updatePosition(this.position);
 
-        const nodeLabel = new PIXI.Text(this.node.name, this.nodeLabelTextStyle);
+        const nodeLabel = new PIXI.Text(this.node.label, this.nodeLabelTextStyle);
         nodeLabel.resolution = 2;
         const streamsTopOffset = paddingVertical * 2 + nodeLabel.height;
 

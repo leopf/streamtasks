@@ -1,5 +1,5 @@
 import { StoredTaskInstance, TaskInstanceFrontendConfig } from "../types/task-frontend.ts";
-import { TaskConfigurator, TaskConfiguratorContext, TaskHost, TaskInstance, TaskOutput } from "../types/task.ts"
+import { Metadata, TaskConfigurator, TaskConfiguratorContext, TaskHost, TaskIO, TaskInput, TaskInstance, TaskOutput } from "../types/task.ts"
 
 const defaultRemapTopicIds = (taskInstance: TaskInstance, idMap: Map<number, number>, context: TaskConfiguratorContext) => {
     taskInstance.inputs.forEach(i => i.topic_id = i.topic_id ? idMap.get(i.topic_id) : undefined);
@@ -7,18 +7,60 @@ const defaultRemapTopicIds = (taskInstance: TaskInstance, idMap: Map<number, num
     return taskInstance;
 };
 
-export const ignoreIOFieldsInEquality = [ "label" ];
+export function extractTaskIO(taskInstance: TaskInstance): TaskIO {
+    return {
+        inputs: taskInstance.inputs.map(input => ({ ...input })),
+        outputs: taskInstance.outputs.map(output => ({ ...output }))
+    }
+}
+
+
+export function compareMetadata(a: Metadata, b: Metadata, ignoreFields: Set<keyof TaskInput>) {
+    for (const metadataKey of new Set([...Object.keys(a), ...Object.keys(b)].filter(k => !ignoreFields.has(k)))) {
+        if (a[metadataKey] !== b[metadataKey]) {
+            throw new Error(`Metadata mismatch on field "${metadataKey}".`);
+        }
+    }
+}
+
+export function compareTaskIO(params:type) {
+    
+}
+
+export const ignoreIOFieldsInEquality = ["label"];
+
+export enum TaskConnectResult {
+    success,
+    successWithUpdate,
+    failed,
+}
 
 export class ManagedTaskInstance {
     private taskInstance: TaskInstance;
     private configurator: TaskConfigurator;
     private configuratorContext: TaskConfiguratorContext;
-    
+
     private renderedEditorContainers: Set<HTMLElement> = new Set();
     private onTaskInstanceUpdatedListener = this.onTaskInstanceUpdated.bind(this);
 
-    private _frontendConfig : TaskInstanceFrontendConfig = {};
-    public get frontendConfig() : TaskInstanceFrontendConfig {
+    public get id() {
+        return this.taskInstance.id;
+    }
+
+    public get label() {
+        return this.taskInstance.label;
+    }
+
+    public get inputs() {
+        return this.taskInstance.inputs;
+    }
+
+    public get outputs() {
+        return this.taskInstance.outputs;
+    }
+
+    private _frontendConfig: TaskInstanceFrontendConfig = {};
+    public get frontendConfig(): TaskInstanceFrontendConfig {
         return this._frontendConfig;
     }
 
@@ -33,10 +75,11 @@ export class ManagedTaskInstance {
         return this.configurator.renderEditor;
     }
 
-    constructor(taskInstance: TaskInstance, configurator: TaskConfigurator, configuratorContext: TaskConfiguratorContext) {
-        this.taskInstance = taskInstance
-        this.configurator = configurator
-        this.configuratorContext = configuratorContext;    
+    constructor(taskInstance: TaskInstance & { frontendConfig?: TaskInstanceFrontendConfig }, configurator: TaskConfigurator, configuratorContext: TaskConfiguratorContext) {
+        this.taskInstance = taskInstance;
+        this._frontendConfig = taskInstance.frontendConfig ?? {};
+        this.configurator = configurator;
+        this.configuratorContext = configuratorContext;
     }
 
     public async getStartConfig() {
@@ -47,8 +90,10 @@ export class ManagedTaskInstance {
         this.taskInstance = await (this.configurator.remapTopicIds ?? defaultRemapTopicIds).call(null, this.taskInstance, idMap, this.configuratorContext);
     }
 
-    public async connect(key: string, output: TaskOutput) {
+    public async connect(key: string, output?: TaskOutput): Promise<TaskConnectResult> {
+
         this.taskInstance = await this.configurator.connect(this.taskInstance, key, output, this.configuratorContext);
+        return TaskConnectResult.success;
     }
 
     public renderEditor(element: HTMLElement) {
@@ -84,12 +129,7 @@ export class TaskManager {
     private configurators: Map<string, TaskConfigurator> = new Map();
     private idCounter: number = 1;
 
-    // NOTE: do we want this???
-    public async createTaskInstance(taskHost: TaskHost) {
-        const configurator = await this.getConfigurator(taskHost);
-        return await configurator.create(this.createContext(taskHost));
-    }
-    public async createManagedTaskInstance(taskHost:TaskHost) {
+    public async createManagedTaskInstance(taskHost: TaskHost) {
         const configurator = await this.getConfigurator(taskHost);
         const context = this.createContext(taskHost);
         const inst = await configurator.create(context);

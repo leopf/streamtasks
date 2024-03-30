@@ -7,7 +7,7 @@ window.React = React;
 
 class DemoNode implements Node {
     public id: string = String(Math.random());
-    public name: string = "Test";
+    public label: string = "Test";
     public position: { x: number; y: number; } = { x: 200 + 100 * Math.random(), y: 200 + 100 * Math.random() };
     public outputs: OutputConnection[] = [Math.floor(Math.random() * 1000000), Math.floor(Math.random() * 1000000)].map((id, idx) => ({ id, streamId: id, label: `out ${idx + 1}` }));
     public inputs: InputConnection[] = [String(Math.random() * 1000000), String(Math.random() * 1000000)].map((id, idx) => ({ id, key: id, label: `in ${idx + 1}` }));
