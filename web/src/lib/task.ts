@@ -15,7 +15,7 @@ export class ManagedTaskInstance {
     private renderedEditorContainers: Set<HTMLElement> = new Set();
     private onTaskInstanceUpdatedListener = this.onTaskInstanceUpdated.bind(this);
 
-    private _frontendConfig : TaskInstanceFrontendConfig;
+    private _frontendConfig : TaskInstanceFrontendConfig = {};
     public get frontendConfig() : TaskInstanceFrontendConfig {
         return this._frontendConfig;
     }

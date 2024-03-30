@@ -4,11 +4,12 @@
     "lib": ["DOM", "ESNext", "ES2015"],
     "moduleResolution": "Node",
     "jsx": "preserve",
-    "module": "ES6",
+    "module": "ESNext",
     "noEmit": true,
     "isolatedModules": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
+    "allowImportingTsExtensions": true,
     "strict": true,
   }
 }

@@ -8,18 +8,14 @@ export interface InputConnection extends Connection {
     linkedStreamId?: string;
 }
 
-export interface ConnectionGroup {
-    outputs: Connection[];
-    inputs: InputConnection[];
-}
 export type ConnectResult = boolean | string;
 
 export interface Node {
-    getId: () => string;
-    getName: () => string;
-    setPosition: (x: number, y: number) => void;
-    getPosition: () => { x: number, y: number };
-    getConnectionGroups: () => ConnectionGroup[];
+    id: string;
+    name: string;
+    position: { x: number, y: number };
+    outputs: Connection[];
+    inputs: InputConnection[];
     connect: (inputId: string, outputConnection?: Connection) => Promise<ConnectResult>;
     onUpdated?: (cb: () => void) => void;
 }

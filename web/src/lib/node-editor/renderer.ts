@@ -42,7 +42,7 @@ export class NodeRenderer {
     });
 
     public get id() {
-        return this.node.getId();
+        return this.node.id;
     }
     public get container() {
         return this.group;
@@ -69,14 +69,14 @@ export class NodeRenderer {
     }
 
     public get inputs() {
-        return this.node.getConnectionGroups().map(cg => cg.inputs).reduce((a, b) => a.concat(b), []);
+        return this.node.inputs;
     }
     public get outputs() {
-        return this.node.getConnectionGroups().map(cg => cg.outputs).reduce((a, b) => a.concat(b), []);
+        return this.node.outputs;
     }
 
     public get position() {
-        return this.node.getPosition();
+        return this.node.position;
     }
 
     constructor(node: Node, editor?: NodeEditorRenderer) {
@@ -101,7 +101,7 @@ export class NodeRenderer {
     }
 
     public updatePosition(pos: Point) {
-        this.node.setPosition(pos.x, pos.y);
+        this.node.position = { x: pos.x, y: pos.y };
         this.group.position.set(pos.x, pos.y);
         this.connectorPositionsOutdated = true;
     }
@@ -120,18 +120,17 @@ export class NodeRenderer {
         this._relConnectorPositions.clear();
         this.updatePosition(this.position);
 
-        const nodeLabel = new PIXI.Text(this.node.getName(), this.nodeLabelTextStyle);
+        const nodeLabel = new PIXI.Text(this.node.name, this.nodeLabelTextStyle);
         nodeLabel.resolution = 2;
         const streamsTopOffset = paddingVertical * 2 + nodeLabel.height;
 
 
         // rect width and height
-        const streamGroups = this.node.getConnectionGroups();
-        const ioHeight = streamGroups.map(sg => Math.max(sg.inputs.length, sg.outputs.length)).reduce((a, b) => a + b, 0);
+        const ioHeight = Math.max(this.node.inputs.length, this.node.outputs.length)
         const rectHeight = ioHeight * streamHeight + streamsBottomOffset + streamsTopOffset;
 
-        const inputLabelMaxSize = this.measureStreamLabelSizes(streamGroups.map(sg => sg.inputs).reduce((a, b) => a.concat(b), []));
-        const outputLabelMaxSize = this.measureStreamLabelSizes(streamGroups.map(sg => sg.outputs).reduce((a, b) => a.concat(b), []));
+        const inputLabelMaxSize = this.measureStreamLabelSizes(this.node.inputs);
+        const outputLabelMaxSize = this.measureStreamLabelSizes(this.node.outputs);
 
         const rectWidth = Math.max(
             inputLabelMaxSize.width + outputLabelMaxSize.width + minLabelSpace + labelEdgeOffset * 2,
@@ -150,43 +149,40 @@ export class NodeRenderer {
         this.group.addChild(containerRect);
         this.group.addChild(nodeLabel);
 
-        // draw streams
-        let heightIndex = 0;
-        for (const streamGroup of streamGroups) {
-            for (let i = 0; i < streamGroup.inputs.length; i++) {
-                const stream = streamGroup.inputs[i];
-                const yOffsetCenter = (heightIndex + i + 0.5) * streamHeight + streamsTopOffset;
 
-                // draw a circle on the edge of the rect
-                const circle = this.createConnectionCircle(stream);
-                circle.position.set(xOffset, yOffsetCenter);
-                this._relConnectorPositions.set(stream.refId, circle.position);
+        for (let i = 0; i < this.node.inputs.length; i++) {
+            const input = this.node.inputs[i];
+            const yOffsetCenter = (i + 0.5) * streamHeight + streamsTopOffset;
 
-                // draw the stream label
-                const label = new PIXI.Text(stream.label, this.connectionLabelTextStyle);
-                label.position.set(xOffset + labelEdgeOffset, yOffsetCenter - label.height / 2);
-                label.resolution = 2;
+            // draw a circle on the edge of the rect
+            const circle = this.createConnectionCircle(input);
+            circle.position.set(xOffset, yOffsetCenter);
+            this._relConnectorPositions.set(input.refId, circle.position);
 
-                this.group.addChild(circle);
-                this.group.addChild(label);
-            }
-            for (let i = 0; i < streamGroup.outputs.length; i++) {
-                const stream = streamGroup.outputs[i];
-                const yOffsetCenter = (heightIndex + i + 0.5) * streamHeight + streamsTopOffset;
+            // draw the stream label
+            const label = new PIXI.Text(input.label, this.connectionLabelTextStyle);
+            label.position.set(xOffset + labelEdgeOffset, yOffsetCenter - label.height / 2);
+            label.resolution = 2;
 
-                const circle = this.createConnectionCircle(stream);
-                circle.position.set(xOffset + rectWidth, yOffsetCenter);
-                this._relConnectorPositions.set(stream.refId, circle.position);
+            this.group.addChild(circle);
+            this.group.addChild(label);
+        }
 
-                // draw the stream label
-                const label = new PIXI.Text(stream.label, this.connectionLabelTextStyle);
-                label.position.set(xOffset + rectWidth - labelEdgeOffset - label.width, yOffsetCenter - label.height / 2);
-                label.resolution = 2;
+        for (let i = 0; i < this.node.outputs.length; i++) {
+            const stream = this.node.outputs[i];
+            const yOffsetCenter = (i + 0.5) * streamHeight + streamsTopOffset;
 
-                this.group.addChild(circle);
-                this.group.addChild(label);
-            }
-            heightIndex += Math.max(streamGroup.inputs.length, streamGroup.outputs.length);
+            const circle = this.createConnectionCircle(stream);
+            circle.position.set(xOffset + rectWidth, yOffsetCenter);
+            this._relConnectorPositions.set(stream.refId, circle.position);
+
+            // draw the stream label
+            const label = new PIXI.Text(stream.label, this.connectionLabelTextStyle);
+            label.position.set(xOffset + rectWidth - labelEdgeOffset - label.width, yOffsetCenter - label.height / 2);
+            label.resolution = 2;
+
+            this.group.addChild(circle);
+            this.group.addChild(label);
         }
     }
 
@@ -570,11 +566,11 @@ export class NodeEditorRenderer {
     }
 
     public async addNode(node: Node, center: boolean = false) {
-        if (this.nodeRenderers.has(node.getId())) throw new Error(`Node with id ${node.getId()} already exists`);
+        if (this.nodeRenderers.has(node.id)) throw new Error(`Node with id ${node.id} already exists`);
 
         const nodeRenderer = new NodeRenderer(node, this);
 
-        this.nodeRenderers.set(node.getId(), nodeRenderer);
+        this.nodeRenderers.set(node.id, nodeRenderer);
         const links = [
             ...this.createLinksFromInputConnections(nodeRenderer.id, nodeRenderer.inputs),
             ...this.createLinksFromOutputConnections(nodeRenderer.id, nodeRenderer.outputs)
@@ -585,7 +581,7 @@ export class NodeEditorRenderer {
             }
         }
 
-        this.renderNode(node.getId());
+        this.renderNode(node.id);
 
         if (center) {
             const xOffset = nodeRenderer.container.width / 2;
@@ -594,7 +590,7 @@ export class NodeEditorRenderer {
                 x: this.viewport.center.x - xOffset,
                 y: this.viewport.center.y - yOffset
             });
-            this.renderNode(node.getId());
+            this.renderNode(node.id);
         }
     }
     public deleteNode(id: string) {
