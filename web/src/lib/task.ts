@@ -7,6 +7,8 @@ const defaultRemapTopicIds = (taskInstance: TaskInstance, idMap: Map<number, num
     return taskInstance;
 };
 
+export const ignoreIOFieldsInEquality = [ "label" ];
+
 export class ManagedTaskInstance {
     private taskInstance: TaskInstance;
     private configurator: TaskConfigurator;

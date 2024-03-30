@@ -2,7 +2,7 @@ import * as PIXI from 'pixi.js';
 import objectHash from "object-hash";
 import { Viewport } from 'pixi-viewport';
 import { LRUCache } from 'lru-cache';
-import { Connection, Node, ConnectResult, InputConnection, NodeDisplayOptions, NodeRenderOptions } from "./types";
+import { Connection, Node, ConnectResult, InputConnection, NodeDisplayOptions, NodeRenderOptions, OutputConnection } from "./types";
 import { createNodeDisplayHash } from './utils';
 import { Point } from '../../types/basic';
 
@@ -24,8 +24,8 @@ export class NodeRenderer {
     private node: Node;
     private editor?: NodeEditorRenderer;
 
-    private _relConnectorPositions = new Map<string, Point>();
-    private _absuluteConnectorPositions = new Map<string, Point>();
+    private _relConnectorPositions = new Map<string | number, Point>();
+    private _absuluteConnectorPositions = new Map<string | number, Point>();
     private connectorPositionsOutdated = true;
 
     private connectionLabelTextStyle = new PIXI.TextStyle({
@@ -96,8 +96,8 @@ export class NodeRenderer {
         this.editor?.viewport.addChild(this.group);
     }
 
-    public async connect(inputConnectionId: string, outputConnection?: Connection) {
-        return await this.node.connect(inputConnectionId, outputConnection);
+    public async connect(key: string, output?: OutputConnection) {
+        return await this.node.connect(key, output);
     }
 
     public updatePosition(pos: Point) {
@@ -151,16 +151,16 @@ export class NodeRenderer {
 
 
         for (let i = 0; i < this.node.inputs.length; i++) {
-            const input = this.node.inputs[i];
+            const connection = this.node.inputs[i];
             const yOffsetCenter = (i + 0.5) * streamHeight + streamsTopOffset;
 
             // draw a circle on the edge of the rect
-            const circle = this.createConnectionCircle(input);
+            const circle = this.createConnectionCircle(connection);
             circle.position.set(xOffset, yOffsetCenter);
-            this._relConnectorPositions.set(input.refId, circle.position);
+            this._relConnectorPositions.set(connection.id, circle.position);
 
             // draw the stream label
-            const label = new PIXI.Text(input.label, this.connectionLabelTextStyle);
+            const label = new PIXI.Text(connection.label, this.connectionLabelTextStyle);
             label.position.set(xOffset + labelEdgeOffset, yOffsetCenter - label.height / 2);
             label.resolution = 2;
 
@@ -169,15 +169,15 @@ export class NodeRenderer {
         }
 
         for (let i = 0; i < this.node.outputs.length; i++) {
-            const stream = this.node.outputs[i];
+            const connection = this.node.outputs[i];
             const yOffsetCenter = (i + 0.5) * streamHeight + streamsTopOffset;
 
-            const circle = this.createConnectionCircle(stream);
+            const circle = this.createConnectionCircle(connection);
             circle.position.set(xOffset + rectWidth, yOffsetCenter);
-            this._relConnectorPositions.set(stream.refId, circle.position);
+            this._relConnectorPositions.set(connection.id, circle.position);
 
             // draw the stream label
-            const label = new PIXI.Text(stream.label, this.connectionLabelTextStyle);
+            const label = new PIXI.Text(connection.label, this.connectionLabelTextStyle);
             label.position.set(xOffset + rectWidth - labelEdgeOffset - label.width, yOffsetCenter - label.height / 2);
             label.resolution = 2;
 
@@ -194,17 +194,17 @@ export class NodeRenderer {
         circle.endFill();
         circle.interactive = true;
 
-        circle.on('pointerdown', async () => await this.editor?.onSelectStartConnection(connection.refId));
-        circle.on('pointerup', async () => await this.editor?.onSelectEndConnection(this.id, connection.refId));
+        circle.on('pointerdown', async () => await this.editor?.onSelectStartConnection(connection.id));
+        circle.on('pointerup', async () => await this.editor?.onSelectEndConnection(this.id, connection.id));
 
         return circle;
     }
 
-    private measureStreamLabelSizes(streams: Connection[]) {
+    private measureStreamLabelSizes(streams: { label?: string }[]) {
         let maxWidth = 0;
         let maxHeight = 0;
         for (const stream of streams) {
-            const size = PIXI.TextMetrics.measureText(stream.label, this.connectionLabelTextStyle);
+            const size = PIXI.TextMetrics.measureText(stream.label || "", this.connectionLabelTextStyle);
             if (size.width > maxWidth) {
                 maxWidth = size.width;
             }
@@ -241,14 +241,14 @@ export class NodeRenderer {
         ]
 
 
-        return samples[parseInt(objectHash([11, stream.config]).slice(0, 6), 16) % samples.length];
+        return samples[0]// TODO: samples[parseInt(objectHash([11, stream.config]).slice(0, 6), 16) % samples.length];
     }
 }
 
 type ConnectionLink = {
-    inputId: string;
+    inputKey: string;
     inputNodeId: string;
-    outputId: string;
+    outputId: number;
     outputNodeId: string;
     rendered?: PIXI.Container
 };
@@ -271,7 +271,7 @@ class ConnectionLinkCollection {
     }
 
     private getKey(link: ConnectionLink) {
-        return objectHash([link.inputId, link.outputId])
+        return objectHash([link.inputKey, link.outputId])
     }
 }
 
@@ -462,7 +462,7 @@ export class NodeEditorRenderer {
     private pressActive = false;
     private selectedNodeId?: string;
 
-    private selectedConnectionId?: string;
+    private selectedConnectionId?: string | number;
     private keepEditingLinkLine = false;
     private editingLinkLine?: PIXI.Graphics;
 
@@ -487,11 +487,11 @@ export class NodeEditorRenderer {
         }
         return this.nodeRenderers.get(this.selectedNodeId);
     }
-    private get selectedConnectionIsInput() {
+    private get selectedInputConnection() {
         if (!this.selectedConnectionId) {
-            return false;
+            return undefined;
         }
-        return this.selectedNode?.inputs.find(c => c.refId === this.selectedConnectionId) !== undefined;
+        return this.selectedNode?.inputs.find(c => c.key === this.selectedConnectionId);
     }
     private get selectedConnectionPosition() {
         if (!this.selectedConnectionId) {
@@ -613,18 +613,19 @@ export class NodeEditorRenderer {
         this.links = new ConnectionLinkCollection();
     }
 
-    public async onSelectStartConnection(connectionId: string) {
+    public async onSelectStartConnection(connectionId: string | number) {
         this.selectedConnectionId = connectionId;
         if (this._readOnly) return;
 
-        if (this.selectedConnectionIsInput) {
-            if (await this.connectConnectionToInput(this.selectedNodeId!, connectionId)) {
-                this.removeLinks(this.links.values.filter(c => c.inputNodeId === this.selectedNodeId && c.inputId === connectionId));
+        const selectedInputConnection = this.selectedInputConnection;
+        if (selectedInputConnection) {
+            if (await this.connectConnectionToInput(this.selectedNodeId!, selectedInputConnection.key)) {
+                this.removeLinks(this.links.values.filter(c => c.inputNodeId === this.selectedNodeId && c.inputKey === connectionId));
                 this.emitUpdated(this.selectedNodeId!);
             }
         }
     }
-    public async onSelectEndConnection(nodeId: string, connectionId: string) {
+    public async onSelectEndConnection(nodeId: string, connectionId: string | number) {
         if (this._readOnly) return;
 
         const connection: ConnectionLink | undefined = this.createConnectionLink(this.selectedNodeId, this.selectedConnectionId, nodeId, connectionId);
@@ -635,7 +636,7 @@ export class NodeEditorRenderer {
             if (await this.connectLinkToInput(connection)) {
                 this.links.add(connection);
                 this.renderLink(connection);
-                this.renderInputLinks(connection.inputNodeId, connection.inputId);
+                this.renderUpdateInputLinks(connection.inputNodeId, connection.inputKey);
 
                 this.emitUpdated(connection.inputNodeId);
                 this.emitUpdated(connection.outputNodeId);
@@ -720,17 +721,17 @@ export class NodeEditorRenderer {
         this.app?.renderer.resize(this.container.clientWidth, this.container.clientHeight);
         this.viewport.resize(this.container.clientWidth, this.container.clientHeight, 1000, 1000);
     }
-    private createLinksFromOutputConnections(nodeId: string, outputConnections: Connection[]) {
-        const outputConnectionIdsSet = new Set(outputConnections.map(c => c.refId));
+    private createLinksFromOutputConnections(nodeId: string, outputConnections: OutputConnection[]) {
+        const outputConnectionIdsSet = new Set(outputConnections.map(c => c.streamId));
 
         const newLinks: ConnectionLink[] = [];
         for (const nodeRenderer of this.nodeRenderers.values()) {
             for (const input of nodeRenderer.inputs) {
-                if (input.linkedStreamId && outputConnectionIdsSet.has(input.linkedStreamId)) {
+                if (input.streamId && outputConnectionIdsSet.has(input.streamId)) {
                     newLinks.push({
-                        inputId: input.refId,
+                        inputKey: input.key,
                         inputNodeId: nodeRenderer.id,
-                        outputId: input.linkedStreamId,
+                        outputId: input.streamId,
                         outputNodeId: nodeId
                     })
                 }
@@ -740,22 +741,21 @@ export class NodeEditorRenderer {
         return newLinks;
     }
     private createLinksFromInputConnections(nodeId: string, inputConnections: InputConnection[]) {
-        const inputConnectionIdMap = new Map<string, string>();
+        const inputConnectionIdMap = new Map<number, string>();
         for (const input of inputConnections) {
-            if (input.linkedStreamId) {
-                inputConnectionIdMap.set(input.linkedStreamId, input.refId);
+            if (input.streamId) {
+                inputConnectionIdMap.set(input.streamId, input.key);
             }
         }
-
 
         const newLinks: ConnectionLink[] = [];
         for (const nodeRenderer of this.nodeRenderers.values()) {
             for (const output of nodeRenderer.outputs) {
-                if (inputConnectionIdMap.has(output.refId)) {
+                if (inputConnectionIdMap.has(output.streamId)) {
                     newLinks.push({
-                        inputId: inputConnectionIdMap.get(output.refId)!,
+                        inputKey: inputConnectionIdMap.get(output.streamId)!,
                         inputNodeId: nodeId,
-                        outputId: output.refId,
+                        outputId: output.streamId,
                         outputNodeId: nodeRenderer.id
                     })
                 }
@@ -768,37 +768,37 @@ export class NodeEditorRenderer {
     private async connectLinkToInput(link: ConnectionLink) {
         const outputNode = this.nodeRenderers.get(link.outputNodeId);
         if (!outputNode) return;
-        const outputConnection = outputNode.outputs.find(c => c.refId === link.outputId);
+        const outputConnection = outputNode.outputs.find(c => c.streamId === link.outputId);
         if (!outputConnection) return false;
-        return await this.connectConnectionToInput(link.inputNodeId, link.inputId, outputConnection)
+        return await this.connectConnectionToInput(link.inputNodeId, link.inputKey, outputConnection)
     }
 
-    private async connectConnectionToInput(inputNodeId: string, inputConnectionId: string, outputConnection?: Connection) {
+    private async connectConnectionToInput(inputNodeId: string, inputKey: string, outputConnection?: OutputConnection) {
         const inputNode = this.nodeRenderers.get(inputNodeId);
         if (!inputNode) return false;
 
-        const result = await inputNode.connect(inputConnectionId, outputConnection);
+        const result = await inputNode.connect(inputKey, outputConnection);
         if (!this.handleConnectionResult(result)) return false;
         return true;
     }
 
-    private createConnectionLink(aNodeId: string | undefined, aConnectionId: string | undefined, bNodeId: string | undefined, bConnectionId: string | undefined): ConnectionLink | undefined {
+    private createConnectionLink(aNodeId: string | undefined, aConnectionId: string | number | undefined, bNodeId: string | undefined, bConnectionId: string | number | undefined): ConnectionLink | undefined {
         if (!aConnectionId || !bConnectionId || !aNodeId || !bNodeId) return;
         const aNode = this.nodeRenderers.get(aNodeId);
         const bNode = this.nodeRenderers.get(bNodeId);
         if (!aNode || !bNode) return;
 
-        const aInputConnection = aNode.inputs.find(c => c.refId === aConnectionId);
-        const bInputConnection = bNode.inputs.find(c => c.refId === bConnectionId);
-        const aOutputConnection = aNode.outputs.find(c => c.refId === aConnectionId);
-        const bOutputConnection = bNode.outputs.find(c => c.refId === bConnectionId);
+        const aInputConnection = aNode.inputs.find(c => c.id === aConnectionId);
+        const bInputConnection = bNode.inputs.find(c => c.id === bConnectionId);
+        const aOutputConnection = aNode.outputs.find(c => c.id === aConnectionId);
+        const bOutputConnection = bNode.outputs.find(c => c.id === bConnectionId);
 
         if ((!aInputConnection && !bInputConnection) || (!aOutputConnection && !bOutputConnection)) return;
 
         return {
-            inputId: aInputConnection ? aConnectionId : bConnectionId,
+            inputKey: aInputConnection ? aInputConnection.key : bInputConnection!.key,
             inputNodeId: aInputConnection ? aNodeId : bNodeId,
-            outputId: aOutputConnection ? aConnectionId : bConnectionId,
+            outputId: aOutputConnection ? aOutputConnection.streamId : bOutputConnection!.streamId,
             outputNodeId: aOutputConnection ? aNodeId : bNodeId,
         }
     }
@@ -821,7 +821,7 @@ export class NodeEditorRenderer {
         if (this.editingLinkLine) {
             this.editingLinkLine?.removeFromParent();
         }
-        const selectedConnectionIsInput = this.selectedConnectionIsInput;
+        const selectedConnectionIsInput = this.selectedInputConnection;
         const inputPos = selectedConnectionIsInput ? this.selectedConnectionPosition : pos;
         const outputPos = selectedConnectionIsInput ? pos : this.selectedConnectionPosition;
         if (!inputPos || !outputPos) return;
@@ -845,12 +845,12 @@ export class NodeEditorRenderer {
         this.removeLinks(removeLinks);
     }
 
-    private renderInputLinks(nodeId: string, connectionId: string) {
+    private renderUpdateInputLinks(nodeId: string, key: string) {
         const node = this.nodeRenderers.get(nodeId);
         if (!node) return;
-        const foundInput = node.inputs.find(c => c.refId === connectionId);
+        const foundInput = node.inputs.find(c => c.key === key);
         if (!foundInput) return;
-        this.removeLinks(this.links.values.filter(c => c.inputNodeId === nodeId && c.inputId === connectionId && c.outputId !== foundInput.linkedStreamId));
+        this.removeLinks(this.links.values.filter(c => c.inputNodeId === nodeId && c.inputKey === key && c.outputId !== foundInput.streamId));
     }
 
     private renderNodeLinks(nodeId: string) {
@@ -868,7 +868,7 @@ export class NodeEditorRenderer {
         const outputNode = this.nodeRenderers.get(link.outputNodeId);
         if (!inputNode || !outputNode) return false;
 
-        const inputPosition = inputNode.connectorPositions.get(link.inputId);
+        const inputPosition = inputNode.connectorPositions.get(link.inputKey);
         const outputPosition = outputNode.connectorPositions.get(link.outputId);
 
         if (!inputPosition || !outputPosition) return;
