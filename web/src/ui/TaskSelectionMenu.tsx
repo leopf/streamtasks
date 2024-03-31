@@ -4,7 +4,7 @@ import { TaskTemplateItem } from "./TaskTemplateItem";
 import { TaskPartialInput } from "../configurators/std/static";
 
 const testHost: TaskHost = {
-    id: String(Math.random()),
+    id: "1337",
     metadata: {
         "js:configurator": "std:static",
         "cfg:label": "Test Task :)",

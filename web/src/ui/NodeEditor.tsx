@@ -25,7 +25,7 @@ class DemoNode implements Node {
 
 
 const testHost: TaskHost = {
-    id: String(Math.random()),
+    id: "1337",
     metadata: {
         "js:configurator": "std:static",
         "cfg:label": "Test Task :)",
@@ -51,13 +51,30 @@ export function NodeEditor() {
         taskManager.createManagedTaskInstance(testHost).then(task => nodeRenderer.addNode(new TaskNode(task)))
         nodeRenderer.addNode(new DemoNode())
         nodeRenderer.addNode(new DemoNode())
+
     }, [])
 
     return (
-        <Box width="100%" height="100%" overflow="hidden" maxHeight={"100%"} sx={{
-            "& canvas": {
-                "display": "block"
-            }
-        }} ref={containerRef} />
+        <Box width="100%" height="100%" position="relative">
+            <Box
+                width="100%"
+                height="100%"
+                position="absolute"
+                onDragOver={e => e.preventDefault()}
+                onDrop={async e => {
+                    const taskHostId = e.dataTransfer.getData("text/plain");
+                    if (!taskHostId || testHost.id !== taskHostId) return;
+                    const task = await taskManager.createManagedTaskInstance(testHost)
+                    const containerOffset = containerRef.current!.getBoundingClientRect();
+                    task.frontendConfig.position = nodeRenderer.getInternalPosition({ x: e.clientX - containerOffset.x, y: e.clientY - containerOffset.y });
+                    await nodeRenderer.addNode(new TaskNode(task))
+                }}
+                sx={{
+                    "& canvas": {
+                        "display": "block"
+                    }
+                }}
+                ref={containerRef} />
+        </Box>
     );
 }

@@ -3,7 +3,7 @@
     "target": "es2017",
     "lib": ["DOM", "ESNext", "ES2015"],
     "moduleResolution": "Node",
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "module": "ESNext",
     "noEmit": true,
     "isolatedModules": true,

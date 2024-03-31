@@ -509,6 +509,7 @@ export class NodeEditorRenderer {
             autoDensity: true,
             autoStart: false,
         });
+
         this.app.ticker.maxFPS = 60;
         this.viewport = new Viewport({
             worldWidth: 1000,
@@ -533,6 +534,11 @@ export class NodeEditorRenderer {
             .drag()
             .pinch()
             .wheel()
+    }
+
+    public getInternalPosition(p: Point): Point {
+        const r = this.viewport.toLocal(p);
+        return { x: r.x, y: r.y }
     }
 
     public on(event: "connectError", callback: (message: string) => void): void;
