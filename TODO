@@ -1,10 +1,11 @@
 ---MY TODOS
 
+- Better topic control data. We need a way to make it maintainable.
+
+
+----------
 Refactor:
 - better imports, find a unified way of doing this
-
-Testing:
-- topic control data
 
 Add task with:
 https://github.com/cloudflare/stpyv8

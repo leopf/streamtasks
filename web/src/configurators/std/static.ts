@@ -33,20 +33,24 @@ const task: TaskConfigurator = {
         const label = z.string().parse(metadata["cfg:label"]);
         const inputs = z.array(TaskPartialInputModel).parse(JSON.parse(String(metadata["cfg:inputs"])))
         const outputs = z.array(TaskOutputModel).parse(JSON.parse(String(metadata["cfg:outputs"])))
+        const config = "cfg:config" in metadata ? z.record(z.any()).parse(JSON.parse(String(metadata["cfg:config"]))) : {};
 
         return (<TaskInstance>{
             id: uuidv4(),
             label: label,
-            config: {},
+            config: config,
             inputs: inputs,
             outputs: outputs
         });
     },
     toStartConfig: (taskInstance: TaskInstance, context: TaskConfiguratorContext) => {
-        return {
-            ...taskInstance.config,
+        const outputKeys = "cfg:outputkeys" in context.taskHost.metadata ? 
+            z.array(z.string().optional()).parse(JSON.parse(String(context.taskHost.metadata["cfg:outputkeys"]))) : [];
+        
+        return { 
+            ...taskInstance.config, 
             ...Object.fromEntries(taskInstance.inputs.map(i => [i.key, i.topic_id ?? null])),
-            outputs: taskInstance.outputs.map(o => o.topic_id)
+            ...Object.fromEntries(outputKeys.map((key, idx) => [key, taskInstance.outputs.at(idx)?.topic_id]).filter(([k, v]) => k && v))
         };
     }
 };

@@ -100,7 +100,7 @@ class InTopic(_TopicBase):
       data = await self.recv_data_control()
       if not isinstance(data, TopicControlData): return data
 
-  async def recv_data_control(self):
+  async def recv_data_control(self) -> TopicControlData | SerializableData:
     while True:
       action, data = await self._receiver.recv()
       if action == _InTopicAction.DATA: return data

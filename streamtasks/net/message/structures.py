@@ -7,12 +7,18 @@ A message is clear, a packet is opaque.
 """
 
 
-class NumberMessage(BaseModel):
+class TimestampMessage(BaseModel):
+  timestamp: int
+
+class IdMessage(BaseModel):
+  id: str
+
+class NumberMessage(TimestampMessage):
   timestamp: int
   value: float
 
 
-class StringMessage(BaseModel):
+class StringMessage(TimestampMessage):
   timestamp: int
   value: str
 

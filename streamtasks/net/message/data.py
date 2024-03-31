@@ -23,8 +23,6 @@ class Serializer:
 
 
 class SerializableData(ABC):
-  _data: Any
-  _raw: memoryview
   def __init__(self, data: Union[Any, memoryview]): self._data, self._raw = (data, None) if not isinstance(data, memoryview) else (None, data)
   @abstractproperty
   def type(self) -> SerializationType: pass
@@ -34,6 +32,8 @@ class SerializableData(ABC):
     return self._data
   def serialize(self) -> memoryview: return self._raw if self._raw is not None else memoryview(self._serialize())
   def deserialize(self) -> Any: return self._data if self._data is not None else self._deserialize()
+  def update(self): self._raw = None
+  def copy(self): return self.__class__(self._deserialize(self.serialize()))
   @abstractmethod
   def _serialize(self) -> bytes: pass
   @abstractmethod

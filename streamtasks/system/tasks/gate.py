@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from streamtasks.client.topic import InTopicSynchronizer
 from streamtasks.utils import AsyncObservable
 from streamtasks.net.message.structures import NumberMessage
@@ -16,8 +16,7 @@ class GateFailMode(Enum):
   OPEN = "open"
 
 
-@dataclass
-class GateConfig:
+class GateConfig(BaseModel):
   fail_mode: GateFailMode
   gate_topic: int
   in_topic: int
