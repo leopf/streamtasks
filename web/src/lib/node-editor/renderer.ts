@@ -271,7 +271,7 @@ class ConnectionLinkCollection {
     }
 
     private getKey(link: ConnectionLink) {
-        return objectHash([link.inputKey, link.outputId])
+        return objectHash([link.inputKey, link.inputNodeId, link.outputId])
     }
 }
 
