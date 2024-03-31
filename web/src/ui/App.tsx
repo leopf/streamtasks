@@ -2,10 +2,16 @@ import { AppBar, Box, Button, Grid, IconButton, Stack, Toolbar, Typography } fro
 import { NodeEditor } from './NodeEditor';
 import { TaskSelectionMenu } from './TaskSelectionMenu';
 import { Menu as MenuIcon } from '@mui/icons-material';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { GlobalStateContext, useGlobalState } from '../state';
 
 export function App() {
     const [menuActive, setMenuActive] = useState(true);
+    const state = useGlobalState();
+
+    useEffect(() => {
+        state.taskManager.loadTaskHosts()
+    }, []);
 
     return (
         <Stack direction="column" alignItems="stretch" sx={{ width: "100vw", height: "100vh" }}>

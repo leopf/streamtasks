@@ -1,31 +1,16 @@
 import { Box, Stack } from "@mui/material";
-import { TaskHost, TaskOutput } from "../types/task";
 import { TaskTemplateItem } from "./TaskTemplateItem";
-import { TaskPartialInput } from "../configurators/std/static";
+import { observer } from "mobx-react-lite";
+import { useGlobalState } from "../state";
 
-const testHost: TaskHost = {
-    id: "1337",
-    metadata: {
-        "js:configurator": "std:static",
-        "cfg:label": "Test Task :)",
-        "cfg:inputs": JSON.stringify(Array.from(Array(2)).map((_, idx) => ({
-            key: String(Math.random()),
-            label: `input ${idx + 1}`
-        })) as TaskPartialInput[]),
-        "cfg:outputs": JSON.stringify(Array.from(Array(2)).map((_, idx) => ({
-            topic_id: Math.floor(Math.random() * 1000000),
-            label: `output ${idx + 1}`,
-        })) as TaskOutput[]),
-    }
-};
-
-export function TaskSelectionMenu() {
-    const taskHosts: TaskHost[] = Array.from(Array(20)).map(() => testHost);
+export const TaskSelectionMenu = observer(() => {
+    const state = useGlobalState();
+    
     return (
-        <Box sx={{ height: "100%", maxHeight: "100%", overflowY: "auto" }}>
-            <Stack boxSizing="border-box" spacing={1} padding={1} bgcolor="gray">
-                {taskHosts.map(th => <TaskTemplateItem key={th.id} taskHost={th} />)}
+        <Box sx={{ height: "100%", maxHeight: "100%", overflowY: "auto" }} bgcolor={"#ccc"}>
+            <Stack boxSizing="border-box" spacing={5} padding={1} minHeight="100%">
+                {state.taskManager.taskHosts.map(th => <TaskTemplateItem key={th.id} taskHost={th} />)}
             </Stack>
         </Box>
     );
-}
+});

@@ -487,6 +487,9 @@ export class NodeEditorRenderer {
         }
         return this.nodeRenderers.get(this.selectedNodeId);
     }
+    public get zoom() {
+        return this.viewport.scaled;
+    }
     private get selectedInputConnection() {
         if (!this.selectedConnectionId) {
             return undefined;

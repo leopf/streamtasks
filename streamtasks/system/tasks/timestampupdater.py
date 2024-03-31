@@ -43,7 +43,7 @@ class TimestampUpdaterTask(Task):
 class TimestampUpdaterTaskHost(TaskHost):
   @property
   def metadata(self): return {**static_configurator(
-    label="pulse generator",
+    label="timestamp updater",
     inputs=[{ "label": "input", "type": "ts", "key": "in_topic" }],
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic" }],
     default_config={ "time_reference": "time", "time_offset": 0, "fail_closed": True }

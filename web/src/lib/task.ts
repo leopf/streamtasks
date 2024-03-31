@@ -23,6 +23,8 @@ export function validateMetadataEquals(a: Metadata, b: Metadata, ignoreFields: S
 }
 
 export const ignoreIOFieldsInEquality = ["label"];
+export const taskHostLabelFields = ["label", "cfg:label"];
+export const taskHostDescriptionFields = ["description", "cfg:description"];
 
 export enum TaskConnectResult {
     success,
