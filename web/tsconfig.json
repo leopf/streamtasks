@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "es2016",
+    "target": "es2017",
     "lib": ["DOM", "ESNext", "ES2015"],
     "moduleResolution": "Node",
     "jsx": "preserve",

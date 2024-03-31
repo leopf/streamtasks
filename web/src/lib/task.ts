@@ -14,17 +14,12 @@ export function extractTaskIO(taskInstance: TaskInstance): TaskIO {
     }
 }
 
-
-export function compareMetadata(a: Metadata, b: Metadata, ignoreFields: Set<keyof TaskInput>) {
+export function validateMetadataEquals(a: Metadata, b: Metadata, ignoreFields: Set<keyof TaskInput>) {
     for (const metadataKey of new Set([...Object.keys(a), ...Object.keys(b)].filter(k => !ignoreFields.has(k)))) {
         if (a[metadataKey] !== b[metadataKey]) {
             throw new Error(`Metadata mismatch on field "${metadataKey}".`);
         }
     }
-}
-
-export function compareTaskIO(params:type) {
-    
 }
 
 export const ignoreIOFieldsInEquality = ["label"];
@@ -91,8 +86,55 @@ export class ManagedTaskInstance {
     }
 
     public async connect(key: string, output?: TaskOutput): Promise<TaskConnectResult> {
-
+        const oldTaskIO = extractTaskIO(this.taskInstance);
         this.taskInstance = await this.configurator.connect(this.taskInstance, key, output, this.configuratorContext);
+        const newTaskIO = extractTaskIO(this.taskInstance);
+
+        const newTargetInput = this.taskInstance.inputs.find(input => input.key === key);
+        if (!newTargetInput || newTargetInput.topic_id !== output?.topic_id) {
+            return TaskConnectResult.failed;
+        }
+
+        const oldInputs = new Map(oldTaskIO.inputs.map(i => [i.key, i]))
+        const oldOutputs = new Map(oldTaskIO.outputs.map(o => [o.topic_id, o]))
+
+        const newInputs = new Map(newTaskIO.inputs.map(i => [i.key, i]))
+        const newOutputs = new Map(newTaskIO.outputs.map(o => [o.topic_id, o]))
+
+        if (oldInputs.size != newInputs.size || 
+                oldOutputs.size != newOutputs.size ||
+                Array.from(oldInputs.keys()).some(k => !newInputs.has(k)) ||
+                Array.from(oldOutputs.keys()).some(tid => !newOutputs.has(tid))) {
+            return TaskConnectResult.successWithUpdate;
+        }
+
+        const ioIgnoreFields = new Set(["label"]);
+
+        try {
+            validateMetadataEquals(oldInputs.get(key)!, newInputs.get(key)!, new Set([ "topic_id", ...ioIgnoreFields ]))
+        }
+        catch {
+            return TaskConnectResult.successWithUpdate;
+        }
+
+        for (const inputKey of oldInputs.keys()) {
+            try {
+                validateMetadataEquals(oldInputs.get(inputKey)!, newInputs.get(inputKey)!, ioIgnoreFields);
+            }
+            catch {
+                return TaskConnectResult.successWithUpdate;
+            }
+        }
+
+        for (const outputTId of oldOutputs.keys()) {
+            try {
+                validateMetadataEquals(oldOutputs.get(outputTId)!, newOutputs.get(outputTId)!, ioIgnoreFields);
+            }
+            catch {
+                return TaskConnectResult.successWithUpdate;
+            }
+        }
+
         return TaskConnectResult.success;
     }
 
@@ -162,7 +204,11 @@ export class TaskManager {
             }
 
             try {
-                const configurator: TaskConfigurator = await import(importUrl);
+                const configurator: any = (await import(importUrl)).default;
+                if (typeof configurator !== "object" || configurator === null || Object.values(configurator).some(fn => typeof fn !== "function")) {
+                    throw new Error("Configurator format is wrong!");
+                }
+
                 this.configurators.set(taskHost.id, configurator);
                 return configurator;
             }

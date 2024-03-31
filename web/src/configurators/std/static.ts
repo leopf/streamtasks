@@ -8,7 +8,9 @@ export const TaskPartialInputModel = MetadataModel.and(z.object({
     key: z.string()
 }));
 
-const compareIgnoreMetadataKeys = new Set([ "key", "topic_id" ]);
+export type TaskPartialInput = z.infer<typeof TaskPartialInputModel>;
+
+const compareIgnoreMetadataKeys = new Set([ "key", "topic_id", "label" ]);
 
 const task: TaskConfigurator = {
     connect: (taskInstance: TaskInstance, key: string, output: TaskOutput | undefined, context: TaskConfiguratorContext) => {
@@ -29,8 +31,8 @@ const task: TaskConfigurator = {
     create: (context: TaskConfiguratorContext) => {
         const metadata = context.taskHost.metadata;
         const label = z.string().parse(metadata["cfg:label"]);
-        const inputs = z.array(TaskPartialInputModel).parse(metadata["cfg:inputs"])
-        const outputs = z.array(TaskOutputModel).parse(metadata["cfg:outputs"])
+        const inputs = z.array(TaskPartialInputModel).parse(JSON.parse(String(metadata["cfg:inputs"])))
+        const outputs = z.array(TaskOutputModel).parse(JSON.parse(String(metadata["cfg:outputs"])))
 
         return (<TaskInstance>{
             id: uuidv4(),

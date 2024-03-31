@@ -13,6 +13,7 @@ const buildConfigurator = async (filename: string, out: string = ".") => {
         entryPoints: [filename],
         bundle: true,
         outfile: outFilename,
+        format: "esm",
         sourcemap: dev ? "inline" : false,
         minify: !dev,
         treeShaking: !dev
@@ -32,7 +33,7 @@ const movePublic = async () => {
 }
 
 const appBuildConfig: esbuild.SameShape<esbuild.BuildOptions, esbuild.BuildOptions> = {
-    entryPoints: ["src/app.tsx"],
+    entryPoints: ["src/ui/index.tsx"],
     bundle: true,
     outfile: "dist/main.js",
     sourcemap: dev ? "inline" : false,

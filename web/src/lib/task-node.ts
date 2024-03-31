@@ -48,6 +48,7 @@ export class TaskNode implements Node {
         if (output) {
             newOutput = { ...output, topic_id: output.streamId };
             delete newOutput.id;
+            delete newOutput.streamId;
         }
 
         try {
