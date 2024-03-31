@@ -18,7 +18,7 @@ from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.types import Message, TopicDataMessage
 from streamtasks.net.utils import str_to_endpoint
 from streamtasks.services.protocols import AddressNames
-from streamtasks.utils import INSTANCE_ID
+from streamtasks.utils import NODE_NAME
 from streamtasks.worker import Worker
 
 MetadataDict = dict[str, int|float|str|bool]
@@ -114,7 +114,7 @@ class TaskHost(Worker):
     id_hash = hashlib.sha256()
     id_hash.update(b"TaskHost")
     id_hash.update(self.__class__.__name__.encode("utf-8"))
-    id_hash.update(INSTANCE_ID.value.encode("utf-8"))
+    id_hash.update(NODE_NAME.encode("utf-8"))
     self.id = id_hash.hexdigest()[:16]
   
   @property
@@ -123,7 +123,7 @@ class TaskHost(Worker):
   async def register(self, endpoint: EndpointOrAddress) -> TaskHostRegistration:
     if not hasattr(self, "client"): raise ValueError("Client not created yet!")
     if self.client.address is None: raise ValueError("Client had no address!")
-    registration = TaskHostRegistration(id=self.id, address=self.client.address, metadata=self.metadata)
+    registration = TaskHostRegistration(id=self.id, address=self.client.address, metadata={ **self.metadata, "nodename": NODE_NAME })
     await self.client.fetch(endpoint, TASK_CONSTANTS.FD_REGISTER_TASK_HOST, registration.model_dump())
     # TODO store info for unregister
     return registration

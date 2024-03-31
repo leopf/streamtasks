@@ -1,3 +1,4 @@
+import platform
 from types import CoroutineType
 from typing import Any, ClassVar, Iterable, Optional
 import asyncio
@@ -148,13 +149,6 @@ class TimeSynchronizer:
   def update(self, timestamp: int): self._time_offset = timestamp - get_timestamp_ms()
   def reset(self): self._time_offset = 0
 
-# context stuff from https://github.com/tinygrad/tinygrad/blob/master/tinygrad/helpers.py
-
-
-@functools.lru_cache(maxsize=None)
-def getenv(key, default=0) -> Any: return type(default)(os.getenv(key, default))
-
-
 class IdGenerator:
   def __init__(self, start: int, end: int) -> None:
     assert start < end, "start must me smaller than end"
@@ -165,24 +159,4 @@ class IdGenerator:
     if self._current >= self._end: self._current = self._start
     return res
 
-
-class Context(ContextDecorator):
-  def __init__(self, **kwargs): self.pvars = { k.upper(): v for k, v in kwargs.items() }
-  def __enter__(self): ContextVar.ctx_stack.append({ **ContextVar.ctx_stack[-1].items(), **self.pvars })
-  def __exit__(self, *args): ContextVar.ctx_stack.pop()
-
-
-class ContextVar:
-  ctx_stack: ClassVar[list[dict[str, Any]]] = [{}]
-  def __init__(self, key, default_value):
-    self.key, self.initial_value = key.upper(), getenv(key.upper(), default_value)
-    if self.key not in ContextVar.ctx_stack[-1]: ContextVar.ctx_stack[-1][self.key] = self.initial_value
-  def __call__(self, x): ContextVar.ctx_stack[-1][self.key] = x
-  def __bool__(self): return bool(self.value)
-  def __ge__(self, x): return self.value >= x
-  def __gt__(self, x): return self.value > x
-  @property
-  def value(self): return ContextVar.ctx_stack[-1][self.key] if self.key in ContextVar.ctx_stack[-1] else self.initial_value
-
-
-INSTANCE_ID = ContextVar('instance_id', "0")
+NODE_NAME: str = os.getenv('NODE_NAME', platform.node())
