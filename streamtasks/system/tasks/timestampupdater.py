@@ -12,7 +12,7 @@ class TimestampUpdaterConfig(BaseModel):
   in_topic: int
   time_reference: Literal["message", "time"] = "time"
   time_offset: int = 0
-  fail_closed: bool = False
+  fail_closed: bool = True
 
 class TimestampUpdaterTask(Task):
   def __init__(self, client: Client, config: TimestampUpdaterConfig):
@@ -46,7 +46,7 @@ class TimestampUpdaterTaskHost(TaskHost):
     label="pulse generator",
     inputs=[{ "label": "input", "type": "ts", "key": "in_topic" }],
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic" }],
-    default_config={ "time_reference": "time", "time_offset": 0, "fail_closed": False }
+    default_config={ "time_reference": "time", "time_offset": 0, "fail_closed": True }
   )}
   async def create_task(self, config: Any):
     return TimestampUpdaterTask(await self.create_client(), TimestampUpdaterConfig.model_validate(config))
