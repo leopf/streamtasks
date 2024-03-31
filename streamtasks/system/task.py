@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 from pydantic import UUID4, BaseModel, TypeAdapter, ValidationError, field_serializer
 from abc import ABC, abstractmethod
 from streamtasks.asgi import ASGIAppRunner, ASGIProxyApp
-from streamtasks.asgiserver import ASGIHandler, ASGIRouter, ASGIServer, HTTPContext, TransportContext, decode_data_uri, http_context_handler, path_rewrite_handler, static_content_handler, transport_context_handler
+from streamtasks.asgiserver import ASGIHandler, ASGIRouter, ASGIServer, HTTPContext, TransportContext, decode_data_uri, http_context_handler, path_rewrite_handler, static_content_handler, static_files_handler, transport_context_handler
 from streamtasks.client import Client
 import asyncio
 from streamtasks.client.broadcast import BroadcastReceiver, BroadcastingServer
@@ -351,12 +351,14 @@ class TaskManagerClient:
 
 
 class TaskManagerWeb(Worker):
-  def __init__(self, node_link: Link, switch: Switch | None = None, address_name: str = AddressNames.TASK_MANAGER_WEB, task_manager_address_name: str = AddressNames.TASK_MANAGER):
+  def __init__(self, node_link: Link, switch: Switch | None = None, address_name: str = AddressNames.TASK_MANAGER_WEB, 
+               task_manager_address_name: str = AddressNames.TASK_MANAGER, public_path: str | None = None):
     super().__init__(node_link, switch)
     self.task_manager_address_name = task_manager_address_name
     self.address_name = address_name
     self.task_host_asgi_handlers: dict[str, ASGIHandler] = {}
     self.task_asgi_handlers: dict[UUID4, ASGIHandler] = {}
+    self.public_path = public_path
     self.client: Client
     self.tm_client: TaskManagerClient
   
@@ -432,6 +434,8 @@ class TaskManagerWeb(Worker):
     async def _(ctx: TransportContext):
       id = ctx.params.get("id", "")
       await ctx.delegate(await self.get_task_host_asgi_handler(id))
+    
+    if self.public_path is not None: router.add_handler(static_files_handler(self.public_path, ["index.html"]))
     
     runner = ASGIAppRunner(self.client, app)
     await runner.run()

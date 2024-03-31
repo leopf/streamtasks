@@ -525,7 +525,7 @@ def static_files_handler(path: str | pathlib.Path, index_files: Iterable[str], r
   if any(True for p in index_files if "/" in p or "\\" in p): raise ValueError("Index files can not have a slash!")
   index_files = list(index_files)
   directory_path = pathlib.Path(path).resolve(strict=True)
-  if not directory_path.is_dir(): return False # return file handler
+  if not directory_path.is_dir(): return static_file_handler(path, response_buffer_size=response_buffer_size)
   
   @http_context_handler
   async def handler(ctx: HTTPContext):
