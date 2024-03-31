@@ -1,5 +1,13 @@
 ---MY TODOS
 
+Frontend:
+- image caching
+- task needs host id
+- saving
+- deployments
+- render editor
+
+Backend:
 - Better topic control data. We need a way to make it maintainable.
 
 
