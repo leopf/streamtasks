@@ -16,7 +16,7 @@ const task: TaskConfigurator = {
     connect: (taskInstance: TaskInstance, key: string, output: TaskOutput | undefined, context: TaskConfiguratorContext) => {
         const targetInput = taskInstance.inputs.find(input => input.key === key);
         if (!targetInput) {
-            throw new Error("Input stream not found!"); // should not happen during normal operation
+            throw new Error("Input not found!"); // should not happen during normal operation
         }
 
         if (!output) {

@@ -20,7 +20,7 @@ export class TaskNode implements Node {
     }
 
     public get outputs(): OutputConnection[] {
-        return this.task.outputs.map(output => ({
+        return this.task.outputs.map(output => (<OutputConnection>{
             ...Object.fromEntries(Object.entries(output).filter(([k, v]) => k !== "topic_id")),
             id: output.topic_id,
             streamId: output.topic_id,
@@ -28,7 +28,7 @@ export class TaskNode implements Node {
         }));
     }
     public get inputs(): InputConnection[] {
-        return this.task.inputs.map(input => ({
+        return this.task.inputs.map(input => (<InputConnection>{
             ...Object.fromEntries(Object.entries(input).filter(([k, v]) => k !== "topic_id")),
             id: input.key,
             streamId: input.topic_id,
