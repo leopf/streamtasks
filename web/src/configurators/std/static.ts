@@ -35,13 +35,14 @@ const task: TaskConfigurator = {
         const outputs = z.array(MetadataModel).parse(JSON.parse(String(metadata["cfg:outputs"])))
         const config = "cfg:config" in metadata ? z.record(z.any()).parse(JSON.parse(String(metadata["cfg:config"]))) : {};
 
-        return (<TaskInstance>{
+        return {
             id: uuidv4(),
+            taskHostId: context.taskHost.id,
             label: label,
             config: config,
             inputs: inputs,
             outputs: outputs.map(output => ({ ...output, topic_id: context.idGenerator() }))
-        });
+        };
     },
     toStartConfig: (taskInstance: TaskInstance, context: TaskConfiguratorContext) => {
         const outputKeys = "cfg:outputkeys" in context.taskHost.metadata ?

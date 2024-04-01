@@ -13,6 +13,12 @@ class PulseGeneratorConfig(BaseModel):
   interval: int
   message_type: Literal["id", "ts"]
   out_topic: int
+  
+class TimePulseGeneratorConfig(PulseGeneratorConfig):
+  message_type: Literal["ts"] = "ts"
+
+class IdPulseGeneratorConfig(PulseGeneratorConfig):
+  message_type: Literal["id"] = "id"
 
 class PulseGeneratorTask(Task):
   def __init__(self, client: Client, config: PulseGeneratorConfig):
@@ -31,13 +37,24 @@ class PulseGeneratorTask(Task):
           await self.out_topic.send(MessagePackData(TimestampMessage(timestamp=get_timestamp_ms()).model_dump()))
         await asyncio.sleep(self.interval)
 
-class PulseGeneratorTaskHost(TaskHost):
+class TimePulseGeneratorTaskHost(TaskHost):
   @property
   def metadata(self): return {**static_configurator(
-    label="pulse generator",
+    label="time pulse generator",
+    description="generates a time pulse in a specified interval.",
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic" }],
-    default_config={ "interval": 1000, "message_type": "ts" }
+    default_config={ "interval": 1000 }
   )}
   async def create_task(self, config: Any):
-    return PulseGeneratorTask(await self.create_client(), PulseGeneratorConfig.model_validate(config))
-  
+    return PulseGeneratorTask(await self.create_client(), TimePulseGeneratorConfig.model_validate(config))
+
+class IdPulseGeneratorTaskHost(TaskHost):
+  @property
+  def metadata(self): return {**static_configurator(
+    label="id pulse generator",
+    description="generates an id pulse in a specified interval.",
+    outputs=[{ "label": "output", "type": "id", "key": "out_topic" }],
+    default_config={ "interval": 1000 }
+  )}
+  async def create_task(self, config: Any):
+    return PulseGeneratorTask(await self.create_client(), IdPulseGeneratorConfig.model_validate(config))

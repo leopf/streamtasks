@@ -8,7 +8,7 @@ from streamtasks.net import Switch
 from streamtasks.services.discovery import DiscoveryWorker
 from streamtasks.services.protocols import AddressNames, WorkerTopics
 from streamtasks.system.task import MetadataDict, Task, TaskHost, TaskManager, TaskManagerWeb
-from streamtasks.system.tasks.pulsegenerator import PulseGeneratorTaskHost
+from streamtasks.system.tasks.pulsegenerator import IdPulseGeneratorTaskHost, TimePulseGeneratorTaskHost
 from streamtasks.system.tasks.timestampupdater import TimestampUpdaterTaskHost
 from streamtasks.worker import Worker
 
@@ -36,7 +36,8 @@ async def main():
     TaskManager(await switch.add_local_connection()),
     TaskManagerWeb(await switch.add_local_connection(), public_path="web/dist"),
     HTTPServerOverASGI(await switch.add_local_connection(), ("127.0.0.1", 8080), AddressNames.TASK_MANAGER_WEB),
-    PulseGeneratorTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
+    TimePulseGeneratorTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
+    IdPulseGeneratorTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
     TimestampUpdaterTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
   ]
   

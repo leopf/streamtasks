@@ -3,7 +3,6 @@ import objectHash from "object-hash";
 import { Viewport } from 'pixi-viewport';
 import { LRUCache } from 'lru-cache';
 import { Connection, Node, ConnectResult, InputConnection, NodeDisplayOptions, NodeRenderOptions, OutputConnection } from "./types";
-import { createNodeDisplayHash } from './utils';
 import { Point } from '../../types/basic';
 
 const appBackgroundColor = 0xeeeeee;
@@ -18,6 +17,32 @@ const xOffset = streamCircleRadius + outlineWidth / 2;
 const labelEdgeOffset = streamCircleRadius + 5;
 const minLabelSpace = 20;
 const selectedNodeFillColor = 0xf0f6ff;
+
+const connectionColorSamples = [
+    0x6528F7,
+    0xA076F9,
+    0xFFE300,
+    0xFF7800,
+    0x0CCA98,
+    0x00FFCC,
+    0xF9A828,
+    0xEEB76B,
+    0xADE498,
+    0xEDE682,
+    0x91CA62,
+    0xF1EBBB,
+    0xF8B500,
+    0xAA14F0,
+    0xBC8CF2,
+    0x6D67E4,
+    0xFFC5A1,
+    0xEF3F61,
+    0xDF8931,
+    0x85EF47,
+    0xF9FD50
+]
+
+const ignoreFieldsForContentComparison = new Set([ "streamId", "label", "key", "id" ]);
 
 export class NodeRenderer {
     private group: PIXI.Container;
@@ -215,33 +240,11 @@ export class NodeRenderer {
         return { width: maxWidth, height: maxHeight };
     }
 
-    private getStreamColor(stream: Connection) {
-        const samples = [
-            0x6528F7,
-            0xA076F9,
-            0xFFE300,
-            0xFF7800,
-            0x0CCA98,
-            0x00FFCC,
-            0xF9A828,
-            0xEEB76B,
-            0xADE498,
-            0xEDE682,
-            0x91CA62,
-            0xF1EBBB,
-            0xF8B500,
-            0xAA14F0,
-            0xBC8CF2,
-            0x6D67E4,
-            0xFFC5A1,
-            0xEF3F61,
-            0xDF8931,
-            0x85EF47,
-            0xF9FD50
-        ]
+    private getStreamColor(connection: Connection) {
 
+        const newConnection = {...Object.fromEntries(Object.entries(connection).filter(([k, _]) => !ignoreFieldsForContentComparison.has(k)))};
 
-        return samples[0]// TODO: samples[parseInt(objectHash([11, stream.config]).slice(0, 6), 16) % samples.length];
+        return connectionColorSamples[parseInt(objectHash([1, newConnection]).slice(0, 6), 16) % connectionColorSamples.length];
     }
 }
 
@@ -363,64 +366,6 @@ export class NodeDisplayRenderer {
         this.app.destroy();
         this.resizeObserver.disconnect();
         this.updateHandlers = [];
-    }
-}
-
-export class NodeImageRenderer {
-    private options: NodeRenderOptions;
-    private renderResolvers = new Map<string, ((dataUrl: string) => void)[]>();
-    private cache: LRUCache<string, string>;
-
-    constructor(options: NodeRenderOptions, cacheSize: number = 10 * 1024 * 1024) {
-        this.options = options;
-        this.cache = new LRUCache<string, string>({
-            sizeCalculation: (value: string, key: string) => value.length + key.length,
-            maxSize: cacheSize,
-        });
-    }
-
-    public async render(node: Node) {
-        const nodeHash = createNodeDisplayHash(node);
-        if (this.cache.has(nodeHash)) {
-            return this.cache.get(nodeHash)!;
-        }
-
-        let result: string | undefined;
-        let resolver: ((dataUrl: string) => void) | undefined;
-        let handler = (dataUrl: string) => {
-            if (resolver) {
-                resolver(dataUrl);
-            }
-            else {
-                result = dataUrl;
-            }
-        };
-
-        if (!this.renderResolvers.has(nodeHash)) {
-            this.renderResolvers.set(nodeHash, [handler]);
-            this.renderNode(node);
-        }
-        else {
-            this.renderResolvers.get(nodeHash)?.push(handler);
-        }
-
-        return await new Promise<string>(resolve => {
-            if (result) {
-                resolve(result);
-            }
-            else {
-                resolver = resolve;
-            }
-        });
-    }
-
-    private async renderNode(node: Node) {
-        const nodeHash = createNodeDisplayHash(node);
-        const dataUrl = await renderNodeToImage(node, this.options);
-        this.cache.set(nodeHash, dataUrl);
-        const handlers = this.renderResolvers.get(nodeHash);
-        this.renderResolvers.delete(nodeHash);
-        handlers?.forEach(h => h.call(null, dataUrl));
     }
 }
 
