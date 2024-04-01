@@ -8,6 +8,7 @@ import { useGlobalState } from "../../state";
 import { TaskNode } from "../../lib/task-node";
 import { TaskHostDragData } from "../../types/task-host";
 import { LRUCache } from "lru-cache";
+import { NodeOverlayTile } from "./NodeOverlayTile";
 
 const taskHostImageCache = new LRUCache<string, string>({
     maxSize: 1e7,
@@ -37,43 +38,31 @@ export const TaskTemplateItem = observer((props: { taskHost: TaskHost }) => {
         }
     }, []);
 
-
-
     return (
-        <Box
-            width="100%"
-            draggable={true}
-            bgcolor="#fff"
-            boxShadow="0 0 10px rgba(0,0,0,0.1)"
-
-            border="1px solid #cfcfcf"
-            borderRadius={1}
-            onDragStart={(e) => {
-                if (!imageRef.current) return;
-                const imageRect = imageRef.current.getBoundingClientRect()
-                const dragData: TaskHostDragData = { id: props.taskHost.id, ox: e.clientX - imageRect.x, oy: e.clientY - imageRect.y };
-                e.dataTransfer.setData("task_host", JSON.stringify(dragData));
-                e.dataTransfer.setDragImage(imageRef.current, dragData.ox, dragData.oy)
-            }}>
-            <Box borderBottom="1px solid #cfcfcf" paddingX={1} paddingY={0.5}>
-                <Typography fontWeight="bold" fontSize="0.7rem">node name: {nodeName}</Typography>
-            </Box>
-            {imageUrl ? (
-                <Box padding={3}>
-                    <img ref={imageRef} style={{ width: "100%", display: "block" }} src={imageUrl} />
-                </Box>
-            ) : (
-                <Stack alignItems="center" spacing={2}>
-                    <CircularProgress />
-                    <Typography>{label}</Typography>
-                </Stack>
-            )}
-            {description && (
-                <Box padding={1}>
-                    <Typography variant="caption">{description}</Typography>
-                </Box>
-            )}
-
+        <Box width="100%" draggable={true} onDragStart={(e) => {
+            if (!imageRef.current) return;
+            const imageRect = imageRef.current.getBoundingClientRect()
+            const dragData: TaskHostDragData = { id: props.taskHost.id, ox: e.clientX - imageRect.x, oy: e.clientY - imageRect.y };
+            e.dataTransfer.setData("task_host", JSON.stringify(dragData));
+            e.dataTransfer.setDragImage(imageRef.current, dragData.ox, dragData.oy)
+        }}>
+            <NodeOverlayTile header={<Typography fontWeight="bold" fontSize="0.7rem">node: {nodeName}</Typography>}>
+                {imageUrl ? (
+                    <Box padding={3}>
+                        <img ref={imageRef} style={{ width: "100%", display: "block" }} src={imageUrl} />
+                    </Box>
+                ) : (
+                    <Stack alignItems="center" spacing={2}>
+                        <CircularProgress />
+                        <Typography>{label}</Typography>
+                    </Stack>
+                )}
+                {description && (
+                    <Box padding={1}>
+                        <Typography variant="caption">{description}</Typography>
+                    </Box>
+                )}
+            </NodeOverlayTile>
         </Box>
     );
 });
