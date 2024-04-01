@@ -1,8 +1,8 @@
 import { action, makeObservable, observable } from "mobx";
-import { TaskConfigurator, TaskConfiguratorContext, TaskHost } from "../types/task";
+import { StoredTaskInstance, TaskConfigurator, TaskConfiguratorContext, TaskHost } from "../types/task";
 import { z } from "zod";
 import { TaskHostModel } from "../model/task";
-import { ManagedTaskInstance } from "../lib/task";
+import { ManagedTaskInstance, getErrorConfigurator } from "../lib/task";
 
 export class TaskManager {
     public taskHosts: TaskHost[] = [];
@@ -22,12 +22,28 @@ export class TaskManager {
         return this.taskHosts;
     }
 
+    public async toManagedTaskInstance(task: StoredTaskInstance, fail: boolean = true) {
+        let configurator: TaskConfigurator;
+        let taskHost: TaskHost;
+        try {
+            taskHost = this.taskHosts.find(th => th.id === task.id) ?? (() => {throw new Error("Task host not found!");})();
+            configurator = await this.getConfigurator(taskHost);
+        }
+        catch (e) {
+            if (fail) throw e;
+            taskHost = { id: task.taskHostId, metadata: {} };
+            configurator = getErrorConfigurator(e);
+        }
+
+        return new ManagedTaskInstance(task, configurator, this.createContext(taskHost))
+    }
+
     public createManagedTaskInstance(taskHostId: string): Promise<ManagedTaskInstance>;
     public createManagedTaskInstance(taskHost: TaskHost): Promise<ManagedTaskInstance>;
     public async createManagedTaskInstance(data: TaskHost | string) {
         let taskHost: TaskHost;
         if (typeof data === "string") {
-            taskHost = this.taskHosts.find(th => th.id === data) ?? (() => { throw new Error("Task host not found!") })();
+            taskHost = await this.getTaskHost(data);
         }
         else {
             taskHost = data;
@@ -36,6 +52,17 @@ export class TaskManager {
         const context = this.createContext(taskHost);
         const inst = await configurator.create(context);
         return new ManagedTaskInstance(inst, configurator, context);
+    }
+
+    private async getTaskHost(id: string) {
+        let taskHost = this.taskHosts.find(th => th.id === id);
+        if (taskHost) {
+            return taskHost;
+        }
+
+        taskHost = TaskHostModel.parse(await fetch(`/api/task-host/${id}`, { method: "get" }).then(res => res.json()))
+        this.taskHosts.push(taskHost);
+        return taskHost;
     }
 
     private async getConfigurator(taskHost: TaskHost): Promise<TaskConfigurator> {

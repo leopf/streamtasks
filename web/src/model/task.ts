@@ -16,6 +16,12 @@ export const TaskInstanceModel = z.object({
     inputs: z.array(TaskInputModel),
     outputs: z.array(TaskOutputModel),
 });
+export const TaskFrontendConfigModel = z.object({
+    position: z.object({ x: z.number(), y: z.number() }).optional()
+})
+export const StoredTaskInstanceModel = TaskInstanceModel.extend({
+    frontendConfig: TaskFrontendConfigModel.optional()
+});
 export const TaskHostModel = z.object({
     id: z.string(),
     metadata: MetadataModel

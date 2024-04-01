@@ -404,6 +404,10 @@ class TaskManagerWeb(Worker):
       await self.tm_client.cancel_task(id)
       await ctx.respond_status(200)
 
+    @router.post("/api/deployment/{*}")
+    @http_context_handler
+    async def _(ctx: HTTPContext): await ctx.respond_status(200)
+
     # @router.websocket_route("/rtopic/{id}")
     # @websocket_context_handler
     # async def _(ctx: WebsocketContext):
@@ -434,7 +438,7 @@ class TaskManagerWeb(Worker):
     async def _(ctx: TransportContext):
       id = ctx.params.get("id", "")
       await ctx.delegate(await self.get_task_host_asgi_handler(id))
-    
+        
     if self.public_path is not None: router.add_handler(static_files_handler(self.public_path, ["index.html"]))
     
     runner = ASGIAppRunner(self.client, app)

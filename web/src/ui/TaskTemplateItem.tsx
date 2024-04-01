@@ -20,7 +20,7 @@ export const TaskTemplateItem = observer((props: { taskHost: TaskHost }) => {
     const state = useGlobalState()
 
     const label = useMemo(() => taskHostLabelFields.map(f => props.taskHost.metadata[f]).find(l => l), [props.taskHost]);
-    const description = useMemo(() => taskHostDescriptionFields.map(f => props.taskHost.metadata[f]).find(l => l) || "This is a test description!", [props.taskHost]);
+    const description = useMemo(() => taskHostDescriptionFields.map(f => props.taskHost.metadata[f]).find(l => l), [props.taskHost]);
     const nodeName = useMemo(() => props.taskHost.metadata["nodename"], [props.taskHost]);
 
     useEffect(() => {

@@ -23,6 +23,9 @@ dependencies:
   '@types/react-dom':
     specifier: ^18.2.23
     version: 18.2.23
+  eventemitter3:
+    specifier: ^5.0.1
+    version: 5.0.1
   http-server:
     specifier: ^14.1.1
     version: 14.1.1
@@ -1655,6 +1658,10 @@ packages:
 
   /eventemitter3@4.0.7:
     resolution: {integrity: sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw==}
+    dev: false
+
+  /eventemitter3@5.0.1:
+    resolution: {integrity: sha512-GWkBvjiSZK87ELrYOSESUYeVIc9mvLLf/nXalMOS5dYrgZq9o5OVkbZAVM06CVxYsCwH9BDZFPlQTlPA1j4ahA==}
     dev: false
 
   /expand-tilde@2.0.2:

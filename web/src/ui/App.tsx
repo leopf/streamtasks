@@ -32,16 +32,12 @@ export function App() {
                     </Typography>
                 </Toolbar>
             </AppBar>
-            <Stack direction="row" flex={1} alignItems="stretch">
-                {menuActive && (
-                    <Box flex={1} position="relative">
-                        <Box height={"100%"} width={"100%"} position="absolute">
-                            <TaskSelectionMenu />
-                        </Box>
-                    </Box>
-                )}
-                <Box flex={6}><NodeEditor /></Box>
-            </Stack>
+            <Box flex={1} position="relative" bgcolor={"#eee"}>
+                <Box width={"100%"} height={"100%"} position="absolute"><NodeEditor /></Box>
+                <Box height={"100%"} sx={theme => ({ [theme.breakpoints.up("xl")]: { width: "15%" }, [theme.breakpoints.down("xl")]: { width: "20%" }, [theme.breakpoints.down("md")]: { width: "25%" } })} position="absolute">
+                    <TaskSelectionMenu />
+                </Box>
+            </Box>
         </Stack>
     );
 }
