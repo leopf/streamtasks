@@ -1,12 +1,12 @@
 import { observer } from "mobx-react-lite";
 import { Box, CircularProgress, Stack, Typography } from "@mui/material";
-import { TaskHost } from "../types/task";
+import { TaskHost } from "../../types/task";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { taskHostDescriptionFields, taskHostLabelFields } from "../lib/task";
-import { renderNodeToImage } from "../lib/node-editor";
-import { useGlobalState } from "../state";
-import { TaskNode } from "../lib/task-node";
-import { TaskHostDragData } from "../types/task-host";
+import { taskHostDescriptionFields, taskHostLabelFields } from "../../lib/task";
+import { renderNodeToImage } from "../../lib/node-editor";
+import { useGlobalState } from "../../state";
+import { TaskNode } from "../../lib/task-node";
+import { TaskHostDragData } from "../../types/task-host";
 import { LRUCache } from "lru-cache";
 
 const taskHostImageCache = new LRUCache<string, string>({
@@ -44,8 +44,10 @@ export const TaskTemplateItem = observer((props: { taskHost: TaskHost }) => {
             width="100%"
             draggable={true}
             bgcolor="#fff"
-            boxShadow="0 0 5px rgba(0,0,0,0.2)"
+            boxShadow="0 0 10px rgba(0,0,0,0.1)"
+
             border="1px solid #cfcfcf"
+            borderRadius={1}
             onDragStart={(e) => {
                 if (!imageRef.current) return;
                 const imageRect = imageRef.current.getBoundingClientRect()

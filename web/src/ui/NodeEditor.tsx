@@ -6,14 +6,35 @@ import { observer } from "mobx-react-lite";
 import { useGlobalState } from '../state';
 import { TaskHostDragDataModel } from '../model/task-host';
 import { observe } from 'mobx';
+import { MovableWindow } from './components/MovableWindow';
+import { Typography } from '@mui/material';
 
 export const NodeEditor = observer(() => {
-    const [nodeRenderer, _] = useState(() => new NodeEditorRenderer())
+    const [nodeRenderer, _] = useState(() => new NodeEditorRenderer());
+    const [ deletingTaskId, setDeletingTaskId ] = useState<string | undefined>(undefined);
+    const [ selectedTaskId, setSelectedTaskId ] = useState<string | undefined>(undefined);
     const containerRef = useRef<HTMLDivElement>(null);
     const state = useGlobalState();
 
     useEffect(() => {
         nodeRenderer.mount(containerRef.current!);
+        const keypressHandler = (e: KeyboardEvent) => {
+            if (e.code === "Delete") {
+                setDeletingTaskId(nodeRenderer.selectedNode?.id);
+            }
+            if (e.code === "Escape") {
+                nodeRenderer.unselectNode();
+            }
+        };
+        const selectTaskHandler = (id: string | undefined) => setSelectedTaskId(id);
+        window.addEventListener("keydown", keypressHandler)
+        nodeRenderer.on("selected", selectTaskHandler)
+
+        return () => {
+            window.removeEventListener("keydown", keypressHandler);
+            nodeRenderer.off("selected", selectTaskHandler);
+            nodeRenderer.destroy();
+        }
     }, [])
 
     useEffect(() => {
@@ -51,6 +72,9 @@ export const NodeEditor = observer(() => {
                     }
                 }}
                 ref={containerRef} />
+            <MovableWindow xAnchor="right" yAnchor="top" title="Task">
+                <Typography variant='h1'>Hello</Typography>
+            </MovableWindow>
         </Box>
     );
 });

@@ -1,5 +1,5 @@
 import { Box, Stack, TextField } from "@mui/material";
-import { TaskTemplateItem } from "./TaskTemplateItem";
+import { TaskTemplateItem } from "./components/TaskTemplateItem";
 import { observer, useLocalObservable } from "mobx-react-lite";
 import { useGlobalState } from "../state";
 

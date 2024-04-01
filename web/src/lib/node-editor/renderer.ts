@@ -601,39 +601,7 @@ export class NodeEditorRenderer {
             this.keepEditingLinkLine = false;
         }
     }
-
-    public unselectNode() {
-        if (this.selectedNodeId === undefined) return;
-        this.emitSelected();
-        const nodeId = this.selectedNodeId;
-        this.selectedNodeId = undefined;
-        this.renderNode(nodeId);
-    }
-    public onPressNode(id: string) {
-        const oldNodeId = this.selectedNodeId;
-
-        this.selectedNodeId = id;
-        if (oldNodeId !== undefined && oldNodeId !== id) {
-            this.renderNode(oldNodeId)
-        }
-        this.emitSelected(id);
-        this.pressActive = true;
-        this.viewport.plugins.pause('drag');
-
-        this.renderNode(id);
-        this.selectedNode?.render();
-        this.renderNodeLinks(id);
-    }
-    public onReleaseNode() {
-        if (this.pressActive) {
-            this.pressActive = false;
-            this.selectedConnectionId = undefined;
-            if (!this.keepEditingLinkLine) {
-                this.editingLinkLine?.removeFromParent();
-            }
-            this.viewport.plugins.resume('drag');
-        }
-    }
+    
     public unmount() {
         if (!this.container) return;
         this.app?.stop();
@@ -658,6 +626,40 @@ export class NodeEditorRenderer {
         this.unmount();
         this.app?.destroy();
         this.app = undefined;
+    }
+
+    public unselectNode() {
+        if (this.selectedNodeId === undefined) return;
+        this.emitSelected();
+        const nodeId = this.selectedNodeId;
+        this.selectedNodeId = undefined;
+        this.renderNode(nodeId);
+    }
+
+    public onPressNode(id: string) {
+        const oldNodeId = this.selectedNodeId;
+
+        this.selectedNodeId = id;
+        if (oldNodeId !== undefined && oldNodeId !== id) {
+            this.renderNode(oldNodeId)
+        }
+        this.emitSelected(id);
+        this.pressActive = true;
+        this.viewport.plugins.pause('drag');
+
+        this.renderNode(id);
+        this.selectedNode?.render();
+        this.renderNodeLinks(id);
+    }
+    private onReleaseNode() {
+        if (this.pressActive) {
+            this.pressActive = false;
+            this.selectedConnectionId = undefined;
+            if (!this.keepEditingLinkLine) {
+                this.editingLinkLine?.removeFromParent();
+            }
+            this.viewport.plugins.resume('drag');
+        }
     }
 
     private emitUpdated(nodeId: string) {
