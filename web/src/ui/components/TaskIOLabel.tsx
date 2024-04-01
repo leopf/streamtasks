@@ -1,0 +1,31 @@
+import { Box, Stack, Tooltip, Typography } from "@mui/material";
+import { Metadata } from "../../types/task";
+import { useMemo } from "react";
+import { ioMetadataHideKeys, ioMetadataKeyLabels, ioMetadataValueLabels, taskHostLabelFields } from "../../lib/task";
+import { getStreamColor } from "../../lib/node-editor";
+
+const ignoreFieldsForIOColor = new Set(["topic_id", "label", "key", "id"]);
+
+
+export function TaskIOLabel(props: { io: Metadata, alignRight?: true }) {
+    const metadataKV = useMemo(() =>
+        [...Object.entries(props.io)]
+            .filter(([k, v]) => !ioMetadataHideKeys.has(k))
+            .map(([k, v]) => [k, String(v)])
+            .map(([k, v]) => [ioMetadataKeyLabels[k] ?? k, ioMetadataValueLabels[k]?.[v] ?? v]), [props.io])
+    const label = props.io["label"] ?? " - ";
+    const color = useMemo(() => "#" + getStreamColor(props.io, ignoreFieldsForIOColor).toString(16).padStart(6, '0'), [props.io]);
+
+    return (
+        <Tooltip title={(
+            <Stack>
+                {metadataKV.map(([k, v]) => (<Typography fontSize="0.8rem">{k}: {v}</Typography>))}
+            </Stack>
+        )}>
+            <Stack spacing={1} direction={props.alignRight ? "row-reverse" : "row"} alignItems="center">
+                <Box border="2px solid black" bgcolor={color} borderRadius="100%" height="0.7rem" width="0.7rem" />
+                <Typography fontSize="0.9rem">{label}</Typography>
+            </Stack>
+        </Tooltip>
+    );
+}

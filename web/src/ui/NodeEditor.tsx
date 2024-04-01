@@ -2,31 +2,46 @@ import Box from '@mui/material/Box';
 import { useState, useRef, useEffect } from 'react';
 import { NodeEditorRenderer } from '../lib/node-editor';
 import { TaskNode } from '../lib/task-node';
-import { observer } from "mobx-react-lite";
+import { observer, useLocalObservable } from "mobx-react-lite";
 import { useGlobalState } from '../state';
 import { TaskHostDragDataModel } from '../model/task-host';
 import { observe } from 'mobx';
-import { MovableWindow } from './components/MovableWindow';
-import { Typography } from '@mui/material';
+import { IconButton, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material';
+import { NodeOverlayTile } from './components/NodeOverlayTile';
+import { Close as CloseIcon } from '@mui/icons-material';
+import { Metadata } from '../types/task';
+import { TaskIOLabel } from './components/TaskIOLabel';
 
 export const NodeEditor = observer(() => {
     const [nodeRenderer, _] = useState(() => new NodeEditorRenderer());
-    const [ deletingTaskId, setDeletingTaskId ] = useState<string | undefined>(undefined);
-    const [ selectedTaskId, setSelectedTaskId ] = useState<string | undefined>(undefined);
-    const containerRef = useRef<HTMLDivElement>(null);
     const state = useGlobalState();
+    const localState = useLocalObservable(() => ({
+        deletingTaskId: undefined as string | undefined,
+        selectedTaskId: undefined as string | undefined,
+        get deletingTask() {
+            return this.deletingTaskId ? state.deployment?.tasks.get(this.deletingTaskId) : undefined;
+        },
+        get selectedTask() {
+            return this.selectedTaskId ? state.deployment?.tasks.get(this.selectedTaskId) : undefined;
+        },
+        get selectedTaskIOList(): [(Metadata | undefined), (Metadata | undefined)][] {
+            return Array.from(Array(Math.max(this.selectedTask?.inputs?.length || 0, this.selectedTask?.outputs?.length || 0)))
+                .map((_, idx) => [this.selectedTask?.inputs?.at(idx), this.selectedTask?.outputs?.at(idx)])
+        }
+    }));
+    const containerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         nodeRenderer.mount(containerRef.current!);
         const keypressHandler = (e: KeyboardEvent) => {
             if (e.code === "Delete") {
-                setDeletingTaskId(nodeRenderer.selectedNode?.id);
+                localState.deletingTaskId = nodeRenderer.selectedNode?.id;
             }
             if (e.code === "Escape") {
                 nodeRenderer.unselectNode();
             }
         };
-        const selectTaskHandler = (id: string | undefined) => setSelectedTaskId(id);
+        const selectTaskHandler = (id: string | undefined) => localState.selectedTaskId = id;
         window.addEventListener("keydown", keypressHandler)
         nodeRenderer.on("selected", selectTaskHandler)
 
@@ -52,10 +67,11 @@ export const NodeEditor = observer(() => {
     }, [state.deployment]);
 
     return (
-        <Box width="100%" height="100%" position="relative">
+        <Box width="100%" height="100%" maxHeight="100%" position="relative">
             <Box
                 width="100%"
                 height="100%"
+                maxHeight="100%"
                 position="absolute"
                 onDragOver={e => e.preventDefault()}
                 onDrop={async e => {
@@ -72,9 +88,41 @@ export const NodeEditor = observer(() => {
                     }
                 }}
                 ref={containerRef} />
-            <MovableWindow xAnchor="right" yAnchor="top" title="Task">
-                <Typography variant='h1'>Hello</Typography>
-            </MovableWindow>
+            {localState.selectedTask && (
+
+                <Box position="absolute" top="1rem" right="1rem" width="30%" height="60%">
+                    <NodeOverlayTile header={(
+                        <Stack direction="row" alignItems="center">
+                            <Typography fontWeight="bold" fontSize="0.85rem">{localState.selectedTask.label}</Typography>
+                            <Box flex={1} />
+                            <IconButton aria-label="close" size="small" onClick={() => nodeRenderer.unselectNode()}>
+                                <CloseIcon fontSize="inherit" />
+                            </IconButton>
+                        </Stack>
+                    )}>
+                        <>
+                            <TableContainer>
+                                <Table size="small">
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell align="left">inputs</TableCell>
+                                            <TableCell align="right">outputs</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {localState.selectedTaskIOList.map(([i, o]) => (
+                                            <TableRow>
+                                                <TableCell align="left">{i && <TaskIOLabel io={i}/>}</TableCell>
+                                                <TableCell align="right">{o && <TaskIOLabel alignRight io={o}/>}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        </>
+                    </NodeOverlayTile>
+                </Box>
+            )}
         </Box>
     );
 });

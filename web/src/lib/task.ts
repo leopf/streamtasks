@@ -25,6 +25,9 @@ export function validateMetadataEquals(a: Metadata, b: Metadata, ignoreFields: S
 export const ignoreIOFieldsInEquality = ["label"];
 export const taskHostLabelFields = ["label", "cfg:label"];
 export const taskHostDescriptionFields = ["description", "cfg:description"];
+export const ioMetadataKeyLabels: Record<string, string> = { "topic_id": "topic id" }
+export const ioMetadataValueLabels: Record<string, Record<string, string>> = { "type": { "ts": "timestamp" } }
+export const ioMetadataHideKeys = new Set([ "key" ]);
 
 export enum TaskConnectResult {
     success,

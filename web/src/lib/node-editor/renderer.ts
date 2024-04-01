@@ -44,6 +44,13 @@ const connectionColorSamples = [
 
 const ignoreFieldsForContentComparison = new Set([ "streamId", "label", "key", "id" ]);
 
+export function getStreamColor(connection: Record<string, number | string | boolean>, ignoreFields: Set<string> = ignoreFieldsForContentComparison) {
+
+    const newConnection = {...Object.fromEntries(Object.entries(connection).filter(([k, _]) => !ignoreFields.has(k)))};
+
+    return connectionColorSamples[parseInt(objectHash([1, newConnection]).slice(0, 6), 16) % connectionColorSamples.length];
+}
+
 export class NodeRenderer {
     private group: PIXI.Container;
     private node: Node;
@@ -214,7 +221,7 @@ export class NodeRenderer {
     private createConnectionCircle(connection: Connection) {
         const circle = new PIXI.Graphics();
         circle.lineStyle(outlineWidth, outlineColor);
-        circle.beginFill(this.getStreamColor(connection));
+        circle.beginFill(getStreamColor(connection));
         circle.drawCircle(0, 0, streamCircleRadius);
         circle.endFill();
         circle.interactive = true;
@@ -240,12 +247,7 @@ export class NodeRenderer {
         return { width: maxWidth, height: maxHeight };
     }
 
-    private getStreamColor(connection: Connection) {
 
-        const newConnection = {...Object.fromEntries(Object.entries(connection).filter(([k, _]) => !ignoreFieldsForContentComparison.has(k)))};
-
-        return connectionColorSamples[parseInt(objectHash([1, newConnection]).slice(0, 6), 16) % connectionColorSamples.length];
-    }
 }
 
 type ConnectionLink = {
