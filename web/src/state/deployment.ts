@@ -30,7 +30,7 @@ export class DeploymentState {
             }
         }
         for (const task of this.tasks.values()) {
-            task.updateData(newTasks.get(task.id)!);
+            task.updateData(newTasks.get(task.id)!, true);
             newTasks.delete(task.id);
         }
         for (const task of newTasks.values()) {

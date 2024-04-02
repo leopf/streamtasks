@@ -23,7 +23,7 @@ export function TaskIOLabel(props: { io: Metadata, alignRight?: true }) {
             </Stack>
         )}>
             <Stack spacing={1} direction={props.alignRight ? "row-reverse" : "row"} alignItems="center">
-                <Box border="2px solid black" bgcolor={color} borderRadius="100%" height="0.7rem" width="0.7rem" />
+                <Box border="1px solid black" bgcolor={color} borderRadius="100%" height="0.7rem" width="0.7rem" />
                 <Typography fontSize="0.9rem">{label}</Typography>
             </Stack>
         </Tooltip>

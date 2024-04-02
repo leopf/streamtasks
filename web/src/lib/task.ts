@@ -1,5 +1,7 @@
-import { Metadata, StoredTaskInstance, TaskConfigurator, TaskConfiguratorContext, TaskFrontendConfig, TaskHost, TaskIO, TaskInput, TaskInstance, TaskOutput } from "../types/task.ts"
+import { Metadata, StoredTaskInstance, TaskConfigurator, TaskConfiguratorContext, TaskFrontendConfig, TaskIO, TaskInput, TaskInstance, TaskOutput } from "../types/task.ts"
 import EventEmitter from "eventemitter3";
+import cloneDeep from "clone-deep";
+import deepEqual from "deep-equal";
 
 const defaultRemapTopicIds = (taskInstance: TaskInstance, idMap: Map<number, number>, context: TaskConfiguratorContext) => {
     taskInstance.inputs.forEach(i => i.topic_id = i.topic_id ? idMap.get(i.topic_id) : undefined);
@@ -29,14 +31,8 @@ export const ioMetadataKeyLabels: Record<string, string> = { "topic_id": "topic 
 export const ioMetadataValueLabels: Record<string, Record<string, string>> = { "type": { "ts": "timestamp" } }
 export const ioMetadataHideKeys = new Set([ "key" ]);
 
-export enum TaskConnectResult {
-    success,
-    successWithUpdate,
-    failed,
-}
-
-export class ManagedTaskInstance extends EventEmitter<"updated"> {
-    private taskInstance: TaskInstance;
+export class ManagedTaskInstance extends EventEmitter<{"updated": [TaskInstance] }> {
+    private readonly taskInstance: TaskInstance;
     private configurator: TaskConfigurator;
     private configuratorContext: TaskConfiguratorContext;
 
@@ -80,10 +76,12 @@ export class ManagedTaskInstance extends EventEmitter<"updated"> {
         this.configuratorContext = configuratorContext;
     }
 
-    public updateData(taskInstance: StoredTaskInstance) {
-        this.taskInstance = taskInstance;
-        this._frontendConfig = taskInstance.frontendConfig ?? {};
-        // this.emit("updated");
+    public updateData(taskInstance: StoredTaskInstance, overwriteStored: boolean = false) {
+        Object.assign(this.taskInstance, taskInstance);
+        if (overwriteStored) {
+            this._frontendConfig = taskInstance.frontendConfig ?? {};
+        }
+        this.emit("updated", this.taskInstance);
     }
 
     public async getStartConfig() {
@@ -91,60 +89,18 @@ export class ManagedTaskInstance extends EventEmitter<"updated"> {
     }
 
     public async remapTopicIds(idMap: Map<number, number>) {
-        this.taskInstance = await (this.configurator.remapTopicIds ?? defaultRemapTopicIds).call(null, this.taskInstance, idMap, this.configuratorContext);
+        const newData = await (this.configurator.remapTopicIds ?? defaultRemapTopicIds).call(null, this.taskInstance, idMap, this.configuratorContext);
+        this.updateData(newData);
     }
 
-    public async connect(key: string, output?: TaskOutput): Promise<TaskConnectResult> {
-        const oldTaskIO = extractTaskIO(this.taskInstance);
-        this.taskInstance = await this.configurator.connect(this.taskInstance, key, output, this.configuratorContext);
-        const newTaskIO = extractTaskIO(this.taskInstance);
-
-        const newTargetInput = this.taskInstance.inputs.find(input => input.key === key);
-        if (!newTargetInput || newTargetInput.topic_id !== output?.topic_id) {
-            return TaskConnectResult.failed;
+    public async connect(key: string, output?: TaskOutput): Promise<boolean> {
+        const oldInstanceClone = cloneDeep(this.taskInstance);
+        const newInstance = await this.configurator.connect(this.taskInstance, key, output, this.configuratorContext);
+        
+        if (!deepEqual(newInstance, oldInstanceClone)) {
+            this.updateData(newInstance);
         }
-
-        const oldInputs = new Map(oldTaskIO.inputs.map(i => [i.key, i]))
-        const oldOutputs = new Map(oldTaskIO.outputs.map(o => [o.topic_id, o]))
-
-        const newInputs = new Map(newTaskIO.inputs.map(i => [i.key, i]))
-        const newOutputs = new Map(newTaskIO.outputs.map(o => [o.topic_id, o]))
-
-        if (oldInputs.size != newInputs.size ||
-            oldOutputs.size != newOutputs.size ||
-            Array.from(oldInputs.keys()).some(k => !newInputs.has(k)) ||
-            Array.from(oldOutputs.keys()).some(tid => !newOutputs.has(tid))) {
-            return TaskConnectResult.successWithUpdate;
-        }
-
-        const ioIgnoreFields = new Set(["label"]);
-
-        try {
-            validateMetadataEquals(oldInputs.get(key)!, newInputs.get(key)!, new Set(["topic_id", ...ioIgnoreFields]))
-        }
-        catch {
-            return TaskConnectResult.successWithUpdate;
-        }
-
-        for (const inputKey of oldInputs.keys()) {
-            try {
-                validateMetadataEquals(oldInputs.get(inputKey)!, newInputs.get(inputKey)!, ioIgnoreFields);
-            }
-            catch {
-                return TaskConnectResult.successWithUpdate;
-            }
-        }
-
-        for (const outputTId of oldOutputs.keys()) {
-            try {
-                validateMetadataEquals(oldOutputs.get(outputTId)!, newOutputs.get(outputTId)!, ioIgnoreFields);
-            }
-            catch {
-                return TaskConnectResult.successWithUpdate;
-            }
-        }
-
-        return TaskConnectResult.success;
+        return this.taskInstance.inputs.find(input => input.key === key)?.topic_id === output?.topic_id;
     }
 
     public renderEditor(element: HTMLElement) {

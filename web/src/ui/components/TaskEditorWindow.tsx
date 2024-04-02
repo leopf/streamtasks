@@ -10,9 +10,7 @@ export function TaskEditorWindow(props: { task: ManagedTaskInstance, onClose: ()
     const resizingRef = useRef(false);
     const customEditorRef = useRef<HTMLDivElement>(null);
     const [addSize, setAddSize] = useState(0);
-
-    const taskIOList = useMemo(() => Array.from(Array(Math.max(props.task.inputs?.length || 0, props.task.outputs?.length || 0)))
-        .map((_, idx) => [props.task.inputs?.at(idx), props.task.outputs?.at(idx)]), [props.task])
+    const [taskUpdateCounter, setTaskUpdateCounter] = useState(0);
 
     useEffect(() => {
         if (!props.task.hasEditor || !customEditorRef.current) return;
@@ -32,12 +30,21 @@ export function TaskEditorWindow(props: { task: ManagedTaskInstance, onClose: ()
     }, [props.task, customEditorRef.current]);
 
     useEffect(() => {
-        const mouseUpHandler = () => resizingRef.current = false; 
+        const updateHandler = () =>
+            setTaskUpdateCounter(pv => pv + 1);
+        props.task.on("updated", updateHandler);
+        return () => {
+            props.task.off("updated", updateHandler);
+        }
+    }, [props.task]);
+
+    useEffect(() => {
+        const mouseUpHandler = () => resizingRef.current = false;
         const mouseMoveHandler = (e: MouseEvent) => {
             if (!resizingRef.current) return;
             setAddSize(pv => Math.min(0, pv + e.movementY));
         };
-        
+
         window.addEventListener("mouseup", mouseUpHandler);
         window.addEventListener("mousemove", mouseMoveHandler);
 
@@ -46,6 +53,9 @@ export function TaskEditorWindow(props: { task: ManagedTaskInstance, onClose: ()
             window.removeEventListener("mousemove", mouseMoveHandler);
         };
     }, []);
+
+    const taskIOList = useMemo(() => Array.from(Array(Math.max(props.task.inputs?.length || 0, props.task.outputs?.length || 0)))
+        .map((_, idx) => [props.task.inputs?.at(idx), props.task.outputs?.at(idx)]).map(([i, o]) => [i ? { ...i } : i, o ? { ...o } : o]), [props.task, taskUpdateCounter])
 
     return (
         <Box position="absolute" top="1rem" right="1rem" width="30%" height={`calc(100% - 2rem + ${addSize}px)`}>
@@ -77,21 +87,10 @@ export function TaskEditorWindow(props: { task: ManagedTaskInstance, onClose: ()
                             </TableBody>
                         </Table>
                     </TableContainer>
-                    <h1>Test</h1>
-                    <h1>Test</h1>
-                    <h1>Test</h1>
-                    <h1>Test</h1>
-                    <h1>Test</h1>
-                    <h1>Test</h1>
-                    <h1>Test</h1>
-                    <h1>Test</h1>
-                    <h1>Test</h1>
-                    <h1>Test</h1>
-                    <h1>Test</h1>
                     {props.task.hasEditor && <Box padding={1} ref={customEditorRef} />}
                 </>
             </NodeOverlayTile>
-            <Box position="absolute" bottom={0} left={0} width={"100%"} height="4px" sx={{ cursor: "ns-resize", userSelect: "none" }} onMouseDown={() => resizingRef.current = true}/>
+            <Box position="absolute" bottom={0} left={0} width={"100%"} height="4px" sx={{ cursor: "ns-resize", userSelect: "none" }} onMouseDown={() => resizingRef.current = true} />
         </Box>
     )
 }

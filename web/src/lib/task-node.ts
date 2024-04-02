@@ -1,6 +1,20 @@
-import { TaskOutput } from "../types/task";
+import deepEqual from "deep-equal";
+import { TaskIO, TaskInstance, TaskOutput } from "../types/task";
 import { InputConnection, Node, OutputConnection } from "./node-editor";
-import { ManagedTaskInstance, TaskConnectResult } from "./task";
+import { ManagedTaskInstance, extractTaskIO } from "./task";
+
+type TaskIOWithLabel = TaskIO & { label: string };
+
+function extractIOWithLabel(task: TaskInstance): TaskIOWithLabel {
+    return {
+        label: task.label,
+        ...extractTaskIO(task)
+    }
+}
+
+function compareTaskIO( ignoreInputTopicId?: string) {
+    
+}
 
 export class TaskNode implements Node {
     private task: ManagedTaskInstance;
@@ -38,9 +52,25 @@ export class TaskNode implements Node {
     }
 
     private updateHandlers: (() => void)[] = [];
+    private lastTaskIO: TaskIOWithLabel;
+    private inputKeyIgnoreTopicId?: string;
 
     constructor(task: ManagedTaskInstance) {
         this.task = task;
+        this.lastTaskIO = extractIOWithLabel(task.storedInstance);
+        this.task.on("updated", (newTask) => { // TODO: memory management
+            const oldTaskIO = this.lastTaskIO;
+            this.lastTaskIO = extractIOWithLabel(newTask);
+            if (this.inputKeyIgnoreTopicId) {
+                const oldInput = oldTaskIO.inputs.find(i => i.key === this.inputKeyIgnoreTopicId);
+                const newInput = this.lastTaskIO.inputs.find(i => i.key === this.inputKeyIgnoreTopicId);
+                if (oldInput) oldInput.topic_id = newInput?.topic_id;
+            }
+            if (!deepEqual(oldTaskIO, this.lastTaskIO)) {
+                console.log("update!")
+                this.emitUpdate();
+            }
+        });
     }
 
     public async connect(key: string, output: OutputConnection | undefined) {
@@ -50,21 +80,12 @@ export class TaskNode implements Node {
             delete newOutput.id;
             delete newOutput.streamId;
         }
-
         try {
-            const res = await this.task.connect(key, newOutput)
-            if (res === TaskConnectResult.successWithUpdate) {
-                this.emitUpdate();
-                return true;
-            }
-            else if (res === TaskConnectResult.success) {
-                return true;
-            }
-            else {
-                return false;
-            }
+            this.inputKeyIgnoreTopicId = key;
+            return await this.task.connect(key, newOutput)
         }
         catch (e) {
+            this.inputKeyIgnoreTopicId = undefined;
             return String(e);
         }
     }
