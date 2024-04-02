@@ -46,7 +46,7 @@ export const TaskTemplateItem = observer((props: { taskHost: TaskHost }) => {
             e.dataTransfer.setData("task_host", JSON.stringify(dragData));
             e.dataTransfer.setDragImage(imageRef.current, dragData.ox, dragData.oy)
         }}>
-            <NodeOverlayTile header={<Typography fontWeight="bold" fontSize="0.7rem">node: {nodeName}</Typography>}>
+            <NodeOverlayTile header={<Typography lineHeight={1} fontSize="0.7rem">node: {nodeName}</Typography>}>
                 {imageUrl ? (
                     <Box padding={3}>
                         <img ref={imageRef} style={{ width: "100%", display: "block" }} src={imageUrl} />

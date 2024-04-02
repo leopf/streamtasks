@@ -6,12 +6,12 @@ export function NodeOverlayTile(props: React.PropsWithChildren<{ header?: React.
         <Stack
             boxSizing="border-box"
             bgcolor="#fff"
-            boxShadow="0 0 10px rgba(0,0,0,0.1)"
+            // boxShadow="0 0 10px rgba(0,0,0,0.1)"
             border="1px solid #cfcfcf"
             width="100%"
             height="100%"
             borderRadius={1}>
-            <Box borderBottom="1px solid #cfcfcf" paddingX={1} paddingY={0.5}>{props.header}</Box>
+            <Box borderBottom="1px solid #cfcfcf" paddingX={1} paddingY={0.75}>{props.header}</Box>
             <Box flex={1} overflow="auto">{props.children}</Box>
         </Stack>
     );

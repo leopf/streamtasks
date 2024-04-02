@@ -72,7 +72,7 @@ export function TaskEditorWindow(props: { task: ManagedTaskInstance, onClose: ()
         <Box position="absolute" top="1rem" right="1rem" width="30%" height={`calc(100% - 2rem + ${addSize}px)`}>
             <NodeOverlayTile header={(
                 <Stack direction="row" alignItems="center">
-                    <Typography fontWeight="bold" fontSize="0.85rem">{props.task.label}</Typography>
+                    <Typography lineHeight={1} fontSize="0.85rem">{props.task.label}</Typography>
                     <Box flex={1} />
                     <IconButton aria-label="close" size="small" onClick={() => props.onClose()}>
                         <CloseIcon fontSize="inherit" />
