@@ -4,6 +4,7 @@ import { Viewport } from 'pixi-viewport';
 import { LRUCache } from 'lru-cache';
 import { Connection, Node, ConnectResult, InputConnection, NodeDisplayOptions, NodeRenderOptions, OutputConnection } from "./types";
 import { Point } from '../../types/basic';
+import EventEmitter from 'eventemitter3';
 
 const appBackgroundColor = 0xeeeeee;
 const paddingVertical = 10;
@@ -399,7 +400,11 @@ export async function renderNodeToImage(node: Node, options: NodeRenderOptions) 
     return dataUrl;
 }
 
-export class NodeEditorRenderer {
+export class NodeEditorRenderer extends EventEmitter<{
+"connectError": [ string ],
+"updated": [ string ],
+"selected": [ string | undefined ],
+}> {
     public viewport: Viewport;
     private app?: PIXI.Application;
     private connectionLayer = new PIXI.Container();
@@ -451,6 +456,7 @@ export class NodeEditorRenderer {
     }
 
     constructor() {
+        super();
         this.app = new PIXI.Application({
             width: 1,
             height: 1,
@@ -489,36 +495,6 @@ export class NodeEditorRenderer {
     public getInternalPosition(p: Point): Point {
         const r = this.viewport.toLocal(p);
         return { x: r.x, y: r.y }
-    }
-
-    public on(event: "connectError", callback: (message: string) => void): void;
-    public on(event: "updated", callback: (nodeId: string) => void): void;
-    public on(event: "selected", callback: (nodeId?: string) => void): void;
-    public on(event: "updated" | "selected" | "connectError", callback: ((v: string) => void) | ((v?: string) => void)) {
-        if (event === "updated") {
-            this._updatedHandlers.add(callback);
-        }
-        else if (event === "selected") {
-            this._selectedHandlers.add(callback as any);
-        }
-        else if (event === "connectError") {
-            this._connectErrorHandlers.add(callback as any);
-        }
-    }
-
-    public off(event: "connectError", callback: (message: string) => void): void;
-    public off(event: "updated", callback: (nodeId: string) => void): void;
-    public off(event: "selected", callback: (nodeId?: string) => void): void;
-    public off(event: "updated" | "selected" | "connectError", callback: ((v: string) => void) | ((v?: string) => void)) {
-        if (event === "updated") {
-            this._updatedHandlers.delete(callback);
-        }
-        else if (event === "selected") {
-            this._selectedHandlers.delete(callback as any);
-        }
-        else if (event === "connectError") {
-            this._connectErrorHandlers.delete(callback as any);
-        }
     }
 
     public async addNode(node: Node, center: boolean = false) {
@@ -560,7 +536,7 @@ export class NodeEditorRenderer {
         node.render();
         await this.reconnectNodeOutputs(nodeId);
         this.renderNodeLinks(nodeId);
-        this.emitUpdated(nodeId);
+        this.emit("updated", nodeId);
     }
     public clear() {
         this.nodeRenderers.forEach(node => node.remove());
@@ -577,7 +553,7 @@ export class NodeEditorRenderer {
         if (selectedInputConnection) {
             if (await this.connectConnectionToInput(this.selectedNodeId!, selectedInputConnection.key)) {
                 this.removeLinks(this.links.values.filter(c => c.inputNodeId === this.selectedNodeId && c.inputKey === connectionId));
-                this.emitUpdated(this.selectedNodeId!);
+                this.emit("updated", this.selectedNodeId!);
             }
         }
     }
@@ -594,8 +570,8 @@ export class NodeEditorRenderer {
                 this.renderLink(connection);
                 this.renderUpdateInputLinks(connection.inputNodeId, connection.inputKey);
 
-                this.emitUpdated(connection.inputNodeId);
-                this.emitUpdated(connection.outputNodeId);
+                this.emit("updated", connection.inputNodeId);
+                this.emit("updated", connection.outputNodeId);
             }
         }
         finally {
@@ -632,7 +608,7 @@ export class NodeEditorRenderer {
 
     public unselectNode() {
         if (this.selectedNodeId === undefined) return;
-        this.emitSelected();
+        this.emit("selected", undefined);
         const nodeId = this.selectedNodeId;
         this.selectedNodeId = undefined;
         this.renderNode(nodeId);
@@ -645,7 +621,7 @@ export class NodeEditorRenderer {
         if (oldNodeId !== undefined && oldNodeId !== id) {
             this.renderNode(oldNodeId)
         }
-        this.emitSelected(id);
+        this.emit("selected", id);
         this.pressActive = true;
         this.viewport.plugins.pause('drag');
 
@@ -662,16 +638,6 @@ export class NodeEditorRenderer {
             }
             this.viewport.plugins.resume('drag');
         }
-    }
-
-    private emitUpdated(nodeId: string) {
-        this._updatedHandlers.forEach(h => h(nodeId));
-    }
-    private emitSelected(nodeId?: string) {
-        this._selectedHandlers.forEach(h => h(nodeId));
-    }
-    private emitConnectError(message: string) {
-        this._connectErrorHandlers.forEach(h => h(message));
     }
 
     private resize() {
@@ -763,14 +729,14 @@ export class NodeEditorRenderer {
 
     private handleConnectionResult(result: ConnectResult): boolean {
         if (result === false) {
-            this.emitConnectError('Connection failed');
+            this.emit("connectError", "Connection failed");
             return false;
         }
         else if (result === true) {
             return true;
         }
         else {
-            this.emitConnectError(result);
+            this.emit("connectError", result);
             return false;
         }
     }
