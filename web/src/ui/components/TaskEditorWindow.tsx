@@ -53,7 +53,7 @@ export function TaskEditorWindow(props: { task: ManagedTaskInstance, onClose: ()
                 <Stack direction="row" alignItems="center">
                     <Typography fontWeight="bold" fontSize="0.85rem">{props.task.label}</Typography>
                     <Box flex={1} />
-                    <IconButton aria-label="close" size="small" onClick={() => props.onClose}>
+                    <IconButton aria-label="close" size="small" onClick={() => props.onClose()}>
                         <CloseIcon fontSize="inherit" />
                     </IconButton>
                 </Stack>
