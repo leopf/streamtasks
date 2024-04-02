@@ -1,16 +1,22 @@
 import { z } from "zod";
-import { Metadata, TaskConfigurator, TaskConfiguratorContext, TaskInstance, TaskOutput } from "../../types/task";
+import { TaskConfigurator, TaskConfiguratorContext, TaskInstance, TaskOutput } from "../../types/task";
 import { v4 as uuidv4 } from "uuid";
-import { MetadataModel, TaskInputModel, TaskOutputModel } from "../../model/task";
+import { MetadataModel } from "../../model/task";
 import { validateMetadataEquals } from "../../lib/task";
+import { ReactEditorRenderer as ReactRenderer } from "../../lib/conigurator";
+import { EditorField, EditorFieldModel } from "../../StaticEditor/types";
+import { StaticEditor } from "../../StaticEditor";
+import { LRUCache } from "lru-cache";
 
 export const TaskPartialInputModel = MetadataModel.and(z.object({
     key: z.string()
 }));
-
 export type TaskPartialInput = z.infer<typeof TaskPartialInputModel>;
 
 const compareIgnoreMetadataKeys = new Set(["key", "topic_id", "label"]);
+
+const reactRenderer = new ReactRenderer();
+const metadataFieldsCache = new LRUCache<string, EditorField[]>({ max: 100 });
 
 const task: TaskConfigurator = {
     connect: (taskInstance: TaskInstance, key: string, output: TaskOutput | undefined, context: TaskConfiguratorContext) => {
@@ -55,7 +61,11 @@ const task: TaskConfigurator = {
         };
     },
     renderEditor: (taskInstance: TaskInstance, element: HTMLElement, context: TaskConfiguratorContext) => {
-        element.innerHTML = "<h1>YOOO</h1>"
+        if (typeof context.taskHost.metadata["cfg:editorfields"] !== "string") return;
+        const fieldsData = String(context.taskHost.metadata["cfg:editorfields"]);
+        const fields = metadataFieldsCache.get(fieldsData) ?? z.array(EditorFieldModel).parse(JSON.parse(fieldsData))
+        if (!metadataFieldsCache.has(fieldsData)) metadataFieldsCache.set(fieldsData, fields)
+        reactRenderer.render(element, <StaticEditor task={taskInstance} fields={fields}/>)
     }
 };
 

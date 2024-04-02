@@ -18,11 +18,14 @@ export function TaskEditorWindow(props: { task: ManagedTaskInstance, onClose: ()
         const taskUpdateHandler = (e: Event) => {
             const newInstance = StoredTaskInstanceModel.parse((e as CustomEvent).detail);
             props.task.updateData(newInstance);
-            if (customEditorRef.current) props.task.renderEditor(customEditorRef.current)
         };
 
         customEditorRef.current.addEventListener("task-instance-updated", taskUpdateHandler);
-        props.task.renderEditor(customEditorRef.current);
+        try {
+            props.task.renderEditor(customEditorRef.current);
+        } catch (error) {
+            console.error(error);
+        }
 
         return () => {
             customEditorRef.current?.removeEventListener("task-instance-updated", taskUpdateHandler)
@@ -30,8 +33,16 @@ export function TaskEditorWindow(props: { task: ManagedTaskInstance, onClose: ()
     }, [props.task, customEditorRef.current]);
 
     useEffect(() => {
-        const updateHandler = () =>
+        const updateHandler = () => {
             setTaskUpdateCounter(pv => pv + 1);
+            if (customEditorRef.current) {
+                try {
+                    props.task.renderEditor(customEditorRef.current);
+                } catch (error) {
+                    console.error(error);
+                }
+            }
+        }
         props.task.on("updated", updateHandler);
         return () => {
             props.task.off("updated", updateHandler);

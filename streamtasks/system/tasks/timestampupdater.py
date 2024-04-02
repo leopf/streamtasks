@@ -46,7 +46,27 @@ class TimestampUpdaterTaskHost(TaskHost):
     label="timestamp updater",
     inputs=[{ "label": "input", "type": "ts", "key": "in_topic" }],
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic" }],
-    default_config={ "time_reference": "time", "time_offset": 0, "fail_closed": True }
+    default_config={ "time_reference": "time", "time_offset": 0, "fail_closed": True },
+    editor_fields=[
+      {
+        "type": "select",
+        "key": "time_reference",
+        "label": "time reference",
+        "items": [ { "label": "time", "value": "time" }, { "label": "message", "value": "message" } ]
+      },
+      {
+        "type": "number",
+        "key": "time_offset",
+        "label": "time offset from reference",
+        "integer": True,
+        "unit": "ms"
+      },
+      {
+        "type": "boolean",
+        "label": "fail closed",
+        "key": "fail_closed"
+      }
+    ]
   )}
   async def create_task(self, config: Any):
     return TimestampUpdaterTask(await self.create_client(), TimestampUpdaterConfig.model_validate(config))

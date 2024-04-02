@@ -3,7 +3,8 @@ from typing import Any
 from streamtasks.system.task import MetadataDict
 
 def static_configurator(label: str, description: str | None = None, inputs: list[MetadataDict] = [],
-                        outputs: list[MetadataDict] = [], default_config: dict[str, Any] | None = None):
+                        outputs: list[MetadataDict] = [], default_config: dict[str, Any] | None = None,
+                        editor_fields: list[dict] | None = None):
     metadata = {
         "js:configurator": "std:static",
         "cfg:label": label,
@@ -13,4 +14,5 @@ def static_configurator(label: str, description: str | None = None, inputs: list
     }
     if default_config is not None: metadata["cfg:config"] = json.dumps(default_config)
     if description is not None: metadata["cfg:description"] = description
+    if editor_fields is not None: metadata["cfg:editorfields"] = json.dumps(editor_fields)
     return metadata
