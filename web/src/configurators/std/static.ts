@@ -53,6 +53,9 @@ const task: TaskConfigurator = {
             ...Object.fromEntries(taskInstance.inputs.map(i => [i.key, i.topic_id ?? null])),
             ...Object.fromEntries(outputKeys.map((key, idx) => [key, taskInstance.outputs.at(idx)?.topic_id]).filter(([k, v]) => k && v))
         };
+    },
+    renderEditor: (taskInstance: TaskInstance, element: HTMLElement, context: TaskConfiguratorContext) => {
+        element.innerHTML = "<h1>YOOO</h1>"
     }
 };
 

@@ -11,6 +11,7 @@ import { NodeOverlayTile } from './components/NodeOverlayTile';
 import { Close as CloseIcon } from '@mui/icons-material';
 import { Metadata } from '../types/task';
 import { TaskIOLabel } from './components/TaskIOLabel';
+import { TaskEditorWindow } from './components/TaskEditorWindow';
 
 export const NodeEditor = observer(() => {
     const [nodeRenderer, _] = useState(() => new NodeEditorRenderer());
@@ -24,10 +25,6 @@ export const NodeEditor = observer(() => {
         get selectedTask() {
             return this.selectedTaskId ? state.deployment?.tasks.get(this.selectedTaskId) : undefined;
         },
-        get selectedTaskIOList(): [(Metadata | undefined), (Metadata | undefined)][] {
-            return Array.from(Array(Math.max(this.selectedTask?.inputs?.length || 0, this.selectedTask?.outputs?.length || 0)))
-                .map((_, idx) => [this.selectedTask?.inputs?.at(idx), this.selectedTask?.outputs?.at(idx)])
-        }
     }));
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -88,41 +85,7 @@ export const NodeEditor = observer(() => {
                     }
                 }}
                 ref={containerRef} />
-            {localState.selectedTask && (
-
-                <Box position="absolute" top="1rem" right="1rem" width="30%" height="60%">
-                    <NodeOverlayTile header={(
-                        <Stack direction="row" alignItems="center">
-                            <Typography fontWeight="bold" fontSize="0.85rem">{localState.selectedTask.label}</Typography>
-                            <Box flex={1} />
-                            <IconButton aria-label="close" size="small" onClick={() => nodeRenderer.unselectNode()}>
-                                <CloseIcon fontSize="inherit" />
-                            </IconButton>
-                        </Stack>
-                    )}>
-                        <>
-                            <TableContainer>
-                                <Table size="small">
-                                    <TableHead>
-                                        <TableRow>
-                                            <TableCell align="left">inputs</TableCell>
-                                            <TableCell align="right">outputs</TableCell>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {localState.selectedTaskIOList.map(([i, o]) => (
-                                            <TableRow>
-                                                <TableCell align="left">{i && <TaskIOLabel io={i}/>}</TableCell>
-                                                <TableCell align="right">{o && <TaskIOLabel alignRight io={o}/>}</TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </TableContainer>
-                        </>
-                    </NodeOverlayTile>
-                </Box>
-            )}
+            {localState.selectedTask && (<TaskEditorWindow task={localState.selectedTask} onClose={() => nodeRenderer.unselectNode()}/>)}
         </Box>
     );
 });

@@ -40,9 +40,6 @@ export class ManagedTaskInstance extends EventEmitter<"updated"> {
     private configurator: TaskConfigurator;
     private configuratorContext: TaskConfiguratorContext;
 
-    private renderedEditorContainers: Set<HTMLElement> = new Set();
-    private onTaskInstanceUpdatedListener = this.onTaskInstanceUpdated.bind(this);
-
     public get id() {
         return this.taskInstance.id;
     }
@@ -154,28 +151,7 @@ export class ManagedTaskInstance extends EventEmitter<"updated"> {
         if (!this.configurator.renderEditor) {
             return;
         }
-        this.renderedEditorContainers.add(element);
-        element.addEventListener("task-instance-updated", this.onTaskInstanceUpdatedListener);
         this.configurator.renderEditor(this.taskInstance, element, this.configuratorContext);
-    }
-    public unmountEditor(element: HTMLElement) {
-        element.removeEventListener("task-instance-updated", this.onTaskInstanceUpdatedListener);
-        this.renderedEditorContainers.delete(element);
-    }
-
-    private onTaskInstanceUpdated(e: Event) {
-        if (e instanceof CustomEvent && "id" in e.detail && e.detail.id === this.taskInstance.id) {
-            this.taskInstance = e.detail; // TODO: maybe it makes sense to do validation here
-            this.handleTaskInstanceUpdated();
-        }
-    }
-    private handleTaskInstanceUpdated() {
-        if (!this.configurator.renderEditor) {
-            return;
-        }
-        for (const container of this.renderedEditorContainers) {
-            this.configurator.renderEditor(this.taskInstance, container, this.configuratorContext);
-        }
     }
 }
 
