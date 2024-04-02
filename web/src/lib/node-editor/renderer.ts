@@ -114,14 +114,10 @@ export class NodeRenderer {
 
     constructor(node: Node, editor?: NodeEditorRenderer) {
         this.node = node;
-        this.node.onUpdated?.call(this.node, async () => await this.editor?.updateNode(this.id));
+        this.node.on?.call(this.node, "updated", async () => await this.editor?.updateNode(this.id));
         this.editor = editor;
 
         this.group = new PIXI.Container();
-        // this.group.filters = [new DropShadowFilter({
-        //     alpha: 0.5,
-        //     blur: 5,
-        // })];
         this.group.interactive = true;
 
         this.group.on('pointerdown', () => this.editor?.onPressNode(this.id));
@@ -326,11 +322,6 @@ export class NodeDisplayRenderer {
     public resize() {
         this.app.renderer.resize(this.hostEl.clientWidth, this.hostEl.clientHeight);
     }
-
-    public onUpdated(callback: () => void) {
-        this.updateHandlers.push(callback);
-    }
-
     public toDataUrl() {
         return this.app.renderer.extract.base64(this.app.stage);
     }
@@ -420,9 +411,6 @@ export class NodeEditorRenderer extends EventEmitter<{
 
     private container?: HTMLElement;
     private containerResizeObserver?: ResizeObserver;
-    private _updatedHandlers = new Set<(nodeId: string) => void>();
-    private _selectedHandlers = new Set<(nodeId?: string) => void>();
-    private _connectErrorHandlers = new Set<(message: string) => void>();
 
     private _readOnly: boolean = false;
     public get readOnly() {

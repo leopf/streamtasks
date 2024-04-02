@@ -2,6 +2,7 @@ import deepEqual from "deep-equal";
 import { TaskIO, TaskInstance, TaskOutput } from "../types/task";
 import { InputConnection, Node, OutputConnection } from "./node-editor";
 import { ManagedTaskInstance, extractTaskIO } from "./task";
+import { EventEmitter } from "eventemitter3";
 
 type TaskIOWithLabel = TaskIO & { label: string };
 
@@ -16,7 +17,7 @@ function compareTaskIO( ignoreInputTopicId?: string) {
     
 }
 
-export class TaskNode implements Node {
+export class TaskNode extends EventEmitter<{ "updated": [] }> implements Node {
     private task: ManagedTaskInstance;
 
     public get id(): string {
@@ -56,6 +57,7 @@ export class TaskNode implements Node {
     private inputKeyIgnoreTopicId?: string;
 
     constructor(task: ManagedTaskInstance) {
+        super();
         this.task = task;
         this.lastTaskIO = extractIOWithLabel(task.storedInstance);
         this.task.on("updated", (newTask) => { // TODO: memory management
@@ -68,7 +70,7 @@ export class TaskNode implements Node {
             }
             if (!deepEqual(oldTaskIO, this.lastTaskIO)) {
                 console.log("update!")
-                this.emitUpdate();
+                this.emit("updated");
             }
         });
     }
@@ -88,12 +90,5 @@ export class TaskNode implements Node {
             this.inputKeyIgnoreTopicId = undefined;
             return String(e);
         }
-    }
-    public onUpdated(hdl: () => void) {
-        this.updateHandlers.push(hdl);
-    }
-
-    private emitUpdate() {
-        this.updateHandlers.forEach(hdl => hdl.call(null))
     }
 }

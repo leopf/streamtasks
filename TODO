@@ -4,7 +4,6 @@ Frontend:
 - saving
 - deployments
 - no undefined in metadata
-- unified event emitters and handlers
 - static editor
 
 Backend:

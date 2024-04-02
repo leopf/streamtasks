@@ -11,7 +11,7 @@ export interface Node {
     outputs: OutputConnection[];
     inputs: InputConnection[];
     connect: (key: string, output?: OutputConnection) => Promise<ConnectResult>;
-    onUpdated?: (cb: () => void) => void;
+    on?: (name: "updated", cb: () => void) => void;
 }
 
 export type NodeDisplayOptions = {
