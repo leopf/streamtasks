@@ -4,11 +4,11 @@ import { TaskHost } from "../../types/task";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { taskHostDescriptionFields, taskHostLabelFields } from "../../lib/task";
 import { renderNodeToImage } from "../../lib/node-editor";
-import { useGlobalState } from "../../state";
 import { TaskNode } from "../../lib/task-node";
 import { TaskHostDragData } from "../../types/task-host";
 import { LRUCache } from "lru-cache";
 import { NodeOverlayTile } from "./NodeOverlayTile";
+import { useTaskManager } from "../../state/task-manager";
 
 const taskHostImageCache = new LRUCache<string, string>({
     maxSize: 1e7,
@@ -18,7 +18,7 @@ const taskHostImageCache = new LRUCache<string, string>({
 export const TaskTemplateItem = observer((props: { taskHost: TaskHost }) => {
     const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
     const imageRef = useRef<HTMLImageElement>(null);
-    const state = useGlobalState()
+    const taskManager = useTaskManager()
 
     const label = useMemo(() => taskHostLabelFields.map(f => props.taskHost.metadata[f]).find(l => l), [props.taskHost]);
     const description = useMemo(() => taskHostDescriptionFields.map(f => props.taskHost.metadata[f]).find(l => l), [props.taskHost]);
@@ -29,7 +29,7 @@ export const TaskTemplateItem = observer((props: { taskHost: TaskHost }) => {
             setImageUrl(taskHostImageCache.get(props.taskHost.id));
         }
         else {
-            state.taskManager.createManagedTaskInstance(props.taskHost)
+            taskManager.createManagedTaskInstance(props.taskHost)
                 .then(task => renderNodeToImage(new TaskNode(task), { width: 200, backgroundColor: "#0000" }))
                 .then(imageUrl => {
                     taskHostImageCache.set(props.taskHost.id, imageUrl)

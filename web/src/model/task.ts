@@ -10,7 +10,7 @@ export const TaskInputModel = MetadataModel.and(z.object({
 }));
 export const TaskInstanceModel = z.object({
     id: z.string(),
-    taskHostId: z.string(),
+    task_host_id: z.string(),
     label: z.string(),
     config: z.record(z.string(), z.any()),
     inputs: z.array(TaskInputModel),

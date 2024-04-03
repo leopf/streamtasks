@@ -3,6 +3,8 @@ import { ManagedTaskInstance } from "../lib/task";
 import { StoredTaskInstanceModel } from "../model/task";
 import { TaskManager } from "./task-manager";
 import { action, makeObservable, observable } from "mobx";
+import { createContext } from "react";
+import { createStateContext } from "./util";
 
 export class DeploymentState {
     public readonly id: string;
@@ -16,7 +18,7 @@ export class DeploymentState {
         makeObservable(this, {
             loadTasks: action,
             addTask: action,
-            deleteTask: action 
+            deleteTask: action
         });
     }
 
@@ -41,13 +43,13 @@ export class DeploymentState {
     }
 
     public async addTask(task: ManagedTaskInstance) {
-        // await this.putTask(task);
+        await this.putTask(task);
         this.tasks.set(task.id, task);
         this.trackTask(task);
     }
 
     public async deleteTask(task: ManagedTaskInstance) {
-        const result = await fetch(`/api/deployment/${this.id}/task/${task.id}`, { method: "delete" });
+        const result = await fetch(`/api/task/${task.id}`, { method: "delete" });
         if (!result.ok) {
             throw new Error("Failed to delete!")
         }
@@ -55,20 +57,25 @@ export class DeploymentState {
     }
 
     private async putTask(task: ManagedTaskInstance) {
-        const result = await fetch(`/api/deployment/${this.id}/task`, { 
+        const result = await fetch(`/api/task`, {
             method: "put",
             headers: {
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify(task.storedInstance)
+            body: JSON.stringify({
+                deployment_id: this.id,
+                ...task.storedInstance
+            })
         });
 
         if (!result.ok) {
             throw new Error("Failed to update task in backend!");
         }
     }
-    
+
     private trackTask(task: ManagedTaskInstance) {
 
     }
 }
+
+export const [DeploymentContext, useDeployment] = createStateContext<DeploymentState>();

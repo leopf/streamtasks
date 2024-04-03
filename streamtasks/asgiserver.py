@@ -243,8 +243,9 @@ class HTTPContext(TransportContext):
   def add_response_headers(self, headers: Iterable[tuple[ByteString, ByteString]]): self._add_response_headers.extend(headers)
   
   async def respond_status(self, status: int): await self.respond_text({ 404: "Not found" }.get(status, "-"), status=status)
-  async def respond_json(self, json_data: Any, status: int = 200): await self.respond_json_raw(json.dumps(json_data), status=status)
-  async def respond_json_raw(self, json_string: str, status: int = 200): await self.respond_text(json_string, mime_type="application/json", status=status)
+  async def respond_json(self, json_data: Any, status: int = 200): await self.respond_json_string(json.dumps(json_data), status=status)
+  async def respond_json_string(self, json_string: str, status: int = 200): await self.respond_text(json_string, mime_type="application/json", status=status)
+  async def respond_json_raw(self, json_data: bytes, status: int = 200, encoding: str = "utf-8"): await self.respond_buffer(status, json_data, mime_type="application/json", charset=encoding)
   async def respond_text(self, text: str, status: int = 200, mime_type: str = "text/plain"): await self.respond_string(status, text, mime_type)
   async def respond_string(self, status: int, text: str, mime_type: str): await self.respond_buffer(status, text.encode("utf-8"), mime_type, "utf-8")
   async def respond_buffer(self, status: int, content: bytes, mime_type: str, charset: str | None = None):

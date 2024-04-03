@@ -4,7 +4,6 @@ Frontend:
 - saving
 - deployments
 - no undefined in metadata
-- static editor
 
 Backend:
 - Better topic control data. We need a way to make it maintainable.

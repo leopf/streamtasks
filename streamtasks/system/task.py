@@ -3,7 +3,7 @@ import hashlib
 import mimetypes
 from typing import Any, Iterable, Optional
 from uuid import UUID, uuid4
-from pydantic import UUID4, BaseModel, TypeAdapter, ValidationError, field_serializer
+from pydantic import UUID4, BaseModel, Field, TypeAdapter, ValidationError, field_serializer
 from abc import ABC, abstractmethod
 from streamtasks.asgi import ASGIAppRunner, ASGIProxyApp
 from streamtasks.asgiserver import ASGIHandler, ASGIRouter, ASGIServer, HTTPContext, TransportContext, decode_data_uri, http_context_handler, path_rewrite_handler, static_content_handler, static_files_handler, transport_context_handler
@@ -349,6 +349,19 @@ class TaskManagerClient:
   
   def task_message_receiver(self, task_ids: Iterable[UUID4]): return TaskBroadcastReceiver(self.client, [ get_namespace_by_task_id(task_id) for task_id in task_ids ], self.address_name)
 
+class Deployment(ModelWithId):
+  id: UUID4 = Field(default_factory=uuid4)
+  label: str
+  
+class StoredTaskInstance(ModelWithId):
+  deployment_id: UUID4
+  task_host_id: str
+  config: dict[str, Any]
+  frontendConfig: dict[str, Any]
+  inputs: list[MetadataDict]
+  outputs: list[MetadataDict]
+
+DeploymentList = TypeAdapter(list[Deployment])
 
 class TaskManagerWeb(Worker):
   def __init__(self, node_link: Link, switch: Switch | None = None, address_name: str = AddressNames.TASK_MANAGER_WEB, 
@@ -359,6 +372,8 @@ class TaskManagerWeb(Worker):
     self.task_host_asgi_handlers: dict[str, ASGIHandler] = {}
     self.task_asgi_handlers: dict[UUID4, ASGIHandler] = {}
     self.public_path = public_path
+    self.deployments_store: dict[str, str] = {}
+    self.tasks_store: dict[str, str] = {}
     self.client: Client
     self.tm_client: TaskManagerClient
   
@@ -376,26 +391,39 @@ class TaskManagerWeb(Worker):
       
   async def run_asgi_server(self):
     app = ASGIServer()
+    
+    @app.handler
+    @http_context_handler
+    async def _error_handler(ctx: HTTPContext):
+      try:
+        await ctx.next()
+      except (ValidationError, KeyError, ValueError) as e:
+        await ctx.respond_text(str(e), 400)
+      except BaseException as e:
+        await ctx.respond_text(str(e), 500)
+        
+    
     router = ASGIRouter()
     app.add_handler(router)
     
     @router.get("/api/task-hosts")
     @http_context_handler
-    async def _(ctx: HTTPContext): await ctx.respond_json_raw(TaskHostRegistrationList.dump_json(await self.tm_client.list_task_hosts()).decode("utf-8"))
+    async def _(ctx: HTTPContext): 
+      await ctx.respond_json_raw(TaskHostRegistrationList.dump_json(await self.tm_client.list_task_hosts()))
     
     @router.post("/api/task/start")
     @http_context_handler
     async def _(ctx: HTTPContext):
       req = TMTaskStartRequest(**(await ctx.receive_json()))
       task_instance = await self.tm_client.start_task(req.host_id, req.config)
-      await ctx.respond_json_raw(task_instance.model_dump_json())
+      await ctx.respond_json_string(task_instance.model_dump_json())
     
     @router.post("/api/task/stop/{id}")
     @http_context_handler
     async def _(ctx: HTTPContext):
       id = UUID(ctx.params.get("id", ""))
       task_instance = await self.tm_client.cancel_task_wait(id)
-      await ctx.respond_json_raw(task_instance.model_dump_json())
+      await ctx.respond_json_string(task_instance.model_dump_json())
     
     @router.post("/api/task/cancel/{id}")
     @http_context_handler
@@ -404,24 +432,52 @@ class TaskManagerWeb(Worker):
       await self.tm_client.cancel_task(id)
       await ctx.respond_status(200)
 
+    @router.get("/api/deployments")
+    @http_context_handler
+    async def _(ctx: HTTPContext): await ctx.respond_json_raw(DeploymentList.dump_json([ Deployment.model_validate_json(d) for d in self.deployments_store.values() ]))
+    
+    @router.post("/api/deployment")
+    @http_context_handler
+    async def _(ctx: HTTPContext): 
+      data = Deployment.model_validate_json(await ctx.receive_json_raw())
+      self.deployments_store[str(data.id)] = data.model_dump_json()
+      await ctx.respond_json_string(self.deployments_store[str(data.id)])
+    
+    @router.put("/api/deployment")
+    @http_context_handler
+    async def _(ctx: HTTPContext):
+      data = Deployment.model_validate_json(await ctx.receive_json_raw())
+      self.deployments_store[str(data.id)] = data.model_dump_json()
+      await ctx.respond_json_string(self.deployments_store[str(data.id)])
+    
+    @router.delete("/api/deployment/{id}")
+    @http_context_handler
+    async def _(ctx: HTTPContext):
+      if self.deployments_store.pop(ctx.params["id"], None) is None: await ctx.respond_status(400)
+      else: await ctx.respond_status(200)
+      
+    @router.get("/api/deployment/{id}/tasks")
+    @http_context_handler
+    async def _(ctx: HTTPContext):
+      deployment_id = UUID(hex=ctx.params.get("id"))
+      return (task for task in (StoredTaskInstance.model_validate_json(v) for v in self.tasks_store.values()) if task.deployment_id == deployment_id)
+    
+    @router.delete("/api/task/{id}")
+    @http_context_handler
+    async def _(ctx: HTTPContext):
+      if self.tasks_store.pop(ctx.params["id"], None) is None: await ctx.respond_status(400)
+      else: await ctx.respond_status(200)
+      
+    @router.put("/api/task")
+    @http_context_handler
+    async def _(ctx: HTTPContext):
+      data = StoredTaskInstance.model_validate_json(await ctx.receive_json_raw())
+      self.tasks_store[str(data.id)] = data.model_dump_json()  
+      await ctx.respond_json_string(data.model_dump_json())
+
     @router.post("/api/deployment/{*}")
     @http_context_handler
     async def _(ctx: HTTPContext): await ctx.respond_status(200)
-
-    # @router.websocket_route("/rtopic/{id}")
-    # @websocket_context_handler
-    # async def _(ctx: WebsocketContext):
-    #   id = ctx.params.get("id", "")
-      
-    #   await ctx.accept()
-    #   try: id = int(id)
-    #   except ValueError: return await ctx.close(reason="invalid id")
-      
-    #   async with self.client.in_topic(id) as topic:
-    #     data = await topic.recv_data()
-    #     # serialize data and send, close if ctx is closed
-        
-    #   await ctx.close()
     
     # TODO: lifecycle api support
     @router.transport_route("/task/{id}/{path*}")

@@ -1,7 +1,6 @@
 import * as PIXI from 'pixi.js';
 import objectHash from "object-hash";
 import { Viewport } from 'pixi-viewport';
-import { LRUCache } from 'lru-cache';
 import { Connection, Node, ConnectResult, InputConnection, NodeDisplayOptions, NodeRenderOptions, OutputConnection } from "./types";
 import { Point } from '../../types/basic';
 import EventEmitter from 'eventemitter3';

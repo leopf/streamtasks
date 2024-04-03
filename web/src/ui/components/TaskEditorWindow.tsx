@@ -4,9 +4,9 @@ import { TaskIOLabel } from "./TaskIOLabel";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { StoredTaskInstanceModel } from "../../model/task";
 import { NodeOverlayTile } from "./NodeOverlayTile";
-import { Close as CloseIcon } from "@mui/icons-material";
+import { Close as CloseIcon, Delete as DeleteIcon } from "@mui/icons-material";
 
-export function TaskEditorWindow(props: { task: ManagedTaskInstance, onClose: () => void }) {
+export function TaskEditorWindow(props: { task: ManagedTaskInstance, onClose: () => void, onDelete: () => void }) {
     const resizingRef = useRef(false);
     const customEditorRef = useRef<HTMLDivElement>(null);
     const [addSize, setAddSize] = useState(0);
@@ -71,9 +71,12 @@ export function TaskEditorWindow(props: { task: ManagedTaskInstance, onClose: ()
     return (
         <Box position="absolute" top="1rem" right="1rem" width="30%" height={`calc(100% - 2rem + ${addSize}px)`}>
             <NodeOverlayTile header={(
-                <Stack direction="row" alignItems="center">
+                <Stack direction="row" alignItems="center" spacing={1}>
                     <Typography lineHeight={1} fontSize="0.85rem">{props.task.label}</Typography>
                     <Box flex={1} />
+                    <IconButton aria-label="close" size="small" onClick={() => props.onDelete()}>
+                        <DeleteIcon fontSize="inherit" />
+                    </IconButton>
                     <IconButton aria-label="close" size="small" onClick={() => props.onClose()}>
                         <CloseIcon fontSize="inherit" />
                     </IconButton>

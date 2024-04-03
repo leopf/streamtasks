@@ -43,7 +43,7 @@ const task: TaskConfigurator = {
 
         return {
             id: uuidv4(),
-            taskHostId: context.taskHost.id,
+            task_host_id: context.taskHost.id,
             label: label,
             config: config,
             inputs: inputs,

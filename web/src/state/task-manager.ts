@@ -3,6 +3,7 @@ import { StoredTaskInstance, TaskConfigurator, TaskConfiguratorContext, TaskHost
 import { z } from "zod";
 import { TaskHostModel } from "../model/task";
 import { ManagedTaskInstance, getErrorConfigurator } from "../lib/task";
+import { createStateContext } from "./util";
 
 export class TaskManager {
     public taskHosts: TaskHost[] = [];
@@ -31,7 +32,7 @@ export class TaskManager {
         }
         catch (e) {
             if (fail) throw e;
-            taskHost = { id: task.taskHostId, metadata: {} };
+            taskHost = { id: task.task_host_id, metadata: {} };
             configurator = getErrorConfigurator(e);
         }
 
@@ -118,3 +119,5 @@ export class TaskManager {
         };
     }
 }
+
+export const [TaskManagerContext, useTaskManager] = createStateContext<TaskManager>();
