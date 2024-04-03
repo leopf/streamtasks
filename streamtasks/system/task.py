@@ -356,12 +356,14 @@ class Deployment(ModelWithId):
 class StoredTaskInstance(ModelWithId):
   deployment_id: UUID4
   task_host_id: str
+  label: str
   config: dict[str, Any]
   frontendConfig: dict[str, Any]
   inputs: list[MetadataDict]
   outputs: list[MetadataDict]
 
 DeploymentList = TypeAdapter(list[Deployment])
+StoredTaskInstanceList = TypeAdapter(list[StoredTaskInstance])
 
 class TaskManagerWeb(Worker):
   def __init__(self, node_link: Link, switch: Switch | None = None, address_name: str = AddressNames.TASK_MANAGER_WEB, 
@@ -436,6 +438,13 @@ class TaskManagerWeb(Worker):
     @http_context_handler
     async def _(ctx: HTTPContext): await ctx.respond_json_raw(DeploymentList.dump_json([ Deployment.model_validate_json(d) for d in self.deployments_store.values() ]))
     
+    @router.get("/api/deployment/{id}")
+    @http_context_handler
+    async def _(ctx: HTTPContext):
+      if deployment_raw := self.deployments_store.get(ctx.params["id"], None):
+        await ctx.respond_json_string(Deployment.model_validate_json(deployment_raw).model_dump_json())
+      else: await ctx.respond_status(404)
+    
     @router.post("/api/deployment")
     @http_context_handler
     async def _(ctx: HTTPContext): 
@@ -459,8 +468,9 @@ class TaskManagerWeb(Worker):
     @router.get("/api/deployment/{id}/tasks")
     @http_context_handler
     async def _(ctx: HTTPContext):
-      deployment_id = UUID(hex=ctx.params.get("id"))
-      return (task for task in (StoredTaskInstance.model_validate_json(v) for v in self.tasks_store.values()) if task.deployment_id == deployment_id)
+      deployment_id = UUID(ctx.params.get("id", ""))
+      all_tasks = [StoredTaskInstance.model_validate_json(v) for v in self.tasks_store.values()]
+      await ctx.respond_json_raw(StoredTaskInstanceList.dump_json([ task for task in all_tasks if task.deployment_id == deployment_id ]))
     
     @router.delete("/api/task/{id}")
     @http_context_handler

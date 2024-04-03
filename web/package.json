@@ -19,6 +19,7 @@
     "@types/deep-equal": "^1.0.4",
     "@types/react": "^18.2.73",
     "@types/react-dom": "^18.2.23",
+    "@types/underscore": "^1.11.15",
     "clone-deep": "^4.0.1",
     "deep-equal": "^2.2.3",
     "eventemitter3": "^5.0.1",
@@ -31,6 +32,8 @@
     "pixi.js": "^7",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-router-dom": "^6.22.3",
+    "underscore": "^1.13.6",
     "uuid": "^9.0.1",
     "zod": "^3.22.4"
   },

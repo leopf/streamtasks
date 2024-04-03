@@ -27,7 +27,7 @@ export class TaskManager {
         let configurator: TaskConfigurator;
         let taskHost: TaskHost;
         try {
-            taskHost = this.taskHosts.find(th => th.id === task.id) ?? (() => {throw new Error("Task host not found!");})();
+            taskHost = await this.getTaskHost(task.task_host_id);
             configurator = await this.getConfigurator(taskHost);
         }
         catch (e) {

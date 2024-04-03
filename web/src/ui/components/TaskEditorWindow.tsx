@@ -83,24 +83,26 @@ export function TaskEditorWindow(props: { task: ManagedTaskInstance, onClose: ()
                 </Stack>
             )}>
                 <>
-                    <TableContainer>
-                        <Table size="small">
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell align="left">inputs</TableCell>
-                                    <TableCell align="right">outputs</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {taskIOList.map(([i, o]) => (
+                    <Box marginBottom={2}>
+                        <TableContainer>
+                            <Table size="small">
+                                <TableHead>
                                     <TableRow>
-                                        <TableCell align="left">{i && <TaskIOLabel io={i} />}</TableCell>
-                                        <TableCell align="right">{o && <TaskIOLabel alignRight io={o} />}</TableCell>
+                                        <TableCell align="left">inputs</TableCell>
+                                        <TableCell align="right">outputs</TableCell>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
+                                </TableHead>
+                                <TableBody>
+                                    {taskIOList.map(([i, o]) => (
+                                        <TableRow>
+                                            <TableCell align="left">{i && <TaskIOLabel io={i} />}</TableCell>
+                                            <TableCell align="right">{o && <TaskIOLabel alignRight io={o} />}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
+                    </Box>
                     {props.task.hasEditor && <Box padding={1} ref={customEditorRef} />}
                 </>
             </NodeOverlayTile>

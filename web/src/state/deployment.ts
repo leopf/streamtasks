@@ -3,22 +3,27 @@ import { ManagedTaskInstance } from "../lib/task";
 import { StoredTaskInstanceModel } from "../model/task";
 import { TaskManager } from "./task-manager";
 import { action, makeObservable, observable } from "mobx";
-import { createContext } from "react";
 import { createStateContext } from "./util";
+import { Deployment } from "../types/deployment";
+import _ from "underscore";
 
 export class DeploymentState {
-    public readonly id: string;
     public readonly tasks: Map<string, ManagedTaskInstance> = observable.map();
 
+    public get id() {
+        return this._deployment.id;
+    }
+    
     private taskManager: TaskManager;
+    private _deployment: Deployment;
 
-    constructor(id: string, taskManager: TaskManager) {
-        this.id = id;
+    constructor(deployment: Deployment, taskManager: TaskManager) {
+        this._deployment = deployment
         this.taskManager = taskManager;
         makeObservable(this, {
             loadTasks: action,
             addTask: action,
-            deleteTask: action
+            deleteTask: action,
         });
     }
 
@@ -74,7 +79,7 @@ export class DeploymentState {
     }
 
     private trackTask(task: ManagedTaskInstance) {
-
+        task.on("updated", _.throttle(() => this.putTask(task), 1000)); // TODO: memory management
     }
 }
 
