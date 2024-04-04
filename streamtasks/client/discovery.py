@@ -6,7 +6,7 @@ from streamtasks.client.receiver import Receiver
 from streamtasks.client.signal import send_signal
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.types import Message, TopicDataMessage, TopicMessage
-from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, RegisterAddressRequestBody, WorkerAddresses, WorkerRequestDescriptors, WorkerPorts, WorkerTopics
+from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, RegisterAddressRequestBody, RegisterTopicSpaceRequestMessage, TopicSpaceRequestMessage, TopicSpaceResponseMessage, WorkerAddresses, WorkerRequestDescriptors, WorkerPorts, WorkerTopics
 import asyncio
 if TYPE_CHECKING:
   from streamtasks.client import Client
@@ -79,6 +79,16 @@ async def request_addresses(client: 'Client', count: int) -> set[int]:
   addresses = set(data.addresses)
   if len(addresses) != count: raise Exception("The response returned an invalid number of addresses")
   return addresses
+
+async def delete_topic_space(client: 'Client', id: int): await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.DELETE_TOPIC_SPACE, TopicSpaceRequestMessage(id=id).model_dump())
+async def register_topic_space(client: 'Client', topic_ids: set[int]) -> tuple[int, dict[int, int]]:
+  result = await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REGISTER_TOPIC_SPACE, RegisterTopicSpaceRequestMessage(topic_ids=topic_ids).model_dump())
+  data = TopicSpaceResponseMessage.model_validate(result)
+  return (data.id, data.topic_id_map)
+async def get_topic_space(client: 'Client', id: int): 
+  result = await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.GET_TOPIC_SPACE, TopicSpaceRequestMessage(id=id).model_dump())
+  data = TopicSpaceResponseMessage.model_validate(result)
+  return (data.id, data.topic_id_map)
 
 async def _register_address_name(client: 'Client', name: str, address: Optional[int]):
   await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REGISTER_ADDRESS, RegisterAddressRequestBody(address_name=name, address=address).model_dump())

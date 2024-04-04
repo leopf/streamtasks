@@ -4,6 +4,7 @@ Frontend:
 - saving
 - deployments
 - no undefined in metadata
+- fix id generation -> topic spaces (init counter at high to avoid collisions)!!!
 
 Backend:
 - Better topic control data. We need a way to make it maintainable.

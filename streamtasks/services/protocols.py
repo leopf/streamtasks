@@ -25,14 +25,29 @@ class WorkerTopics:
 
 class WorkerRequestDescriptors:
   REQUEST_TOPICS = "request_topics"
+
   REQUEST_ADDRESSES = "request_addresses"
+
   RESOLVE_ADDRESS = "resolve_address_name"
   REGISTER_ADDRESS = "register_address_name"
 
+  REGISTER_TOPIC_SPACE = "register_topic_space"
+  GET_TOPIC_SPACE = "get_topic_space"
+  DELETE_TOPIC_SPACE = "delete_topic_space"
 
 class AddressNames:
   TASK_MANAGER = "task_manager"
   TASK_MANAGER_WEB = "task_manager_web"
+
+class TopicSpaceRequestMessage(BaseModel):
+  id: int
+
+class RegisterTopicSpaceRequestMessage(BaseModel):
+  topic_ids: set[int]
+  
+class TopicSpaceResponseMessage(BaseModel):
+  id: int
+  topic_id_map: dict[int, int]
 
 class GenerateAddressesRequestMessageBase(BaseModel):
   count: int

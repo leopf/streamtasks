@@ -3,11 +3,11 @@ from streamtasks.client.receiver import AddressReceiver
 from streamtasks.client.signal import SignalRequestReceiver
 
 # NOTE: move this in here?
-from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, GenerateTopicsRequestBody, GenerateTopicsResponseBody, RegisterAddressRequestBody, ResolveAddressRequestBody, ResolveAddressResonseBody, WorkerAddresses, WorkerRequestDescriptors, WorkerPorts, WorkerTopics
+from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, GenerateTopicsRequestBody, GenerateTopicsResponseBody, RegisterAddressRequestBody, RegisterTopicSpaceRequestMessage, ResolveAddressRequestBody, ResolveAddressResonseBody, TopicSpaceRequestMessage, TopicSpaceResponseMessage, WorkerAddresses, WorkerRequestDescriptors, WorkerPorts, WorkerTopics
 
 from streamtasks.worker import Worker
 from streamtasks.client import Client
-from streamtasks.client.fetch import FetchRequest, FetchServer
+from streamtasks.client.fetch import FetchRequest, FetchServer, new_fetch_body_bad_request
 from streamtasks.net.message.data import SerializableData, TextData, MessagePackData
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.net import Link
@@ -21,7 +21,9 @@ class DiscoveryWorker(Worker):
     super().__init__(node_link)
     self._address_counter = WorkerAddresses.COUNTER_INIT
     self._topics_counter = WorkerTopics.COUNTER_INIT
+    self._topic_space_id_counter = 0
     self._address_map: dict[str, int] = {}
+    self._topic_spaces: dict[int, dict[int, int]] = {}
 
   async def run(self):
     await self.setup()
@@ -74,7 +76,7 @@ class DiscoveryWorker(Worker):
     async def _(req: FetchRequest):
       request = GenerateTopicsRequestBody.model_validate(req.body)
       logging.info(f"generating {request.count} topics")
-      topics = self.generate_topics(request.count)
+      topics = self.generate_topic_ids(request.count)
       await req.respond(GenerateTopicsResponseBody(topics=topics).model_dump())
       
     @server.route(WorkerRequestDescriptors.REQUEST_ADDRESSES)
@@ -83,6 +85,34 @@ class DiscoveryWorker(Worker):
       logging.info(f"generating {request.count} addresses")
       addresses = self.generate_addresses(request.count)
       await req.respond(GenerateAddressesResponseMessageBase(addresses=addresses).model_dump())
+
+    @server.route(WorkerRequestDescriptors.REGISTER_TOPIC_SPACE)
+    async def _(req: FetchRequest):
+      request = RegisterTopicSpaceRequestMessage.model_validate(req.body)
+      logging.info(f"generating topic space for {len(request.topic_ids)} topic ids")
+      new_topic_ids = self.generate_topic_ids(len(request.topic_ids))
+      self._topic_space_id_counter += 1
+      topic_id_map = { k: v for k, v in zip(request.topic_ids, new_topic_ids) }
+      self._topic_spaces[self._topic_space_id_counter] = topic_id_map
+      await req.respond(TopicSpaceResponseMessage(id=self._topic_space_id_counter, topic_id_map=topic_id_map).model_dump())
+
+    @server.route(WorkerRequestDescriptors.GET_TOPIC_SPACE)
+    async def _(req: FetchRequest):
+      try:
+        request = TopicSpaceRequestMessage.model_validate(req.body)
+        topic_id_map = self._topic_spaces[request.id]
+        await req.respond(TopicSpaceResponseMessage(id=request.id, topic_id_map=topic_id_map).model_dump())
+      except KeyError as e:
+        await req.respond_error(new_fetch_body_bad_request(str(e)))
+        
+    @server.route(WorkerRequestDescriptors.DELETE_TOPIC_SPACE)
+    async def _(req: FetchRequest):
+      try:
+        request = TopicSpaceRequestMessage.model_validate(req.body)
+        self._topic_spaces.pop(request.id)
+        await req.respond("OK")
+      except KeyError as e:
+        await req.respond_error(new_fetch_body_bad_request(str(e)))
 
     await server.run()
 
@@ -101,7 +131,7 @@ class DiscoveryWorker(Worker):
         except pydantic.ValidationError: pass
         except Exception as e: logging.error(e)
 
-  def generate_topics(self, count: int) -> set[int]:
+  def generate_topic_ids(self, count: int) -> set[int]:
     res = set(self._topics_counter + i for i in range(count))
     self._topics_counter += count
     return res
