@@ -115,7 +115,7 @@ export class TaskManager {
     private createContext(taskHost: TaskHost): TaskConfiguratorContext {
         return {
             taskHost: taskHost,
-            idGenerator: () => this.idCounter++
+            idGenerator: () => Math.floor(Math.random() * 1000000000)
         };
     }
 }

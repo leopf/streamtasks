@@ -1,12 +1,9 @@
 from enum import Enum
 import hashlib
-import mimetypes
 from typing import Any, Iterable, Optional
-from uuid import UUID, uuid4
-from pydantic import UUID4, BaseModel, Field, TypeAdapter, ValidationError, field_serializer
+from uuid import uuid4
+from pydantic import UUID4, BaseModel, TypeAdapter, ValidationError, field_serializer
 from abc import ABC, abstractmethod
-from streamtasks.asgi import ASGIAppRunner, ASGIProxyApp
-from streamtasks.asgiserver import ASGIHandler, ASGIRouter, ASGIServer, HTTPContext, TransportContext, decode_data_uri, http_context_handler, path_rewrite_handler, static_content_handler, static_files_handler, transport_context_handler
 from streamtasks.client import Client
 import asyncio
 from streamtasks.client.broadcast import BroadcastReceiver, BroadcastingServer
@@ -16,7 +13,6 @@ from streamtasks.client.signal import SignalServer, send_signal
 from streamtasks.net import DAddress, EndpointOrAddress, Link, Switch, TopicRemappingLink, create_queue_connection
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.types import Message, TopicDataMessage
-from streamtasks.net.utils import str_to_endpoint
 from streamtasks.services.protocols import AddressNames
 from streamtasks.utils import NODE_NAME
 from streamtasks.worker import Worker
@@ -362,169 +358,3 @@ class TaskManagerClient:
         if not task_instance.status.is_active: return task_instance
   
   def task_message_receiver(self, task_ids: Iterable[UUID4]): return TaskBroadcastReceiver(self.client, [ get_namespace_by_task_id(task_id) for task_id in task_ids ], self.address_name)
-
-class Deployment(ModelWithId):
-  id: UUID4 = Field(default_factory=uuid4)
-  label: str
-  
-class StoredTaskInstance(ModelWithId):
-  deployment_id: UUID4
-  task_host_id: str
-  label: str
-  config: dict[str, Any]
-  frontendConfig: dict[str, Any]
-  inputs: list[MetadataDict]
-  outputs: list[MetadataDict]
-
-DeploymentList = TypeAdapter(list[Deployment])
-StoredTaskInstanceList = TypeAdapter(list[StoredTaskInstance])
-
-class TaskManagerWeb(Worker):
-  def __init__(self, node_link: Link, switch: Switch | None = None, address_name: str = AddressNames.TASK_MANAGER_WEB, 
-               task_manager_address_name: str = AddressNames.TASK_MANAGER, public_path: str | None = None):
-    super().__init__(node_link, switch)
-    self.task_manager_address_name = task_manager_address_name
-    self.address_name = address_name
-    self.task_host_asgi_handlers: dict[str, ASGIHandler] = {}
-    self.task_asgi_handlers: dict[UUID4, ASGIHandler] = {}
-    self.public_path = public_path
-    self.deployments_store: dict[str, str] = {}
-    self.tasks_store: dict[str, str] = {}
-    self.client: Client
-    self.tm_client: TaskManagerClient
-  
-  async def run(self):
-    try:
-      await self.setup()
-      self.client = await self.create_client()
-      self.client.start()
-      await self.client.request_address()
-      await register_address_name(self.client, self.address_name)
-      self.tm_client = TaskManagerClient(self.client, self.task_manager_address_name)
-      await asyncio.gather(self.run_asgi_server())
-    finally:
-      await self.shutdown()
-      
-  async def run_asgi_server(self):
-    app = ASGIServer()
-    
-    @app.handler
-    @http_context_handler
-    async def _error_handler(ctx: HTTPContext):
-      try:
-        await ctx.next()
-      except (ValidationError, KeyError, ValueError) as e:
-        await ctx.respond_text(str(e), 400)
-      except BaseException as e:
-        await ctx.respond_text(str(e), 500)
-        
-    
-    router = ASGIRouter()
-    app.add_handler(router)
-    
-    @router.get("/api/task-hosts")
-    @http_context_handler
-    async def _(ctx: HTTPContext): 
-      await ctx.respond_json_raw(TaskHostRegistrationList.dump_json(await self.tm_client.list_task_hosts()))
-
-    @router.get("/api/deployments")
-    @http_context_handler
-    async def _(ctx: HTTPContext): await ctx.respond_json_raw(DeploymentList.dump_json([ Deployment.model_validate_json(d) for d in self.deployments_store.values() ]))
-    
-    @router.get("/api/deployment/{id}")
-    @http_context_handler
-    async def _(ctx: HTTPContext):
-      if deployment_raw := self.deployments_store.get(ctx.params["id"], None):
-        await ctx.respond_json_string(Deployment.model_validate_json(deployment_raw).model_dump_json())
-      else: await ctx.respond_status(404)
-    
-    @router.post("/api/deployment")
-    @http_context_handler
-    async def _(ctx: HTTPContext): 
-      data = Deployment.model_validate_json(await ctx.receive_json_raw())
-      self.deployments_store[str(data.id)] = data.model_dump_json()
-      await ctx.respond_json_string(self.deployments_store[str(data.id)])
-    
-    @router.put("/api/deployment")
-    @http_context_handler
-    async def _(ctx: HTTPContext):
-      data = Deployment.model_validate_json(await ctx.receive_json_raw())
-      self.deployments_store[str(data.id)] = data.model_dump_json()
-      await ctx.respond_json_string(self.deployments_store[str(data.id)])
-    
-    @router.delete("/api/deployment/{id}")
-    @http_context_handler
-    async def _(ctx: HTTPContext):
-      if self.deployments_store.pop(ctx.params["id"], None) is None: await ctx.respond_status(400)
-      else: await ctx.respond_status(200)
-      
-    @router.get("/api/deployment/{id}/tasks")
-    @http_context_handler
-    async def _(ctx: HTTPContext):
-      deployment_id = UUID(ctx.params.get("id", ""))
-      all_tasks = [StoredTaskInstance.model_validate_json(v) for v in self.tasks_store.values()]
-      await ctx.respond_json_raw(StoredTaskInstanceList.dump_json([ task for task in all_tasks if task.deployment_id == deployment_id ]))
-    
-    @router.delete("/api/task/{id}")
-    @http_context_handler
-    async def _(ctx: HTTPContext):
-      if self.tasks_store.pop(ctx.params["id"], None) is None: await ctx.respond_status(400)
-      else: await ctx.respond_status(200)
-      
-    @router.put("/api/task")
-    @http_context_handler
-    async def _(ctx: HTTPContext):
-      data = StoredTaskInstance.model_validate_json(await ctx.receive_json_raw())
-      self.tasks_store[str(data.id)] = data.model_dump_json()  
-      await ctx.respond_json_string(data.model_dump_json())
-
-    @router.post("/api/deployment/{*}")
-    @http_context_handler
-    async def _(ctx: HTTPContext): await ctx.respond_status(200)
-    
-    # TODO: lifecycle api support
-    @router.transport_route("/task/{id}/{path*}")
-    @path_rewrite_handler("/{path*}")
-    @transport_context_handler
-    async def _(ctx: TransportContext):
-      id: UUID4 = UUID(ctx.params.get("id", ""))
-      await ctx.delegate(await self.get_task_asgi_handler(id))
-
-    # TODO: lifecycle api support
-    @router.transport_route("/task-host/{id}/{path*}")
-    @path_rewrite_handler("/{path*}")
-    @transport_context_handler
-    async def _(ctx: TransportContext):
-      id = ctx.params.get("id", "")
-      await ctx.delegate(await self.get_task_host_asgi_handler(id))
-        
-    if self.public_path is not None: router.add_handler(static_files_handler(self.public_path, ["index.html"]))
-    
-    runner = ASGIAppRunner(self.client, app)
-    await runner.run()
-    
-  async def get_task_host_asgi_handler(self, id: str) -> ASGIHandler:
-    if (router := self.task_host_asgi_handlers.get(id, None)) is None:
-      reg: TaskHostRegistration = await self.tm_client.get_task_host(id)
-      self.task_host_asgi_handlers[id] = router = self._metadata_to_router(reg.metadata)
-    return router
-
-  async def get_task_asgi_handler(self, id: UUID4) -> ASGIHandler:
-    if (router := self.task_asgi_handlers.get(id, None)) is None:
-      reg: TaskInstance = await self.tm_client.get_task(id)
-      self.task_asgi_handlers[id] = router = self._metadata_to_router(reg.metadata)
-    return router
-  
-  def _metadata_to_router(self, metadata: MetadataDict) -> ASGIHandler:
-    router = ASGIRouter()
-    for (path, content) in ((k[5:], v) for k, v in metadata.items() if isinstance(v, str) and k.lower().startswith("file:")):
-      guessed_mime_type = mimetypes.guess_type(path)[0]
-      if content.startswith("data:"):
-        # TODO: better validation
-        data, mime_type, charset = decode_data_uri(content, (guessed_mime_type,)*2)
-        router.add_http_route(static_content_handler(data, mime_type, charset), path, { "get" })
-      else:
-        router.add_http_route(static_content_handler(content.encode("utf-8"), guessed_mime_type or "text/plain"), path, { "get" })
-    if MetadataFields.ASGISERVER in metadata:
-      router.add_handler(ASGIProxyApp(self.client, str_to_endpoint(metadata[MetadataFields.ASGISERVER])))
-    return router

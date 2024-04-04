@@ -6,7 +6,8 @@ from streamtasks.client.discovery import register_topic_space, wait_for_topic_si
 from streamtasks.net import Link, Switch
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.services.protocols import AddressNames, WorkerTopics
-from streamtasks.system.task import TMTaskStartRequest, Task, TaskHost, TaskHostRegistrationList, TaskInstance, TaskManager, TaskManagerClient, TaskManagerWeb, TaskStatus
+from streamtasks.system.task import Task, TaskHost, TaskHostRegistrationList, TaskManager, TaskManagerClient, TaskStatus
+from streamtasks.system.task_web import TaskWebBackend
 from streamtasks.client import Client
 from streamtasks.services.discovery import DiscoveryWorker
 import asyncio
@@ -41,7 +42,7 @@ class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
     self.switch = Switch()
     self.discovery_worker = DiscoveryWorker(await self.switch.add_local_connection())
     self.task_manager = TaskManager(await self.switch.add_local_connection())
-    self.task_manager_web = TaskManagerWeb(await self.switch.add_local_connection())
+    self.task_manager_web = TaskWebBackend(await self.switch.add_local_connection())
     self.demo_task_host = DemoTaskHost(await self.switch.add_local_connection())
     self.client = await self.create_client()
     self.client.start()
@@ -99,7 +100,7 @@ class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
   @async_timeout(1)
   async def test_topic_spaces(self):
     ts_id, ts_map = await register_topic_space(self.client, {1337})
-    self.assertNotEquals(ts_map[1337], 1337)
+    self.assertNotEqual(ts_map[1337], 1337)
     reg = await self.demo_task_host.register(AddressNames.TASK_MANAGER)
     task = await self.tm_client.start_task(reg.id, None, ts_id)
 
