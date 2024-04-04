@@ -131,8 +131,7 @@ class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
       
   async def test_web_api(self):
     reg = await self.demo_task_host.register(AddressNames.TASK_MANAGER)
-    task_start_res = await self.web_client.post("/api/task/start", content=TMTaskStartRequest(host_id=reg.id, config=None).model_dump_json(), headers={ "content-type": "application/json" })
-    task = TaskInstance.model_validate_json(task_start_res.text)
+    task = await self.tm_client.start_task(reg.id, None)
 
     registered_task_hosts = TaskHostRegistrationList.validate_json((await self.web_client.get("/api/task-hosts")).text)
     self.assertEqual(len(registered_task_hosts), 1)
@@ -141,9 +140,7 @@ class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
     self.assertEqual((await self.web_client.get(f"/task-host/{reg.id}/task-host-name.txt")).text, "DemoTaskHost")
     self.assertEqual((await self.web_client.get(f"/task/{task.id}/task-name.txt")).text, "DemoTask")
     
-    task_stop_res = await self.web_client.post(f"/api/task/stop/{task.id}")
-    stopped_task = TaskInstance.model_validate_json(task_stop_res.text)
-    
+    stopped_task = await self.tm_client.cancel_task_wait(task.id)
     self.assertEqual(stopped_task.id, task.id)
     self.assertEqual(stopped_task.status, TaskStatus.stopped)
 

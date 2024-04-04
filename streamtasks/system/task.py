@@ -426,27 +426,6 @@ class TaskManagerWeb(Worker):
     @http_context_handler
     async def _(ctx: HTTPContext): 
       await ctx.respond_json_raw(TaskHostRegistrationList.dump_json(await self.tm_client.list_task_hosts()))
-    
-    @router.post("/api/task/start")
-    @http_context_handler
-    async def _(ctx: HTTPContext):
-      req = TMTaskStartRequest(**(await ctx.receive_json()))
-      task_instance = await self.tm_client.start_task(req.host_id, req.config)
-      await ctx.respond_json_string(task_instance.model_dump_json())
-    
-    @router.post("/api/task/stop/{id}")
-    @http_context_handler
-    async def _(ctx: HTTPContext):
-      id = UUID(ctx.params.get("id", ""))
-      task_instance = await self.tm_client.cancel_task_wait(id)
-      await ctx.respond_json_string(task_instance.model_dump_json())
-    
-    @router.post("/api/task/cancel/{id}")
-    @http_context_handler
-    async def _(ctx: HTTPContext):
-      id = UUID(ctx.params.get("id", ""))
-      await self.tm_client.cancel_task(id)
-      await ctx.respond_status(200)
 
     @router.get("/api/deployments")
     @http_context_handler
