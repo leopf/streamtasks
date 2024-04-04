@@ -2,8 +2,9 @@ from typing import Any
 import unittest
 import httpx
 from streamtasks.asgi import ASGIProxyApp
-from streamtasks.client.discovery import wait_for_topic_signal
+from streamtasks.client.discovery import register_topic_space, wait_for_topic_signal
 from streamtasks.net import Link, Switch
+from streamtasks.net.message.data import MessagePackData
 from streamtasks.services.protocols import AddressNames, WorkerTopics
 from streamtasks.system.task import TMTaskStartRequest, Task, TaskHost, TaskHostRegistrationList, TaskInstance, TaskManager, TaskManagerClient, TaskManagerWeb, TaskStatus
 from streamtasks.client import Client
@@ -15,16 +16,24 @@ class DemoTask(Task):
   def __init__(self, client: Client, stop_event: asyncio.Event): 
     super().__init__(client)
     self.stop_event = stop_event
+    self.shoot_topic = self.client.out_topic(1337)
   async def setup(self) -> dict[str, Any]: return { "file:/task-name.txt": "DemoTask" }
-  async def run(self): await self.stop_event.wait()
+  async def run(self):
+    self.client.start()
+    async with self.shoot_topic, self.shoot_topic.RegisterContext(): await self.stop_event.wait()
+  async def shoot(self): await self.shoot_topic.send(MessagePackData("BANG"))
 
 class DemoTaskHost(TaskHost):
   def __init__(self, node_link: Link, switch: Switch | None = None):
     super().__init__(node_link, switch)
     self.stop_event = asyncio.Event()
+    self.demo_tasks: list[DemoTask] = []
   @property
   def metadata(self): return { "name": "demo", "file:/task-host-name.txt": "DemoTaskHost" }
-  async def create_task(self, config: Any) -> Task: return DemoTask(await self.create_client(), self.stop_event)
+  async def create_task(self, config: Any, topic_space_id: int | None) -> Task: 
+    task = DemoTask(await self.create_client(topic_space_id), self.stop_event)
+    self.demo_tasks.append(task)
+    return task
 
 class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
   async def asyncSetUp(self):
@@ -87,6 +96,23 @@ class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
     self.assertIsNone(updated_task.error)
     self.assertEqual(updated_task.id, task.id)
       
+  @async_timeout(1)
+  async def test_topic_spaces(self):
+    ts_id, ts_map = await register_topic_space(self.client, {1337})
+    self.assertNotEquals(ts_map[1337], 1337)
+    reg = await self.demo_task_host.register(AddressNames.TASK_MANAGER)
+    task = await self.tm_client.start_task(reg.id, None, ts_id)
+
+    recv_topic = self.client.in_topic(ts_map[1337])
+    async with recv_topic, recv_topic.RegisterContext():
+      for running_task in self.demo_task_host.demo_tasks:
+        await running_task.shoot_topic.wait_requested()
+        await running_task.shoot()
+      data = await recv_topic.recv_data()
+      self.assertEqual(data.data, "BANG")
+    
+    await self.tm_client.cancel_task_wait(task.id)
+    
   @async_timeout(1)
   async def test_start_shutdown(self):
     reg = await self.demo_task_host.register(AddressNames.TASK_MANAGER)

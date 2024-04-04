@@ -52,8 +52,8 @@ class TimePulseGeneratorTaskHost(TaskHost):
         "unit": "ms"
     }]
   )}
-  async def create_task(self, config: Any):
-    return PulseGeneratorTask(await self.create_client(), TimePulseGeneratorConfig.model_validate(config))
+  async def create_task(self, config: Any, topic_space_id: int | None):
+    return PulseGeneratorTask(await self.create_client(topic_space_id), TimePulseGeneratorConfig.model_validate(config))
 
 class IdPulseGeneratorTaskHost(TaskHost):
   @property
@@ -70,5 +70,5 @@ class IdPulseGeneratorTaskHost(TaskHost):
         "unit": "ms"
     }]
   )}
-  async def create_task(self, config: Any):
-    return PulseGeneratorTask(await self.create_client(), IdPulseGeneratorConfig.model_validate(config))
+  async def create_task(self, config: Any, topic_space_id: int | None):
+    return PulseGeneratorTask(await self.create_client(topic_space_id), IdPulseGeneratorConfig.model_validate(config))

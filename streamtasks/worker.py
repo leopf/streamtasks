@@ -12,8 +12,8 @@ class Worker:
     self.connected = asyncio.Event()
 
   async def create_client(self) -> Client: return Client(await self.create_link())
-  async def create_link(self, raw: bool = False) -> Link:
-    connection = create_queue_connection(raw)
+  async def create_link(self) -> Link:
+    connection = create_queue_connection()
     await self.switch.add_link(connection[0])
     return connection[1]
 

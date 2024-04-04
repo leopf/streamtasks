@@ -68,6 +68,6 @@ class TimestampUpdaterTaskHost(TaskHost):
       }
     ]
   )}
-  async def create_task(self, config: Any):
-    return TimestampUpdaterTask(await self.create_client(), TimestampUpdaterConfig.model_validate(config))
+  async def create_task(self, config: Any, topic_space_id: int | None):
+    return TimestampUpdaterTask(await self.create_client(topic_space_id), TimestampUpdaterConfig.model_validate(config))
   

@@ -10,10 +10,10 @@ from streamtasks.asgiserver import ASGIHandler, ASGIRouter, ASGIServer, HTTPCont
 from streamtasks.client import Client
 import asyncio
 from streamtasks.client.broadcast import BroadcastReceiver, BroadcastingServer
-from streamtasks.client.discovery import register_address_name
+from streamtasks.client.discovery import get_topic_space, register_address_name
 from streamtasks.client.fetch import FetchRequest, FetchServer, new_fetch_body_bad_request, new_fetch_body_general_error
 from streamtasks.client.signal import SignalServer, send_signal
-from streamtasks.net import DAddress, EndpointOrAddress, Link, Switch
+from streamtasks.net import DAddress, EndpointOrAddress, Link, Switch, TopicRemappingLink, create_queue_connection
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.types import Message, TopicDataMessage
 from streamtasks.net.utils import str_to_endpoint
@@ -42,6 +42,7 @@ class ModelWithStrId(BaseModel):
 
 class TaskStartRequest(ModelWithId):
   report_address: int
+  topic_space_id: int | None = None
   config: Any
 
 class TaskStartResponse(ModelWithId):
@@ -72,12 +73,14 @@ TaskHostRegistrationList = TypeAdapter(list[TaskHostRegistration])
 
 class TMTaskStartRequest(BaseModel):
   host_id: str
+  topic_space_id: int | None = None
   config: Any
 
 TMTaskRequestBase = ModelWithId
 
 class TaskInstance(ModelWithId):
   host_id: str
+  topic_space_id: int | None = None
   config: Any
   metadata: MetadataDict
   error: Optional[str]
@@ -120,6 +123,15 @@ class TaskHost(Worker):
   @property
   def metadata(self) -> MetadataDict: return {}
 
+  async def create_client(self, topic_space_id: int | None = None) -> Client: return Client(await self.create_link(topic_space_id))
+  async def create_link(self, topic_space_id: int | None = None) -> Link:
+    a, b = create_queue_connection()
+    if topic_space_id is not None: 
+      topic_map = await get_topic_space(self.client, topic_space_id)
+      b = TopicRemappingLink(b, topic_map)
+    await self.switch.add_link(a)
+    return b
+
   async def register(self, endpoint: EndpointOrAddress) -> TaskHostRegistration:
     if not hasattr(self, "client"): raise ValueError("Client not created yet!")
     if self.client.address is None: raise ValueError("Client had no address!")
@@ -149,7 +161,7 @@ class TaskHost(Worker):
       self.ready.clear()
     
   @abstractmethod
-  async def create_task(self, config: Any) -> Task: pass
+  async def create_task(self, config: Any, topic_space_id: int | None) -> Task: pass
   async def run_task(self, id: UUID4, task: Task, report_address: int):
     error_text = None
     status = TaskStatus.running
@@ -171,7 +183,7 @@ class TaskHost(Worker):
     async def _(req: FetchRequest):
       body = TaskStartRequest.model_validate(req.body)
       try:
-        task = await self.create_task(body.config)
+        task = await self.create_task(body.config, body.topic_space_id)
         metadata = await asyncio.wait_for(task.setup(), 1) # NOTE: make this configurable
         self.tasks[body.id] = asyncio.create_task(self.run_task(body.id, task, body.report_address))
         await req.respond(TaskStartResponse(id=body.id, metadata=metadata, error=None))
@@ -273,6 +285,7 @@ class TaskManager(Worker):
         
         th_req = TaskStartRequest(
           id=uuid4(),
+          topic_space_id=body.topic_space_id,
           report_address=self.client.address,
           config=body.config
         )
@@ -280,6 +293,7 @@ class TaskManager(Worker):
         inst = TaskInstance(
           id= th_req.id,
           host_id=body.host_id,
+          topic_space_id=body.topic_space_id,
           config=body.config,
           metadata={},
           error=None,
@@ -335,8 +349,8 @@ class TaskManagerClient:
   async def get_task(self, id: UUID4):
     result = await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_TM_GET_TASK, ModelWithId(id=id).model_dump())
     return TaskInstance.model_validate(result)
-  async def start_task(self, host_id: str, config: Any):
-    result = await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_TM_TASK_START, TMTaskStartRequest(host_id=host_id, config=config).model_dump())
+  async def start_task(self, host_id: str, config: Any, topic_space_id: int | None = None):
+    result = await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_TM_TASK_START, TMTaskStartRequest(host_id=host_id, config=config, topic_space_id=topic_space_id).model_dump())
     return TaskInstance.model_validate(result)
   async def cancel_task(self, task_id: UUID4):
     await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_TM_TASK_CANCEL, TMTaskRequestBase(id=task_id).model_dump()) 
