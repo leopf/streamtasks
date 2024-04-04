@@ -50,6 +50,7 @@ class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
 
   async def asyncTearDown(self):
     self.switch.stop_receiving()
+    await self.web_client.aclose()
     for task in self.tasks: task.cancel()
     for task in self.tasks: 
       try: await task

@@ -2,7 +2,7 @@ import unittest
 import asyncio
 from streamtasks.net.message.data import TextData
 
-from streamtasks.net import Link, Switch, create_queue_connection
+from streamtasks.net import Link, Switch, TopicRemappingLink, create_queue_connection
 from streamtasks.net.message.types import InTopicsChangedMessage, OutTopicsChangedMessage, OutTopicsChangedRecvMessage, PricedId, TopicDataMessage
 
 
@@ -114,6 +114,15 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
       while len(self.switch.link_manager.links) != 0: await asyncio.sleep(0.001)
       self.assertEqual(len(self.switch.link_manager.links), 0)
 
-
+class TestSwitchRemapped(TestSwitch):
+  async def asyncSetUp(self):
+    await super().asyncSetUp()
+    topic_map = { 1: 9000, 2: 9001 }
+    self.a = TopicRemappingLink(self.a, topic_map)
+    self.b = TopicRemappingLink(self.b, topic_map)
+    
+  @unittest.skip("not supported for remapped links")
+  async def test_standard_workflow(self): pass
+  
 if __name__ == '__main__':
   unittest.main()

@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 import logging
 import asyncio
 
-from streamtasks.net.message.types import AddressedMessage, AddressesChangedMessage, AddressesChangedRecvMessage, InTopicsChangedMessage, Message, OutTopicsChangedMessage, OutTopicsChangedRecvMessage, PricedId, TopicControlData, TopicControlMessage, TopicMessage
+from streamtasks.net.message.types import AddressedMessage, AddressesChangedMessage, AddressesChangedRecvMessage, InTopicsChangedMessage, Message, OutTopicsChangedMessage, OutTopicsChangedRecvMessage, PricedId, TopicControlData, TopicControlMessage, TopicDataMessage, TopicMessage
 
 DAddress = Union[str, int] # dynamic address, which allows names or ints
 Endpoint = tuple[DAddress, int]
@@ -116,13 +116,39 @@ class Link(ABC):
 
     return message
 
+class TopicRemappingLink(Link):
+  def __init__(self, link: Link, topic_id_map: dict[int, int]):
+    super().__init__()
+    self._link = link
+    self._topic_id_map = topic_id_map # internal -> external
+    self._rev_topic_id_map = {v:k for k, v in topic_id_map.items() } # external -> internal
+    
+  def close(self):
+    self._link.close()
+    return super().close()
+  
+  async def _recv(self) -> Message: return self._remap_message(await self._link.recv(), self._rev_topic_id_map)
+  async def _send(self, message: Message): await self._link.send(self._remap_message(message, self._topic_id_map))
+  
+  def _remap_message(self, message: Message, topic_id_map: dict[int, int]):
+    if isinstance(message, TopicDataMessage):
+      message = TopicDataMessage(topic_id_map.get(message.topic, message.topic), message.data)
+    elif isinstance(message, TopicControlMessage):
+      message = TopicControlMessage(topic_id_map.get(message.topic, message.topic), message.paused)
+    elif isinstance(message, InTopicsChangedMessage):
+      message = InTopicsChangedMessage(self._remap_id_set(message.add, topic_id_map), self._remap_id_set(message.remove, topic_id_map))
+    elif isinstance(message, OutTopicsChangedRecvMessage):
+      message = OutTopicsChangedRecvMessage(self._remap_priced_id_set(message.add, topic_id_map), self._remap_priced_id_set(message.remove, topic_id_map))
+    elif isinstance(message, OutTopicsChangedMessage):
+      message = OutTopicsChangedMessage(self._remap_priced_id_set(message.add, topic_id_map), self._remap_id_set(message.remove, topic_id_map))
+    return message
 
+  def _remap_id_set(self, ids: set[int], topic_id_map: dict[int, int]): return set(topic_id_map.get(t, t) for t in ids)
+  def _remap_priced_id_set(self, ids: set[PricedId], topic_id_map: dict[int, int]): return set(PricedId(topic_id_map.get(t.id, t.id), t.cost) for t in ids)
+    
+  
 class QueueLink(Link):
-  out_messages: asyncio.Queue[Message]
-  in_messages: asyncio.Queue[Message]
-  close_signal: asyncio.Event
-
-  def __init__(self, close_signal: asyncio.Event, out_messages: asyncio.Queue, in_messages: asyncio.Queue):
+  def __init__(self, close_signal: asyncio.Event, out_messages: asyncio.Queue[Message], in_messages: asyncio.Queue[Message]):
     super().__init__()
     self.out_messages = out_messages
     self.in_messages = in_messages
@@ -179,7 +205,7 @@ def create_queue_connection(raw: bool = False) -> tuple[Link, Link]:
 
 
 class LinkManager:
-  def __init__(self): self._link_recv_tasks = {}
+  def __init__(self): self._link_recv_tasks: dict[Link, asyncio.Task] = {}
   @property
   def links(self): return self._link_recv_tasks.keys()
   def has_link(self, link: Link): return link in self._link_recv_tasks
