@@ -20,7 +20,7 @@ class WorkerTopics:
   DISCOVERY_SIGNAL = 0
   ADDRESSES_CREATED = 1
   ADDRESS_NAME_ASSIGNED = 2
-  COUNTER_INIT = 1000000
+  COUNTER_INIT = 100000
 
 
 class WorkerRequestDescriptors:

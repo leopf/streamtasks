@@ -1,5 +1,6 @@
 import unittest
-from streamtasks.client.discovery import register_address_name, request_addresses, wait_for_address_name, wait_for_topic_signal
+from streamtasks.client.discovery import delete_topic_space, get_topic_space, register_address_name, register_topic_space, request_addresses, wait_for_address_name, wait_for_topic_signal
+from streamtasks.client.fetch import FetchError
 from streamtasks.net import Switch, create_queue_connection
 from streamtasks.services.protocols import WorkerAddresses, WorkerTopics
 from streamtasks.client import Client
@@ -48,6 +49,24 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
 
     self.assertEqual(5, len(addresses))
     self.assertEqual(expected_addresses, list(addresses))
+
+  @async_timeout(1)
+  async def test_topic_spaces(self):
+    client = await self.create_client()
+    await client.request_address()
+    await wait_for_topic_signal(client, WorkerTopics.DISCOVERY_SIGNAL)
+    
+    topic_ids = { 1, 2, 3 }
+    id, topic_id_map = await register_topic_space(client, topic_ids)
+    
+    for topic_id in topic_ids:
+      self.assertIn(topic_id, topic_id_map)
+      self.assertGreaterEqual(topic_id_map[topic_id], WorkerTopics.COUNTER_INIT)
+      
+    self.assertDictEqual(topic_id_map, await get_topic_space(client, id))
+    await delete_topic_space(client, id)
+    with self.assertRaises(FetchError): await get_topic_space(client, id)
+    with self.assertRaises(FetchError): await delete_topic_space(client, id)
 
   @async_timeout(1)
   async def test_wait_for_name(self): # NOTE: this test is broken, waiter before is not waiting for the fetch to finish
