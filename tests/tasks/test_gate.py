@@ -1,4 +1,6 @@
 from enum import Enum
+import itertools
+import os
 from typing import Any
 import unittest
 from streamtasks.net.message.data import MessagePackData
@@ -97,6 +99,8 @@ class TestGate(TaskTestBase):
     self.timestamp += 1
     await self.in_topic.set_paused(paused)
 
+  def generate_events(self): return itertools.islice(Simulator.generate_events(list(GateSimEvent)), 100)
+
   async def _test_fail_mode(self, fail_mode: GateFailMode):
     async with asyncio.timeout(100), self.in_topic, self.gate_topic, self.out_topic:
       self.client.start()
@@ -109,7 +113,8 @@ class TestGate(TaskTestBase):
 
       sim = GateSim(fail_mode)
       sim.eout_changed() # init last eout
-      for event in Simulator.generate_events(list(GateSimEvent)):
+
+      for event in self.generate_events():
         assert event in GateSimEvent
         if event == GateSimEvent.SEND_DATA: await self.send_input_data(1337)
         if event == GateSimEvent.SET_GATE_CLOSED: await self.send_gate_data(0)
@@ -129,6 +134,9 @@ class TestGate(TaskTestBase):
   async def test_gate_fail_open(self): await self._test_fail_mode(GateFailMode.OPEN)
   async def test_gate_fail_closed(self): await self._test_fail_mode(GateFailMode.CLOSED)
 
+@unittest.skipIf(not bool(os.getenv("FULL")), "Disabled for performance reasons. Use env FULL=1 to enable.")
+class TestGateFull(TestGate):
+  def generate_events(self): return Simulator.generate_events(list(GateSimEvent))
 
 if __name__ == "__main__":
   unittest.main()
