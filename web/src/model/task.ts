@@ -8,7 +8,7 @@ export const TaskInputModel = MetadataModel.and(z.object({
     topic_id: z.number().optional(),
     key: z.string()
 }));
-export const TaskInstanceModel = z.object({
+export const TaskModel = z.object({
     id: z.string().uuid(),
     task_host_id: z.string(),
     label: z.string(),
@@ -19,7 +19,7 @@ export const TaskInstanceModel = z.object({
 export const TaskFrontendConfigModel = z.object({
     position: z.object({ x: z.number(), y: z.number() }).optional()
 })
-export const StoredTaskInstanceModel = TaskInstanceModel.extend({
+export const StoredTaskModel = TaskModel.extend({
     frontendConfig: TaskFrontendConfigModel.optional()
 });
 export const TaskHostModel = z.object({

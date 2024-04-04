@@ -1,8 +1,8 @@
 import { action, makeObservable, observable } from "mobx";
-import { StoredTaskInstance, TaskConfigurator, TaskConfiguratorContext, TaskHost } from "../types/task";
+import { StoredTask, TaskConfigurator, TaskConfiguratorContext, TaskHost } from "../types/task";
 import { z } from "zod";
 import { TaskHostModel } from "../model/task";
-import { ManagedTaskInstance, getErrorConfigurator } from "../lib/task";
+import { ManagedTask, getErrorConfigurator } from "../lib/task";
 import { createStateContext } from "./util";
 
 export class TaskManager {
@@ -23,7 +23,7 @@ export class TaskManager {
         return this.taskHosts;
     }
 
-    public async toManagedTaskInstance(task: StoredTaskInstance, fail: boolean = true) {
+    public async toManagedTask(task: StoredTask, fail: boolean = true) {
         let configurator: TaskConfigurator;
         let taskHost: TaskHost;
         try {
@@ -36,12 +36,12 @@ export class TaskManager {
             configurator = getErrorConfigurator(e);
         }
 
-        return new ManagedTaskInstance(task, configurator, this.createContext(taskHost))
+        return new ManagedTask(task, configurator, this.createContext(taskHost))
     }
 
-    public createManagedTaskInstance(taskHostId: string): Promise<ManagedTaskInstance>;
-    public createManagedTaskInstance(taskHost: TaskHost): Promise<ManagedTaskInstance>;
-    public async createManagedTaskInstance(data: TaskHost | string) {
+    public createManagedTask(taskHostId: string): Promise<ManagedTask>;
+    public createManagedTask(taskHost: TaskHost): Promise<ManagedTask>;
+    public async createManagedTask(data: TaskHost | string) {
         let taskHost: TaskHost;
         if (typeof data === "string") {
             taskHost = await this.getTaskHost(data);
@@ -52,7 +52,7 @@ export class TaskManager {
         const configurator = await this.getConfigurator(taskHost);
         const context = this.createContext(taskHost);
         const inst = await configurator.create(context);
-        return new ManagedTaskInstance(inst, configurator, context);
+        return new ManagedTask(inst, configurator, context);
     }
 
     private async getTaskHost(id: string) {

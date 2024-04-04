@@ -1,12 +1,12 @@
 import { TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Box, IconButton, Stack, Typography } from "@mui/material";
-import { ManagedTaskInstance } from "../../lib/task";
+import { ManagedTask } from "../../lib/task";
 import { TaskIOLabel } from "./TaskIOLabel";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { StoredTaskInstanceModel } from "../../model/task";
+import { StoredTaskModel } from "../../model/task";
 import { NodeOverlayTile } from "./NodeOverlayTile";
 import { Close as CloseIcon, Delete as DeleteIcon } from "@mui/icons-material";
 
-export function TaskEditorWindow(props: { task: ManagedTaskInstance, onClose: () => void, onDelete: () => void }) {
+export function TaskEditorWindow(props: { task: ManagedTask, onClose: () => void, onDelete: () => void }) {
     const resizingRef = useRef(false);
     const customEditorRef = useRef<HTMLDivElement>(null);
     const [addSize, setAddSize] = useState(0);
@@ -16,7 +16,7 @@ export function TaskEditorWindow(props: { task: ManagedTaskInstance, onClose: ()
         if (!props.task.hasEditor || !customEditorRef.current) return;
 
         const taskUpdateHandler = (e: Event) => {
-            const newInstance = StoredTaskInstanceModel.parse((e as CustomEvent).detail);
+            const newInstance = StoredTaskModel.parse((e as CustomEvent).detail);
             props.task.updateData(newInstance);
         };
 

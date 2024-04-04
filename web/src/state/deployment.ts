@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { ManagedTaskInstance } from "../lib/task";
-import { StoredTaskInstanceModel } from "../model/task";
+import { ManagedTask } from "../lib/task";
+import { StoredTaskModel } from "../model/task";
 import { TaskManager } from "./task-manager";
 import { action, makeObservable, observable } from "mobx";
 import { createStateContext } from "./util";
@@ -8,7 +8,7 @@ import { Deployment } from "../types/deployment";
 import _ from "underscore";
 
 export class DeploymentState {
-    public readonly tasks: Map<string, ManagedTaskInstance> = observable.map();
+    public readonly tasks: Map<string, ManagedTask> = observable.map();
 
     public get id() {
         return this._deployment.id;
@@ -29,7 +29,7 @@ export class DeploymentState {
 
     public async loadTasks() {
         const result = await fetch(`/api/deployment/${this.id}/tasks`, { method: "get" }).then(res => res.json());
-        const storedTasks = z.array(StoredTaskInstanceModel).parse(result)
+        const storedTasks = z.array(StoredTaskModel).parse(result)
         const newTasks = new Map(storedTasks.map(t => [t.id, t]));
         for (const taskId of this.tasks.keys()) {
             if (!newTasks.has(taskId)) {
@@ -41,19 +41,19 @@ export class DeploymentState {
             newTasks.delete(task.id);
         }
         for (const task of newTasks.values()) {
-            const mTask = await this.taskManager.toManagedTaskInstance(task);
+            const mTask = await this.taskManager.toManagedTask(task);
             this.trackTask(mTask);
             this.tasks.set(mTask.id, mTask);
         }
     }
 
-    public async addTask(task: ManagedTaskInstance) {
+    public async addTask(task: ManagedTask) {
         await this.putTask(task);
         this.tasks.set(task.id, task);
         this.trackTask(task);
     }
 
-    public async deleteTask(task: ManagedTaskInstance) {
+    public async deleteTask(task: ManagedTask) {
         const result = await fetch(`/api/task/${task.id}`, { method: "delete" });
         if (!result.ok) {
             throw new Error("Failed to delete!")
@@ -61,7 +61,7 @@ export class DeploymentState {
         this.tasks.delete(task.id);
     }
 
-    private async putTask(task: ManagedTaskInstance) {
+    private async putTask(task: ManagedTask) {
         const result = await fetch(`/api/task`, {
             method: "put",
             headers: {
@@ -78,7 +78,7 @@ export class DeploymentState {
         }
     }
 
-    private trackTask(task: ManagedTaskInstance) {
+    private trackTask(task: ManagedTask) {
         task.on("updated", _.throttle(() => this.putTask(task), 1000)); // TODO: memory management
     }
 }

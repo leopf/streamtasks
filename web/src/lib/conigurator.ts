@@ -1,6 +1,6 @@
 import { Root, createRoot } from "react-dom/client";
 import React from "react";
-import { TaskInstance } from "../types/task";
+import { Task } from "../types/task";
 
 export class ReactEditorRenderer {
     private roots: WeakMap<HTMLElement, Root> = new WeakMap();

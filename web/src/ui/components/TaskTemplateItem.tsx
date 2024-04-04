@@ -29,7 +29,7 @@ export const TaskTemplateItem = observer((props: { taskHost: TaskHost }) => {
             setImageUrl(taskHostImageCache.get(props.taskHost.id));
         }
         else {
-            taskManager.createManagedTaskInstance(props.taskHost)
+            taskManager.createManagedTask(props.taskHost)
                 .then(task => renderNodeToImage(new TaskNode(task), { width: 200, backgroundColor: "#0000" }))
                 .then(imageUrl => {
                     taskHostImageCache.set(props.taskHost.id, imageUrl)

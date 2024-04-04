@@ -1,9 +1,9 @@
 import { Box, Checkbox, FormControl, FormControlLabel, InputLabel, MenuItem, Select, Stack, TextField, Typography } from "@mui/material";
-import { TaskInstance } from "../types/task";
+import { Task } from "../types/task";
 import { BooleanField, EditorField, NumberField, SelectField } from "./types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-function NumberFieldEditor(props: { config: NumberField, task: TaskInstance, onUpdated: () => void }) {
+function NumberFieldEditor(props: { config: NumberField, task: Task, onUpdated: () => void }) {
     const [value, setValue] = useState(String(props.task.config[props.config.key]) ?? "")
 
     const error = useMemo(() => {
@@ -50,7 +50,7 @@ function NumberFieldEditor(props: { config: NumberField, task: TaskInstance, onU
     )
 }
 
-function SelectFieldEditor(props: { config: SelectField, task: TaskInstance, onUpdated: () => void }) {
+function SelectFieldEditor(props: { config: SelectField, task: Task, onUpdated: () => void }) {
     return (
         <FormControl fullWidth>
             <InputLabel htmlFor={`select-field-${props.config.key}`}>{props.config.label}</InputLabel>
@@ -70,7 +70,7 @@ function SelectFieldEditor(props: { config: SelectField, task: TaskInstance, onU
     );
 }
 
-function BooleanFieldEditor(props: { config: BooleanField, task: TaskInstance, onUpdated: () => void }) {
+function BooleanFieldEditor(props: { config: BooleanField, task: Task, onUpdated: () => void }) {
     return (
         <FormControlLabel control={(
             <Checkbox
@@ -84,7 +84,7 @@ function BooleanFieldEditor(props: { config: BooleanField, task: TaskInstance, o
     );
 }
 
-export function StaticEditor(props: { task: TaskInstance, fields: EditorField[] }) {
+export function StaticEditor(props: { task: Task, fields: EditorField[] }) {
     const rootRef = useRef<HTMLDivElement>(null);
 
     const onUpdated = useCallback(() => {

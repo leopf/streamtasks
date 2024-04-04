@@ -1,15 +1,15 @@
-import { Metadata, StoredTaskInstance, TaskConfigurator, TaskConfiguratorContext, TaskFrontendConfig, TaskIO, TaskInput, TaskInstance, TaskOutput } from "../types/task.ts"
+import { Metadata, StoredTask, TaskConfigurator, TaskConfiguratorContext, TaskFrontendConfig, TaskIO, TaskInput, Task, TaskOutput } from "../types/task.ts"
 import EventEmitter from "eventemitter3";
 import cloneDeep from "clone-deep";
 import deepEqual from "deep-equal";
 
-const defaultRemapTopicIds = (taskInstance: TaskInstance, idMap: Map<number, number>, context: TaskConfiguratorContext) => {
+const defaultRemapTopicIds = (taskInstance: Task, idMap: Map<number, number>, context: TaskConfiguratorContext) => {
     taskInstance.inputs.forEach(i => i.topic_id = i.topic_id ? idMap.get(i.topic_id) : undefined);
     taskInstance.outputs.forEach(o => o.topic_id = idMap.get(o.topic_id) ?? (() => { throw new Error("Missing output id in map.") })());
     return taskInstance;
 };
 
-export function extractTaskIO(taskInstance: TaskInstance): TaskIO {
+export function extractTaskIO(taskInstance: Task): TaskIO {
     return {
         inputs: taskInstance.inputs.map(input => ({ ...input })),
         outputs: taskInstance.outputs.map(output => ({ ...output }))
@@ -31,8 +31,8 @@ export const ioMetadataKeyLabels: Record<string, string> = { "topic_id": "topic 
 export const ioMetadataValueLabels: Record<string, Record<string, string>> = { "type": { "ts": "timestamp" } }
 export const ioMetadataHideKeys = new Set([ "key" ]);
 
-export class ManagedTaskInstance extends EventEmitter<{"updated": [TaskInstance] }> {
-    private readonly taskInstance: TaskInstance;
+export class ManagedTask extends EventEmitter<{"updated": [Task] }> {
+    private readonly taskInstance: Task;
     private configurator: TaskConfigurator;
     private configuratorContext: TaskConfiguratorContext;
 
@@ -57,7 +57,7 @@ export class ManagedTaskInstance extends EventEmitter<{"updated": [TaskInstance]
         return this._frontendConfig;
     }
 
-    public get storedInstance(): StoredTaskInstance {
+    public get storedInstance(): StoredTask {
         return {
             ...this.taskInstance,
             frontendConfig: this._frontendConfig
@@ -68,7 +68,7 @@ export class ManagedTaskInstance extends EventEmitter<{"updated": [TaskInstance]
         return this.configurator.renderEditor;
     }
 
-    constructor(taskInstance: StoredTaskInstance, configurator: TaskConfigurator, configuratorContext: TaskConfiguratorContext) {
+    constructor(taskInstance: StoredTask, configurator: TaskConfigurator, configuratorContext: TaskConfiguratorContext) {
         super();
         this.taskInstance = taskInstance;
         this._frontendConfig = taskInstance.frontendConfig ?? {};
@@ -76,7 +76,7 @@ export class ManagedTaskInstance extends EventEmitter<{"updated": [TaskInstance]
         this.configuratorContext = configuratorContext;
     }
 
-    public updateData(taskInstance: StoredTaskInstance, overwriteStored: boolean = false) {
+    public updateData(taskInstance: StoredTask, overwriteStored: boolean = false) {
         Object.assign(this.taskInstance, taskInstance);
         if (overwriteStored) {
             this._frontendConfig = taskInstance.frontendConfig ?? {};

@@ -279,15 +279,15 @@ class TaskManager(Worker):
         body = TMTaskStartRequest.model_validate(req.body)
         task_host = self.task_hosts[body.host_id]
         
-        th_req = TaskStartRequest(
+        task_start_request = TaskStartRequest(
           id=uuid4(),
           topic_space_id=body.topic_space_id,
           report_address=self.client.address,
           config=body.config
         )
         
-        inst = TaskInstance(
-          id= th_req.id,
+        task_instance = TaskInstance(
+          id= task_start_request.id,
           host_id=body.host_id,
           topic_space_id=body.topic_space_id,
           config=body.config,
@@ -295,16 +295,16 @@ class TaskManager(Worker):
           error=None,
           status=TaskStatus.starting
         )
-        self.tasks[inst.id] = inst
+        self.tasks[task_instance.id] = task_instance
         
-        task_start_result = await self.client.fetch(task_host.address, TASK_CONSTANTS.FD_TASK_START, th_req.model_dump())
+        task_start_result = await self.client.fetch(task_host.address, TASK_CONSTANTS.FD_TASK_START, task_start_request.model_dump())
         task_start_result: TaskStartResponse = TaskStartResponse.model_validate(task_start_result)
         
-        inst.metadata=task_start_result.metadata
-        inst.error=task_start_result.error
-        inst.status=TaskStatus.running if task_start_result.error is None else TaskStatus.failed
+        task_instance.metadata=task_start_result.metadata
+        task_instance.error=task_start_result.error
+        task_instance.status=TaskStatus.running if task_start_result.error is None else TaskStatus.failed
         
-        await req.respond(inst.model_dump())
+        await req.respond(task_instance.model_dump())
       except (ValidationError, KeyError) as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
     
     @server.route(TASK_CONSTANTS.FD_TM_TASK_CANCEL)

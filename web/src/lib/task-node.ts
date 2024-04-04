@@ -1,12 +1,12 @@
 import deepEqual from "deep-equal";
-import { TaskIO, TaskInstance, TaskOutput } from "../types/task";
+import { TaskIO, Task, TaskOutput } from "../types/task";
 import { InputConnection, Node, OutputConnection } from "./node-editor";
-import { ManagedTaskInstance, extractTaskIO } from "./task";
+import { ManagedTask, extractTaskIO } from "./task";
 import { EventEmitter } from "eventemitter3";
 
 type TaskIOWithLabel = TaskIO & { label: string };
 
-function extractIOWithLabel(task: TaskInstance): TaskIOWithLabel {
+function extractIOWithLabel(task: Task): TaskIOWithLabel {
     return {
         label: task.label,
         ...extractTaskIO(task)
@@ -18,7 +18,7 @@ function compareTaskIO( ignoreInputTopicId?: string) {
 }
 
 export class TaskNode extends EventEmitter<{ "updated": [] }> implements Node {
-    private task: ManagedTaskInstance;
+    private task: ManagedTask;
 
     public get id(): string {
         return this.task.id;
@@ -56,7 +56,7 @@ export class TaskNode extends EventEmitter<{ "updated": [] }> implements Node {
     private lastTaskIO: TaskIOWithLabel;
     private inputKeyIgnoreTopicId?: string;
 
-    constructor(task: ManagedTaskInstance) {
+    constructor(task: ManagedTask) {
         super();
         this.task = task;
         this.lastTaskIO = extractIOWithLabel(task.storedInstance);

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { TaskConfigurator, TaskConfiguratorContext, TaskInstance, TaskOutput } from "../../types/task";
+import { TaskConfigurator, TaskConfiguratorContext, Task, TaskOutput } from "../../types/task";
 import { v4 as uuidv4 } from "uuid";
 import { MetadataModel } from "../../model/task";
 import { validateMetadataEquals } from "../../lib/task";
@@ -19,7 +19,7 @@ const reactRenderer = new ReactRenderer();
 const metadataFieldsCache = new LRUCache<string, EditorField[]>({ max: 100 });
 
 const task: TaskConfigurator = {
-    connect: (taskInstance: TaskInstance, key: string, output: TaskOutput | undefined, context: TaskConfiguratorContext) => {
+    connect: (taskInstance: Task, key: string, output: TaskOutput | undefined, context: TaskConfiguratorContext) => {
         const targetInput = taskInstance.inputs.find(input => input.key === key);
         if (!targetInput) {
             throw new Error("Input not found!"); // should not happen during normal operation
@@ -50,7 +50,7 @@ const task: TaskConfigurator = {
             outputs: outputs.map(output => ({ ...output, topic_id: context.idGenerator() }))
         };
     },
-    toStartConfig: (taskInstance: TaskInstance, context: TaskConfiguratorContext) => {
+    toStartConfig: (taskInstance: Task, context: TaskConfiguratorContext) => {
         const outputKeys = "cfg:outputkeys" in context.taskHost.metadata ?
             z.array(z.string().optional()).parse(JSON.parse(String(context.taskHost.metadata["cfg:outputkeys"]))) : [];
 
@@ -60,7 +60,7 @@ const task: TaskConfigurator = {
             ...Object.fromEntries(outputKeys.map((key, idx) => [key, taskInstance.outputs.at(idx)?.topic_id]).filter(([k, v]) => k && v))
         };
     },
-    renderEditor: (taskInstance: TaskInstance, element: HTMLElement, context: TaskConfiguratorContext) => {
+    renderEditor: (taskInstance: Task, element: HTMLElement, context: TaskConfiguratorContext) => {
         if (typeof context.taskHost.metadata["cfg:editorfields"] !== "string") return;
         const fieldsData = String(context.taskHost.metadata["cfg:editorfields"]);
         const fields = metadataFieldsCache.get(fieldsData) ?? z.array(EditorFieldModel).parse(JSON.parse(fieldsData))
