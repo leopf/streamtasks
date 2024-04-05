@@ -7,6 +7,7 @@ export type ConnectResult = boolean | string;
 export interface Node {
     id: string;
     label: string;
+    outlineColor?: string;
     position: { x: number, y: number };
     outputs: OutputConnection[];
     inputs: InputConnection[];

@@ -6,20 +6,21 @@ import { useRootStore } from '../state/root-store';
 import { DeploymentPage } from './pages/DeploymentPage';
 import { HomePage } from './pages/HomePage';
 import { ErrorPage } from './pages/ErrorPage';
+import { DeploymentEditorDialog } from './components/DeploymentEditorDialog';
 
 const router = createHashRouter([
     {
         path: "/deployment/:id",
         element: <DeploymentPage />,
-        errorElement: <ErrorPage/>
+        errorElement: <ErrorPage />
     },
     {
         path: "/",
-        element: <HomePage/>
+        element: <HomePage />
     },
     {
         path: "*",
-        element: <ErrorPage/>
+        element: <ErrorPage />
     }
 ]);
 
@@ -32,6 +33,11 @@ export function App() {
         rootStore.loadDeployments();
     }, []);
 
-    return (<RouterProvider router={router}/>);
+    return (
+        <>
+            <RouterProvider router={router} />
+            <DeploymentEditorDialog/>
+        </>
+    );
 }
 

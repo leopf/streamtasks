@@ -4,11 +4,12 @@ import { InputConnection, Node, OutputConnection } from "./node-editor";
 import { ManagedTask, extractTaskIO } from "./task";
 import { EventEmitter } from "eventemitter3";
 
-type TaskIOWithLabel = TaskIO & { label: string };
+type TaskNodeData = TaskIO & { label: string, hasError: boolean };
 
-function extractNodeData(task: FullTask): TaskIOWithLabel {
+function extractNodeData(task: FullTask): TaskNodeData {
     return {
         label: task.label,
+        hasError: !task.task_instance?.error,
         ...extractTaskIO(task)
     }
 }
@@ -18,6 +19,12 @@ export class TaskNode extends EventEmitter<{ "updated": [] }> implements Node {
 
     public get id(): string {
         return this.task.id;
+    }
+
+    public get outlineColor() {
+        if (this.task.taskInstance?.error) {
+            return "#b00"
+        }
     }
 
     public get label(): string {
@@ -48,7 +55,7 @@ export class TaskNode extends EventEmitter<{ "updated": [] }> implements Node {
         }));
     }
 
-    private lastData: TaskIOWithLabel;
+    private lastData: TaskNodeData;
     private inputKeyIgnoreTopicId?: string;
 
     constructor(task: ManagedTask) {

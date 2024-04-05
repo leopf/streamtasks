@@ -5,11 +5,13 @@ import { NodeOverlayTile } from "./NodeOverlayTile";
 import { Close as CloseIcon, Delete as DeleteIcon } from "@mui/icons-material";
 import { TaskIOTable } from "./TaskIOTable";
 import { TaskIO } from "../../types/task";
+import { useUIControl } from "../../state/ui-control-store";
 
 export function TaskDisplayWindow(props: { task: ManagedTask, onClose: () => void }) {
     const resizingRef = useRef(false);
     const [addSize, setAddSize] = useState(0);
     const [taskUpdateCounter, setTaskUpdateCounter] = useState(0);
+    const uiControl = useUIControl();
 
     useEffect(() => {
         const updateHandler = () => setTaskUpdateCounter(pv => pv + 1);
@@ -47,7 +49,12 @@ export function TaskDisplayWindow(props: { task: ManagedTask, onClose: () => voi
                 </Stack>
             )}>
                 <>
-                    <Box marginBottom={2}><TaskIOTable taskIO={taskIO}/></Box>
+                    <Box marginBottom={2}>
+                        <TaskIOTable taskIO={taskIO} onOpen={(tid) => uiControl.selectedTopic = { topicId: tid, topicSpaceId: props.task.taskInstance?.topic_space_id ?? undefined }} allowOpen/>
+                    </Box>
+                    <Box padding={1}>
+                        {!!props.task.taskInstance?.error && <Typography variant="h6" color="red">Error: {props.task.taskInstance?.error}</Typography>}
+                    </Box>
                 </>
             </NodeOverlayTile>
             <Box position="absolute" bottom={0} left={0} width={"100%"} height="4px" sx={{ cursor: "ns-resize", userSelect: "none" }} onMouseDown={() => resizingRef.current = true} />

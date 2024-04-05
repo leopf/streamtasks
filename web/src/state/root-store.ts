@@ -15,18 +15,21 @@ export class RootStore {
             loadDeployments: action,
             createDeployment: action,
             deleteDeployment: action,
-            getDeployment: action,
+            loadDeployment: action,
             updateDeployment: action
         });
     }
 
+    public getDeployment(id: string) {
+        return this._deployments.get(id);
+    }
     public async loadDeployments() {
         const deployments = z.array(FullDeploymentModel).parse(await fetch("/api/deployments").then(res => res.json()));
         for (const deployment of deployments) {
             this._deployments.set(deployment.id, deployment);
         }
     }
-    public async getDeployment(id: string) {
+    public async loadDeployment(id: string) {
         if (this._deployments.has(id)) {
             return this._deployments.get(id);
         }
@@ -72,6 +75,9 @@ export class RootStore {
             const newDeployment = FullDeploymentModel.parse(await res.json());
             this._deployments.set(newDeployment.id, newDeployment);
         }
+    }
+    public insertDeployment(deployment: FullDeployment) {
+        this._deployments.set(deployment.id, deployment);
     }
 }
 

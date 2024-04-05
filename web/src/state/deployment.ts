@@ -2,11 +2,11 @@ import { z } from "zod";
 import { ManagedTask } from "../lib/task";
 import { FullTaskModel } from "../model/task";
 import { TaskManager } from "./task-manager";
-import { action, makeObservable, observable } from "mobx";
+import { action, computed, makeObservable, observable } from "mobx";
 import { createStateContext } from "./util";
-import { FullDeployment } from "../types/deployment";
 import _ from "underscore";
 import { FullDeploymentModel } from "../model/deployment";
+import { RootStore } from "./root-store";
 
 export class DeploymentState {
     public readonly tasks: Map<string, ManagedTask> = observable.map();
@@ -19,19 +19,27 @@ export class DeploymentState {
         return this.deployment.running;
     }
 
-    private taskManager: TaskManager;
-    private deployment: FullDeployment;
+    public get label() {
+        return this.deployment.label;
+    }
 
-    constructor(deployment: FullDeployment, taskManager: TaskManager) {
-        this.deployment = deployment
+    public get deployment() {
+        return this.rootStore.getDeployment(this.deploymentId) ?? (() => {throw new Error("Deployment not found!")})();
+    }
+
+    private taskManager: TaskManager;
+    private deploymentId: string;
+    private rootStore: RootStore;
+
+    constructor(deploymentId: string, rootStore: RootStore, taskManager: TaskManager) {
+        this.deploymentId = deploymentId
+        this.rootStore = rootStore
         this.taskManager = taskManager;
         makeObservable(this, {
             loadTasks: action,
             addTask: action,
             deleteTask: action,
-            ...({
-                deployment: observable,
-            } as any)
+            deployment: computed
         });
     }
 
@@ -39,8 +47,9 @@ export class DeploymentState {
         if (this.running) {
             throw new Error("Can not start a deployment that is running.");
         }
-        this.deployment = FullDeploymentModel.parse(await fetch(`/api/deployment/${this.id}/start`, { method: "post" }).then(res => res.json()));
-        if (this.deployment.running) {
+        const deployment = FullDeploymentModel.parse(await fetch(`/api/deployment/${this.id}/start`, { method: "post" }).then(res => res.json()));
+        this.rootStore.insertDeployment(deployment);
+        if (deployment.running) {
             await this.loadTasks();
         }
     }
@@ -48,8 +57,9 @@ export class DeploymentState {
         if (!this.running) {
             throw new Error("Can not stop a deployment that is not running.");
         }
-        this.deployment = FullDeploymentModel.parse(await fetch(`/api/deployment/${this.id}/stop`, { method: "post" }).then(res => res.json()));
-        if (!this.deployment.running) {
+        const deployment = FullDeploymentModel.parse(await fetch(`/api/deployment/${this.id}/stop`, { method: "post" }).then(res => res.json()));
+        this.rootStore.insertDeployment(deployment);
+        if (!deployment.running) {
             await this.loadTasks();
         }
     }

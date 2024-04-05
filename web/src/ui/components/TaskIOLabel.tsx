@@ -1,13 +1,14 @@
-import { Box, Stack, Tooltip, Typography } from "@mui/material";
+import { Box, IconButton, Stack, Tooltip, Typography } from "@mui/material";
 import { Metadata } from "../../types/task";
 import { useMemo } from "react";
 import { ioMetadataHideKeys, ioMetadataKeyLabels, ioMetadataValueLabels } from "../../lib/task";
 import { getStreamColor } from "../../lib/node-editor";
+import { Launch as LaunchIcon } from "@mui/icons-material";
 
 const ignoreFieldsForIOColor = new Set(["topic_id", "label", "key", "id"]);
 
 
-export function TaskIOLabel(props: { io: Metadata, alignRight?: true }) {
+export function TaskIOLabel(props: { io: Metadata, alignRight?: true, allowOpen?: boolean, onOpen?: () => void }) {
     const metadataKV = useMemo(() =>
         [...Object.entries(props.io)]
             .filter(([k, v]) => !ioMetadataHideKeys.has(k))
@@ -25,6 +26,9 @@ export function TaskIOLabel(props: { io: Metadata, alignRight?: true }) {
             <Stack spacing={1} direction={props.alignRight ? "row-reverse" : "row"} alignItems="center">
                 <Box border="1px solid black" bgcolor={color} borderRadius="100%" height="0.7rem" width="0.7rem" />
                 <Typography fontSize="0.9rem">{label}</Typography>
+                {props.allowOpen && (
+                    <IconButton size="small" onClick={props.onOpen}><LaunchIcon fontSize="inherit"/></IconButton>
+                )}
             </Stack>
         </Tooltip>
     );

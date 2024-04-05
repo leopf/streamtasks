@@ -1,15 +1,17 @@
-import { Home as HomeIcon, Menu as MenuIcon } from "@mui/icons-material";
+import { Add as AddIcon, Home as HomeIcon, Menu as MenuIcon } from "@mui/icons-material";
 import { AppBar, Toolbar, IconButton, Typography, Box, Drawer, List, ListSubheader, ListItemButton, ListItemIcon, ListItemText, ListItem } from "@mui/material";
 import { observer, useLocalObservable } from "mobx-react-lite";
 import React from "react";
 import { useRootStore } from "../../state/root-store";
 import { Link } from "react-router-dom";
+import { useUIControl } from "../../state/ui-control-store";
 
 export const Header = observer((props: React.PropsWithChildren<{}>) => {
     const state = useLocalObservable(() => ({
         menuOpen: false
     }));
     const rootStore = useRootStore();
+    const uiControl = useUIControl();
 
     return (
         <>
@@ -25,11 +27,10 @@ export const Header = observer((props: React.PropsWithChildren<{}>) => {
                     >
                         <MenuIcon />
                     </IconButton>
-                    <Typography variant="h6" component="div" marginRight={2}>
+                    <Typography variant="h6" component="div">
                         streamtasks
                     </Typography>
                     {props.children}
-                    {/* <Box bgcolor="#f00" flex={1} alignSelf="stretch" /> */}
                 </Toolbar>
             </AppBar>
             <Drawer open={state.menuOpen} onClose={() => state.menuOpen = false}>
@@ -37,7 +38,7 @@ export const Header = observer((props: React.PropsWithChildren<{}>) => {
                     <List>
                         <ListItemButton component={Link} to={`/`}>
                             <ListItemIcon>
-                                <HomeIcon/>
+                                <HomeIcon />
                             </ListItemIcon>
                             <ListItemText primary="Home" />
                         </ListItemButton>
@@ -48,6 +49,12 @@ export const Header = observer((props: React.PropsWithChildren<{}>) => {
                                 <ListItemText primary={d.label} />
                             </ListItemButton>
                         ))}
+                        <ListItemButton onClick={() => uiControl.createNewDeployment()}>
+                            <ListItemIcon>
+                                <AddIcon />
+                            </ListItemIcon>
+                            <ListItemText primary={"New Deployment"} />
+                        </ListItemButton>
                     </List>
                 </Box>
             </Drawer>

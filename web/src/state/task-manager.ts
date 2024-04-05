@@ -1,5 +1,5 @@
 import { action, makeObservable, observable } from "mobx";
-import { StoredTask, TaskConfigurator, TaskConfiguratorContext, TaskHost } from "../types/task";
+import { FullTask, TaskConfigurator, TaskConfiguratorContext, TaskHost } from "../types/task";
 import { z } from "zod";
 import { TaskHostModel } from "../model/task";
 import { ManagedTask, getErrorConfigurator } from "../lib/task";
@@ -23,7 +23,7 @@ export class TaskManager {
         return this.taskHosts;
     }
 
-    public async toManagedTask(task: StoredTask, fail: boolean = true) {
+    public async toManagedTask(task: FullTask, fail: boolean = true) {
         let configurator: TaskConfigurator;
         let taskHost: TaskHost;
         try {

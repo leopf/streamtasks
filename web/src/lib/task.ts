@@ -51,6 +51,10 @@ export class ManagedTask extends EventEmitter<{"updated": [FullTask] }> {
         return this._task.frontend_config;
     }
 
+    public get taskInstance() {
+        return this._task.task_instance;
+    }
+
     public get task(): FullTask {
         return { ...this._task };
     }
@@ -76,7 +80,7 @@ export class ManagedTask extends EventEmitter<{"updated": [FullTask] }> {
     
     public async connect(key: string, output?: TaskOutput): Promise<boolean> {
         const oldInstanceClone = cloneDeep(TaskModel.parse(this._task));
-        const newInstance = TaskModel.parse(await this.configurator.connect(this._task, key, output, this.configuratorContext));
+        const newInstance: Task = TaskModel.parse(await this.configurator.connect(this._task, key, output, this.configuratorContext));
         
         if (!deepEqual(newInstance, oldInstanceClone)) {
             this.updateData(newInstance);

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TaskInstanceStatus } from "../types/task";
 
-export const MetadataModel = z.record(z.string(), z.union([ z.number(), z.string(), z.boolean() ])) 
+export const MetadataModel = z.record(z.string(), z.union([ z.number(), z.string(), z.boolean(), z.undefined() ])) 
 export const TaskOutputModel = MetadataModel.and(z.object({
     topic_id: z.number()
 }));
@@ -21,15 +21,15 @@ export const TaskFrontendConfigModel = z.object({
     position: z.object({ x: z.number(), y: z.number() }).optional()
 })
 
-export const TaskInstance = z.object({
+export const TaskInstanceModel = z.object({
     host_id: z.string(),
-    topic_space_id: z.number().int().optional(),
+    topic_space_id: z.number().int().optional().nullable(),
     metadata: MetadataModel,
-    error: z.string().optional(),
+    error: z.string().optional().nullable(),
     status:  z.nativeEnum(TaskInstanceStatus),
 });
 export const FullTaskModel = TaskModel.extend({
-    task_instance: TaskInstance.optional().nullable(),
+    task_instance: TaskInstanceModel.optional().nullable(),
     frontend_config: TaskFrontendConfigModel
 });
 

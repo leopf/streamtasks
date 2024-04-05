@@ -6,15 +6,11 @@ import { useRootStore } from "../../state/root-store";
 import { NodeOverlayTile } from "../components/NodeOverlayTile";
 import { Link } from "react-router-dom";
 import { PageLayout } from "../Layout";
+import { useUIControl } from "../../state/ui-control-store";
 
 export const HomePage = observer(() => {
     const rootStore = useRootStore();
-    const state = useLocalObservable(() => ({
-        editingDeployment: undefined as PartialDeployment | Deployment | undefined,
-        get isNewDeployment() {
-            return !(this.editingDeployment as any)?.id;
-        }
-    }));
+    const uiControl = useUIControl();
 
     return (
         <PageLayout>
@@ -28,7 +24,7 @@ export const HomePage = observer(() => {
                                     <NodeOverlayTile header={(
                                         <Stack direction="row">
                                             <Box flex={1} />
-                                            <IconButton size="small" onClick={() => state.editingDeployment = d}>
+                                            <IconButton size="small" onClick={() => uiControl.editingDeployment = d}>
                                                 <EditIcon fontSize="inherit" />
                                             </IconButton>
                                         </Stack>
@@ -42,46 +38,8 @@ export const HomePage = observer(() => {
                         </Grid>
                     </Box>
                 </Container>
-                <Dialog fullWidth open={!!state.editingDeployment} onClose={() => state.editingDeployment = undefined}>
-                    <DialogTitle>{state.isNewDeployment ? "Create" : "Edit"} Deployment</DialogTitle>
-                    <DialogContent>
-                        <TextField
-                            value={state.editingDeployment?.label || ""}
-                            onInput={(e) => {
-                                if (state.editingDeployment) {
-                                    state.editingDeployment.label = (e.target as HTMLInputElement).value;
-                                }
-                            }}
-                            autoFocus
-                            required
-                            label="Label"
-                            fullWidth
-                            variant="standard"
-                        />
-                    </DialogContent>
-                    <DialogActions>
-                        {!state.isNewDeployment && (
-                            <Button onClick={async () => {
-                                const id = (state.editingDeployment as any)?.id;
-                                if (!id) return;
-                                await rootStore.deleteDeployment(id);
-                                state.editingDeployment = undefined;
-                            }}>Delete</Button>
-                        )}
-                        <Button onClick={async () => {
-                            if (!state.editingDeployment) return;
-                            if (state.isNewDeployment) {
-                                await rootStore.createDeployment(state.editingDeployment);
-                            }
-                            else {
-                                await rootStore.updateDeployment(state.editingDeployment as Deployment);
-                            }
-                            state.editingDeployment = undefined;
-                        }}>Save</Button>
-                    </DialogActions>
-                </Dialog>
                 <Box position="fixed" bottom="2rem" right="2rem">
-                    <Fab color="primary" onClick={() => state.editingDeployment = { label: "" }}><AddIcon /></Fab>
+                    <Fab color="primary" onClick={() => uiControl.createNewDeployment()}><AddIcon /></Fab>
                 </Box>
             </Box>
         </PageLayout>

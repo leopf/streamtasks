@@ -170,7 +170,7 @@ export class NodeRenderer {
 
         // gray rect with rounded corners
         const containerRect = new PIXI.Graphics();
-        containerRect.lineStyle(outlineWidth, outlineColor);
+        containerRect.lineStyle(outlineWidth, this.node.outlineColor ?? outlineColor);
         containerRect.beginFill(this.fillColor);
         containerRect.drawRoundedRect(xOffset, 0, rectWidth, rectHeight, streamCircleRadius);
         containerRect.endFill();
@@ -216,7 +216,7 @@ export class NodeRenderer {
 
     private createConnectionCircle(connection: Connection) {
         const circle = new PIXI.Graphics();
-        circle.lineStyle(outlineWidth, outlineColor);
+        circle.lineStyle(outlineWidth, this.node.outlineColor ?? outlineColor);
         circle.beginFill(getStreamColor(connection));
         circle.drawCircle(0, 0, streamCircleRadius);
         circle.endFill();
