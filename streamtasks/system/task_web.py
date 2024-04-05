@@ -16,6 +16,7 @@ from streamtasks.net.message.data import SerializableData
 from streamtasks.net.utils import str_to_endpoint
 from streamtasks.services.protocols import AddressNames
 from streamtasks.system.task import MetadataDict, MetadataFields, ModelWithId, TaskHostRegistration, TaskHostRegistrationList, TaskInstance, TaskManagerClient, TaskNotFoundError
+from streamtasks.utils import wait_with_cotasks
 from streamtasks.worker import Worker
 
 
@@ -213,18 +214,17 @@ class TaskWebBackend(Worker):
       await ctx.respond_json_string(task.model_dump_json())
     
     async def ws_topic_handler(ctx: WebsocketContext, topic_id: int):
-      print("starting with topic ", topic_id)
       try:
         await ctx.accept()
+        receive_disconnect_task = asyncio.create_task(ctx.receive_disconnect())
         async with TopicsReceiver(self.client, [ topic_id ]) as recv:
           while ctx.connected:
-            _, data, _ = await recv.recv()
-            print("message ::)))")
+            _, data, _ = await wait_with_cotasks(recv.recv(), [receive_disconnect_task])
             data: SerializableData | None
             if data is not None:
               await ctx.send_message(json.dumps({ "data": data.data }))
+      except asyncio.CancelledError: pass
       finally:
-        print("finished with topic ", topic_id)
         await ctx.close()
     
     @router.websocket_route("/topic/{topic_id}")

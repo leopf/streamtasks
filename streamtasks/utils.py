@@ -1,6 +1,6 @@
 import platform
-from types import CoroutineType
-from typing import Any, ClassVar, Iterable, Optional
+from types import CoroutineType, coroutine
+from typing import Any, Awaitable, ClassVar, Iterable, Optional
 import asyncio
 import time
 import os
@@ -138,6 +138,12 @@ class AsyncObservableDict:
       self._change_trigger.trigger()
 
 
+async def wait_with_cotasks(main: Awaitable, co_tasks: Iterable[asyncio.Task]):
+  main_task = asyncio.Task(main)
+  done, _ = await asyncio.wait([main_task, *co_tasks], return_when="FIRST_COMPLETED")
+  if main_task not in done: main_task.cancel()
+  return main_task.result()
+  
 def get_timestamp_ms(): return int(time.time() * 1000)
 
 

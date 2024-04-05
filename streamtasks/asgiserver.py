@@ -155,6 +155,11 @@ class WebsocketContext(TransportContext):
   async def send_accept(self, headers: Iterable[tuple[ByteString, ByteString]] = [], subprotocol: str | None = None):
     await self._wsend({ "type": "websocket.accept", "subprotocol": subprotocol, "headers": [ (name.lower(), value) for name, value in headers ] })
     
+  async def receive_disconnect(self):
+    while True:
+      event = await self._wreceive()
+      if event.get("type", None) == "websocket.disconnect": return 
+  
   async def receive(self) -> tuple[Literal["message", "connect", "disconnect"], str | ByteString | None]:
     event = await self._wreceive()
     if event["type"] == "websocket.connect": return "connect", None
