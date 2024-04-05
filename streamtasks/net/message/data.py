@@ -30,6 +30,7 @@ class SerializableData(ABC):
   def data(self):
     if self._data is None: self._data = self.deserialize()
     return self._data
+  def to_json(self): return json.dumps(self.data)
   def serialize(self) -> memoryview: return self._raw if self._raw is not None else memoryview(self._serialize())
   def deserialize(self) -> Any: return self._data if self._data is not None else self._deserialize()
   def update(self): self._raw = None

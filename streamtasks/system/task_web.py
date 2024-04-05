@@ -221,10 +221,10 @@ class TaskWebBackend(Worker):
           while ctx.connected:
             _, data, _ = await wait_with_cotasks(recv.recv(), [receive_disconnect_task])
             data: SerializableData | None
-            if data is not None:
-              await ctx.send_message(json.dumps({ "data": data.data }))
+            if data is not None: await ctx.send_message(f'{{ "data": {data.to_json()} }}')
       except asyncio.CancelledError: pass
       finally:
+        receive_disconnect_task.cancel()
         await ctx.close()
     
     @router.websocket_route("/topic/{topic_id}")

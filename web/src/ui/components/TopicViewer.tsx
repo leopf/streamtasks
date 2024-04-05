@@ -3,14 +3,21 @@ import { Topic } from "../../types/topic";
 import { z } from "zod";
 import { Box, Divider, Stack, Typography } from "@mui/material";
 
+const MessageInfoModel = z.object({
+    timestamp: z.coerce.date().transform(a => a.toLocaleString()),
+    id: z.string()
+}).partial()
+
 const TopicMessageModel = z.object({
     data: z.record(z.string(), z.any())
 });
 
+type MessageInfo = z.infer<typeof MessageInfoModel>;
 type TopicMessage = z.infer<typeof TopicMessageModel>;
+type ParsedTopicMessage = { id: number, message: TopicMessage, info: MessageInfo }
 
 export function TopicViewer(props: Topic) {
-    const [messages, setMessages] = useState<TopicMessage[]>([]);
+    const [messages, setMessages] = useState<ParsedTopicMessage[]>([]);
     const [open, setOpen] = useState(false);
 
     const scrollDataRef = useRef({
@@ -22,6 +29,7 @@ export function TopicViewer(props: Topic) {
     useEffect(() => {
         setMessages([]);
         setOpen(false);
+        let idCounter = 0;
 
         const path = props.topicSpaceId ?
             `/topic/${props.topicSpaceId}/${props.topicId}` :
@@ -32,8 +40,14 @@ export function TopicViewer(props: Topic) {
         ws.addEventListener("open", () => setOpen(true))
         ws.addEventListener("message", (e) => {
             try {
-                const message = TopicMessageModel.parse(JSON.parse(e.data))
-                setMessages(pv => scrollDataRef.current.scrollBottom ? [...pv.slice(pv.length - 200), message] : [...pv, message])
+                const message = TopicMessageModel.parse(JSON.parse(e.data));
+                const pmessageRes = MessageInfoModel.safeParse(message.data);
+                const pmessage: ParsedTopicMessage = {
+                    id: ++idCounter,
+                    message,
+                    info: pmessageRes.success ? pmessageRes.data : {}
+                } 
+                setMessages(pv => scrollDataRef.current.scrollBottom ? [...pv.slice(pv.length - 200), pmessage] : [...pv, pmessage])
             } catch (error) {
                 console.error(error)
             }
@@ -68,7 +82,16 @@ export function TopicViewer(props: Topic) {
                         if (!container) return;
                         scrollDataRef.current.scrollBottom = container.scrollTop + 50 > container.scrollHeight - container.clientHeight;
                     }}>
-                    {messages.map(m => (<Box padding={1} fontSize={"0.9rem"}>{JSON.stringify(m.data)}</Box>))}
+                    {messages.map(m => (
+                        <Box key={m.id} padding={1} fontSize={"0.9rem"}>
+                            {Object.keys(m.info).length > 0 && (
+                                <Typography variant="body1">
+                                    {Object.entries(m.info).map(([k, v]) => `${k}: ${v}`).join(", ")}
+                                </Typography>
+                            )}
+                            <Typography variant="caption">{JSON.stringify(m.message.data)}</Typography>
+                        </Box>
+                    ))}
                 </Box>
             </Box>
         </Stack>
