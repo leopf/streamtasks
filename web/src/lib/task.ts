@@ -83,16 +83,7 @@ export class ManagedTask extends EventEmitter<{"updated": [Task] }> {
         }
         this.emit("updated", this.taskInstance);
     }
-
-    public async getStartConfig() {
-        return await this.configurator.toStartConfig?.call(null, this.taskInstance, this.configuratorContext) ?? this.taskInstance.config;
-    }
-
-    public async remapTopicIds(idMap: Map<number, number>) {
-        const newData = await (this.configurator.remapTopicIds ?? defaultRemapTopicIds).call(null, this.taskInstance, idMap, this.configuratorContext);
-        this.updateData(newData);
-    }
-
+    
     public async connect(key: string, output?: TaskOutput): Promise<boolean> {
         const oldInstanceClone = cloneDeep(this.taskInstance);
         const newInstance = await this.configurator.connect(this.taskInstance, key, output, this.configuratorContext);

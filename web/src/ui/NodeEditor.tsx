@@ -4,11 +4,12 @@ import { NodeEditorRenderer } from '../lib/node-editor';
 import { TaskNode } from '../lib/task-node';
 import { observer, useLocalObservable } from "mobx-react-lite";
 import { TaskHostDragDataModel } from '../model/task-host';
-import { observe } from 'mobx';
+import { observe, reaction } from 'mobx';
 import { TaskEditorWindow } from './components/TaskEditorWindow';
 import { useDeployment } from '../state/deployment';
 import { useTaskManager } from '../state/task-manager';
 import { Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button } from '@mui/material';
+import { TaskDisplayWindow } from './components/TaskDisplayWindow';
 
 export const NodeEditor = observer(() => {
     const [nodeRenderer, _] = useState(() => new NodeEditorRenderer());
@@ -47,15 +48,19 @@ export const NodeEditor = observer(() => {
 
     useEffect(() => {
         nodeRenderer.clear();
-        return observe(deployment.tasks, (a) => {
-            console.log(a);
-            if (a.type === "delete" || a.type === "update") {
-                nodeRenderer.deleteNode(a.oldValue.id);
-            }
-            if (a.type === "add" || a.type === "update") {
-                nodeRenderer.addNode(new TaskNode(a.newValue));
-            }
-        })
+        const disposers = [
+            observe(deployment.tasks, (a) => {
+                console.log(a);
+                if (a.type === "delete" || a.type === "update") {
+                    nodeRenderer.deleteNode(a.oldValue.id);
+                }
+                if (a.type === "add" || a.type === "update") {
+                    nodeRenderer.addNode(new TaskNode(a.newValue));
+                }
+            }),
+            reaction(() => deployment.running, () => nodeRenderer.readOnly = deployment.running, { fireImmediately: true })
+        ];
+        return () => disposers.forEach(d => d());
     }, [deployment]);
 
     return (
@@ -75,14 +80,18 @@ export const NodeEditor = observer(() => {
                         await deployment.addTask(task);
                     }}
                     sx={{
+                        userSelect: "none",
                         "& canvas": {
                             "display": "block"
                         }
                     }}
                     ref={containerRef} />
-                {state.selectedTask && (<TaskEditorWindow task={state.selectedTask} onClose={() => nodeRenderer.unselectNode()} onDelete={() => setDeleting(true)} />)}
+                {state.selectedTask && (deployment.running ?
+                    (<TaskDisplayWindow task={state.selectedTask} onClose={() => nodeRenderer.unselectNode()}/>) :
+                    (<TaskEditorWindow task={state.selectedTask} onClose={() => nodeRenderer.unselectNode()} onDelete={() => setDeleting(true)} />)
+                )}
             </Box>
-            <Dialog open={isDeleting} onClose={() => setDeleting(false)}>
+            <Dialog open={isDeleting && !deployment.running} onClose={() => setDeleting(false)}>
                 <DialogTitle>delete task</DialogTitle>
                 <DialogContent>
                     <DialogContentText>Do you wish to delete this task?</DialogContentText>

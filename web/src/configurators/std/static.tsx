@@ -32,6 +32,7 @@ const task: TaskConfigurator = {
             validateMetadataEquals(output, targetInput, compareIgnoreMetadataKeys);
             targetInput.topic_id = output.topic_id;
         }
+        taskInstance.config[targetInput.key] = targetInput.topic_id
         return taskInstance;
     },
     create: (context: TaskConfiguratorContext) => {
@@ -40,8 +41,10 @@ const task: TaskConfigurator = {
         const inputs = z.array(TaskPartialInputModel).parse(JSON.parse(String(metadata["cfg:inputs"])))
         const outputs = z.array(MetadataModel).parse(JSON.parse(String(metadata["cfg:outputs"])))
         const config = "cfg:config" in metadata ? z.record(z.any()).parse(JSON.parse(String(metadata["cfg:config"]))) : {};
+        const outputKeys = "cfg:outputkeys" in context.taskHost.metadata ?
+            z.array(z.string().optional()).parse(JSON.parse(String(context.taskHost.metadata["cfg:outputkeys"]))) : [];
 
-        return {
+        const result = {
             id: uuidv4(),
             task_host_id: context.taskHost.id,
             label: label,
@@ -49,16 +52,13 @@ const task: TaskConfigurator = {
             inputs: inputs,
             outputs: outputs.map(output => ({ ...output, topic_id: context.idGenerator() }))
         };
-    },
-    toStartConfig: (taskInstance: Task, context: TaskConfiguratorContext) => {
-        const outputKeys = "cfg:outputkeys" in context.taskHost.metadata ?
-            z.array(z.string().optional()).parse(JSON.parse(String(context.taskHost.metadata["cfg:outputkeys"]))) : [];
-
-        return {
-            ...taskInstance.config,
-            ...Object.fromEntries(taskInstance.inputs.map(i => [i.key, i.topic_id ?? null])),
-            ...Object.fromEntries(outputKeys.map((key, idx) => [key, taskInstance.outputs.at(idx)?.topic_id]).filter(([k, v]) => k && v))
-        };
+        outputKeys.forEach((key, idx) => {
+            const topic_id = result.outputs.at(idx)?.topic_id;
+            if (key && topic_id) {
+                result.config[key] = topic_id;
+            }
+        });
+        return result;
     },
     renderEditor: (taskInstance: Task, element: HTMLElement, context: TaskConfiguratorContext) => {
         if (typeof context.taskHost.metadata["cfg:editorfields"] !== "string") return;

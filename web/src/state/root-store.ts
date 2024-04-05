@@ -1,11 +1,11 @@
 import { action, makeObservable, observable } from "mobx";
-import { Deployment, PartialDeployment } from "../types/deployment";
+import { Deployment, FullDeployment, PartialDeployment } from "../types/deployment";
 import { z } from "zod";
-import { DeploymentModel } from "../model/deployment";
+import { FullDeploymentModel } from "../model/deployment";
 import { createStateContext } from "./util";
 
 export class RootStore {
-    private _deployments: Map<string, Deployment> = observable.map();
+    private _deployments: Map<string, FullDeployment> = observable.map();
     public get deployments() {
         return Array.from(this._deployments.values());
     }
@@ -21,7 +21,7 @@ export class RootStore {
     }
 
     public async loadDeployments() {
-        const deployments = z.array(DeploymentModel).parse(await fetch("/api/deployments").then(res => res.json()));
+        const deployments = z.array(FullDeploymentModel).parse(await fetch("/api/deployments").then(res => res.json()));
         for (const deployment of deployments) {
             this._deployments.set(deployment.id, deployment);
         }
@@ -35,7 +35,7 @@ export class RootStore {
             return undefined;
         }
 
-        const deployment = DeploymentModel.parse(await res.json());
+        const deployment = FullDeploymentModel.parse(await res.json());
         if (deployment) {
             this._deployments.set(deployment.id, deployment);
         }
@@ -56,7 +56,7 @@ export class RootStore {
             body: JSON.stringify(deployment)
         });
         if (res.ok) {
-            const newDeployment = DeploymentModel.parse(await res.json());
+            const newDeployment = FullDeploymentModel.parse(await res.json());
             this._deployments.set(newDeployment.id, newDeployment);
         }
     }
@@ -69,7 +69,7 @@ export class RootStore {
             body: JSON.stringify(deployment)
         });
         if (res.ok) {
-            const newDeployment = DeploymentModel.parse(await res.json());
+            const newDeployment = FullDeploymentModel.parse(await res.json());
             this._deployments.set(newDeployment.id, newDeployment);
         }
     }

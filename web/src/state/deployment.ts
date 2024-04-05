@@ -4,8 +4,9 @@ import { StoredTaskModel } from "../model/task";
 import { TaskManager } from "./task-manager";
 import { action, makeObservable, observable } from "mobx";
 import { createStateContext } from "./util";
-import { Deployment } from "../types/deployment";
+import { FullDeployment } from "../types/deployment";
 import _ from "underscore";
+import { FullDeploymentModel } from "../model/deployment";
 
 export class DeploymentState {
     public readonly tasks: Map<string, ManagedTask> = observable.map();
@@ -14,10 +15,14 @@ export class DeploymentState {
         return this._deployment.id;
     }
     
-    private taskManager: TaskManager;
-    private _deployment: Deployment;
+    public get running() {
+        return this._deployment.running;
+    }
 
-    constructor(deployment: Deployment, taskManager: TaskManager) {
+    private taskManager: TaskManager;
+    private _deployment: FullDeployment;
+
+    constructor(deployment: FullDeployment, taskManager: TaskManager) {
         this._deployment = deployment
         this.taskManager = taskManager;
         makeObservable(this, {
@@ -27,8 +32,15 @@ export class DeploymentState {
         });
     }
 
+    public async start() {
+        this._deployment = FullDeploymentModel.parse(await fetch(`/api/deployment/${this.id}/start`, { method: "post" }).then(res => res.json()));
+        if (this._deployment.running) {
+            await this.loadTasks();
+        }
+    }
+
     public async loadTasks() {
-        const result = await fetch(`/api/deployment/${this.id}/tasks`, { method: "get" }).then(res => res.json());
+        const result = await fetch(`/api/deployment/${this.id}/tasks`).then(res => res.json());
         const storedTasks = z.array(StoredTaskModel).parse(result)
         const newTasks = new Map(storedTasks.map(t => [t.id, t]));
         for (const taskId of this.tasks.keys()) {
@@ -48,12 +60,14 @@ export class DeploymentState {
     }
 
     public async addTask(task: ManagedTask) {
+        if (this.running) throw new Error("Deployment is running!");
         await this.putTask(task);
         this.tasks.set(task.id, task);
         this.trackTask(task);
     }
 
     public async deleteTask(task: ManagedTask) {
+        if (this.running) throw new Error("Deployment is running!");
         const result = await fetch(`/api/task/${task.id}`, { method: "delete" });
         if (!result.ok) {
             throw new Error("Failed to delete!")
@@ -62,6 +76,7 @@ export class DeploymentState {
     }
 
     private async putTask(task: ManagedTask) {
+        if (this.running) throw new Error("Deployment is running!");
         const result = await fetch(`/api/task`, {
             method: "put",
             headers: {

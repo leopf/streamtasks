@@ -1,7 +1,7 @@
 import asyncio
 import itertools
 import mimetypes
-from typing import Any
+from typing import Any, TypedDict
 from uuid import UUID, uuid4
 from pydantic import UUID4, Field, TypeAdapter, ValidationError
 from streamtasks.asgi import ASGIAppRunner, ASGIProxyApp
@@ -15,10 +15,20 @@ from streamtasks.system.task import MetadataDict, MetadataFields, ModelWithId, T
 from streamtasks.worker import Worker
 
 
-class Deployment(ModelWithId):
+class DeploymentBase(ModelWithId):
   id: UUID4 = Field(default_factory=uuid4)
   label: str
-  
+
+class FullDeployment(DeploymentBase):
+  running: bool = False
+
+class RunningDeployment(ModelWithId):
+  topic_space_id: int
+  task_instances: dict[str, TaskInstance]
+
+class TaskOutput(TypedDict):
+  topic_id: int
+
 class StoredTask(ModelWithId):
   deployment_id: UUID4
   task_host_id: str
@@ -27,34 +37,56 @@ class StoredTask(ModelWithId):
   frontendConfig: dict[str, Any]
   inputs: list[MetadataDict]
   outputs: list[MetadataDict]
+  
+class FullTask(StoredTask):
+  task_instance: TaskInstance | None = None
 
-DeploymentList = TypeAdapter(list[Deployment])
-StoredTaskList = TypeAdapter(list[StoredTask])
+FullDeploymentList = TypeAdapter(list[FullDeployment])
+FullTaskList = TypeAdapter(list[FullTask])
 
 class TaskWebBackendStore:
   def __init__(self) -> None:
+    self.running_deployments: dict[UUID4, RunningDeployment] = {}
     self.deployments: dict[str, str] = {}
     self.tasks: dict[str, str] = {}
+
+  def set_running_deployment(self, deployment: RunningDeployment):
+    self.running_deployments[deployment.id] = deployment
   
-  async def all_deployments(self) -> list[Deployment]: return [ Deployment.model_validate_json(d) for d in self.deployments.values() ]
-  async def get_deployment(self, id: UUID4) -> Deployment: return Deployment.model_validate_json(self.deployments[str(id)])
-  async def create_deployment(self, deployment: Deployment) -> Deployment: 
+  async def all_deployments(self) -> list[DeploymentBase]: return [ self.deployment_apply_running(FullDeployment.model_validate_json(d)) for d in self.deployments.values() ]
+  async def get_deployment(self, id: UUID4) -> DeploymentBase: return self.deployment_apply_running(FullDeployment.model_validate_json(self.deployments[str(id)]))
+  async def create_deployment(self, deployment: DeploymentBase) -> DeploymentBase: 
     if str(deployment.id) in self.deployments: raise ValueError("Deployment already exists!")
     self.deployments[str(deployment.id)] = deployment.model_dump_json()
-  async def update_deployment(self, deployment: Deployment) -> Deployment: 
+  async def update_deployment(self, deployment: DeploymentBase) -> DeploymentBase: 
+    if deployment.id in self.running_deployments: raise ValueError("Deployment is running!")
     if str(deployment.id) not in self.deployments: raise ValueError("Deployment does not exists!")
     self.deployments[str(deployment.id)] = deployment.model_dump_json()
   async def delete_deployment(self, id: UUID4):
+    if id in self.running_deployments: raise ValueError("Deployment is running!")
     res = self.deployments.pop(str(id), None)
     if res is None: raise ValueError("Deployment does not exist!")
     
-  async def all_tasks(self) -> list[StoredTask]: return [StoredTask.model_validate_json(v) for v in self.tasks.values()]
-  async def all_tasks_in_deployment(self, deployment_id: UUID4) -> list[StoredTask]: return [ task for task in await self.all_tasks() if task.deployment_id == deployment_id ]
-  async def get_task(self, id: UUID4) -> StoredTask: return StoredTask.model_validate_json(self.tasks[str(id)])
-  async def create_or_update_task(self, task: StoredTask) -> StoredTask: self.tasks[str(task.id)] = task.model_dump_json()
+  async def all_tasks(self) -> list[FullTask]: return [self.task_apply_instance(FullTask.model_validate_json(v)) for v in self.tasks.values()]
+  async def all_tasks_in_deployment(self, deployment_id: UUID4) -> list[FullTask]: return [ task for task in await self.all_tasks() if task.deployment_id == deployment_id ]
+  async def get_task(self, id: UUID4) -> FullTask:  return self.task_apply_instance(FullTask.model_validate_json(self.tasks[str(id)]))
+  async def create_or_update_task(self, task: StoredTask) -> StoredTask: 
+    if task.deployment_id in self.running_deployments: raise ValueError("Deployment is running!")
+    if str(task.id) in self.tasks:
+      existing_task = await self.get_task(task.id)
+      if existing_task.deployment_id in self.running_deployments: raise ValueError("Deployment is running!")  
+    self.tasks[str(task.id)] = task.model_dump_json()
   async def delete_task(self, id: UUID4):
-    res = self.tasks.pop(str(id), None)
-    if res is None: raise ValueError("Task does not exist!")
+    task = await self.get_task(id)
+    if task.deployment_id in self.running_deployments: raise ValueError("Deployment is running!")
+    self.tasks.pop(str(id), None)
+  
+  def deployment_apply_running(self, deployment: FullDeployment):
+    if deployment.id in self.running_deployments: deployment.running = True
+    return deployment
+  def task_apply_instance(self, task: FullTask):
+    if task.deployment_id in self.running_deployments: task = self.running_deployments[task.deployment_id].task_instances.get(task.id, None)
+    return task
 
 
 class TaskWebBackend(Worker):
@@ -104,38 +136,36 @@ class TaskWebBackend(Worker):
 
     @router.get("/api/deployments")
     @http_context_handler
-    async def _(ctx: HTTPContext): await ctx.respond_json_raw(await self.store.all_deployments())
+    async def _(ctx: HTTPContext): await ctx.respond_json_raw(FullDeploymentList.dump_json(await self.store.all_deployments()))
     
     @router.post("/api/deployment/{id}/start")
     @http_context_handler
     async def _(ctx: HTTPContext):
-      """
-      - write protect deployment and set information like topic space
-      - save task instance ids with tasks
-      """
-      
-      tasks = await self.store.all_tasks_in_deployment(UUID(ctx.params.get("id", "")))
+      deployment_id = UUID(ctx.params.get("id", ""))
+      tasks = await self.store.all_tasks_in_deployment(deployment_id)
       topic_ids = set(itertools.chain.from_iterable((int(output["topic_id"]) for output in task.outputs) for task in tasks))
       topic_space_id, _ = await register_topic_space(self.client, topic_ids)
-      
+      running_deployment = RunningDeployment(id=deployment_id, topic_space_id=topic_space_id, task_instances={})
       for task in tasks:
         task_instance = await self.tm_client.start_task(task.task_host_id, task.config, topic_space_id)
+        running_deployment.task_instances[task.id] = task_instance
+      await ctx.respond_json_string((await self.store.get_deployment(deployment_id)).model_dump_json())
     
     @router.get("/api/deployment/{id}")
     @http_context_handler
-    async def _(ctx: HTTPContext): return await self.store.get_deployment(UUID(ctx.params.get("id", "")))
+    async def _(ctx: HTTPContext): await ctx.respond_json_string((await self.store.get_deployment(UUID(ctx.params.get("id", "")))).model_dump_json())
     
     @router.post("/api/deployment")
     @http_context_handler
     async def _(ctx: HTTPContext):
-      deployment = Deployment.model_validate_json(await ctx.receive_json_raw())
+      deployment = DeploymentBase.model_validate_json(await ctx.receive_json_raw())
       await self.store.create_deployment(deployment)
       await ctx.respond_json_string(deployment.model_dump_json())
     
     @router.put("/api/deployment")
     @http_context_handler
     async def _(ctx: HTTPContext):
-      deployment = Deployment.model_validate_json(await ctx.receive_json_raw())
+      deployment = DeploymentBase.model_validate_json(await ctx.receive_json_raw())
       await self.store.update_deployment(deployment)
       await ctx.respond_json_string(deployment.model_dump_json())
     
@@ -147,7 +177,7 @@ class TaskWebBackend(Worker):
       
     @router.get("/api/deployment/{id}/tasks")
     @http_context_handler
-    async def _(ctx: HTTPContext): await ctx.respond_json_raw(StoredTaskList.dump_json(await self.store.all_tasks_in_deployment(UUID(ctx.params.get("id", "")))))
+    async def _(ctx: HTTPContext): await ctx.respond_json_raw(FullTaskList.dump_json(await self.store.all_tasks_in_deployment(UUID(ctx.params.get("id", "")))))
     
     @router.delete("/api/task/{id}")
     @http_context_handler
@@ -161,10 +191,6 @@ class TaskWebBackend(Worker):
       task = StoredTask.model_validate_json(await ctx.receive_json_raw())
       await self.store.create_or_update_task(task)
       await ctx.respond_json_string(task.model_dump_json())
-
-    @router.post("/api/deployment/{*}")
-    @http_context_handler
-    async def _(ctx: HTTPContext): await ctx.respond_status(200)
     
     # TODO: lifecycle api support
     @router.transport_route("/task/{id}/{path*}")

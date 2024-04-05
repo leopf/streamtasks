@@ -77,7 +77,6 @@ TMTaskRequestBase = ModelWithId
 class TaskInstance(ModelWithId):
   host_id: str
   topic_space_id: int | None = None
-  config: Any
   metadata: MetadataDict
   error: Optional[str]
   status: TaskStatus
@@ -290,7 +289,6 @@ class TaskManager(Worker):
           id= task_start_request.id,
           host_id=body.host_id,
           topic_space_id=body.topic_space_id,
-          config=body.config,
           metadata={},
           error=None,
           status=TaskStatus.starting
