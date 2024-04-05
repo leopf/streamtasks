@@ -1,7 +1,7 @@
 import { Box, Stack, Tooltip, Typography } from "@mui/material";
 import { Metadata } from "../../types/task";
 import { useMemo } from "react";
-import { ioMetadataHideKeys, ioMetadataKeyLabels, ioMetadataValueLabels, taskHostLabelFields } from "../../lib/task";
+import { ioMetadataHideKeys, ioMetadataKeyLabels, ioMetadataValueLabels } from "../../lib/task";
 import { getStreamColor } from "../../lib/node-editor";
 
 const ignoreFieldsForIOColor = new Set(["topic_id", "label", "key", "id"]);
@@ -19,7 +19,7 @@ export function TaskIOLabel(props: { io: Metadata, alignRight?: true }) {
     return (
         <Tooltip title={(
             <Stack>
-                {metadataKV.map(([k, v]) => (<Typography fontSize="0.8rem">{k}: {v}</Typography>))}
+                {metadataKV.map(([k, v]) => (<Typography key={k} fontSize="0.8rem">{k}: {v}</Typography>))}
             </Stack>
         )}>
             <Stack spacing={1} direction={props.alignRight ? "row-reverse" : "row"} alignItems="center">

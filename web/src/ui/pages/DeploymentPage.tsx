@@ -1,4 +1,4 @@
-import { Box } from "@mui/material";
+import { Box, Button } from "@mui/material";
 import { observer, useLocalObservable } from "mobx-react-lite";
 import { TaskSelectionMenu } from "../TaskSelectionMenu";
 import { NodeEditor } from "../NodeEditor";
@@ -7,6 +7,8 @@ import { useEffect, useMemo } from "react";
 import { DeploymentContext, DeploymentState } from "../../state/deployment";
 import { useTaskManager } from "../../state/task-manager";
 import { useRootStore } from "../../state/root-store";
+import { PageLayout } from "../Layout";
+import { PlayArrow as PlayArrowIcon, Stop } from "@mui/icons-material";
 
 export const DeploymentPage = observer(() => {
     const params = useParams();
@@ -39,7 +41,7 @@ export const DeploymentPage = observer(() => {
 
     if (!state.deployment) {
         if (state.notFound) {
-            return "not found";
+           throw new Error("Not found");
         }
         else {
             return "loading"
@@ -47,14 +49,24 @@ export const DeploymentPage = observer(() => {
     }
 
     return (
-        <DeploymentContext.Provider value={state.deployment}>
-
-            <Box width="100%" height="100%" position="relative">
-                <Box width={"100%"} height={"100%"} position="absolute"><NodeEditor /></Box>
-                <Box height={"100%"} sx={theme => ({ [theme.breakpoints.up("xl")]: { width: "15%" }, [theme.breakpoints.down("xl")]: { width: "20%" }, [theme.breakpoints.down("md")]: { width: "25%" } })} position="absolute">
-                    <TaskSelectionMenu />
+        <PageLayout headerContent={(
+            <>
+                <Box flex={1} />
+                {state.deployment.running ? (
+                    <Button color="inherit" startIcon={<Stop />} variant="text" onClick={() => state.deployment?.stop()}>Stop</Button>
+                ) : (
+                    <Button color="inherit" startIcon={<PlayArrowIcon />} variant="text" onClick={() => state.deployment?.start()}>Start</Button>
+                )}
+            </>
+        )}>
+            <DeploymentContext.Provider value={state.deployment}>
+                <Box width="100%" height="100%" position="relative">
+                    <Box width={"100%"} height={"100%"} position="absolute"><NodeEditor /></Box>
+                    <Box height={"100%"} sx={theme => ({ [theme.breakpoints.up("xl")]: { width: "15%" }, [theme.breakpoints.down("xl")]: { width: "20%" }, [theme.breakpoints.down("md")]: { width: "25%" } })} position="absolute">
+                        <TaskSelectionMenu />
+                    </Box>
                 </Box>
-            </Box>
-        </DeploymentContext.Provider>
+            </DeploymentContext.Provider>
+        </PageLayout>
     )
 });

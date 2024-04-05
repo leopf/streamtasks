@@ -18,7 +18,7 @@ export function TaskIOTable(props: { taskIO: TaskIO }) {
                 </TableHead>
                 <TableBody>
                     {taskIOList.map(([i, o]) => (
-                        <TableRow>
+                        <TableRow key={String(i?.key) + String(o?.topic_id)}>
                             <TableCell align="left">{i && <TaskIOLabel io={i} />}</TableCell>
                             <TableCell align="right">{o && <TaskIOLabel alignRight io={o} />}</TableCell>
                         </TableRow>

@@ -42,16 +42,21 @@ class FetchRequest:
 
 class FetchErrorStatusCode(Enum):
   BAD_REQUEST = "bad_request"
+  NOT_FOUND = "not_found"
   GENERAL = "general"
   
 def new_fetch_body_bad_request(message: str): return (FetchErrorStatusCode.BAD_REQUEST.value, message)
+def new_fetch_body_not_found(message: str): return (FetchErrorStatusCode.NOT_FOUND.value, message)
 def new_fetch_body_general_error(message: str): return (FetchErrorStatusCode.GENERAL.value, message)
 
 class FetchError(BaseException):
   def __init__(self, body: Any) -> None:
     super().__init__()
     self.body = body
-    
+  
+  @property
+  def status_code(self): return FetchErrorStatusCode(self.body[0]) if self.body[0] in FetchErrorStatusCode._value2member_map_ else None
+  
   def __repr__(self) -> str:
     if isinstance(self.body, tuple) and len(self.body) == 2 and self.body[0] in FetchErrorStatusCode._value2member_map_:
       return f"<FetchError {FetchErrorStatusCode(self.body[0])}: {self.body[1]}>"

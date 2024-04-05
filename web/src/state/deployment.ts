@@ -12,29 +12,44 @@ export class DeploymentState {
     public readonly tasks: Map<string, ManagedTask> = observable.map();
 
     public get id() {
-        return this._deployment.id;
+        return this.deployment.id;
     }
     
     public get running() {
-        return this._deployment.running;
+        return this.deployment.running;
     }
 
     private taskManager: TaskManager;
-    private _deployment: FullDeployment;
+    private deployment: FullDeployment;
 
     constructor(deployment: FullDeployment, taskManager: TaskManager) {
-        this._deployment = deployment
+        this.deployment = deployment
         this.taskManager = taskManager;
         makeObservable(this, {
             loadTasks: action,
             addTask: action,
             deleteTask: action,
+            ...({
+                deployment: observable,
+            } as any)
         });
     }
 
     public async start() {
-        this._deployment = FullDeploymentModel.parse(await fetch(`/api/deployment/${this.id}/start`, { method: "post" }).then(res => res.json()));
-        if (this._deployment.running) {
+        if (this.running) {
+            throw new Error("Can not start a deployment that is running.");
+        }
+        this.deployment = FullDeploymentModel.parse(await fetch(`/api/deployment/${this.id}/start`, { method: "post" }).then(res => res.json()));
+        if (this.deployment.running) {
+            await this.loadTasks();
+        }
+    }
+    public async stop() {
+        if (!this.running) {
+            throw new Error("Can not stop a deployment that is not running.");
+        }
+        this.deployment = FullDeploymentModel.parse(await fetch(`/api/deployment/${this.id}/stop`, { method: "post" }).then(res => res.json()));
+        if (!this.deployment.running) {
             await this.loadTasks();
         }
     }

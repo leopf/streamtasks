@@ -7,11 +7,12 @@ from pydantic import UUID4, Field, TypeAdapter, ValidationError
 from streamtasks.asgi import ASGIAppRunner, ASGIProxyApp
 from streamtasks.asgiserver import ASGIHandler, ASGIRouter, ASGIServer, HTTPContext, TransportContext, decode_data_uri, http_context_handler, path_rewrite_handler, static_content_handler, static_files_handler, transport_context_handler
 from streamtasks.client import Client
-from streamtasks.client.discovery import register_address_name, register_topic_space
+from streamtasks.client.discovery import delete_topic_space, register_address_name, register_topic_space
+from streamtasks.client.fetch import FetchError
 from streamtasks.net import Link, Switch
 from streamtasks.net.utils import str_to_endpoint
 from streamtasks.services.protocols import AddressNames
-from streamtasks.system.task import MetadataDict, MetadataFields, ModelWithId, TaskHostRegistration, TaskHostRegistrationList, TaskInstance, TaskManagerClient
+from streamtasks.system.task import MetadataDict, MetadataFields, ModelWithId, TaskHostRegistration, TaskHostRegistrationList, TaskInstance, TaskManagerClient, TaskNotFoundError
 from streamtasks.worker import Worker
 
 
@@ -50,8 +51,9 @@ class TaskWebBackendStore:
     self.deployments: dict[str, str] = {}
     self.tasks: dict[str, str] = {}
 
-  def set_running_deployment(self, deployment: RunningDeployment):
-    self.running_deployments[deployment.id] = deployment
+  def set_running_deployment(self, deployment: RunningDeployment): self.running_deployments[deployment.id] = deployment
+  def get_running_deployment(self, deployment_id: UUID4): return self.running_deployments[deployment_id]
+  def delete_running_deployment(self, deployment_id: UUID4): return self.running_deployments.pop(deployment_id)
   
   async def all_deployments(self) -> list[DeploymentBase]: return [ self.deployment_apply_running(FullDeployment.model_validate_json(d)) for d in self.deployments.values() ]
   async def get_deployment(self, id: UUID4) -> DeploymentBase: return self.deployment_apply_running(FullDeployment.model_validate_json(self.deployments[str(id)]))
@@ -85,7 +87,7 @@ class TaskWebBackendStore:
     if deployment.id in self.running_deployments: deployment.running = True
     return deployment
   def task_apply_instance(self, task: FullTask):
-    if task.deployment_id in self.running_deployments: task = self.running_deployments[task.deployment_id].task_instances.get(task.id, None)
+    if task.deployment_id in self.running_deployments: task.task_instance = self.running_deployments[task.deployment_id].task_instances.get(task.id, None)
     return task
 
 
@@ -146,9 +148,24 @@ class TaskWebBackend(Worker):
       topic_ids = set(itertools.chain.from_iterable((int(output["topic_id"]) for output in task.outputs) for task in tasks))
       topic_space_id, _ = await register_topic_space(self.client, topic_ids)
       running_deployment = RunningDeployment(id=deployment_id, topic_space_id=topic_space_id, task_instances={})
+      self.store.set_running_deployment(running_deployment)
       for task in tasks:
         task_instance = await self.tm_client.start_task(task.task_host_id, task.config, topic_space_id)
         running_deployment.task_instances[task.id] = task_instance
+      await ctx.respond_json_string((await self.store.get_deployment(deployment_id)).model_dump_json())
+      
+    @router.post("/api/deployment/{id}/stop")
+    @http_context_handler
+    async def _(ctx: HTTPContext):
+      deployment_id = UUID(ctx.params.get("id", ""))
+      running_deployment = self.store.get_running_deployment(deployment_id)
+      
+      for task_instance in running_deployment.task_instances.values(): 
+        try: await self.tm_client.cancel_task_wait(task_instance.id)
+        except TaskNotFoundError: pass
+      await delete_topic_space(self.client, running_deployment.topic_space_id)
+      self.store.delete_running_deployment(deployment_id)
+      
       await ctx.respond_json_string((await self.store.get_deployment(deployment_id)).model_dump_json())
     
     @router.get("/api/deployment/{id}")

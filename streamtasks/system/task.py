@@ -8,7 +8,7 @@ from streamtasks.client import Client
 import asyncio
 from streamtasks.client.broadcast import BroadcastReceiver, BroadcastingServer
 from streamtasks.client.discovery import get_topic_space, register_address_name
-from streamtasks.client.fetch import FetchRequest, FetchServer, new_fetch_body_bad_request, new_fetch_body_general_error
+from streamtasks.client.fetch import FetchError, FetchErrorStatusCode, FetchRequest, FetchServer, new_fetch_body_bad_request, new_fetch_body_general_error, new_fetch_body_not_found
 from streamtasks.client.signal import SignalServer, send_signal
 from streamtasks.net import DAddress, EndpointOrAddress, Link, Switch, TopicRemappingLink, create_queue_connection
 from streamtasks.net.message.data import MessagePackData
@@ -48,11 +48,11 @@ class TaskStartResponse(ModelWithId):
 TaskCancelRequest = ModelWithId
   
 class TaskStatus(Enum):
-  starting = 0
-  running = 1
-  stopped = 2
-  ended = 3
-  failed = 4
+  starting = "starting"
+  running = "running"
+  stopped = "stopped"
+  ended = "ended"
+  failed = "failed"
   
   @property
   def is_active(self): return self in { TaskStatus.running, TaskStatus.starting }
@@ -100,6 +100,8 @@ class TASK_CONSTANTS:
 
 class MetadataFields:
   ASGISERVER = "asgiserver"
+
+class TaskNotFoundError(BaseException): pass
 
 class TaskHost(Worker):
   def __init__(self, node_link: Link, switch: Switch | None = None, register_endpoits: list[EndpointOrAddress] = []):
@@ -253,7 +255,8 @@ class TaskManager(Worker):
         reg = TaskHostRegistration.model_validate(req.body)
         self.task_hosts[reg.id] = reg
         await req.respond(None)
-      except (ValidationError, KeyError) as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
+      except KeyError as e: await req.respond_error(new_fetch_body_not_found(str(e)))
+      except ValidationError as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
       
     @server.route(TASK_CONSTANTS.FD_TM_LIST_TASK_HOSTS) 
     async def _(req: FetchRequest): await req.respond(TaskHostRegistrationList.dump_python(list(self.task_hosts.values())))
@@ -263,14 +266,16 @@ class TaskManager(Worker):
       try:
         id = ModelWithStrId.model_validate(req.body).id
         await req.respond(self.task_hosts[id].model_dump())
-      except (ValidationError, KeyError) as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
+      except KeyError as e: await req.respond_error(new_fetch_body_not_found(str(e)))
+      except ValidationError as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
 
     @server.route(TASK_CONSTANTS.FD_TM_GET_TASK)
     async def _(req: FetchRequest):
       try:
         body = ModelWithId.model_validate(req.body)
         await req.respond(self.tasks[body.id].model_dump())
-      except (ValidationError, KeyError) as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
+      except KeyError as e: await req.respond_error(new_fetch_body_not_found(str(e)))
+      except ValidationError as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
     
     @server.route(TASK_CONSTANTS.FD_TM_TASK_START)
     async def _(req: FetchRequest):
@@ -302,8 +307,11 @@ class TaskManager(Worker):
         task_instance.error=task_start_result.error
         task_instance.status=TaskStatus.running if task_start_result.error is None else TaskStatus.failed
         
+        if task_instance.status == TaskStatus.failed: self.tasks.pop(task_instance.id)
+        
         await req.respond(task_instance.model_dump())
-      except (ValidationError, KeyError) as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
+      except KeyError as e: await req.respond_error(new_fetch_body_not_found(str(e)))
+      except ValidationError as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
     
     @server.route(TASK_CONSTANTS.FD_TM_TASK_CANCEL)
     async def _(req: FetchRequest):
@@ -315,8 +323,9 @@ class TaskManager(Worker):
         task_cancel_result = await self.client.fetch(task_host.address, TASK_CONSTANTS.FD_TASK_CANCEL, tc_req.model_dump())
         if task_cancel_result != "OK": raise Exception("Failed to cancel task!")
         await req.respond("OK")
-      except (ValidationError, KeyError) as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
-
+      except KeyError as e: await req.respond_error(new_fetch_body_not_found(str(e)))
+      except ValidationError as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
+      
     await server.run()
 
 class TaskBroadcastReceiver(BroadcastReceiver):
@@ -350,7 +359,11 @@ class TaskManagerClient:
     await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_TM_TASK_CANCEL, TMTaskRequestBase(id=task_id).model_dump()) 
   async def cancel_task_wait(self, task_id: UUID4):
     async with self.task_message_receiver([ task_id ]) as receiver:
-      await self.cancel_task(task_id)
+      try:
+        await self.cancel_task(task_id)
+      except FetchError as e:
+        if e.status_code == FetchErrorStatusCode.NOT_FOUND: raise TaskNotFoundError()
+        else: raise e
       while True:
         task_instance = await receiver.get()
         if not task_instance.status.is_active: return task_instance
