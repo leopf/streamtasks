@@ -7,6 +7,7 @@ import { DeploymentPage } from './pages/DeploymentPage';
 import { HomePage } from './pages/HomePage';
 import { ErrorPage } from './pages/ErrorPage';
 import { DeploymentEditorDialog } from './components/DeploymentEditorDialog';
+import { TopicViewerModal } from './components/TopicViewerModal';
 
 const router = createHashRouter([
     {
@@ -36,6 +37,7 @@ export function App() {
     return (
         <>
             <RouterProvider router={router} />
+            <TopicViewerModal/>
             <DeploymentEditorDialog/>
         </>
     );

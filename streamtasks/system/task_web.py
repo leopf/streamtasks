@@ -1,15 +1,18 @@
 import asyncio
 import itertools
+import json
 import mimetypes
 from typing import Any, TypedDict
 from uuid import UUID, uuid4
 from pydantic import UUID4, Field, TypeAdapter, ValidationError
 from streamtasks.asgi import ASGIAppRunner, ASGIProxyApp
-from streamtasks.asgiserver import ASGIHandler, ASGIRouter, ASGIServer, HTTPContext, TransportContext, decode_data_uri, http_context_handler, path_rewrite_handler, static_content_handler, static_files_handler, transport_context_handler
+from streamtasks.asgiserver import ASGIHandler, ASGIRouter, ASGIServer, HTTPContext, TransportContext, WebsocketContext, decode_data_uri, http_context_handler, path_rewrite_handler, static_content_handler, static_files_handler, transport_context_handler, websocket_context_handler
 from streamtasks.client import Client
-from streamtasks.client.discovery import delete_topic_space, register_address_name, register_topic_space
+from streamtasks.client.discovery import delete_topic_space, get_topic_space, register_address_name, register_topic_space
 from streamtasks.client.fetch import FetchError
+from streamtasks.client.receiver import TopicsReceiver
 from streamtasks.net import Link, Switch
+from streamtasks.net.message.data import SerializableData
 from streamtasks.net.utils import str_to_endpoint
 from streamtasks.services.protocols import AddressNames
 from streamtasks.system.task import MetadataDict, MetadataFields, ModelWithId, TaskHostRegistration, TaskHostRegistrationList, TaskInstance, TaskManagerClient, TaskNotFoundError
@@ -209,6 +212,35 @@ class TaskWebBackend(Worker):
       await self.store.create_or_update_task(task)
       await ctx.respond_json_string(task.model_dump_json())
     
+    async def ws_topic_handler(ctx: WebsocketContext, topic_id: int):
+      print("starting with topic ", topic_id)
+      try:
+        await ctx.accept()
+        async with TopicsReceiver(self.client, [ topic_id ]) as recv:
+          while ctx.connected:
+            _, data, _ = await recv.recv()
+            print("message ::)))")
+            data: SerializableData | None
+            if data is not None:
+              await ctx.send_message(json.dumps({ "data": data.data }))
+      finally:
+        print("finished with topic ", topic_id)
+        await ctx.close()
+    
+    @router.websocket_route("/topic/{topic_id}")
+    @websocket_context_handler
+    async def _(ctx: WebsocketContext): 
+      topic_id = int(ctx.params.get("topic_id"))
+      await ws_topic_handler(ctx, topic_id)
+    
+    @router.websocket_route("/topic/{topic_space_id}/{topic_id}")
+    @websocket_context_handler
+    async def _(ctx: WebsocketContext):
+      topic_id = int(ctx.params.get("topic_id"))
+      topic_space_id = int(ctx.params.get("topic_space_id"))
+      topic_map = await get_topic_space(self.client, topic_space_id)
+      await ws_topic_handler(ctx, topic_map[topic_id])
+      
     # TODO: lifecycle api support
     @router.transport_route("/task/{id}/{path*}")
     @path_rewrite_handler("/{path*}")

@@ -73,11 +73,13 @@ export const NodeEditor = observer(() => {
                     position="absolute"
                     onDragOver={e => e.preventDefault()}
                     onDrop={async e => {
-                        const taskHostData = TaskHostDragDataModel.parse(JSON.parse(e.dataTransfer.getData("task_host")));
-                        const task = await taskManager.createManagedTask(taskHostData.id)
-                        const containerOffset = containerRef.current!.getBoundingClientRect();
-                        task.frontend_config.position = nodeRenderer.getInternalPosition({ x: e.clientX - containerOffset.x - taskHostData.ox * nodeRenderer.zoom, y: e.clientY - containerOffset.y - taskHostData.oy * nodeRenderer.zoom });
-                        await deployment.addTask(task);
+                        try {
+                            const taskHostData = TaskHostDragDataModel.parse(JSON.parse(e.dataTransfer.getData("task_host")));
+                            const task = await taskManager.createManagedTask(taskHostData.id)
+                            const containerOffset = containerRef.current!.getBoundingClientRect();
+                            task.frontend_config.position = nodeRenderer.getInternalPosition({ x: e.clientX - containerOffset.x - taskHostData.ox * nodeRenderer.zoom, y: e.clientY - containerOffset.y - taskHostData.oy * nodeRenderer.zoom });
+                            await deployment.addTask(task);
+                        } catch {}
                     }}
                     sx={{
                         userSelect: "none",
@@ -87,7 +89,7 @@ export const NodeEditor = observer(() => {
                     }}
                     ref={containerRef} />
                 {state.selectedTask && (deployment.running ?
-                    (<TaskDisplayWindow task={state.selectedTask} onClose={() => nodeRenderer.unselectNode()}/>) :
+                    (<TaskDisplayWindow task={state.selectedTask} onClose={() => nodeRenderer.unselectNode()} />) :
                     (<TaskEditorWindow task={state.selectedTask} onClose={() => nodeRenderer.unselectNode()} onDelete={() => setDeleting(true)} />)
                 )}
             </Box>

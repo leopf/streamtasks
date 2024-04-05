@@ -10,7 +10,7 @@ from streamtasks.client import Client
 import asyncio
 
 class PulseGeneratorConfig(BaseModel):
-  interval: int
+  interval: float
   message_type: Literal["id", "ts"]
   out_topic: int
   
@@ -43,13 +43,14 @@ class TimePulseGeneratorTaskHost(TaskHost):
     label="time pulse generator",
     description="generates a time pulse in a specified interval.",
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic" }],
-    default_config={ "interval": 1000 },
+    default_config={ "interval": 1 },
     editor_fields=[{
         "type": "number",
         "key": "interval",
         "label": "interval",
-        "integer": True,
-        "unit": "ms"
+        "min": 0,
+        "integer": False,
+        "unit": "s"
     }]
   )}
   async def create_task(self, config: Any, topic_space_id: int | None):
@@ -61,13 +62,14 @@ class IdPulseGeneratorTaskHost(TaskHost):
     label="id pulse generator",
     description="generates an id pulse in a specified interval.",
     outputs=[{ "label": "output", "type": "id", "key": "out_topic" }],
-    default_config={ "interval": 1000 },
+    default_config={ "interval": 1 },
     editor_fields=[{
         "type": "number",
         "key": "interval",
         "label": "interval",
-        "integer": True,
-        "unit": "ms"
+        "min": 0,
+        "integer": False,
+        "unit": "s"
     }]
   )}
   async def create_task(self, config: Any, topic_space_id: int | None):

@@ -16,11 +16,11 @@ function NumberFieldEditor(props: { config: NumberField, task: Task, onUpdated: 
             return "The entered number must be an integer"
         }
 
-        if (props.config.min && numValue < props.config.min) {
+        if (props.config.min !== undefined && numValue < props.config.min) {
             return `The entered value is below the minimum of ${props.config.min}`;
         }
 
-        if (props.config.max && numValue > props.config.max) {
+        if (props.config.max !== undefined && numValue > props.config.max) {
             return `The entered value is above the maximum of ${props.config.max}`;
         }
     }, [value]);
