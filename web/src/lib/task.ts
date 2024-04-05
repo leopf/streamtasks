@@ -1,13 +1,8 @@
-import { Metadata, StoredTask, TaskConfigurator, TaskConfiguratorContext, TaskFrontendConfig, TaskIO, TaskInput, Task, TaskOutput } from "../types/task.ts"
+import { Metadata, TaskConfigurator, TaskConfiguratorContext, TaskFrontendConfig, TaskIO, TaskInput, Task, TaskOutput, FullTask } from "../types/task.ts"
 import EventEmitter from "eventemitter3";
 import cloneDeep from "clone-deep";
 import deepEqual from "deep-equal";
-
-const defaultRemapTopicIds = (taskInstance: Task, idMap: Map<number, number>, context: TaskConfiguratorContext) => {
-    taskInstance.inputs.forEach(i => i.topic_id = i.topic_id ? idMap.get(i.topic_id) : undefined);
-    taskInstance.outputs.forEach(o => o.topic_id = idMap.get(o.topic_id) ?? (() => { throw new Error("Missing output id in map.") })());
-    return taskInstance;
-};
+import { TaskModel } from "../model/task.ts";
 
 export function extractTaskIO(taskInstance: Task): TaskIO {
     return {
@@ -31,74 +26,69 @@ export const ioMetadataKeyLabels: Record<string, string> = { "topic_id": "topic 
 export const ioMetadataValueLabels: Record<string, Record<string, string>> = { "type": { "ts": "timestamp" } }
 export const ioMetadataHideKeys = new Set([ "key" ]);
 
-export class ManagedTask extends EventEmitter<{"updated": [Task] }> {
-    private readonly taskInstance: Task;
+export class ManagedTask extends EventEmitter<{"updated": [FullTask] }> {
+    private readonly _task: FullTask;
     private configurator: TaskConfigurator;
     private configuratorContext: TaskConfiguratorContext;
 
     public get id() {
-        return this.taskInstance.id;
+        return this._task.id;
     }
 
     public get label() {
-        return this.taskInstance.label;
+        return this._task.label;
     }
 
     public get inputs() {
-        return this.taskInstance.inputs;
+        return this._task.inputs;
     }
 
     public get outputs() {
-        return this.taskInstance.outputs;
+        return this._task.outputs;
     }
 
-    private _frontendConfig: TaskFrontendConfig;
-    public get frontendConfig(): TaskFrontendConfig {
-        return this._frontendConfig;
+    public get frontend_config(): TaskFrontendConfig {
+        return this._task.frontend_config;
     }
 
-    public get storedInstance(): StoredTask {
-        return {
-            ...this.taskInstance,
-            frontendConfig: this._frontendConfig
-        };
+    public get task(): FullTask {
+        return { ...this._task };
     }
 
     public get hasEditor() {
         return this.configurator.renderEditor;
     }
 
-    constructor(taskInstance: StoredTask, configurator: TaskConfigurator, configuratorContext: TaskConfiguratorContext) {
+    constructor(task: Task & Partial<FullTask>, configurator: TaskConfigurator, configuratorContext: TaskConfiguratorContext) {
         super();
-        this.taskInstance = taskInstance;
-        this._frontendConfig = taskInstance.frontendConfig ?? {};
+        this._task = {
+            ...task,
+            frontend_config: task.frontend_config ?? {},
+        };
         this.configurator = configurator;
         this.configuratorContext = configuratorContext;
     }
 
-    public updateData(taskInstance: StoredTask, overwriteStored: boolean = false) {
-        Object.assign(this.taskInstance, taskInstance);
-        if (overwriteStored) {
-            this._frontendConfig = taskInstance.frontendConfig ?? {};
-        }
-        this.emit("updated", this.taskInstance);
+    public updateData(taskInstance: Partial<FullTask>) {
+        Object.assign(this._task, taskInstance);
+        this.emit("updated", this._task);
     }
     
     public async connect(key: string, output?: TaskOutput): Promise<boolean> {
-        const oldInstanceClone = cloneDeep(this.taskInstance);
-        const newInstance = await this.configurator.connect(this.taskInstance, key, output, this.configuratorContext);
+        const oldInstanceClone = cloneDeep(TaskModel.parse(this._task));
+        const newInstance = TaskModel.parse(await this.configurator.connect(this._task, key, output, this.configuratorContext));
         
         if (!deepEqual(newInstance, oldInstanceClone)) {
             this.updateData(newInstance);
         }
-        return this.taskInstance.inputs.find(input => input.key === key)?.topic_id === output?.topic_id;
+        return this._task.inputs.find(input => input.key === key)?.topic_id === output?.topic_id;
     }
 
     public renderEditor(element: HTMLElement) {
         if (!this.configurator.renderEditor) {
             return;
         }
-        this.configurator.renderEditor(this.taskInstance, element, this.configuratorContext);
+        this.configurator.renderEditor(this._task, element, this.configuratorContext);
     }
 }
 

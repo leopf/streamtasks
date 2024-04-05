@@ -1,20 +1,16 @@
 import deepEqual from "deep-equal";
-import { TaskIO, Task, TaskOutput } from "../types/task";
+import { TaskIO, Task, TaskOutput, FullTask } from "../types/task";
 import { InputConnection, Node, OutputConnection } from "./node-editor";
 import { ManagedTask, extractTaskIO } from "./task";
 import { EventEmitter } from "eventemitter3";
 
 type TaskIOWithLabel = TaskIO & { label: string };
 
-function extractIOWithLabel(task: Task): TaskIOWithLabel {
+function extractNodeData(task: FullTask): TaskIOWithLabel {
     return {
         label: task.label,
         ...extractTaskIO(task)
     }
-}
-
-function compareTaskIO( ignoreInputTopicId?: string) {
-    
 }
 
 export class TaskNode extends EventEmitter<{ "updated": [] }> implements Node {
@@ -28,10 +24,10 @@ export class TaskNode extends EventEmitter<{ "updated": [] }> implements Node {
         return this.task.label;
     }
     public get position(): { x: number; y: number; } {
-        return this.task.frontendConfig.position ?? { x: 0, y: 0 };
+        return this.task.frontend_config.position ?? { x: 0, y: 0 };
     }
     public set position(v) {
-        this.task.frontendConfig.position = v;
+        this.task.frontend_config.position = v;
     }
 
     public get outputs(): OutputConnection[] {
@@ -52,23 +48,22 @@ export class TaskNode extends EventEmitter<{ "updated": [] }> implements Node {
         }));
     }
 
-    private updateHandlers: (() => void)[] = [];
-    private lastTaskIO: TaskIOWithLabel;
+    private lastData: TaskIOWithLabel;
     private inputKeyIgnoreTopicId?: string;
 
     constructor(task: ManagedTask) {
         super();
         this.task = task;
-        this.lastTaskIO = extractIOWithLabel(task.storedInstance);
+        this.lastData = extractNodeData(task.task);
         this.task.on("updated", (newTask) => { // TODO: memory management
-            const oldTaskIO = this.lastTaskIO;
-            this.lastTaskIO = extractIOWithLabel(newTask);
+            const oldTaskIO = this.lastData;
+            this.lastData = extractNodeData(newTask);
             if (this.inputKeyIgnoreTopicId) {
                 const oldInput = oldTaskIO.inputs.find(i => i.key === this.inputKeyIgnoreTopicId);
-                const newInput = this.lastTaskIO.inputs.find(i => i.key === this.inputKeyIgnoreTopicId);
+                const newInput = this.lastData.inputs.find(i => i.key === this.inputKeyIgnoreTopicId);
                 if (oldInput) oldInput.topic_id = newInput?.topic_id;
             }
-            if (!deepEqual(oldTaskIO, this.lastTaskIO)) {
+            if (!deepEqual(oldTaskIO, this.lastData)) {
                 console.log("update!")
                 this.emit("updated");
             }

@@ -1,7 +1,7 @@
 import { Box, IconButton, Stack, Typography } from "@mui/material";
 import { ManagedTask } from "../../lib/task";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { StoredTaskModel } from "../../model/task";
+import { TaskModel } from "../../model/task";
 import { NodeOverlayTile } from "./NodeOverlayTile";
 import { Close as CloseIcon, Delete as DeleteIcon } from "@mui/icons-material";
 import { TaskIOTable } from "./TaskIOTable";
@@ -17,8 +17,8 @@ export function TaskEditorWindow(props: { task: ManagedTask, onClose: () => void
         if (!props.task.hasEditor || !customEditorRef.current) return;
 
         const taskUpdateHandler = (e: Event) => {
-            const newInstance = StoredTaskModel.parse((e as CustomEvent).detail);
-            props.task.updateData(newInstance);
+            const newData = TaskModel.parse((e as CustomEvent).detail);
+            props.task.updateData(newData);
         };
 
         customEditorRef.current.addEventListener("task-instance-updated", taskUpdateHandler);

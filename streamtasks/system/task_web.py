@@ -35,7 +35,7 @@ class StoredTask(ModelWithId):
   task_host_id: str
   label: str
   config: dict[str, Any]
-  frontendConfig: dict[str, Any]
+  frontend_config: dict[str, Any]
   inputs: list[MetadataDict]
   outputs: list[MetadataDict]
   

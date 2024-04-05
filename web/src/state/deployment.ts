@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ManagedTask } from "../lib/task";
-import { StoredTaskModel } from "../model/task";
+import { FullTaskModel } from "../model/task";
 import { TaskManager } from "./task-manager";
 import { action, makeObservable, observable } from "mobx";
 import { createStateContext } from "./util";
@@ -56,7 +56,7 @@ export class DeploymentState {
 
     public async loadTasks() {
         const result = await fetch(`/api/deployment/${this.id}/tasks`).then(res => res.json());
-        const storedTasks = z.array(StoredTaskModel).parse(result)
+        const storedTasks = z.array(FullTaskModel).parse(result)
         const newTasks = new Map(storedTasks.map(t => [t.id, t]));
         for (const taskId of this.tasks.keys()) {
             if (!newTasks.has(taskId)) {
@@ -64,7 +64,7 @@ export class DeploymentState {
             }
         }
         for (const task of this.tasks.values()) {
-            task.updateData(newTasks.get(task.id)!, true);
+            task.updateData(newTasks.get(task.id)!);
             newTasks.delete(task.id);
         }
         for (const task of newTasks.values()) {
@@ -99,7 +99,7 @@ export class DeploymentState {
             },
             body: JSON.stringify({
                 deployment_id: this.id,
-                ...task.storedInstance
+                ...task.task
             })
         });
 

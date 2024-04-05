@@ -76,7 +76,7 @@ export const NodeEditor = observer(() => {
                         const taskHostData = TaskHostDragDataModel.parse(JSON.parse(e.dataTransfer.getData("task_host")));
                         const task = await taskManager.createManagedTask(taskHostData.id)
                         const containerOffset = containerRef.current!.getBoundingClientRect();
-                        task.frontendConfig.position = nodeRenderer.getInternalPosition({ x: e.clientX - containerOffset.x - taskHostData.ox * nodeRenderer.zoom, y: e.clientY - containerOffset.y - taskHostData.oy * nodeRenderer.zoom });
+                        task.frontend_config.position = nodeRenderer.getInternalPosition({ x: e.clientX - containerOffset.x - taskHostData.ox * nodeRenderer.zoom, y: e.clientY - containerOffset.y - taskHostData.oy * nodeRenderer.zoom });
                         await deployment.addTask(task);
                     }}
                     sx={{
