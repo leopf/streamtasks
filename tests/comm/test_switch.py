@@ -4,6 +4,7 @@ from streamtasks.net.message.data import TextData
 
 from streamtasks.net import Link, Switch, TopicRemappingLink, create_queue_connection
 from streamtasks.net.message.types import InTopicsChangedMessage, OutTopicsChangedMessage, OutTopicsChangedRecvMessage, PricedId, TopicDataMessage
+from tests.shared import async_timeout
 
 
 class TestSwitch(unittest.IsolatedAsyncioTestCase):
@@ -29,6 +30,7 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     self.switch.stop_receiving()
     for task in self.tasks: task.cancel()
 
+  @async_timeout(1)
   async def test_standard_workflow(self):
     await self.a.send(OutTopicsChangedMessage(set([ PricedId(1, 0) ]), set()))
 
@@ -53,6 +55,7 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     self.assertNotIn(1, self.switch.in_topics)
     self.assertNotIn(1, self.switch_links[1].in_topics)
 
+  @async_timeout(1)
   async def test_provider_added(self):
     await self.b.send(InTopicsChangedMessage(set([1]), set()))
     await self.a.send(OutTopicsChangedMessage(set([ PricedId(1, 0) ]), set()))
@@ -67,6 +70,7 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     b_received = await self.b.recv()
     self.assertEqual(b_received.data.data, "Hello")
 
+  @async_timeout(1)
   async def test_double_unsubscribe(self):
     await self.a.send(OutTopicsChangedMessage(set([ PricedId(1, 0), PricedId(2, 0) ]), set()))
     await self.b.send(InTopicsChangedMessage(set([1, 2]), set()))
@@ -86,6 +90,7 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     self.assertIn(2, received.remove)
     self.assertNotIn(1, received.remove)
 
+  @async_timeout(1)
   async def test_subscribe_flow(self):
     await self.a.send(OutTopicsChangedMessage(set([ PricedId(1, 0) ]), set()))
     await self.b.send(InTopicsChangedMessage(set([1]), set()))
@@ -104,15 +109,21 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     self.assertIsInstance(received, InTopicsChangedMessage)
     self.assertIn(1, received.remove)
 
+  @async_timeout(1)
   async def test_close(self):
-    async with asyncio.timeout(1):
-      self.a.close()
-      while len(self.switch.link_manager.links) != 1: await asyncio.sleep(0.001)
-      self.assertEqual(len(self.switch.link_manager.links), 1)
+    self.a.close()
+    while len(self.switch.link_manager.links) != 1: await asyncio.sleep(0.001)
+    self.assertEqual(len(self.switch.link_manager.links), 1)
 
-      self.b.close()
-      while len(self.switch.link_manager.links) != 0: await asyncio.sleep(0.001)
-      self.assertEqual(len(self.switch.link_manager.links), 0)
+    self.b.close()
+    while len(self.switch.link_manager.links) != 0: await asyncio.sleep(0.001)
+    self.assertEqual(len(self.switch.link_manager.links), 0)
+      
+  @async_timeout(1)
+  async def test_close_reverse(self):
+    for link in self.switch.link_manager.links: link.close()
+    await self.a._wait_closed()
+    await self.b._wait_closed()
 
 class TestSwitchRemapped(TestSwitch):
   async def asyncSetUp(self):

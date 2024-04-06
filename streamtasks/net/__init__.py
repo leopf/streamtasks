@@ -26,13 +26,13 @@ class Link(ABC):
     self.out_topics: dict[int, int] = dict()
     self.addresses: dict[int, int] = dict()
 
-    self.closed = asyncio.Event()
+    self._closed = asyncio.Event()
 
     if cost == 0: raise ValueError("Cost must be greater than 0")
     self.cost: int = cost
 
   def __del__(self): self.close()
-  def close(self): self.closed.set()
+  def close(self): self._closed.set()
 
   def get_priced_out_topics(self, topics: set[int] = None) -> set[PricedId]:
     if topics is None:
@@ -79,7 +79,7 @@ class Link(ABC):
     finally:
       for task in tasks: task.cancel()
 
-  async def _wait_closed(self): await self.closed.wait()
+  async def _wait_closed(self): await self._closed.wait()
 
   @abstractmethod
   async def _send(self, message: Message):
@@ -129,6 +129,11 @@ class TopicRemappingLink(Link):
   
   async def _recv(self) -> Message: return self._remap_message(await self._link.recv(), self._rev_topic_id_map)
   async def _send(self, message: Message): await self._link.send(self._remap_message(message, self._topic_id_map))
+  async def _wait_closed(self): 
+    await asyncio.wait([
+      asyncio.create_task(super()._wait_closed()),
+      asyncio.create_task(self._link._wait_closed())
+    ], return_when=asyncio.FIRST_COMPLETED)
   
   def _remap_message(self, message: Message, topic_id_map: dict[int, int]):
     if isinstance(message, TopicDataMessage):
@@ -178,7 +183,7 @@ class QueueLink(Link):
 
   def _validate_open(self):
     if self.close_signal.is_set():
-      if not self.closed.is_set(): self.close()
+      if not self._closed.is_set(): self.close()
       raise ConnectionClosedError()
 
 
