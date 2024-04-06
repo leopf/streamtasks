@@ -1,3 +1,4 @@
+import random
 from typing import Any, Literal
 from uuid import uuid4
 from pydantic import BaseModel
@@ -34,7 +35,10 @@ class PulseGeneratorTask(Task):
         if self.message_type == "id":
           await self.out_topic.send(MessagePackData(IdMessage(id=str(uuid4())).model_dump()))
         elif self.message_type == "ts":
-          await self.out_topic.send(MessagePackData(TimestampMessage(timestamp=get_timestamp_ms()).model_dump()))
+          await self.out_topic.send(MessagePackData({
+            **TimestampMessage(timestamp=get_timestamp_ms()).model_dump(),
+            "some_data": random.randbytes(24)
+          }))
         await asyncio.sleep(self.interval)
 
 class TimePulseGeneratorTaskHost(TaskHost):

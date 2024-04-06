@@ -1,6 +1,8 @@
+from typing import Any
 import fastavro
 from io import BytesIO
 
+from streamtasks.net.message.data import SerializableData
 from streamtasks.net.message.types import AddressedMessage, AddressesChangedMessage, InTopicsChangedMessage, Message, OutTopicsChangedMessage, TopicControlMessage, TopicDataMessage
 
 PRICED_ID_SCHEMA = fastavro.parse_schema({
@@ -91,3 +93,15 @@ def deserialize_message(data: bytes) -> Message:
   schema = SCHEMA_MAP[id]
   element = fastavro.schemaless_reader(stream, schema)
   return SCHEMA_ID_MESSAGE_MAP[id].from_dict(element)
+
+def _value_to_json_serializable(v: Any):
+  if isinstance(v, (str, float, int, bool)) or v is None: return v
+  if isinstance(v, (bytes, bytearray, memoryview)): return v.hex()
+  try: v = dict(v)
+  except TypeError: v = list(v)
+  except TypeError: pass
+  if isinstance(v, dict): return { _value_to_json_serializable(k): _value_to_json_serializable(v) for k, v in v.items() }
+  if isinstance(v, list): return [ _value_to_json_serializable(v) for v in v ]
+  return repr(v)
+
+def serializable_data_to_json(data: SerializableData): return _value_to_json_serializable(data.data)

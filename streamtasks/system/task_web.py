@@ -1,6 +1,7 @@
 import asyncio
 import itertools
 import json
+import logging
 import mimetypes
 from typing import Any, TypedDict
 from uuid import UUID, uuid4
@@ -13,6 +14,7 @@ from streamtasks.client.fetch import FetchError
 from streamtasks.client.receiver import TopicsReceiver
 from streamtasks.net import Link, Switch
 from streamtasks.net.message.data import SerializableData
+from streamtasks.net.message.serialize import serializable_data_to_json
 from streamtasks.net.utils import str_to_endpoint
 from streamtasks.services.protocols import AddressNames
 from streamtasks.system.task import MetadataDict, MetadataFields, ModelWithId, TaskHostRegistration, TaskHostRegistrationList, TaskInstance, TaskManagerClient, TaskNotFoundError
@@ -221,7 +223,9 @@ class TaskWebBackend(Worker):
           while ctx.connected:
             _, data, _ = await wait_with_cotasks(recv.recv(), [receive_disconnect_task])
             data: SerializableData | None
-            if data is not None: await ctx.send_message(f'{{ "data": {data.to_json()} }}')
+            try:
+              if data is not None: await ctx.send_message(f'{{ "data": {json.dumps(serializable_data_to_json(data))} }}')
+            except BaseException as e: logging.warning("Failed to send message ", e)
       except asyncio.CancelledError: pass
       finally:
         receive_disconnect_task.cancel()
