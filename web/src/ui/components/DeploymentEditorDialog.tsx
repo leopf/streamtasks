@@ -12,6 +12,7 @@ export const DeploymentEditorDialog = observer(() => {
         get isNewDeployment() {
             return !(this.editingDeployment as any)?.id
         },
+        isOpen: false,
         editingDeployment: undefined as undefined | PartialDeployment | Deployment
     }));
 
@@ -19,13 +20,11 @@ export const DeploymentEditorDialog = observer(() => {
         if (rootStore.uiControl.editingDeployment) {
             state.editingDeployment = { ...rootStore.uiControl.editingDeployment };
         }
-        else {
-            state.editingDeployment = undefined;
-        }
+        state.isOpen = !!rootStore.uiControl.editingDeployment;
     }), []);
 
     return (
-        <Dialog fullWidth open={!!state.editingDeployment} onClose={() => rootStore.uiControl.closeDeploymentEditor()}>
+        <Dialog fullWidth open={state.isOpen} onClose={() => rootStore.uiControl.closeDeploymentEditor()}>
             <DialogTitle>{state.isNewDeployment ? "Create" : "Edit"} Deployment</DialogTitle>
             <DialogContent>
                 <TextField
