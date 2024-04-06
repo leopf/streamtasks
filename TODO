@@ -1,20 +1,30 @@
----MY TODOS
+# Refactor
 
 Frontend:
+- edit not rowking on deployment 
+- deployment and task management as well as db updates
 
 Backend:
-- Better topic control data. We need a way to make it maintainable.
+- testing web task backend
 - remapping link close testing
 
+# MY TODOS
+
+Frontend:
+- list raw task instances
+- allow pruge tasks
+- ws task updates
+
+Backend:
+- Task Instance updates over ws
+
+- editor from type for metadata
+- Better topic control data. We need a way to make it maintainable.
+
 ----------
-Refactor:
-- better imports, find a unified way of doing this
 
 Add task with:
 https://github.com/cloudflare/stpyv8
-
-Questions:
-How do i solve topic remapping?
 
 Media:
 time bases

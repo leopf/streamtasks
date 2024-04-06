@@ -9,7 +9,7 @@ const MessageInfoModel = z.object({
 }).partial()
 
 const TopicMessageModel = z.object({
-    data: z.record(z.string(), z.any())
+    data: z.any()
 });
 
 type MessageInfo = z.infer<typeof MessageInfoModel>;

@@ -20,7 +20,6 @@ export const TaskModel = z.object({
 export const TaskFrontendConfigModel = z.object({
     position: z.object({ x: z.number(), y: z.number() }).optional()
 })
-
 export const TaskInstanceModel = z.object({
     host_id: z.string(),
     topic_space_id: z.number().int().optional().nullable(),
@@ -28,9 +27,11 @@ export const TaskInstanceModel = z.object({
     error: z.string().optional().nullable(),
     status:  z.nativeEnum(TaskInstanceStatus),
 });
-export const FullTaskModel = TaskModel.extend({
-    task_instance: TaskInstanceModel.optional().nullable(),
+export const StoredTaskModel = TaskModel.extend({
     frontend_config: TaskFrontendConfigModel
+})
+export const FullTaskModel = StoredTaskModel.extend({
+    task_instance: TaskInstanceModel.optional().nullable(),
 });
 
 export const TaskHostModel = z.object({

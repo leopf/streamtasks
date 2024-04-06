@@ -1,12 +1,14 @@
 import { z } from "zod";
 import { ManagedTask } from "../lib/task";
-import { FullTaskModel } from "../model/task";
+import { FullTaskModel, StoredTaskModel } from "../model/task";
 import { TaskManager } from "./task-manager";
-import { action, computed, makeObservable, observable } from "mobx";
+import { action, computed, makeObservable, observable, observe, reaction } from "mobx";
 import { createStateContext } from "./util";
 import _ from "underscore";
 import { FullDeploymentModel } from "../model/deployment";
 import { RootStore } from "./root-store";
+import { StoredTask } from "../types/task";
+import deepEqual from "deep-equal";
 
 export class DeploymentState {
     public readonly tasks: Map<string, ManagedTask> = observable.map();
@@ -14,7 +16,7 @@ export class DeploymentState {
     public get id() {
         return this.deployment.id;
     }
-    
+
     public get running() {
         return this.deployment.running;
     }
@@ -24,9 +26,10 @@ export class DeploymentState {
     }
 
     public get deployment() {
-        return this.rootStore.getDeployment(this.deploymentId) ?? (() => {throw new Error("Deployment not found!")})();
+        return this.rootStore.getDeployment(this.deploymentId) ?? (() => { throw new Error("Deployment not found!") })();
     }
 
+    private readonly _taskStateCache = new Map<string, StoredTask>();
     private taskManager: TaskManager;
     private deploymentId: string;
     private rootStore: RootStore;
@@ -40,6 +43,14 @@ export class DeploymentState {
             addTask: action,
             deleteTask: action,
             deployment: computed
+        });
+        observe(this.tasks, (change) => { // TODO: memory management
+            if (change.type == "add" || change.type == "update") {
+                this._taskStateCache.set(change.newValue.id, StoredTaskModel.parse(change.newValue.task))
+            }
+            else if (change.type === "delete") {
+                this._taskStateCache.delete(change.oldValue.id);
+            }
         });
     }
 
@@ -86,7 +97,7 @@ export class DeploymentState {
 
     public async addTask(task: ManagedTask) {
         if (this.running) throw new Error("Deployment is running!");
-        await this.putTask(task);
+        await this.putTask(StoredTaskModel.parse(task.task));
         this.tasks.set(task.id, task);
         this.trackTask(task);
     }
@@ -100,7 +111,7 @@ export class DeploymentState {
         this.tasks.delete(task.id);
     }
 
-    private async putTask(task: ManagedTask) {
+    private async putTask(task: StoredTask) {
         if (this.running) throw new Error("Deployment is running!");
         const result = await fetch(`/api/task`, {
             method: "put",
@@ -109,7 +120,7 @@ export class DeploymentState {
             },
             body: JSON.stringify({
                 deployment_id: this.id,
-                ...task.task
+                ...task
             })
         });
 
@@ -118,8 +129,17 @@ export class DeploymentState {
         }
     }
 
+    // TODO: memory management
     private trackTask(task: ManagedTask) {
-        task.on("updated", _.throttle(() => this.putTask(task), 1000)); // TODO: memory management
+        task.on("updated", _.throttle(async () => {
+            try {
+                const oldValue = this._taskStateCache.get(task.id);
+                const newValue = StoredTaskModel.parse(task.task);
+                if (!oldValue || !deepEqual(oldValue, newValue)) {
+                    await this.putTask(newValue);
+                }
+            } catch {}
+        }, 1000));
     }
 }
 

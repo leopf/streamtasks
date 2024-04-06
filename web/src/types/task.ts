@@ -1,10 +1,11 @@
 import { z } from "zod";
-import { MetadataModel, TaskOutputModel, TaskInputModel, TaskModel, TaskHostModel, TaskFrontendConfigModel, FullTaskModel, TaskInstanceModel } from "../model/task";
+import { MetadataModel, TaskOutputModel, TaskInputModel, TaskModel, TaskHostModel, TaskFrontendConfigModel, FullTaskModel, TaskInstanceModel, StoredTaskModel } from "../model/task";
 
 export type Metadata = z.infer<typeof MetadataModel>;
 export type TaskOutput = z.infer<typeof TaskOutputModel>;
 export type TaskInput = z.infer<typeof TaskInputModel>;
 export type Task = z.infer<typeof TaskModel>;
+export type StoredTask = z.infer<typeof StoredTaskModel>;
 export type FullTask = z.infer<typeof FullTaskModel>;
 export type TaskFrontendConfig = z.infer<typeof TaskFrontendConfigModel>;
 export type TaskInstance = z.infer<typeof TaskInstanceModel>;
