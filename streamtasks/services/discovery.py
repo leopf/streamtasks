@@ -120,7 +120,7 @@ class DiscoveryWorker(Worker):
     async with SignalRequestReceiver(client, WorkerRequestDescriptors.REQUEST_ADDRESSES) as receiver:
       while True:
         try:
-          message_data: Any = await receiver.recv()
+          message_data: Any = await receiver.get()
           request = GenerateAddressesRequestMessage.model_validate(message_data)
           logging.info(f"generating {request.count} addresses")
           addresses = self.generate_addresses(request.count)

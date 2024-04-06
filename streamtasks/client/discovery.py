@@ -72,7 +72,7 @@ async def request_addresses(client: 'Client', count: int) -> set[int]:
         WorkerRequestDescriptors.REQUEST_ADDRESSES,
         GenerateAddressesRequestMessage(request_id=request_id, count=count).model_dump()
       )
-      data: GenerateAddressesResponseMessage = await receiver.recv()
+      data: GenerateAddressesResponseMessage = await receiver.get()
   else: 
     res = await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REQUEST_ADDRESSES, GenerateAddressesRequestMessageBase(count=count).model_dump())
     data = GenerateAddressesResponseMessageBase.model_validate(res)
@@ -118,7 +118,7 @@ async def wait_for_address_name(client: 'Client', name: str):
   async with receiver:
     found_address = await client.resolve_address_name(name)
     while found_address is None:
-      data = await receiver.recv()
+      data = await receiver.get()
       client.set_address_name(data.address_name, data.address)
       if data.address_name == name: found_address = data.address
   while not receiver.empty():

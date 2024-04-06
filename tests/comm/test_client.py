@@ -61,10 +61,10 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
       await self.a.send_stream_data(1, TextData("Hello 1"))
       await self.a.send_stream_data(2, TextData("Hello 2"))
 
-      recv_data = await b_recv.recv()
+      recv_data = await b_recv.get()
       self.assertEqual((recv_data[0], recv_data[1].data, recv_data[2]), (1, "Hello 1", None))
 
-      recv_data = await b_recv.recv()
+      recv_data = await b_recv.get()
       self.assertEqual((recv_data[0], recv_data[1].data, recv_data[2]), (2, "Hello 2", None))
 
       await self.b.unregister_in_topics([ 1 ])
@@ -72,7 +72,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
       await self.a.send_stream_data(1, TextData("Hello 1"))
       await self.a.send_stream_data(2, TextData("Hello 2"))
 
-      recv_data = await b_recv.recv()
+      recv_data = await b_recv.get()
       self.assertEqual((recv_data[0], recv_data[1].data, recv_data[2]), (2, "Hello 2", None))
   
   @async_timeout(1)
@@ -109,7 +109,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
     async with FetchRequestReceiver(self.a, "test") as a_recv:
       b_fetch_task = asyncio.create_task(b_fetch())
-      req: FetchRequest = await a_recv.recv()
+      req: FetchRequest = await a_recv.get()
       self.assertEqual(req.body, "Hello 1")
       self.assertEqual(req._return_endpoint, (2, WorkerPorts.DYNAMIC_START))
       await req.respond("Hello 2")
@@ -122,7 +122,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     await self.a.set_address(1)
     async with SignalRequestReceiver(self.a, "test") as a_recv:
       self.tasks.append(asyncio.create_task(send_signal(self.b, self.a.address, "test", "Hello 1")))
-      data: Any = await a_recv.recv()
+      data: Any = await a_recv.get()
       self.assertEqual(data, "Hello 1")
 
   @async_timeout(1000)

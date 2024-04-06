@@ -148,7 +148,7 @@ class ASGIAppRunner:
     try:
       async with self._init_receiver:
         while True:
-          raw_request: FetchRequest = await self._init_receiver.recv()
+          raw_request: FetchRequest = await self._init_receiver.get()
           try:
             init_request = ASGIInitRequest.model_validate(raw_request.body)
 
@@ -178,7 +178,7 @@ class ASGIAppRunner:
 
     async def receive() -> dict:
       while recv_queue.empty() and not stop_signal.is_set():
-        data = await receiver.recv()
+        data = await receiver.get()
         for event in data.events:
           event = MessagePackValueTransformer.deannotate_value(event)
           await recv_queue.put(event)
@@ -231,7 +231,7 @@ class ASGIProxyApp:
     async def send_loop():
       while not closed_event.is_set():
         await asyncio.sleep(0)
-        data = await receiver.recv()
+        data = await receiver.get()
         for event in data.events: await send(MessagePackValueTransformer.deannotate_value(event))
         if data.closed: closed_event.set()
 

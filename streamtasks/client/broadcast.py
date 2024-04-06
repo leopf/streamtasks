@@ -24,7 +24,7 @@ class BroadcastingServer:
     try: 
       async with FetchRequestReceiver(self.client, "gettopics", port=self.port) as fetch_receiver:
         while True:
-          req: FetchRequest = await fetch_receiver.recv()
+          req: FetchRequest = await fetch_receiver.get()
           try:
             req_namespaces = NamespaceList.validate_python(req.body)
             missing_namespaces = [ ns for ns in req_namespaces if ns not in self.namespaces ]

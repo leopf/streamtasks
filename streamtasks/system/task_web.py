@@ -229,7 +229,7 @@ class TaskWebBackend(Worker):
         receive_disconnect_task = asyncio.create_task(ctx.receive_disconnect())
         async with TopicsReceiver(self.client, [ topic_id ]) as recv:
           while ctx.connected:
-            _, data, _ = await wait_with_cotasks(recv.recv(), [receive_disconnect_task])
+            _, data, _ = await wait_with_cotasks(recv.get(), [receive_disconnect_task])
             data: SerializableData | None
             try:
               if data is not None: await ctx.send_message(f'{{ "data": {json.dumps(serializable_data_to_json(data))} }}')

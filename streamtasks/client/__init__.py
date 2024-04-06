@@ -108,7 +108,7 @@ class Client:
         return_port=return_port,
         descriptor=descriptor,
         body=body).model_dump()))
-      response_data: FetchResponseMessage = await receiver.recv()
+      response_data: FetchResponseMessage = await receiver.get()
     if response_data.error: 
       raise FetchError(response_data.body)
     return response_data.body

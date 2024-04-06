@@ -102,7 +102,7 @@ class InTopic(_TopicBase):
 
   async def recv_data_control(self) -> TopicControlData | SerializableData:
     while True:
-      action, data = await self._receiver.recv()
+      action, data = await self._receiver.get()
       if action == _InTopicAction.DATA: return data
       if action == _InTopicAction.SET_CONTROL:
         assert isinstance(data, TopicControlData)
@@ -151,6 +151,7 @@ class _SynchronizedInTopicReceiver(_InTopicReceiver):
     super().__init__(client, topic)
     self._sync = sync
 
+  # TODO: refactor
   async def recv(self) -> Coroutine[Any, Any, Any]:
     while True:
       action, data = await super().recv()
@@ -226,7 +227,7 @@ class OutTopic(_TopicBase):
     else: await self._client.unregister_out_topics([ self._topic ])
   async def _run_receiver(self):
     while True:
-      action, data = await self._receiver.recv()
+      action, data = await self._receiver.get()
       if action == _OutTopicAction.SET_REQUESTED:
         self._a_is_requested.set(data)
 
