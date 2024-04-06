@@ -40,6 +40,8 @@ class PulseGeneratorTask(Task):
             "some_data": random.randbytes(24)
           }))
         await asyncio.sleep(self.interval)
+        if self.interval == 7: raise Exception("For testing :)")
+        if self.interval == 8: return
 
 class TimePulseGeneratorTaskHost(TaskHost):
   @property

@@ -1,8 +1,9 @@
-import { Metadata, TaskConfigurator, TaskConfiguratorContext, TaskFrontendConfig, TaskIO, TaskInput, Task, TaskOutput, FullTask } from "../types/task.ts"
+import { Metadata, TaskConfigurator, TaskConfiguratorContext, TaskFrontendConfig, TaskIO, TaskInput, Task, TaskOutput, FullTask, TaskInstanceStatus } from "../types/task.ts"
 import EventEmitter from "eventemitter3";
 import cloneDeep from "clone-deep";
 import deepEqual from "deep-equal";
 import { TaskModel } from "../model/task.ts";
+import { GeneralStatus } from "../types/status.ts";
 
 export function extractTaskIO(taskInstance: Task): TaskIO {
     return {
@@ -25,6 +26,14 @@ export const taskHostDescriptionFields = ["description", "cfg:description"];
 export const ioMetadataKeyLabels: Record<string, string> = { "topic_id": "topic id" }
 export const ioMetadataValueLabels: Record<string, Record<string, string>> = { "type": { "ts": "timestamp" } }
 export const ioMetadataHideKeys = new Set([ "key" ]);
+
+export const taskInstance2GeneralStatusMap: Record<TaskInstanceStatus, GeneralStatus> = {
+    ended: "passive",
+    failed: "error",
+    stopped: "passive",
+    starting: "ok",
+    running: "ok",
+};
 
 export class ManagedTask extends EventEmitter<{"updated": [FullTask] }> {
     private readonly _task: FullTask;

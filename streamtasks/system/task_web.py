@@ -48,6 +48,9 @@ class StoredTask(ModelWithId):
 class FullTask(StoredTask):
   task_instance: TaskInstance | None = None
 
+class UpdateTaskInstanceMessage(ModelWithId):
+  task_instance: TaskInstance
+
 FullDeploymentList = TypeAdapter(list[FullDeployment])
 FullTaskList = TypeAdapter(list[FullTask])
 
@@ -106,6 +109,7 @@ class TaskWebBackend(Worker):
     self.task_host_asgi_handlers: dict[str, ASGIHandler] = {}
     self.task_asgi_handlers: dict[UUID4, ASGIHandler] = {}
     self.public_path = public_path
+    self.deployment_task_listeners: dict[UUID4, asyncio.Task] = {}
     self.store = TaskWebBackendStore()
     self.client: Client
     self.tm_client: TaskManagerClient
@@ -158,6 +162,8 @@ class TaskWebBackend(Worker):
       for task in tasks:
         task_instance = await self.tm_client.start_task(task.task_host_id, task.config, topic_space_id)
         running_deployment.task_instances[task.id] = task_instance
+        
+      self.deployment_task_listeners[deployment_id] = asyncio.create_task(self.run_deployment_task_listener(running_deployment))
       await ctx.respond_json_string((await self.store.get_deployment(deployment_id)).model_dump_json())
       
     @router.post("/api/deployment/{id}/stop")
@@ -170,6 +176,8 @@ class TaskWebBackend(Worker):
         try: await self.tm_client.cancel_task_wait(task_instance.id)
         except TaskNotFoundError: pass
       await delete_topic_space(self.client, running_deployment.topic_space_id)
+      
+      if (listener_task := self.deployment_task_listeners.pop(deployment_id, None)) is not None: listener_task.cancel()
       self.store.delete_running_deployment(deployment_id)
       
       await ctx.respond_json_string((await self.store.get_deployment(deployment_id)).model_dump_json())
@@ -231,6 +239,21 @@ class TaskWebBackend(Worker):
         receive_disconnect_task.cancel()
         await ctx.close()
     
+    @router.websocket_route("/deployment/{deployment_id}/task-instances")
+    @websocket_context_handler
+    async def _(ctx: WebsocketContext): 
+      try:
+        await ctx.accept()
+        receive_disconnect_task = asyncio.create_task(ctx.receive_disconnect())
+        deployment = self.store.get_running_deployment(UUID(ctx.params.get("deployment_id", "")))
+        update_generator = self.receive_deployment_task_instance_updates(deployment)
+        while True:
+          task_id, task_instance = await wait_with_cotasks(anext(update_generator), [receive_disconnect_task])
+          await ctx.send_message(UpdateTaskInstanceMessage(id=task_id, task_instance=task_instance).model_dump_json())
+      finally:
+        receive_disconnect_task.cancel()
+        await ctx.close()
+
     @router.websocket_route("/topic/{topic_id}")
     @websocket_context_handler
     async def _(ctx: WebsocketContext): 
@@ -265,7 +288,20 @@ class TaskWebBackend(Worker):
     
     runner = ASGIAppRunner(self.client, app)
     await runner.run()
-    
+  
+  async def run_deployment_task_listener(self, deployment: RunningDeployment):
+    async for task_id, task_instance in self.receive_deployment_task_instance_updates(deployment):
+      deployment.task_instances[task_id] = task_instance
+  
+  async def receive_deployment_task_instance_updates(self, deployment: RunningDeployment):
+    task_instance_ids = [ ti.id for ti in deployment.task_instances.values() ]
+    task_instance_id_map = { ti.id: task_id for task_id, ti in deployment.task_instances.items() }
+    async with self.tm_client.task_message_receiver(task_instance_ids) as receiver:
+      while True:
+        task_instance = await receiver.get()
+        if (task_id := task_instance_id_map.get(task_instance.id, None)) is not None:
+          yield (task_id, task_instance)
+  
   async def get_task_host_asgi_handler(self, id: str) -> ASGIHandler:
     if (router := self.task_host_asgi_handlers.get(id, None)) is None:
       reg: TaskHostRegistration = await self.tm_client.get_task_host(id)

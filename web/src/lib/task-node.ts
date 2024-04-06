@@ -1,18 +1,25 @@
 import deepEqual from "deep-equal";
-import { TaskIO, Task, TaskOutput, FullTask } from "../types/task";
+import { TaskIO, Task, TaskOutput, FullTask, TaskInstanceStatus } from "../types/task";
 import { InputConnection, Node, OutputConnection } from "./node-editor";
-import { ManagedTask, extractTaskIO } from "./task";
+import { ManagedTask, extractTaskIO, taskInstance2GeneralStatusMap } from "./task";
 import { EventEmitter } from "eventemitter3";
 import _ from "underscore";
+import { GeneralStatus } from "../types/status";
+import { generalStatusColors } from "./status";
 
-type TaskNodeData = TaskIO & { label: string, hasError: boolean };
+type TaskNodeData = TaskIO & { label: string, status?: TaskInstanceStatus };
 
 function extractNodeData(task: FullTask): TaskNodeData {
     return {
         label: task.label,
-        hasError: !task.task_instance?.error,
+        status: task.task_instance?.status,
         ...extractTaskIO(task)
     }
+}
+
+const taskGeneralStatusColors: Record<GeneralStatus, string | undefined> = {
+    ...generalStatusColors,
+    ok: undefined
 }
 
 export class TaskNode extends EventEmitter<{ "updated": [] }> implements Node {
@@ -23,9 +30,8 @@ export class TaskNode extends EventEmitter<{ "updated": [] }> implements Node {
     }
 
     public get outlineColor() {
-        if (this.task.taskInstance?.error) {
-            return "#b00"
-        }
+        const status: GeneralStatus = this.task.taskInstance ? taskInstance2GeneralStatusMap[this.task.taskInstance.status] : "ok";
+        return taskGeneralStatusColors[status];
     }
 
     public get label(): string {

@@ -218,7 +218,7 @@ export class NodeRenderer {
 
     private createConnectionCircle(connection: Connection) {
         const circle = new PIXI.Graphics();
-        circle.lineStyle(outlineWidth, this.node.outlineColor ?? outlineColor);
+        circle.lineStyle(outlineWidth, outlineColor);
         circle.beginFill(getStreamColor(connection));
         circle.drawCircle(0, 0, streamCircleRadius);
         circle.endFill();

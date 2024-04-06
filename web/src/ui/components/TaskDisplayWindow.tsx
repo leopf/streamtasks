@@ -1,11 +1,13 @@
 import { Box, IconButton, Stack, Typography } from "@mui/material";
-import { ManagedTask } from "../../lib/task";
+import { ManagedTask, taskInstance2GeneralStatusMap } from "../../lib/task";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NodeOverlayTile } from "./NodeOverlayTile";
 import { Close as CloseIcon } from "@mui/icons-material";
 import { TaskIOTable } from "./TaskIOTable";
 import { TaskIO } from "../../types/task";
 import { useRootStore } from "../../state/root-store";
+import { StatusBadge } from "./StatusBadge";
+import { generalStatusColors } from "../../lib/status";
 
 export function TaskDisplayWindow(props: { task: ManagedTask, onClose: () => void }) {
     const resizingRef = useRef(false);
@@ -43,6 +45,7 @@ export function TaskDisplayWindow(props: { task: ManagedTask, onClose: () => voi
                 <Stack direction="row" alignItems="center" spacing={1}>
                     <Typography lineHeight={1} fontSize="0.85rem">{props.task.label}</Typography>
                     <Box flex={1} />
+                    <StatusBadge status={taskInstance2GeneralStatusMap[props.task.taskInstance?.status ?? "failed"]} text={props.task.taskInstance?.status ?? "unknown"}/>
                     <IconButton aria-label="close" size="small" onClick={() => props.onClose()}>
                         <CloseIcon fontSize="inherit" />
                     </IconButton>
@@ -53,7 +56,7 @@ export function TaskDisplayWindow(props: { task: ManagedTask, onClose: () => voi
                         <TaskIOTable taskIO={taskIO} onOpen={(tid) => rootStore.uiControl.selectedTopic = { topicId: tid, topicSpaceId: props.task.taskInstance?.topic_space_id ?? undefined }} allowOpen/>
                     </Box>
                     <Box padding={1}>
-                        {!!props.task.taskInstance?.error && <Typography variant="h6" color="red">Error: {props.task.taskInstance?.error}</Typography>}
+                        {!!props.task.taskInstance?.error && <Typography variant="h6" color={generalStatusColors.error}>Error: {props.task.taskInstance?.error}</Typography>}
                     </Box>
                 </>
             </NodeOverlayTile>

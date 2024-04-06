@@ -1,8 +1,37 @@
 import { ManagedTask } from "../lib/task";
-import { action, computed, makeObservable, observable } from "mobx";
+import { action, computed, makeObservable, observable, reaction } from "mobx";
 import { createStateContext } from "./util";
 import _ from "underscore";
 import { RootStore } from "./root-store";
+import { UpdateTaskInstanceMessageModel } from "../model/task-messages";
+
+class DeploymentTaskInstanceUpdater {
+    private deploymentManager: DeploymentManager;
+    private ws: WebSocket;
+    public open: boolean = false;
+    public errorCount: number = 0;
+
+    constructor(deploymentManager: DeploymentManager) {
+        this.deploymentManager = deploymentManager;
+        this.ws = new WebSocket(`ws://${location.host}/deployment/${deploymentManager.id}/task-instances`);
+        this.ws.addEventListener("open", () => this.open = true);
+        this.ws.addEventListener("message", e => this.onData(e.data));
+        this.ws.addEventListener("error", () => this.errorCount++);
+        this.ws.addEventListener("close", () => this.open = false);
+    }
+
+    public destroy() {
+        this.ws.close();
+    }
+
+    private onData(data: any) {
+        try {
+            const message = UpdateTaskInstanceMessageModel.parse(JSON.parse(data));
+            const task = this.deploymentManager.tasks.get(message.id);
+            task?.updateData({ task_instance: message.task_instance });
+        } catch { }
+    }
+}
 
 export class DeploymentManager {
     public readonly tasks: Map<string, ManagedTask> = observable.map();
@@ -25,6 +54,8 @@ export class DeploymentManager {
 
     private deploymentId: string;
     private rootStore: RootStore;
+
+    private taskInstanceUpdater?: DeploymentTaskInstanceUpdater;
     private disposers: (() => void)[] = [];
 
     constructor(deploymentId: string, rootStore: RootStore) {
@@ -36,6 +67,13 @@ export class DeploymentManager {
             deleteTask: action,
             deployment: computed
         });
+        this.disposers.push(reaction(() => this.running, () => {
+            this.taskInstanceUpdater?.destroy();
+            this.taskInstanceUpdater = undefined;
+            if (this.running) {
+                this.taskInstanceUpdater = new DeploymentTaskInstanceUpdater(this);
+            }
+        }, { fireImmediately: true }));
     }
 
     public async start() {
@@ -93,6 +131,7 @@ export class DeploymentManager {
     public destroy() {
         this.disposers.forEach(d => d());
         this.disposers = [];
+        this.taskInstanceUpdater?.destroy();
     }
 
     private trackTask(task: ManagedTask) {
