@@ -13,6 +13,7 @@ export interface Node {
     inputs: InputConnection[];
     connect: (key: string, output?: OutputConnection) => Promise<ConnectResult>;
     on?: (name: "updated", cb: () => void) => void;
+    destroy?: () => void;
 }
 
 export type NodeDisplayOptions = {

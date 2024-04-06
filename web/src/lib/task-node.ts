@@ -3,6 +3,7 @@ import { TaskIO, Task, TaskOutput, FullTask } from "../types/task";
 import { InputConnection, Node, OutputConnection } from "./node-editor";
 import { ManagedTask, extractTaskIO } from "./task";
 import { EventEmitter } from "eventemitter3";
+import _ from "underscore";
 
 type TaskNodeData = TaskIO & { label: string, hasError: boolean };
 
@@ -35,6 +36,7 @@ export class TaskNode extends EventEmitter<{ "updated": [] }> implements Node {
     }
     public set position(v) {
         this.task.frontend_config.position = v;
+        this.onPositionUpdate();
     }
 
     public get outputs(): OutputConnection[] {
@@ -57,24 +59,34 @@ export class TaskNode extends EventEmitter<{ "updated": [] }> implements Node {
 
     private lastData: TaskNodeData;
     private inputKeyIgnoreTopicId?: string;
+    private disposers: (() => void)[] = [];
+    private onTaskUpdated = (newTask: FullTask) => {
+        const oldTaskIO = this.lastData;
+        this.lastData = extractNodeData(newTask);
+        if (this.inputKeyIgnoreTopicId) {
+            const oldInput = oldTaskIO.inputs.find(i => i.key === this.inputKeyIgnoreTopicId);
+            const newInput = this.lastData.inputs.find(i => i.key === this.inputKeyIgnoreTopicId);
+            if (oldInput) oldInput.topic_id = newInput?.topic_id;
+        }
+        if (!deepEqual(oldTaskIO, this.lastData)) {
+            console.log("update!")
+            this.emit("updated");
+        }
+    }
+    private onPositionUpdate = _.debounce(() => this.task.updateData({}), 500);
 
     constructor(task: ManagedTask) {
         super();
         this.task = task;
         this.lastData = extractNodeData(task.task);
-        this.task.on("updated", (newTask) => { // TODO: memory management
-            const oldTaskIO = this.lastData;
-            this.lastData = extractNodeData(newTask);
-            if (this.inputKeyIgnoreTopicId) {
-                const oldInput = oldTaskIO.inputs.find(i => i.key === this.inputKeyIgnoreTopicId);
-                const newInput = this.lastData.inputs.find(i => i.key === this.inputKeyIgnoreTopicId);
-                if (oldInput) oldInput.topic_id = newInput?.topic_id;
-            }
-            if (!deepEqual(oldTaskIO, this.lastData)) {
-                console.log("update!")
-                this.emit("updated");
-            }
-        });
+
+        this.task.on("updated", this.onTaskUpdated);
+        this.disposers.push(() => this.task.off("updated", this.onTaskUpdated));
+    }
+
+    public destroy() {
+        this.disposers.forEach(d => d());
+        this.removeAllListeners();
     }
 
     public async connect(key: string, output: OutputConnection | undefined) {

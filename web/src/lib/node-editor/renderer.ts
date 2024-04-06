@@ -139,8 +139,10 @@ export class NodeRenderer {
         this.updatePosition({ x: currentPosition.x + x, y: currentPosition.y + y });
     }
 
-    public remove() {
+    public destroy() {
         this.group.removeFromParent();
+        this.group.destroy();
+        this.node.destroy?.call(this.node);
     }
 
     public render() {
@@ -355,7 +357,7 @@ export class NodeDisplayRenderer {
     }
 
     public destroy() {
-        this.nodeRenderer.remove();
+        this.nodeRenderer.destroy();
         this.app.destroy();
         this.resizeObserver.disconnect();
         this.updateHandlers = [];
@@ -513,7 +515,7 @@ export class NodeEditorRenderer extends EventEmitter<{
         }
     }
     public deleteNode(id: string) {
-        this.nodeRenderers.get(id)?.remove();
+        this.nodeRenderers.get(id)?.destroy();
         this.nodeRenderers.delete(id);
         this.removeLinks(this.links.values.filter(c => c.inputNodeId === id || c.outputNodeId === id));
     }
@@ -526,7 +528,7 @@ export class NodeEditorRenderer extends EventEmitter<{
         this.emit("updated", nodeId);
     }
     public clear() {
-        this.nodeRenderers.forEach(node => node.remove());
+        this.nodeRenderers.forEach(node => node.destroy());
         this.nodeRenderers.clear();
         this.links.values.forEach(link => link.rendered?.removeFromParent());
         this.links = new ConnectionLinkCollection();

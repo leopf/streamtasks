@@ -86,6 +86,7 @@ export class DeploymentManager {
     public async deleteTask(task: ManagedTask) {
         if (this.running) throw new Error("Deployment is running!");
         await this.rootStore.task.deleteTask(task.id);
+        task.removeAllListeners("updated");
         this.tasks.delete(task.id);
     }
 
