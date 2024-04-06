@@ -1,14 +1,18 @@
 import { Box, Stack, TextField } from "@mui/material";
 import { TaskTemplateItem } from "./components/TaskTemplateItem";
 import { observer, useLocalObservable } from "mobx-react-lite";
-import { useTaskManager } from "../state/task-manager";
+import { useRootStore } from "../state/root-store";
 
 export const TaskSelectionMenu = observer(() => {
-    const taskManager = useTaskManager();
+    const rootStore = useRootStore();
     const localState = useLocalObservable(() => ({
         searchText: "",
         get foundHosts() {
-            return this.searchText ? taskManager.taskHosts.filter(th => Object.values(th.metadata).some(k => String(k).includes(this.searchText))) : taskManager.taskHosts
+            let taskHosts = rootStore.taskManager.taskHosts;
+            if (this.searchText) {
+                taskHosts = taskHosts.filter(th => Object.values(th.metadata).some(k => String(k).includes(this.searchText)));
+            }
+            return taskHosts;
         }
     }));
 

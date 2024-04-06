@@ -2,16 +2,16 @@ import { Box, IconButton, Stack, Typography } from "@mui/material";
 import { ManagedTask } from "../../lib/task";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NodeOverlayTile } from "./NodeOverlayTile";
-import { Close as CloseIcon, Delete as DeleteIcon } from "@mui/icons-material";
+import { Close as CloseIcon } from "@mui/icons-material";
 import { TaskIOTable } from "./TaskIOTable";
 import { TaskIO } from "../../types/task";
-import { useUIControl } from "../../state/ui-control-store";
+import { useRootStore } from "../../state/root-store";
 
 export function TaskDisplayWindow(props: { task: ManagedTask, onClose: () => void }) {
     const resizingRef = useRef(false);
     const [addSize, setAddSize] = useState(0);
     const [taskUpdateCounter, setTaskUpdateCounter] = useState(0);
-    const uiControl = useUIControl();
+    const rootStore = useRootStore();
 
     useEffect(() => {
         const updateHandler = () => setTaskUpdateCounter(pv => pv + 1);
@@ -50,7 +50,7 @@ export function TaskDisplayWindow(props: { task: ManagedTask, onClose: () => voi
             )}>
                 <>
                     <Box marginBottom={2}>
-                        <TaskIOTable taskIO={taskIO} onOpen={(tid) => uiControl.selectedTopic = { topicId: tid, topicSpaceId: props.task.taskInstance?.topic_space_id ?? undefined }} allowOpen/>
+                        <TaskIOTable taskIO={taskIO} onOpen={(tid) => rootStore.uiControl.selectedTopic = { topicId: tid, topicSpaceId: props.task.taskInstance?.topic_space_id ?? undefined }} allowOpen/>
                     </Box>
                     <Box padding={1}>
                         {!!props.task.taskInstance?.error && <Typography variant="h6" color="red">Error: {props.task.taskInstance?.error}</Typography>}

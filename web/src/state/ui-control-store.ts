@@ -1,7 +1,6 @@
 import { makeObservable, observable } from "mobx";
 import { Deployment, PartialDeployment } from "../types/deployment";
 import { Topic } from "../types/topic";
-import { createStateContext } from "./util";
 
 export class UIControlStore {
     public selectedTopic?: Topic = undefined;
@@ -17,6 +16,10 @@ export class UIControlStore {
     public createNewDeployment() {
         this.editingDeployment = { label: "New Deployment" }
     }
+    public editDeployment(d: PartialDeployment | Deployment) {
+        this.editingDeployment = d;
+    }
+    public closeDeploymentEditor() {
+        this.editingDeployment = undefined;
+    }
 }
-
-export const [ UIControlContext, useUIControl ] = createStateContext<UIControlStore>();

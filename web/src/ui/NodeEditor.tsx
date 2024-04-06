@@ -6,16 +6,16 @@ import { observer, useLocalObservable } from "mobx-react-lite";
 import { TaskHostDragDataModel } from '../model/task-host';
 import { observe, reaction } from 'mobx';
 import { TaskEditorWindow } from './components/TaskEditorWindow';
-import { useDeployment } from '../state/deployment';
-import { useTaskManager } from '../state/task-manager';
+import { useDeployment } from '../state/deployment-manager';
 import { Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button } from '@mui/material';
 import { TaskDisplayWindow } from './components/TaskDisplayWindow';
+import { useRootStore } from '../state/root-store';
 
 export const NodeEditor = observer(() => {
     const [nodeRenderer, _] = useState(() => new NodeEditorRenderer());
     const [isDeleting, setDeleting] = useState(false);
     const deployment = useDeployment();
-    const taskManager = useTaskManager();
+    const rootStore = useRootStore();
 
     const state = useLocalObservable(() => ({
         selectedTaskId: undefined as string | undefined,
@@ -75,7 +75,7 @@ export const NodeEditor = observer(() => {
                     onDrop={async e => {
                         try {
                             const taskHostData = TaskHostDragDataModel.parse(JSON.parse(e.dataTransfer.getData("task_host")));
-                            const task = await taskManager.createManagedTask(taskHostData.id)
+                            const task = await rootStore.taskManager.createManagedTask(taskHostData.id)
                             const containerOffset = containerRef.current!.getBoundingClientRect();
                             task.frontend_config.position = nodeRenderer.getInternalPosition({ x: e.clientX - containerOffset.x - taskHostData.ox * nodeRenderer.zoom, y: e.clientY - containerOffset.y - taskHostData.oy * nodeRenderer.zoom });
                             await deployment.addTask(task);

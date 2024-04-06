@@ -1,10 +1,9 @@
 import { observer, useLocalObservable } from "mobx-react-lite";
-import { useUIControl } from "../../state/ui-control-store";
-import { useEffect } from "react";
 import { Box, Divider, IconButton, Modal, Stack, Typography } from "@mui/material";
 import { Close as CloseIcon } from "@mui/icons-material";
 import { z } from "zod";
 import { TopicViewer } from "./TopicViewer";
+import { useRootStore } from "../../state/root-store";
 
 const TopicMessageModel = z.object({
     data: z.record(z.string(), z.any())
@@ -13,12 +12,12 @@ const TopicMessageModel = z.object({
 type TopicMessage = z.infer<typeof TopicMessageModel>;
 
 export const TopicViewerModal = observer(() => {
-    const uiControl = useUIControl();
+    const rootStore = useRootStore();
 
-    const close = () => uiControl.selectedTopic = undefined;
+    const close = () => rootStore.uiControl.selectedTopic = undefined;
 
     return (
-        <Modal open={!!uiControl.selectedTopic} onClose={close}>
+        <Modal open={!!rootStore.uiControl.selectedTopic} onClose={close}>
             <Stack position="fixed" top="5%" left="5%" width="90%" height="90%" bgcolor="#fff">
                 <Stack direction="row" alignItems="center" paddingLeft={2}>
                     <Box flex={1} />
@@ -27,7 +26,7 @@ export const TopicViewerModal = observer(() => {
                     </IconButton>
                 </Stack>
                 <Divider />
-                {uiControl.selectedTopic && <TopicViewer {...uiControl.selectedTopic}/>}
+                {rootStore.uiControl.selectedTopic && <TopicViewer {...rootStore.uiControl.selectedTopic}/>}
             </Stack>
         </Modal>
     );

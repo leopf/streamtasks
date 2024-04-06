@@ -1,6 +1,4 @@
-import { Box, Stack } from '@mui/material';
 import { useEffect } from 'react';
-import { useTaskManager } from '../state/task-manager';
 import { RouterProvider, createHashRouter } from "react-router-dom";
 import { useRootStore } from '../state/root-store';
 import { DeploymentPage } from './pages/DeploymentPage';
@@ -26,12 +24,11 @@ const router = createHashRouter([
 ]);
 
 export function App() {
-    const taskManager = useTaskManager();
     const rootStore = useRootStore();
 
     useEffect(() => {
-        taskManager.loadTaskHosts()
-        rootStore.loadDeployments();
+        rootStore.taskManager.loadTaskHosts()
+        rootStore.deployment.loadAll();
     }, []);
 
     return (

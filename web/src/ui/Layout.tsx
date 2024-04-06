@@ -1,4 +1,4 @@
-import { Box, Stack } from "@mui/material";
+import { Box, CircularProgress, Stack, Typography } from "@mui/material";
 import { Header } from "./components/Header";
 import React from "react";
 
@@ -10,5 +10,16 @@ export function PageLayout(props: React.PropsWithChildren<{ headerContent?: Reac
                 {props.children}
             </Box>
         </Stack>
+    );
+}
+
+export function LoadingPage(props: { text: string }) {
+    return (
+        <PageLayout>
+            <Stack alignItems={"center"} justifyContent="center" height="100%" width="100%" spacing={2}>
+                <CircularProgress />
+                <Typography>{props.text}</Typography>
+            </Stack>
+        </PageLayout>
     );
 }

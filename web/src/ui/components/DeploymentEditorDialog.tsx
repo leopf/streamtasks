@@ -1,5 +1,4 @@
 import { observer, useLocalObservable } from "mobx-react-lite";
-import { useUIControl } from "../../state/ui-control-store";
 import { useRootStore } from "../../state/root-store";
 import { Dialog, DialogTitle, DialogContent, TextField, DialogActions, Button } from "@mui/material";
 import { Deployment, PartialDeployment } from "../../types/deployment";
@@ -7,7 +6,6 @@ import { useEffect } from "react";
 import { autorun } from "mobx";
 
 export const DeploymentEditorDialog = observer(() => {
-    const uiControl = useUIControl();
     const rootStore = useRootStore();
 
     const state = useLocalObservable(() => ({
@@ -17,19 +15,17 @@ export const DeploymentEditorDialog = observer(() => {
         editingDeployment: undefined as undefined | PartialDeployment | Deployment
     }));
 
-    useEffect(() => {
-        return autorun(() => {
-            if (uiControl.editingDeployment) {
-                state.editingDeployment = { ...uiControl.editingDeployment };
-            }
-            else {
-                state.editingDeployment = undefined;
-            }
-        })
-    }, []);
+    useEffect(() => autorun(() => {
+        if (rootStore.uiControl.editingDeployment) {
+            state.editingDeployment = { ...rootStore.uiControl.editingDeployment };
+        }
+        else {
+            state.editingDeployment = undefined;
+        }
+    }), []);
 
     return (
-        <Dialog fullWidth open={!!state.editingDeployment} onClose={() => state.editingDeployment = undefined}>
+        <Dialog fullWidth open={!!state.editingDeployment} onClose={() => rootStore.uiControl.closeDeploymentEditor()}>
             <DialogTitle>{state.isNewDeployment ? "Create" : "Edit"} Deployment</DialogTitle>
             <DialogContent>
                 <TextField
@@ -51,19 +47,19 @@ export const DeploymentEditorDialog = observer(() => {
                     <Button onClick={async () => {
                         const id = (state.editingDeployment as any)?.id;
                         if (!id) return;
-                        await rootStore.deleteDeployment(id);
-                        state.editingDeployment = undefined;
+                        await rootStore.deployment.delete(id);
+                        rootStore.uiControl.closeDeploymentEditor()
                     }}>Delete</Button>
                 )}
                 <Button onClick={async () => {
                     if (!state.editingDeployment) return;
                     if (state.isNewDeployment) {
-                        await rootStore.createDeployment(state.editingDeployment);
+                        await rootStore.deployment.create(state.editingDeployment);
                     }
                     else {
-                        await rootStore.updateDeployment(state.editingDeployment as Deployment);
+                        await rootStore.deployment.update(state.editingDeployment as Deployment);
                     }
-                    uiControl.editingDeployment = undefined;
+                    rootStore.uiControl.closeDeploymentEditor();
                 }}>Save</Button>
             </DialogActions>
         </Dialog>

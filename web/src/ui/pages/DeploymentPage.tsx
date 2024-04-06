@@ -1,23 +1,19 @@
-import { Box, Button, Divider, IconButton, Typography } from "@mui/material";
+import { Box, Button, CircularProgress, Divider, IconButton, Stack, Typography } from "@mui/material";
 import { observer, useLocalObservable } from "mobx-react-lite";
 import { TaskSelectionMenu } from "../TaskSelectionMenu";
 import { NodeEditor } from "../NodeEditor";
 import { useParams } from "react-router-dom";
 import { useEffect, useMemo } from "react";
-import { DeploymentContext, DeploymentState } from "../../state/deployment";
-import { useTaskManager } from "../../state/task-manager";
+import { DeploymentContext, DeploymentManager } from "../../state/deployment-manager";
 import { useRootStore } from "../../state/root-store";
-import { PageLayout } from "../Layout";
+import { LoadingPage, PageLayout } from "../Layout";
 import { Edit as EditIcon, PlayArrow as PlayArrowIcon, Stop } from "@mui/icons-material";
-import { useUIControl } from "../../state/ui-control-store";
 
 export const DeploymentPage = observer(() => {
     const params = useParams();
-    const taskManager = useTaskManager();
     const rootStore = useRootStore();
-    const uiControl = useUIControl();
     const state = useLocalObservable(() => ({
-        deployment: undefined as undefined | DeploymentState,
+        deployment: undefined as undefined | DeploymentManager,
         notFound: false
     }));
 
@@ -26,19 +22,22 @@ export const DeploymentPage = observer(() => {
             state.notFound = true;
             return;
         }
-        state.notFound = false;
-        state.deployment = undefined;
         let disposed = false;
-        rootStore.loadDeployment(params.id).then(res => {
+        rootStore.deployment.createManager(params.id).then(deplyoment => {
             if (disposed) return;
-            if (res) {
-                state.deployment = new DeploymentState(res.id, rootStore, taskManager);
+            if (deplyoment) {
+                state.deployment = deplyoment;
                 state.deployment.loadTasks();
             }
-            else {
-                state.notFound = true;
-            }
+            else { state.notFound = true; }
         })
+
+        return () => {
+            disposed = true;
+            state.deployment?.destroy();
+            state.deployment = undefined;
+            state.notFound = false;
+        };
     }, [params.id])
 
     if (!state.deployment) {
@@ -46,7 +45,10 @@ export const DeploymentPage = observer(() => {
            throw new Error("Not found");
         }
         else {
-            return "loading"
+            return (
+            <PageLayout>
+                <Stack alignItems={"center"} justifyContent="center" height="100%" width="100%"><CircularProgress/></Stack>
+            </PageLayout>);
         }
     }
 
@@ -55,7 +57,7 @@ export const DeploymentPage = observer(() => {
             <>  
                 <Divider color="inherit" orientation="vertical" sx={{ marginX: 3, height: "1rem", borderColor: "#fff" }}/>
                 <Typography marginRight={1}>{state.deployment.label}</Typography>
-                <IconButton color="inherit" size="small" onClick={() => uiControl.editingDeployment = state.deployment?.deployment}><EditIcon fontSize="inherit"/></IconButton>
+                <IconButton color="inherit" size="small" onClick={() => rootStore.uiControl.editingDeployment = state.deployment?.deployment}><EditIcon fontSize="inherit"/></IconButton>
                 <Box flex={1} />
                 {state.deployment.running ? (
                     <Button color="inherit" startIcon={<Stop />} variant="text" onClick={() => state.deployment?.stop()}>Stop</Button>

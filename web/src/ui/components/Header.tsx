@@ -4,14 +4,12 @@ import { observer, useLocalObservable } from "mobx-react-lite";
 import React from "react";
 import { useRootStore } from "../../state/root-store";
 import { Link } from "react-router-dom";
-import { useUIControl } from "../../state/ui-control-store";
 
 export const Header = observer((props: React.PropsWithChildren<{}>) => {
     const state = useLocalObservable(() => ({
         menuOpen: false
     }));
     const rootStore = useRootStore();
-    const uiControl = useUIControl();
 
     return (
         <>
@@ -44,12 +42,12 @@ export const Header = observer((props: React.PropsWithChildren<{}>) => {
                         </ListItemButton>
                     </List>
                     <List subheader={<ListSubheader>Deployments</ListSubheader>}>
-                        {rootStore.deployments.map(d => (
+                        {rootStore.deployment.deployments.map(d => (
                             <ListItemButton key={d.id} component={Link} to={`/deployment/${d.id}`}>
                                 <ListItemText primary={d.label} />
                             </ListItemButton>
                         ))}
-                        <ListItemButton onClick={() => uiControl.createNewDeployment()}>
+                        <ListItemButton onClick={() => rootStore.uiControl.createNewDeployment()}>
                             <ListItemIcon>
                                 <AddIcon />
                             </ListItemIcon>

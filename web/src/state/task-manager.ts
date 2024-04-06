@@ -3,7 +3,6 @@ import { FullTask, TaskConfigurator, TaskConfiguratorContext, TaskHost } from ".
 import { z } from "zod";
 import { TaskHostModel } from "../model/task";
 import { ManagedTask, getErrorConfigurator } from "../lib/task";
-import { createStateContext } from "./util";
 
 export class TaskManager {
     public taskHosts: TaskHost[] = [];
@@ -119,5 +118,3 @@ export class TaskManager {
         };
     }
 }
-
-export const [TaskManagerContext, useTaskManager] = createStateContext<TaskManager>();

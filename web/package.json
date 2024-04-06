@@ -27,6 +27,7 @@
     "lru-cache": "^10.2.0",
     "mobx": "^6.12.3",
     "mobx-react-lite": "^4.0.7",
+    "mobx-utils": "^6.0.8",
     "object-hash": "^3.0.0",
     "pixi-viewport": "^5.0.2",
     "pixi.js": "^7",

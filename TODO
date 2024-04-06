@@ -1,9 +1,5 @@
 # Refactor
 
-Frontend:
-- edit not rowking on deployment 
-- deployment and task management as well as db updates
-
 Backend:
 - testing web task backend
 - remapping link close testing
