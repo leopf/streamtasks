@@ -75,7 +75,6 @@ export class TaskNode extends EventEmitter<{ "updated": [] }> implements Node {
             if (oldInput) oldInput.topic_id = newInput?.topic_id;
         }
         if (!deepEqual(oldTaskIO, this.lastData)) {
-            console.log("update!")
             this.emit("updated");
         }
     }

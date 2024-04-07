@@ -4,6 +4,7 @@ import { createStateContext } from "./util";
 import _ from "underscore";
 import { RootStore } from "./root-store";
 import { UpdateTaskInstanceMessageModel } from "../model/task-messages";
+import EventEmitter from "eventemitter3";
 
 class DeploymentTaskInstanceUpdater {
     private deploymentManager: DeploymentManager;
@@ -33,7 +34,7 @@ class DeploymentTaskInstanceUpdater {
     }
 }
 
-export class DeploymentManager {
+export class DeploymentManager extends EventEmitter<{ "taskUpdated": [ManagedTask] }> {
     public readonly tasks: Map<string, ManagedTask> = observable.map();
 
     public get id() {
@@ -59,6 +60,7 @@ export class DeploymentManager {
     private disposers: (() => void)[] = [];
 
     constructor(deploymentId: string, rootStore: RootStore) {
+        super();
         this.deploymentId = deploymentId
         this.rootStore = rootStore
         makeObservable(this, {
@@ -129,15 +131,20 @@ export class DeploymentManager {
     }
 
     public destroy() {
+        this.removeAllListeners();
         this.disposers.forEach(d => d());
         this.disposers = [];
         this.taskInstanceUpdater?.destroy();
     }
 
     private trackTask(task: ManagedTask) {
-        const updateFn = _.throttle(async () => await this.rootStore.task.putTask(task.task, this.id), 1000);
-        task.on("updated", updateFn, 1000);
-        this.disposers.push(() => task.off("updated", updateFn));
+        const saveFn = _.throttle(async () => await this.rootStore.task.putTask(task.task, this.id), 1000);
+        const updatedFn = () => {
+            this.emit("taskUpdated", task);
+            saveFn();
+        };
+        task.on("updated", saveFn, 1000);
+        this.disposers.push(() => task.off("updated", updatedFn));
     }
 }
 

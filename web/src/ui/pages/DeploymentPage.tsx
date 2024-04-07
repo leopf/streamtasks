@@ -3,11 +3,12 @@ import { observer, useLocalObservable } from "mobx-react-lite";
 import { TaskSelectionMenu } from "../TaskSelectionMenu";
 import { NodeEditor } from "../NodeEditor";
 import { useParams } from "react-router-dom";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { DeploymentContext, DeploymentManager } from "../../state/deployment-manager";
 import { useRootStore } from "../../state/root-store";
-import { LoadingPage, PageLayout } from "../Layout";
+import { PageLayout } from "../Layout";
 import { Edit as EditIcon, PlayArrow as PlayArrowIcon, Stop } from "@mui/icons-material";
+import { StatusBadge } from "../components/StatusBadge";
 
 export const DeploymentPage = observer(() => {
     const params = useParams();
@@ -30,7 +31,7 @@ export const DeploymentPage = observer(() => {
                 state.deployment.loadTasks();
             }
             else { state.notFound = true; }
-        })
+        });
 
         return () => {
             disposed = true;
@@ -38,29 +39,34 @@ export const DeploymentPage = observer(() => {
             state.deployment = undefined;
             state.notFound = false;
         };
-    }, [params.id])
+    }, [params.id]);
 
     if (!state.deployment) {
         if (state.notFound) {
-           throw new Error("Not found");
+            throw new Error("Not found");
         }
         else {
             return (
-            <PageLayout>
-                <Stack alignItems={"center"} justifyContent="center" height="100%" width="100%"><CircularProgress/></Stack>
-            </PageLayout>);
+                <PageLayout>
+                    <Stack alignItems={"center"} justifyContent="center" height="100%" width="100%"><CircularProgress /></Stack>
+                </PageLayout>);
         }
     }
 
     return (
         <PageLayout headerContent={(
-            <>  
-                <Divider color="inherit" orientation="vertical" sx={{ marginX: 3, height: "1rem", borderColor: "#fff" }}/>
+            <>
+                <Divider color="inherit" orientation="vertical" sx={{ marginX: 3, height: "1rem", borderColor: "#fff" }} />
                 <Typography marginRight={1}>{state.deployment.label}</Typography>
-                <IconButton color="inherit" size="small" onClick={() => rootStore.uiControl.editingDeployment = state.deployment?.deployment}><EditIcon fontSize="inherit"/></IconButton>
+                <IconButton color="inherit" size="small" onClick={() => rootStore.uiControl.editingDeployment = state.deployment?.deployment}><EditIcon fontSize="inherit" /></IconButton>
                 <Box flex={1} />
                 {state.deployment.running ? (
-                    <Button color="inherit" startIcon={<Stop />} variant="text" onClick={() => state.deployment?.stop()}>Stop</Button>
+                    <>
+                        <Stack spacing={0.5} direction="row" marginRight={2}>
+                            {Object.entries({}).filter(([_, v]) => v).map(([k, v]) => <StatusBadge key={k} status={k as any} text={String(v)} round />)}
+                        </Stack>
+                        <Button color="inherit" startIcon={<Stop />} variant="text" onClick={() => state.deployment?.stop()}>Stop</Button>
+                    </>
                 ) : (
                     <Button color="inherit" startIcon={<PlayArrowIcon />} variant="text" onClick={() => state.deployment?.start()}>Start</Button>
                 )}
