@@ -42,7 +42,7 @@ export class DeploymentManager extends EventEmitter<{ "taskUpdated": [ManagedTas
     }
 
     public get running() {
-        return this.deployment.running;
+        return this.deployment.status !== "offline";
     }
 
     public get label() {
@@ -81,6 +81,10 @@ export class DeploymentManager extends EventEmitter<{ "taskUpdated": [ManagedTas
     public async start() {
         if (this.running) {
             throw new Error("Can not start a deployment that is running.");
+        }
+        await this.rootStore.deployment.schedule(this.id);
+        if (this.running) {
+            await this.loadTasks();
         }
         await this.rootStore.deployment.start(this.id);
         if (this.running) {

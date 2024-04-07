@@ -67,11 +67,11 @@ class TaskHostRegistration(ModelWithStrId):
   
 TaskHostRegistrationList = TypeAdapter(list[TaskHostRegistration])
 
-class TMTaskScheduleRequest(BaseModel): pass
-
-class TMTaskStartRequest(BaseModel):
+class TMTaskScheduleRequest(BaseModel):
   host_id: str
   topic_space_id: int | None = None
+
+class TMTaskStartRequest(ModelWithId):
   config: Any
 
 TMTaskRequestBase = ModelWithId
@@ -282,23 +282,12 @@ class TaskManager(Worker):
       
       
     @server.route(TASK_CONSTANTS.FD_TM_TASK_SCHEDULE)
-    async def _(req: FetchRequest): pass
-    
-    @server.route(TASK_CONSTANTS.FD_TM_TASK_START)
     async def _(req: FetchRequest):
       try:
-        body = TMTaskStartRequest.model_validate(req.body)
-        task_host = self.task_hosts[body.host_id]
-        
-        task_start_request = TaskStartRequest(
-          id=uuid4(),
-          topic_space_id=body.topic_space_id,
-          report_address=self.client.address,
-          config=body.config
-        )
+        body = TMTaskScheduleRequest.model_validate(req.body)
         
         task_instance = TaskInstance(
-          id= task_start_request.id,
+          id=uuid4(),
           host_id=body.host_id,
           topic_space_id=body.topic_space_id,
           metadata={},
@@ -306,6 +295,24 @@ class TaskManager(Worker):
           status=TaskStatus.starting
         )
         self.tasks[task_instance.id] = task_instance
+        
+        await req.respond(task_instance.model_dump())
+      except KeyError as e: await req.respond_error(new_fetch_body_not_found(str(e)))
+      except ValidationError as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
+      
+    @server.route(TASK_CONSTANTS.FD_TM_TASK_START)
+    async def _(req: FetchRequest):
+      try:
+        body = TMTaskStartRequest.model_validate(req.body)
+        task_instance = self.tasks[body.id]
+        task_host = self.task_hosts[task_instance.host_id]
+        
+        task_start_request = TaskStartRequest(
+          id=task_instance.id,
+          topic_space_id=task_instance.topic_space_id,
+          report_address=self.client.address,
+          config=body.config
+        )
         
         task_start_result = await self.client.fetch(task_host.address, TASK_CONSTANTS.FD_TASK_START, task_start_request.model_dump())
         task_start_result: TaskStartResponse = TaskStartResponse.model_validate(task_start_result)
@@ -359,9 +366,16 @@ class TaskManagerClient:
   async def get_task(self, id: UUID4):
     result = await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_TM_TASK_GET, ModelWithId(id=id).model_dump())
     return TaskInstance.model_validate(result)
-  async def start_task(self, host_id: str, config: Any, topic_space_id: int | None = None):
-    result = await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_TM_TASK_START, TMTaskStartRequest(host_id=host_id, config=config, topic_space_id=topic_space_id).model_dump())
+  async def schedule_task(self, host_id: str, topic_space_id: int | None = None):
+    result = await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_TM_TASK_SCHEDULE, TMTaskScheduleRequest(host_id=host_id, topic_space_id=topic_space_id).model_dump())
     return TaskInstance.model_validate(result)
+  async def start_task(self, id: UUID4, config: Any):
+    result = await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_TM_TASK_START, TMTaskStartRequest(id=id, config=config).model_dump())
+    return TaskInstance.model_validate(result)
+  async def schedule_start_task(self, host_id: str, config: Any, topic_space_id: int | None = None):
+    task_instance = await self.schedule_task(host_id=host_id, topic_space_id=topic_space_id)
+    task_instance = await self.start_task(id=task_instance.id, config=config)
+    return task_instance
   async def cancel_task(self, task_id: UUID4):
     await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_TM_TASK_CANCEL, TMTaskRequestBase(id=task_id).model_dump()) 
   async def cancel_task_wait(self, task_id: UUID4):

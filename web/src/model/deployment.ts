@@ -7,6 +7,7 @@ export const PartialDeploymentModel = z.object({
 export const DeploymentModel = PartialDeploymentModel.extend({
     id: z.string().uuid(),
 });
+export const DeploymentStatusModel = z.union([ z.literal("running"), z.literal("scheduled"), z.literal("offline") ])
 export const FullDeploymentModel = DeploymentModel.extend({
-    running: z.boolean().default(false)
+    status: DeploymentStatusModel.default("offline")
 })

@@ -33,6 +33,10 @@ export class DeploymentStore {
         });
     }
 
+    public async schedule(id: string) {
+        const deployment = FullDeploymentModel.parse(await fetch(`/api/deployment/${id}/schedule`, { method: "post" }).then(res => res.json()));
+        this._deployments.set(deployment.id, deployment);
+    }
     public async start(id: string) {
         const deployment = FullDeploymentModel.parse(await fetch(`/api/deployment/${id}/start`, { method: "post" }).then(res => res.json()));
         this._deployments.set(deployment.id, deployment);

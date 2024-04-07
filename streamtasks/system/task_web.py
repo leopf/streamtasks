@@ -6,7 +6,7 @@ import mimetypes
 import os
 import shelve
 import tempfile
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 from uuid import UUID, uuid4
 from pydantic import UUID4, Field, TypeAdapter, ValidationError
 from streamtasks.asgi import ASGIAppRunner, ASGIProxyApp
@@ -30,11 +30,13 @@ class DeploymentBase(ModelWithId):
   label: str
 
 class FullDeployment(DeploymentBase):
-  running: bool = False
+  status: Literal["scheduled", "running", "offline"] = "offline"
 
 class RunningDeployment(ModelWithId):
+  started: bool = False
   topic_space_id: int
-  task_instances: dict[str, TaskInstance]
+  task_instances: dict[UUID4, TaskInstance]
+  task_instance_configs: dict[UUID4, Any] | None
 
 class TaskOutput(TypedDict):
   topic_id: int
@@ -106,7 +108,7 @@ class TaskWebBackendStore:
     self.tasks.pop(str(id), None)
   
   def deployment_apply_running(self, deployment: FullDeployment):
-    if deployment.id in self.running_deployments: deployment.running = True
+    if (running_deployment := self.running_deployments.get(deployment.id, None)) is not None: deployment.status = "running" if running_deployment.started else "scheduled" 
     return deployment
   def task_apply_instance(self, task: FullTask):
     if task.deployment_id in self.running_deployments: task.task_instance = self.running_deployments[task.deployment_id].task_instances.get(task.id, None)
@@ -163,20 +165,31 @@ class TaskWebBackend(Worker):
     @http_context_handler
     async def _(ctx: HTTPContext): await ctx.respond_json_raw(FullDeploymentList.dump_json(await self.store.all_deployments()))
     
-    @router.post("/api/deployment/{id}/start")
+    @router.post("/api/deployment/{id}/schedule")
     @http_context_handler
     async def _(ctx: HTTPContext):
       deployment_id = UUID(ctx.params.get("id", ""))
       tasks = await self.store.all_tasks_in_deployment(deployment_id)
       topic_ids = set(itertools.chain.from_iterable((int(output["topic_id"]) for output in task.outputs) for task in tasks))
       topic_space_id, _ = await register_topic_space(self.client, topic_ids)
-      running_deployment = RunningDeployment(id=deployment_id, topic_space_id=topic_space_id, task_instances={})
+      running_deployment = RunningDeployment(id=deployment_id, topic_space_id=topic_space_id, task_instances={}, task_instance_configs={})
       self.store.set_running_deployment(running_deployment)
       for task in tasks:
-        task_instance = await self.tm_client.start_task(task.task_host_id, task.config, topic_space_id)
+        task_instance = await self.tm_client.schedule_task(task.task_host_id, topic_space_id)
         running_deployment.task_instances[task.id] = task_instance
-        
+        running_deployment.task_instance_configs[task_instance.id] = task.config
       self.deployment_task_listeners[deployment_id] = asyncio.create_task(self.run_deployment_task_listener(running_deployment))
+      await ctx.respond_json_string((await self.store.get_deployment(deployment_id)).model_dump_json())
+    
+    @router.post("/api/deployment/{id}/start")
+    @http_context_handler
+    async def _(ctx: HTTPContext):
+      deployment_id = UUID(ctx.params.get("id", ""))
+      running_deployment = self.store.get_running_deployment(deployment_id)
+      for (task_id, task_instance) in running_deployment.task_instances.items():
+        new_task_instance = await self.tm_client.start_task(task_instance.id, running_deployment.task_instance_configs.get(task_instance.id, None))
+        running_deployment.task_instances[task_id] = new_task_instance
+      running_deployment.task_instance_configs = None
       await ctx.respond_json_string((await self.store.get_deployment(deployment_id)).model_dump_json())
       
     @router.post("/api/deployment/{id}/stop")
