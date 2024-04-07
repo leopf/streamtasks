@@ -48,14 +48,14 @@ class TaskStartResponse(ModelWithId):
 TaskCancelRequest = ModelWithId
   
 class TaskStatus(Enum):
-  starting = "starting"
+  scheduled = "scheduled"
   running = "running"
   stopped = "stopped"
   ended = "ended"
   failed = "failed"
   
   @property
-  def is_active(self): return self in { TaskStatus.running, TaskStatus.starting }
+  def is_active(self): return self in { TaskStatus.running, TaskStatus.scheduled }
   
 class TaskReport(ModelWithId):
   error: Optional[str]
@@ -292,7 +292,7 @@ class TaskManager(Worker):
           topic_space_id=body.topic_space_id,
           metadata={},
           error=None,
-          status=TaskStatus.starting
+          status=TaskStatus.scheduled
         )
         self.tasks[task_instance.id] = task_instance
         

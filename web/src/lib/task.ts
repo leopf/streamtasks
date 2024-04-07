@@ -31,7 +31,7 @@ export const taskInstance2GeneralStatusMap: Record<TaskInstanceStatus, GeneralSt
     ended: "passive",
     failed: "error",
     stopped: "passive",
-    starting: "ok",
+    scheduled: "passive",
     running: "ok",
 };
 

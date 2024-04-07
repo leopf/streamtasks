@@ -12,7 +12,7 @@ export type TaskInstance = z.infer<typeof TaskInstanceModel>;
 export type TaskHost = z.infer<typeof TaskHostModel>;
 
 export enum TaskInstanceStatus {
-    starting = "starting",
+    scheduled = "scheduled",
     running = "running",
     stopped = "stopped",
     ended = "ended",
