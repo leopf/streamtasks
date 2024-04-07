@@ -13,14 +13,43 @@ export const TaskPartialInputModel = MetadataModel.and(z.object({
 }));
 export type TaskPartialInput = z.infer<typeof TaskPartialInputModel>;
 
+const OutputMetadataMapModel = z.array(z.record(z.string(), z.string()).optional());
+const OutputKeysMapModel = z.array(z.string().optional());
+
 const compareIgnoreMetadataKeys = new Set(["key", "topic_id", "label"]);
 
 const reactRenderer = new ReactRenderer();
 const metadataFieldsCache = new LRUCache<string, EditorField[]>({ max: 100 });
 
+// maps output topic ids to config fiels with config = { [output key]: [output topic id] } + [old config]
+function applyOutputIdsToConfig(task: Task, context: TaskConfiguratorContext) {
+    const outputKeysRaw = context.taskHost.metadata["cfg:outputkeys"];
+    if (typeof outputKeysRaw !== "string") return;
+    OutputKeysMapModel.parse(JSON.parse(outputKeysRaw)).forEach((key, idx) => {
+        const topic_id = task.outputs.at(idx)?.topic_id;
+        if (key && topic_id) {
+            task.config[key] = topic_id;
+        }
+    });
+}
+
+
+// maps config values to output metadata values with map { [config key]: [output metadata key] }
+function applyConfigToOutputMetadata(task: Task, context: TaskConfiguratorContext) {
+    const outputMetadataRaw = context.taskHost.metadata["cfg:outputmetadata"];
+    if (typeof outputMetadataRaw !== "string") return;
+    OutputMetadataMapModel.parse(JSON.parse(outputMetadataRaw)).forEach((map, idx) => {
+        const output = task.outputs.at(idx);
+        if (!output || !map) return;
+        for (const [ config_key, output_key ] of Object.entries(map)) {
+            output[output_key] = task.config[config_key];
+        }
+    });
+}
+
 const task: TaskConfigurator = {
-    connect: (taskInstance: Task, key: string, output: TaskOutput | undefined, context: TaskConfiguratorContext) => {
-        const targetInput = taskInstance.inputs.find(input => input.key === key);
+    connect: (task: Task, key: string, output: TaskOutput | undefined, context: TaskConfiguratorContext) => {
+        const targetInput = task.inputs.find(input => input.key === key);
         if (!targetInput) {
             throw new Error("Input not found!"); // should not happen during normal operation
         }
@@ -32,8 +61,8 @@ const task: TaskConfigurator = {
             validateMetadataEquals(output, targetInput, compareIgnoreMetadataKeys);
             targetInput.topic_id = output.topic_id;
         }
-        taskInstance.config[targetInput.key] = targetInput.topic_id
-        return taskInstance;
+        task.config[targetInput.key] = targetInput.topic_id
+        return task;
     },
     create: (context: TaskConfiguratorContext) => {
         const metadata = context.taskHost.metadata;
@@ -41,10 +70,8 @@ const task: TaskConfigurator = {
         const inputs = z.array(TaskPartialInputModel).parse(JSON.parse(String(metadata["cfg:inputs"])))
         const outputs = z.array(MetadataModel).parse(JSON.parse(String(metadata["cfg:outputs"])))
         const config = "cfg:config" in metadata ? z.record(z.any()).parse(JSON.parse(String(metadata["cfg:config"]))) : {};
-        const outputKeys = "cfg:outputkeys" in context.taskHost.metadata ?
-            z.array(z.string().optional()).parse(JSON.parse(String(context.taskHost.metadata["cfg:outputkeys"]))) : [];
 
-        const result = {
+        const task: Task = {
             id: uuidv4(),
             task_host_id: context.taskHost.id,
             label: label,
@@ -52,20 +79,20 @@ const task: TaskConfigurator = {
             inputs: inputs,
             outputs: outputs.map(output => ({ ...output, topic_id: context.idGenerator() }))
         };
-        outputKeys.forEach((key, idx) => {
-            const topic_id = result.outputs.at(idx)?.topic_id;
-            if (key && topic_id) {
-                result.config[key] = topic_id;
-            }
-        });
-        return result;
+
+        applyOutputIdsToConfig(task, context);
+        applyConfigToOutputMetadata(task, context);
+
+        return task;
     },
-    renderEditor: (taskInstance: Task, element: HTMLElement, context: TaskConfiguratorContext) => {
+    renderEditor: (task: Task, element: HTMLElement, context: TaskConfiguratorContext) => {
         if (typeof context.taskHost.metadata["cfg:editorfields"] !== "string") return;
         const fieldsData = String(context.taskHost.metadata["cfg:editorfields"]);
         const fields = metadataFieldsCache.get(fieldsData) ?? z.array(EditorFieldModel).parse(JSON.parse(fieldsData))
         if (!metadataFieldsCache.has(fieldsData)) metadataFieldsCache.set(fieldsData, fields)
-        reactRenderer.render(element, <StaticEditor task={taskInstance} fields={fields}/>)
+        reactRenderer.render(element, <StaticEditor task={task} fields={fields} beforeUpdate={() => {
+            applyConfigToOutputMetadata(task, context);
+        }} />)
     }
 };
 

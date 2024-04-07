@@ -67,6 +67,8 @@ class TaskHostRegistration(ModelWithStrId):
   
 TaskHostRegistrationList = TypeAdapter(list[TaskHostRegistration])
 
+class TMTaskScheduleRequest(BaseModel): pass
+
 class TMTaskStartRequest(BaseModel):
   host_id: str
   topic_space_id: int | None = None
@@ -87,7 +89,8 @@ class TASK_CONSTANTS:
   FD_TM_LIST_TASK_HOSTS = "list_task_hosts"
   FD_TM_GET_TASK_HOST = "get_task_host"
   
-  FD_TM_GET_TASK = "get_task"
+  FD_TM_TASK_GET = "get_task"
+  FD_TM_TASK_SCHEDULE = "schedule_task"
   FD_TM_TASK_START = "start_task"
   FD_TM_TASK_CANCEL = "cancel_task"
   
@@ -269,13 +272,17 @@ class TaskManager(Worker):
       except KeyError as e: await req.respond_error(new_fetch_body_not_found(str(e)))
       except ValidationError as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
 
-    @server.route(TASK_CONSTANTS.FD_TM_GET_TASK)
+    @server.route(TASK_CONSTANTS.FD_TM_TASK_GET)
     async def _(req: FetchRequest):
       try:
         body = ModelWithId.model_validate(req.body)
         await req.respond(self.tasks[body.id].model_dump())
       except KeyError as e: await req.respond_error(new_fetch_body_not_found(str(e)))
       except ValidationError as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
+      
+      
+    @server.route(TASK_CONSTANTS.FD_TM_TASK_SCHEDULE)
+    async def _(req: FetchRequest): pass
     
     @server.route(TASK_CONSTANTS.FD_TM_TASK_START)
     async def _(req: FetchRequest):
@@ -350,7 +357,7 @@ class TaskManagerClient:
     result = await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_TM_GET_TASK_HOST, ModelWithStrId(id=id).model_dump())
     return TaskHostRegistration.model_validate(result)
   async def get_task(self, id: UUID4):
-    result = await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_TM_GET_TASK, ModelWithId(id=id).model_dump())
+    result = await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_TM_TASK_GET, ModelWithId(id=id).model_dump())
     return TaskInstance.model_validate(result)
   async def start_task(self, host_id: str, config: Any, topic_space_id: int | None = None):
     result = await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_TM_TASK_START, TMTaskStartRequest(host_id=host_id, config=config, topic_space_id=topic_space_id).model_dump())

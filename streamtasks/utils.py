@@ -138,10 +138,10 @@ class AsyncObservableDict:
       self._change_trigger.trigger()
 
 
-async def wait_with_cotasks(main: Awaitable, co_tasks: Iterable[asyncio.Task]):
+async def wait_with_dependencies(main: Awaitable, deps: Iterable[asyncio.Future]):
   main_task = asyncio.Task(main)
-  done, _ = await asyncio.wait([main_task, *co_tasks], return_when="FIRST_COMPLETED")
-  if main_task not in done: main_task.cancel()
+  done, _ = await asyncio.wait([main_task, *deps], return_when="FIRST_COMPLETED")
+  if not main_task.done(): main_task.cancel()
   return main_task.result()
   
 def get_timestamp_ms(): return int(time.time() * 1000)

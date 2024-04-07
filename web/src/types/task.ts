@@ -23,9 +23,9 @@ export type TaskConfiguratorContext = { taskHost: TaskHost, idGenerator: () => n
 
 export interface TaskConfigurator {
     create: (context: TaskConfiguratorContext) => (Task | Promise<Task>);
-    connect: (taskInstance: Task, key: string, output: TaskOutput | undefined, context: TaskConfiguratorContext) => (Task | Promise<Task>);
+    connect: (task: Task, key: string, output: TaskOutput | undefined, context: TaskConfiguratorContext) => (Task | Promise<Task>);
     // the editor can dispatch an event on element (or bubble it) with the name "task-instance-updated" to tell the system the instance has updated
-    renderEditor?: (taskInstance: Task, element: HTMLElement, context: TaskConfiguratorContext) => void;  
+    renderEditor?: (task: Task, element: HTMLElement, context: TaskConfiguratorContext) => void;  
 }
 
 export interface TaskIO {

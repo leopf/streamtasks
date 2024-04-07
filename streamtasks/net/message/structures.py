@@ -13,10 +13,15 @@ class TimestampMessage(BaseModel):
 class IdMessage(BaseModel):
   id: str
 
+class TimestampChuckMessage(TimestampMessage):
+  data: bytes
+
+class IdChuckMessage(IdMessage):
+  data: bytes
+
 class NumberMessage(TimestampMessage):
   timestamp: int
   value: float
-
 
 class StringMessage(TimestampMessage):
   timestamp: int

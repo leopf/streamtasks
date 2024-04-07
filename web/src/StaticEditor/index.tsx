@@ -84,12 +84,13 @@ function BooleanFieldEditor(props: { config: BooleanField, task: Task, onUpdated
     );
 }
 
-export function StaticEditor(props: { task: Task, fields: EditorField[] }) {
+export function StaticEditor(props: { task: Task, fields: EditorField[], beforeUpdate?: () => void }) {
     const rootRef = useRef<HTMLDivElement>(null);
 
     const onUpdated = useCallback(() => {
+        props.beforeUpdate?.call(null);
         rootRef.current?.dispatchEvent(new CustomEvent("task-instance-updated", { detail: props.task, bubbles: true }))
-    }, [props.task, props.fields])
+    }, [props.task, props.fields, props.beforeUpdate])
 
     return (
         <Stack spacing={2} ref={rootRef} paddingY={2}>

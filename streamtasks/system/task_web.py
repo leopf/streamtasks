@@ -21,7 +21,7 @@ from streamtasks.net.message.serialize import serializable_data_to_json
 from streamtasks.net.utils import str_to_endpoint
 from streamtasks.services.protocols import AddressNames
 from streamtasks.system.task import MetadataDict, MetadataFields, ModelWithId, TaskHostRegistration, TaskHostRegistrationList, TaskInstance, TaskManagerClient, TaskNotFoundError
-from streamtasks.utils import wait_with_cotasks
+from streamtasks.utils import wait_with_dependencies
 from streamtasks.worker import Worker
 
 
@@ -242,7 +242,7 @@ class TaskWebBackend(Worker):
         receive_disconnect_task = asyncio.create_task(ctx.receive_disconnect())
         async with TopicsReceiver(self.client, [ topic_id ]) as recv:
           while ctx.connected:
-            _, data, _ = await wait_with_cotasks(recv.get(), [receive_disconnect_task])
+            _, data, _ = await wait_with_dependencies(recv.get(), [receive_disconnect_task])
             data: SerializableData | None
             try:
               if data is not None: await ctx.send_message(f'{{ "data": {json.dumps(serializable_data_to_json(data))} }}')
@@ -261,7 +261,7 @@ class TaskWebBackend(Worker):
         deployment = self.store.get_running_deployment(UUID(ctx.params.get("deployment_id", "")))
         update_generator = self.receive_deployment_task_instance_updates(deployment)
         while True:
-          task_id, task_instance = await wait_with_cotasks(anext(update_generator), [receive_disconnect_task])
+          task_id, task_instance = await wait_with_dependencies(anext(update_generator), [receive_disconnect_task])
           await ctx.send_message(UpdateTaskInstanceMessage(id=task_id, task_instance=task_instance).model_dump_json())
       finally:
         receive_disconnect_task.cancel()
