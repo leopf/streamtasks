@@ -1,5 +1,5 @@
 import { ManagedTask } from "../lib/task";
-import { action, computed, makeObservable, observable, reaction } from "mobx";
+import { action, computed, makeObservable, observable, reaction, when } from "mobx";
 import { createStateContext } from "./util";
 import _ from "underscore";
 import { RootStore } from "./root-store";
@@ -19,6 +19,10 @@ class DeploymentTaskInstanceUpdater {
         this.ws.addEventListener("message", e => this.onData(e.data));
         this.ws.addEventListener("error", () => this.errorCount++);
         this.ws.addEventListener("close", () => this.open = false);
+        makeObservable(this, {
+            open: observable,
+            errorCount: observable
+        });
     }
 
     public destroy() {
@@ -86,6 +90,7 @@ export class DeploymentManager extends EventEmitter<{ "taskUpdated": [ManagedTas
         if (this.running) {
             await this.loadTasks();
         }
+        await when(() => this.taskInstanceUpdater?.open ?? true)
         await this.rootStore.deployment.start(this.id);
         if (this.running) {
             await this.loadTasks();
