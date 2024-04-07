@@ -3,6 +3,9 @@ import itertools
 import json
 import logging
 import mimetypes
+import os
+import shelve
+import tempfile
 from typing import Any, TypedDict
 from uuid import UUID, uuid4
 from pydantic import UUID4, Field, TypeAdapter, ValidationError
@@ -57,8 +60,18 @@ FullTaskList = TypeAdapter(list[FullTask])
 class TaskWebBackendStore:
   def __init__(self) -> None:
     self.running_deployments: dict[UUID4, RunningDeployment] = {}
-    self.deployments: dict[str, str] = {}
-    self.tasks: dict[str, str] = {}
+    
+    self.tmp_dir = tempfile.TemporaryDirectory() # TODO ugly
+    data_dir = os.getenv("DATA_DIR", self.tmp_dir.name)
+    if not os.path.exists(data_dir): os.mkdir(data_dir)
+    
+    self.deployments: shelve.Shelf = shelve.open(os.path.join(data_dir, "deployments.db"))
+    self.tasks: shelve.Shelf = shelve.open(os.path.join(data_dir, "tasks.db"))
+  
+  def __del__(self):
+    self.tmp_dir.cleanup()
+    self.deployments.close()
+    self.tasks.close()
 
   def set_running_deployment(self, deployment: RunningDeployment): self.running_deployments[deployment.id] = deployment
   def get_running_deployment(self, deployment_id: UUID4): return self.running_deployments[deployment_id]

@@ -1,5 +1,9 @@
-import asyncio
+import os
 import logging
+logging.basicConfig(level=logging.INFO)
+os.environ["DATA_DIR"] = ".data"
+
+import asyncio
 from typing import Any
 from streamtasks.asgi import HTTPServerOverASGI
 from streamtasks.client import Client
@@ -13,7 +17,6 @@ from streamtasks.system.tasks.pulsegenerator import IdPulseGeneratorTaskHost, Ti
 from streamtasks.system.tasks.timestampupdater import TimestampUpdaterTaskHost
 from streamtasks.worker import Worker
 
-logging.basicConfig(level=logging.INFO)
 
 class DemoTask(Task):
   async def setup(self) -> dict[str, Any]: return { "file:/test.js": "console.log('hello world!');" }
