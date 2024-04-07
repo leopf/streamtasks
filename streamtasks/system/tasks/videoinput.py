@@ -1,4 +1,5 @@
 import asyncio
+import multiprocessing as mp
 from typing import Any, Literal
 from pydantic import BaseModel
 from streamtasks.net.message.data import MessagePackData
@@ -30,6 +31,7 @@ class VideoInputTask(Task):
     self.out_topic = self.client.out_topic(config.out_topic)
     self.message_queue: asyncio.Queue[TimestampChuckMessage] = asyncio.Queue()
     self.config = config
+    self.mp_close_event = mp.Event()
 
   async def run(self):
     try:
@@ -40,23 +42,24 @@ class VideoInputTask(Task):
         while not recorder_fut.done():
           message: TimestampChuckMessage = await wait_with_dependencies(self.message_queue.get(), [ recorder_fut ])
           await self.out_topic.send(MessagePackData(message.model_dump()))
-    except BaseException as e:
-      print(e)
     finally:
-      if not recorder_fut.done(): recorder_fut.cancel()
+      self.mp_close_event.set()
       await recorder_fut
       
   def _run_input_recorder(self):
-    vc = cv2.VideoCapture(self.config.camera_id)
-    if not vc.isOpened(): raise Exception(f"Failed to open video capture on id {self.config.camera_id}")
-    while vc.isOpened():
-      result, frame = vc.read()
-      timestamp = get_timestamp_ms()
-      if not result: raise Exception("Failed to read image!")
-      frame = cv2.resize(frame, (self.config.width, self.config.height))
-      frame = cv2.cvtColor(frame, VideoInputTask._COLOR_FORMAT2CV_MAP[self.config.color_format])
-      self.message_queue.put_nowait(TimestampChuckMessage(timestamp=timestamp, data=frame.tobytes()))
-      
+    try:
+      vc = cv2.VideoCapture(self.config.camera_id)
+      if not vc.isOpened(): raise Exception(f"Failed to open video capture on id {self.config.camera_id}")
+      while vc.isOpened() and not self.mp_close_event.is_set():
+        result, frame = vc.read()
+        timestamp = get_timestamp_ms()
+        if not result: raise Exception("Failed to read image!")
+        frame = cv2.resize(frame, (self.config.width, self.config.height))
+        frame = cv2.cvtColor(frame, VideoInputTask._COLOR_FORMAT2CV_MAP[self.config.color_format])
+        self.message_queue.put_nowait(TimestampChuckMessage(timestamp=timestamp, data=frame.tobytes()))
+    finally:
+      vc.release()
+    
 class VideoInputTaskHost(TaskHost):
   @property
   def metadata(self): return {**static_configurator(
