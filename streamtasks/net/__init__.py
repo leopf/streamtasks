@@ -130,10 +130,11 @@ class TopicRemappingLink(Link):
   async def _recv(self) -> Message: return self._remap_message(await self._link.recv(), self._rev_topic_id_map)
   async def _send(self, message: Message): await self._link.send(self._remap_message(message, self._topic_id_map))
   async def _wait_closed(self): 
-    await asyncio.wait([
-      asyncio.create_task(super()._wait_closed()),
-      asyncio.create_task(self._link._wait_closed())
-    ], return_when=asyncio.FIRST_COMPLETED)
+    tasks = [ asyncio.create_task(super()._wait_closed()), asyncio.create_task(self._link._wait_closed()) ]
+    try:
+      await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+      for task in tasks: task.cancel()
   
   def _remap_message(self, message: Message, topic_id_map: dict[int, int]):
     if isinstance(message, TopicDataMessage):
@@ -168,10 +169,11 @@ class QueueLink(Link):
     await self.out_messages.put(message)
 
   async def _wait_closed(self):
-    await asyncio.wait([
-      asyncio.create_task(super()._wait_closed()),
-      asyncio.create_task(self._wait_closed_external())
-    ], return_when=asyncio.FIRST_COMPLETED)
+    tasks = [ asyncio.create_task(super()._wait_closed()), asyncio.create_task(self._wait_closed_external()) ]
+    try:
+      await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+      for task in tasks: task.cancel()
 
   async def _recv(self) -> Message:
     self._validate_open()

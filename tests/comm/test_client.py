@@ -36,12 +36,12 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     await asyncio.sleep(0.001)
 
   async def asyncTearDown(self):
-    self.switch.stop_receiving()
     for task in self.tasks: task.cancel()
     for task in self.tasks: 
       try: await task
       except asyncio.CancelledError: pass
       except: raise
+    self.switch.stop_receiving()
 
   @async_timeout(1)
   async def test_subscribe(self):

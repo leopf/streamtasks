@@ -59,13 +59,13 @@ class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
     await self.demo_task_host.ready.wait()
 
   async def asyncTearDown(self):
-    self.switch.stop_receiving()
     await self.web_client.aclose()
     for task in self.tasks: task.cancel()
     for task in self.tasks: 
       try: await task
       except asyncio.CancelledError: pass
       except: raise
+    self.switch.stop_receiving()
 
   async def create_client(self):
     client = Client(await self.switch.add_local_connection())

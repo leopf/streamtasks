@@ -27,8 +27,12 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     self.tasks = []
 
   async def asyncTearDown(self):
-    self.switch.stop_receiving()
     for task in self.tasks: task.cancel()
+    for task in self.tasks: 
+      try: await task
+      except asyncio.CancelledError: pass
+      except: raise
+    self.switch.stop_receiving()
 
   @async_timeout(1)
   async def test_standard_workflow(self):
