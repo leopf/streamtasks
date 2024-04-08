@@ -52,6 +52,7 @@ async def main():
     VideoDecoderTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
   ]
   
-  await asyncio.wait([discovery_task] + [ asyncio.create_task(worker.run()) for worker in workers ], return_when="FIRST_COMPLETED")
+  tasks = await asyncio.wait([discovery_task] + [ asyncio.create_task(worker.run()) for worker in workers ], return_when="FIRST_COMPLETED")
+  print(tasks)
 
 asyncio.run(main())

@@ -160,6 +160,10 @@ class TaskWebBackend(Worker):
     @router.get("/api/task-hosts")
     @http_context_handler
     async def _(ctx: HTTPContext): await ctx.respond_json_raw(TaskHostRegistrationList.dump_json(await self.tm_client.list_task_hosts()))
+    
+    @router.get("/api/task-host/{id}")
+    @http_context_handler
+    async def _(ctx: HTTPContext): await ctx.respond_json_string((await self.tm_client.get_task_host(ctx.params.get("id", None))).model_dump_json())
 
     @router.get("/api/deployments")
     @http_context_handler
