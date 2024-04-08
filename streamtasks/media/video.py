@@ -19,7 +19,7 @@ class VideoFrame(Frame[av.video.frame.VideoFrame]):
   def from_image(image): return VideoFrame(av.video.frame.VideoFrame.from_image(image))
 
   @staticmethod
-  def from_ndarray(array: np.ndarray, format: str): return VideoFrame(av.video.frame.VideoFrame.from_ndarray(array))
+  def from_ndarray(array: np.ndarray, format: str): return VideoFrame(av.video.frame.VideoFrame.from_ndarray(array, format))
 
 
 class VideoCodecInfoMinimal(CodecInfo[VideoFrame]):

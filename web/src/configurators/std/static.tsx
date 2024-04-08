@@ -13,6 +13,7 @@ export const TaskPartialInputModel = MetadataModel.and(z.object({
 }));
 export type TaskPartialInput = z.infer<typeof TaskPartialInputModel>;
 
+const InputMetadataMapModel = z.record(z.string(), z.record(z.string(), z.string()));
 const OutputMetadataMapModel = z.array(z.record(z.string(), z.string()).optional());
 const OutputKeysMapModel = z.array(z.string().optional());
 
@@ -41,11 +42,31 @@ function applyConfigToOutputMetadata(task: Task, context: TaskConfiguratorContex
     OutputMetadataMapModel.parse(JSON.parse(outputMetadataRaw)).forEach((map, idx) => {
         const output = task.outputs.at(idx);
         if (!output || !map) return;
-        for (const [ config_key, output_key ] of Object.entries(map)) {
-            output[output_key] = task.config[config_key];
+        for (const [ configKey, outputKey ] of Object.entries(map)) {
+            output[outputKey] = task.config[configKey];
         }
     });
 }
+
+// maps config values to input metadata values with map { [input key]: { [config key]: [input metadata key] } }
+function applyConfigToInputMetadata(task: Task, context: TaskConfiguratorContext) {
+    const inputMetadataRaw = context.taskHost.metadata["cfg:inputmetadata"];
+    if (typeof inputMetadataRaw !== "string") return;
+    for (const [ inputKey, map ] of Object.entries(InputMetadataMapModel.parse(JSON.parse(inputMetadataRaw)))) {
+        const foundInput = task.inputs.find(input => input.key === inputKey)
+        if (foundInput) {
+            for (const [ configKey, inputMetadataKey ] of Object.entries(map)) {
+                foundInput[inputMetadataKey] = task.config[configKey];
+            }
+        }
+    }
+}
+
+function applyConfigToIOMetadata(task: Task, context: TaskConfiguratorContext) {
+    applyConfigToOutputMetadata(task, context);
+    applyConfigToInputMetadata(task, context);
+}
+
 
 const task: TaskConfigurator = {
     connect: (task: Task, key: string, output: TaskOutput | undefined, context: TaskConfiguratorContext) => {
@@ -81,7 +102,7 @@ const task: TaskConfigurator = {
         };
 
         applyOutputIdsToConfig(task, context);
-        applyConfigToOutputMetadata(task, context);
+        applyConfigToIOMetadata(task, context);
 
         return task;
     },
@@ -91,7 +112,7 @@ const task: TaskConfigurator = {
         const fields = metadataFieldsCache.get(fieldsData) ?? z.array(EditorFieldModel).parse(JSON.parse(fieldsData))
         if (!metadataFieldsCache.has(fieldsData)) metadataFieldsCache.set(fieldsData, fields)
         reactRenderer.render(element, <StaticEditor task={task} fields={fields} beforeUpdate={() => {
-            applyConfigToOutputMetadata(task, context);
+            applyConfigToIOMetadata(task, context);
         }} />)
     }
 };

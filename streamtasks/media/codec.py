@@ -1,40 +1,12 @@
 from abc import ABC, abstractmethod
-from typing import Any, TypeVar, TypedDict, Optional, Generic, Iterator
+from typing import Any, TypeVar, TypedDict, Optional, Generic
 from streamtasks.media.config import DEFAULT_TIME_BASE_TO_MS
 from streamtasks.media.helpers import av_packet_to_media_packat, media_packet_to_av_packet
-
-from dataclasses import dataclass
 import av
 import time
 import asyncio
-
 from streamtasks.net.message.structures import MediaPacket
 
-
-@dataclass
-class AvailableCodec:
-  mode: str
-  codec: str
-  type: str
-  format: str
-
-  @property
-  def unique_name(self) -> str: return f'{self.codec}/{self.format}'
-
-
-def load_available_codecs() -> Iterator[AvailableCodec]:
-  for name in av.codecs_available:
-    for mode in ["r", "w"]:
-      try:
-        c = av.codec.Codec(name, mode)
-        item = { "mode": mode, "codec": name, "type": c.type }
-        if c.type == "audio":
-          for format in c.audio_formats:
-            yield AvailableCodec(**item, format=format.name)
-        elif c.type == "video":
-          for format in c.video_formats:
-            yield AvailableCodec(**item, format=format.name)
-      except BaseException: pass
 
 
 T = TypeVar('T')

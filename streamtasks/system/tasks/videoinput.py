@@ -19,7 +19,7 @@ class VideoInputConfig(BaseModel):
   width: int
   height: int
   rate: int
-  color_format: ColorFormat
+  pixel_format: ColorFormat
 
 class VideoInputTask(Task):
   _COLOR_FORMAT2CV_MAP: dict[ColorFormat, int] = {
@@ -55,7 +55,7 @@ class VideoInputTask(Task):
         timestamp = get_timestamp_ms()
         if not result: raise Exception("Failed to read image!")
         frame = cv2.resize(frame, (self.config.width, self.config.height))
-        frame = cv2.cvtColor(frame, VideoInputTask._COLOR_FORMAT2CV_MAP[self.config.color_format])
+        frame = cv2.cvtColor(frame, VideoInputTask._COLOR_FORMAT2CV_MAP[self.config.pixel_format])
         self.message_queue.put_nowait(TimestampChuckMessage(timestamp=timestamp, data=frame.tobytes()))
     finally:
       vc.release()
@@ -64,14 +64,14 @@ class VideoInputTaskHost(TaskHost):
   @property
   def metadata(self): return {**static_configurator(
     label="video input",
-    outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "width": 1280, "height": 720, "rate": 30, "color_format": "rgb24", "content": "bitmap" }],
-    default_config={ "color_format": "rgb24", "width": 720, "height": 1280, "rate": 30, "camera_id": 0 },
-    config_to_output_map=[ { v: v for v in [ "rate", "color_format", "width", "height" ] } ],
+    outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "width": 1280, "height": 720, "rate": 30, "pixel_format": "rgb24", "content": "bitmap" }],
+    default_config={ "pixel_format": "rgb24", "width": 720, "height": 1280, "rate": 30, "camera_id": 0 },
+    config_to_output_map=[ { v: v for v in [ "rate", "pixel_format", "width", "height" ] } ],
     editor_fields=[
       {
         "type": "select",
-        "key": "color_format",
-        "label": "color format",
+        "key": "pixel_format",
+        "label": "pixel format",
         "items": [ { "label": "RGB 24", "value": "rgb24" } ]
       },
       {

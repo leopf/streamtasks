@@ -4,7 +4,8 @@ from streamtasks.system.task import MetadataDict
 
 def static_configurator(label: str, description: str | None = None, inputs: list[MetadataDict] = [],
                         outputs: list[MetadataDict] = [], default_config: dict[str, Any] | None = None,
-                        editor_fields: list[dict] | None = None, config_to_output_map: list[dict[str, str] | None] = None):
+                        editor_fields: list[dict] | None = None, config_to_output_map: list[dict[str, str] | None] = None,
+                        config_to_input_map: dict[str, dict[str, str]] | None = None):
     metadata = {
         "js:configurator": "std:static",
         "cfg:label": label,
@@ -16,4 +17,5 @@ def static_configurator(label: str, description: str | None = None, inputs: list
     if description is not None: metadata["cfg:description"] = description
     if editor_fields is not None: metadata["cfg:editorfields"] = json.dumps(editor_fields)
     if config_to_output_map is not None: metadata["cfg:outputmetadata"] = json.dumps(config_to_output_map)
+    if config_to_input_map is not None: metadata["cfg:inputmetadata"] = json.dumps(config_to_input_map)
     return metadata
