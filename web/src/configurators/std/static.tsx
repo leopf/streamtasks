@@ -67,6 +67,18 @@ function applyConfigToIOMetadata(task: Task, context: TaskConfiguratorContext) {
     applyConfigToInputMetadata(task, context);
 }
 
+function getDisabledFields(task: Task, context: TaskConfiguratorContext) {
+    const inputMetadataRaw = context.taskHost.metadata["cfg:inputmetadata"];
+    if (typeof inputMetadataRaw !== "string") return;
+    const disabledInputs = new Set<string>();
+    for (const [ inputKey, map ] of Object.entries(InputMetadataMapModel.parse(JSON.parse(inputMetadataRaw)))) {
+        if (task.inputs.find(input => input.key === inputKey)?.topic_id) {
+            Object.keys(map).forEach(k => disabledInputs.add(k))
+        }
+    }
+    return disabledInputs;
+}
+
 
 const task: TaskConfigurator = {
     connect: (task: Task, key: string, output: TaskOutput | undefined, context: TaskConfiguratorContext) => {
@@ -113,7 +125,7 @@ const task: TaskConfigurator = {
         if (!metadataFieldsCache.has(fieldsData)) metadataFieldsCache.set(fieldsData, fields)
         reactRenderer.render(element, <StaticEditor task={task} fields={fields} beforeUpdate={() => {
             applyConfigToIOMetadata(task, context);
-        }} />)
+        }} disabledFields={getDisabledFields(task, context)} />)
     }
 };
 

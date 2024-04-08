@@ -3,7 +3,7 @@ import { Task } from "../types/task";
 import { BooleanField, EditorField, NumberField, SelectField } from "./types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-function NumberFieldEditor(props: { config: NumberField, task: Task, onUpdated: () => void }) {
+function NumberFieldEditor(props: { config: NumberField, task: Task, onUpdated: () => void, disabled?: boolean }) {
     const [value, setValue] = useState(String(props.task.config[props.config.key]) ?? "")
 
     const error = useMemo(() => {
@@ -38,6 +38,7 @@ function NumberFieldEditor(props: { config: NumberField, task: Task, onUpdated: 
             <TextField
                 size="small"
                 fullWidth
+                disabled={props.disabled}
                 value={value}
                 onInput={e => setValue((e.target as HTMLInputElement).value)}
                 label={props.config.label}
@@ -50,7 +51,7 @@ function NumberFieldEditor(props: { config: NumberField, task: Task, onUpdated: 
     )
 }
 
-function SelectFieldEditor(props: { config: SelectField, task: Task, onUpdated: () => void }) {
+function SelectFieldEditor(props: { config: SelectField, task: Task, onUpdated: () => void, disabled?: boolean }) {
     return (
         <FormControl fullWidth>
             <InputLabel htmlFor={`select-field-${props.config.key}`}>{props.config.label}</InputLabel>
@@ -59,6 +60,7 @@ function SelectFieldEditor(props: { config: SelectField, task: Task, onUpdated: 
                 label={props.config.label}
                 value={props.task.config[props.config.key] || undefined}
                 size="small"
+                disabled={props.disabled}
                 onChange={e => {
                     props.task.config[props.config.key] = e.target.value;
                     props.onUpdated();
@@ -70,11 +72,12 @@ function SelectFieldEditor(props: { config: SelectField, task: Task, onUpdated: 
     );
 }
 
-function BooleanFieldEditor(props: { config: BooleanField, task: Task, onUpdated: () => void }) {
+function BooleanFieldEditor(props: { config: BooleanField, task: Task, onUpdated: () => void, disabled?: boolean }) {
     return (
         <FormControlLabel control={(
             <Checkbox
                 size="small"
+                disabled={props.disabled}
                 checked={!!props.task.config[props.config.key]}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                     props.task.config[props.config.key] = e.target.checked;
@@ -84,7 +87,8 @@ function BooleanFieldEditor(props: { config: BooleanField, task: Task, onUpdated
     );
 }
 
-export function StaticEditor(props: { task: Task, fields: EditorField[], beforeUpdate?: () => void }) {
+export function StaticEditor(props: { task: Task, fields: EditorField[], beforeUpdate?: () => void, disabledFields?: Set<string> }) {
+    const disabledFields = props.disabledFields ?? new Set();
     const rootRef = useRef<HTMLDivElement>(null);
 
     const onUpdated = useCallback(() => {
@@ -96,13 +100,13 @@ export function StaticEditor(props: { task: Task, fields: EditorField[], beforeU
         <Stack spacing={2} ref={rootRef} paddingY={2}>
             {props.fields.map(field => {
                 if (field.type === "number") {
-                    return <NumberFieldEditor key={field.key + props.task.id} task={props.task} config={field} onUpdated={onUpdated} />
+                    return <NumberFieldEditor disabled={disabledFields.has(field.key)} key={field.key + props.task.id} task={props.task} config={field} onUpdated={onUpdated} />
                 }
                 else if (field.type === "select") {
-                    return <SelectFieldEditor key={field.key + props.task.id} task={props.task} config={field} onUpdated={onUpdated} />
+                    return <SelectFieldEditor disabled={disabledFields.has(field.key)} key={field.key + props.task.id} task={props.task} config={field} onUpdated={onUpdated} />
                 }
                 else if (field.type === "boolean") {
-                    return <BooleanFieldEditor key={field.key + props.task.id} task={props.task} config={field} onUpdated={onUpdated} />
+                    return <BooleanFieldEditor disabled={disabledFields.has(field.key)} key={field.key + props.task.id} task={props.task} config={field} onUpdated={onUpdated} />
                 }
             })}
         </Stack>
