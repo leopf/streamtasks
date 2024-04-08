@@ -9,16 +9,20 @@ from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 import numpy as np
 
-
-class VideoEncoderConfig(BaseModel):
-  out_topic: int
-  in_topic: int
+class VideoEncoderConfigBase(BaseModel):
   in_pixel_format: str
   out_pixel_format: str
   codec: str
   width: int
   height: int
   rate: int
+  
+  @staticmethod
+  def default_config(): return VideoEncoderConfigBase(in_pixel_format="rgb24", out_pixel_format="yuv420p", codec="h264", width=1280, height=720, rate=30)
+
+class VideoEncoderConfig(VideoEncoderConfigBase):
+  out_topic: int
+  in_topic: int
 
 class VideoEncoderTask(Task):  
   def __init__(self, client: Client, config: VideoEncoderConfig):
@@ -55,9 +59,9 @@ class VideoEncoderTaskHost(TaskHost):
   @property
   def metadata(self): return {**static_configurator(
     label="video encoder",
-    inputs=[{ "label": "input", "type": "ts", "key": "in_topic", "width": 1280, "height": 720, "rate": 30, "pixel_format": "rgb24", "content": "bitmap" }],
-    outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "width": 1280, "height": 720, "rate": 30 }],
-    default_config={ "in_pixel_format": "rgb24", "out_pixel_format": "rgb24", "codec": "h264", "width": 1280, "height": 720, "rate": 30 },
+    inputs=[{ "label": "input", "type": "ts", "key": "in_topic", "content": "bitmap" }],
+    outputs=[{ "label": "output", "type": "ts", "key": "out_topic" }],
+    default_config=VideoEncoderConfigBase.default_config().model_dump(),
     config_to_input_map={ "in_topic": { **{ v: v for v in [ "rate", "width", "height" ] }, "in_pixel_format": "pixel_format" } },
     config_to_output_map=[ { **{ v: v for v in [ "rate", "width", "height", "codec" ] }, "out_pixel_format": "pixel_format" } ],
     editor_fields=[

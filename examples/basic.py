@@ -8,28 +8,17 @@ logging.basicConfig(level=logging.INFO)
 os.environ["DATA_DIR"] = ".data"
 
 import asyncio
-from typing import Any
 from streamtasks.asgi import HTTPServerOverASGI
 from streamtasks.client import Client
 from streamtasks.client.discovery import wait_for_topic_signal
 from streamtasks.net import Switch
 from streamtasks.services.discovery import DiscoveryWorker
 from streamtasks.services.protocols import AddressNames, WorkerTopics
-from streamtasks.system.task import MetadataDict, Task, TaskHost, TaskManager
+from streamtasks.system.task import TaskManager
 from streamtasks.system.task_web import TaskWebBackend
 from streamtasks.system.tasks.pulsegenerator import IdPulseGeneratorTaskHost, TimePulseGeneratorTaskHost
 from streamtasks.system.tasks.timestampupdater import TimestampUpdaterTaskHost
 from streamtasks.worker import Worker
-
-
-class DemoTask(Task):
-  async def setup(self) -> dict[str, Any]: return { "file:/test.js": "console.log('hello world!');" }
-  async def run(self): return await asyncio.Future()
-
-class DemoTaskHost(TaskHost):
-  @property
-  def metadata(self) -> MetadataDict: return { "file:/hello.txt": "Hello World!" }
-  async def create_task(self, config: Any) -> Task: return DemoTask(await self.create_client())
 
 async def main():
   switch = Switch()

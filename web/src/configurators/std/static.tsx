@@ -91,8 +91,14 @@ const task: TaskConfigurator = {
             targetInput.topic_id = undefined;
         }
         else {
-            validateMetadataEquals(output, targetInput, compareIgnoreMetadataKeys);
-            targetInput.topic_id = output.topic_id;
+            try {
+                validateMetadataEquals(output, targetInput, compareIgnoreMetadataKeys);
+                targetInput.topic_id = output.topic_id;
+            } catch (error) {
+                if (targetInput.topic_id === output.topic_id) {
+                    targetInput.topic_id = undefined;
+                }
+            }
         }
         task.config[targetInput.key] = targetInput.topic_id
         return task;

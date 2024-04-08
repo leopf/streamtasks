@@ -13,13 +13,18 @@ from streamtasks.utils import get_timestamp_ms, wait_with_dependencies
 
 ColorFormat = Literal["rgb24"]
 
-class VideoInputConfig(BaseModel):
-  out_topic: int
-  camera_id: int
+class VideoInputConfigBase(BaseModel):
   width: int
   height: int
   rate: int
   pixel_format: ColorFormat
+  camera_id: int
+  
+  @staticmethod
+  def default_config(): return VideoInputConfigBase(width=1280, height=720, rate=30, pixel_format="rgb24", camera_id=0)
+
+class VideoInputConfig(VideoInputConfigBase):
+  out_topic: int
 
 class VideoInputTask(Task):
   _COLOR_FORMAT2CV_MAP: dict[ColorFormat, int] = {
@@ -64,8 +69,8 @@ class VideoInputTaskHost(TaskHost):
   @property
   def metadata(self): return {**static_configurator(
     label="video input",
-    outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "width": 1280, "height": 720, "rate": 30, "pixel_format": "rgb24", "content": "bitmap" }],
-    default_config={ "pixel_format": "rgb24", "width": 1280, "height": 720, "rate": 30, "camera_id": 0 },
+    outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "content": "bitmap" }],
+    default_config=VideoInputConfigBase.default_config().model_dump(),
     config_to_output_map=[ { v: v for v in [ "rate", "pixel_format", "width", "height" ] } ],
     editor_fields=[
       {
