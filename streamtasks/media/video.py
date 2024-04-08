@@ -5,14 +5,14 @@ import numpy as np
 from streamtasks.media.codec import CodecInfo, Frame
 
 class VideoFrame(Frame[av.video.frame.VideoFrame]):
-  def to_image(self):
-    return self.frame.to_image()
-
   def to_rgb(self):
     return VideoFrame(self.frame.to_rgb())
 
   def to_ndarray(self):
     return self.frame.to_ndarray()
+  
+  def convert(self, width: int | None = None, height: int | None = None, pixel_format: str | None = None) -> np.ndarray:
+    return self.frame.reformat(width=width, height=height, format=pixel_format).to_ndarray()
 
   @staticmethod
   def from_image(image): return VideoFrame(av.video.frame.VideoFrame.from_image(image))

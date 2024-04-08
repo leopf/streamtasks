@@ -10,7 +10,7 @@ from streamtasks.client import Client
 import numpy as np
 
 
-class VideoEncoderConfig(BaseModel):
+class VideoDecoderConfig(BaseModel):
   out_topic: int
   in_topic: int
   in_pixel_format: str
@@ -20,8 +20,8 @@ class VideoEncoderConfig(BaseModel):
   height: int
   rate: int
 
-class VideoEncoderTask(Task):  
-  def __init__(self, client: Client, config: VideoEncoderConfig):
+class VideoDecoderTask(Task):  
+  def __init__(self, client: Client, config: VideoDecoderConfig):
     super().__init__(client)
     self.out_topic = self.client.out_topic(config.out_topic)
     self.in_topic = self.client.in_topic(config.in_topic)
@@ -32,7 +32,7 @@ class VideoEncoderTask(Task):
       frame_rate=config.rate,
       pixel_format=config.out_pixel_format,
       codec=config.codec)
-    self.encoder = codec_info.get_encoder()
+    self.decoder = codec_info.get_decoder()
 
   async def run(self):
     try:
@@ -41,25 +41,25 @@ class VideoEncoderTask(Task):
         while True:
           try:
             data = await self.in_topic.recv_data()
-            message = TimestampChuckMessage.model_validate(data.data)
-            bm = np.frombuffer(message.data, dtype=np.uint8)
-            bm = bm.reshape((self.config.height, self.config.width, -1))
-            frame = VideoFrame.from_ndarray(bm, self.config.in_pixel_format)
-            packets = await self.encoder.encode(frame)
-            await self.out_topic.send(MessagePackData(MediaMessage(timestamp=message.timestamp, packets=packets).model_dump()))
+            message = MediaMessage.model_validate(data.data)
+            frames: list[VideoFrame] = []
+            for packet in message.packets: frames.extend(await self.decoder.decode(packet))
+            for frame in frames:
+              bm = frame.convert(width=self.config.width, height=self.config.height, pixel_format=self.config.out_pixel_format)
+              await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=message.timestamp, data=bm.tobytes("C")).model_dump()))
           except ValidationError: pass
     finally:
       self.encoder.close()
     
-class VideoEncoderTaskHost(TaskHost):
+class VideoDecoderTaskHost(TaskHost):
   @property
   def metadata(self): return {**static_configurator(
-    label="video encoder",
-    inputs=[{ "label": "input", "type": "ts", "key": "in_topic", "width": 1280, "height": 720, "rate": 30, "pixel_format": "rgb24", "content": "bitmap" }],
-    outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "width": 1280, "height": 720, "rate": 30 }],
+    label="video decoder",
+    inputs=[{ "label": "input", "type": "ts", "key": "in_topic", "width": 1280, "height": 720, "rate": 30 }],
+    outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "width": 1280, "height": 720, "rate": 30, "pixel_format": "rgb24", "content": "bitmap" }],
     default_config={ "in_pixel_format": "rgb24", "out_pixel_format": "rgb24", "codec": "h264", "width": 1280, "height": 720, "rate": 30 },
-    config_to_input_map={ "in_topic": { **{ v: v for v in [ "rate", "width", "height" ] }, "in_pixel_format": "pixel_format" } },
-    config_to_output_map=[ { **{ v: v for v in [ "rate", "width", "height", "codec" ] }, "out_pixel_format": "pixel_format" } ],
+    config_to_input_map={ "in_topic": { **{ v: v for v in [ "rate", "width", "height", "codec" ] }, "in_pixel_format": "pixel_format" } },
+    config_to_output_map=[ { **{ v: v for v in [ "rate", "width", "height" ] }, "out_pixel_format": "pixel_format" } ],
     editor_fields=[
       {
         "type": "select",
@@ -106,5 +106,5 @@ class VideoEncoderTaskHost(TaskHost):
     ]
   )}
   async def create_task(self, config: Any, topic_space_id: int | None):
-    return VideoEncoderTask(await self.create_client(topic_space_id), VideoEncoderConfig.model_validate(config))
+    return VideoDecoderTask(await self.create_client(topic_space_id), VideoDecoderConfig.model_validate(config))
   

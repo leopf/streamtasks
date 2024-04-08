@@ -1,6 +1,7 @@
 import os
 import logging
 
+from streamtasks.system.tasks.videodecoder import VideoDecoderTaskHost
 from streamtasks.system.tasks.videoencoder import VideoEncoderTaskHost
 from streamtasks.system.tasks.videoinput import VideoInputTaskHost
 logging.basicConfig(level=logging.INFO)
@@ -48,6 +49,7 @@ async def main():
     TimestampUpdaterTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
     VideoInputTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
     VideoEncoderTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
+    VideoDecoderTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
   ]
   
   await asyncio.wait([discovery_task] + [ asyncio.create_task(worker.run()) for worker in workers ], return_when="FIRST_COMPLETED")
