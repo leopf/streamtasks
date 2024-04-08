@@ -1,11 +1,9 @@
+from fractions import Fraction
 from typing import Optional
 from streamtasks.media.codec import CodecInfo, Frame
 import numpy as np
 import asyncio
 import av
-
-from streamtasks.media.config import DEFAULT_TIME_BASE
-
 
 class AudioFrame(Frame[av.audio.frame.AudioFrame]):
   def to_ndarray(self):
@@ -60,7 +58,7 @@ class AudioCodecInfo(CodecInfo[AudioFrame]):
     ctx.sample_rate = self.sample_rate
 
     if mode == 'w':
-      ctx.time_base = DEFAULT_TIME_BASE
+      ctx.time_base = Fraction(1, self.sample_rate)
       if self.crf is not None:
         ctx.options['crf'] = str(self.crf)
       if self.bitrate is not None:

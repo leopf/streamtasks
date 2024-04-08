@@ -187,7 +187,7 @@ export function TopicViewer(props: Topic) {
                         }
                         const container = containerRef.current;
                         if (!container) return;
-                        scrollDataRef.current.scrollBottom = container.scrollTop + 50 > container.scrollHeight - container.clientHeight;
+                        scrollDataRef.current.scrollBottom = container.scrollTop + 100 > container.scrollHeight - container.clientHeight;
                     }}>
                     {messages.map(m => (
                         <Box key={m.id} padding={1} fontSize={"0.9rem"}>

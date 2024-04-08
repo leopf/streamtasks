@@ -65,7 +65,7 @@ class VideoInputTaskHost(TaskHost):
   def metadata(self): return {**static_configurator(
     label="video input",
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "width": 1280, "height": 720, "rate": 30, "pixel_format": "rgb24", "content": "bitmap" }],
-    default_config={ "pixel_format": "rgb24", "width": 720, "height": 1280, "rate": 30, "camera_id": 0 },
+    default_config={ "pixel_format": "rgb24", "width": 1280, "height": 720, "rate": 30, "camera_id": 0 },
     config_to_output_map=[ { v: v for v in [ "rate", "pixel_format", "width", "height" ] } ],
     editor_fields=[
       {

@@ -1,16 +1,11 @@
 from abc import ABC, abstractmethod
 from typing import Any, TypeVar, TypedDict, Optional, Generic
-from streamtasks.media.config import DEFAULT_TIME_BASE_TO_MS
-from streamtasks.media.helpers import av_packet_to_media_packat, media_packet_to_av_packet
+from streamtasks.media.packet import MediaPacket
 import av
 import time
 import asyncio
-from streamtasks.net.message.structures import MediaPacket
-
-
 
 T = TypeVar('T')
-
 
 class Frame(ABC, Generic[T]):
   frame: T
@@ -34,12 +29,10 @@ F = TypeVar('F', bound=Frame)
 
 
 class Encoder(Generic[F]):
-  _t0: int = 0
   codec_context: av.codec.CodecContext
 
   def __init__(self, codec_context: av.codec.CodecContext):
     self.codec_context = codec_context
-    self._t0 = 0
   def __del__(self): self.close()
 
   async def encode(self, data: Any) -> list[MediaPacket]:
@@ -47,9 +40,8 @@ class Encoder(Generic[F]):
     packets = await loop.run_in_executor(None, self._encode, data)
 
     if len(packets) == 0: return []
-    if self._t0 == 0 and packets[0].pts is not None: self._t0 = int(time.time() * 1000 - (packets[0].pts / DEFAULT_TIME_BASE_TO_MS))
 
-    return [ av_packet_to_media_packat(packet, self._t0) for packet in packets ]
+    return [ MediaPacket.from_av_packet(packet) for packet in packets ]
 
   def close(self): self.codec_context.close(strict=False)
   def _encode(self, frame: F) -> list[av.Packet]: return self.codec_context.encode(frame.frame)
@@ -63,7 +55,7 @@ class Decoder(Generic[F]):
 
   async def decode(self, packet: MediaPacket) -> list[F]:
     loop = asyncio.get_running_loop()
-    av_packet = media_packet_to_av_packet(packet)
+    av_packet = packet.to_av_packet()
     frames = await loop.run_in_executor(None, self._decode, av_packet)
     return [ Frame.from_av_frame(frame) for frame in frames ]
 

@@ -1,18 +1,16 @@
-from streamtasks.media.config import DEFAULT_TIME_BASE_TO_MS
-from streamtasks.media.helpers import av_packet_to_media_packat
-from streamtasks.net.message import MediaPacket
 from streamtasks.media.codec import CodecInfo, Transcoder, EmptyTranscoder, AVTranscoder, Decoder, CodecOptions, apply_codec_options
 from typing import AsyncIterable
 import av
 import asyncio
 import time
 
+from streamtasks.media.packet import MediaPacket
+
 
 class InputContainer:
   _container: av.container.InputContainer
   _transcoder_map: dict[int, Transcoder]
   _stream_index_map: dict[int, int]
-  _t0: int
 
   def __init__(self, url: str, topic_encodings: list[tuple[int, CodecInfo]], codec_options: CodecOptions = {}, **kwargs):
     self._container = av.open(url, "r", **kwargs)
@@ -20,7 +18,6 @@ class InputContainer:
     # find compatible streams
     self._stream_index_map = {}
     self._transcoder_map = {}
-    self._t0 = 0
 
     # assing streams to topics and create transcoders
 
@@ -61,8 +58,7 @@ class InputContainer:
       topic = self._stream_index_map[av_packet.stream_index]
       transcoder = self._transcoder_map[topic]
 
-      if self._t0 == 0 and av_packet.pts is not None: self._t0 = int(time.time() * 1000 - (av_packet.pts / DEFAULT_TIME_BASE_TO_MS))
-      packet = av_packet_to_media_packat(av_packet, self._t0)
+      packet = MediaPacket.from_av_packet(av_packet)
 
       for t_packet in await transcoder.transcode(packet):
         yield (topic, t_packet)

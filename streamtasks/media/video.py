@@ -1,9 +1,8 @@
+from fractions import Fraction
 from typing import Optional
 import av
 import numpy as np
 from streamtasks.media.codec import CodecInfo, Frame
-from streamtasks.media.config import DEFAULT_TIME_BASE
-
 
 class VideoFrame(Frame[av.video.frame.VideoFrame]):
   def to_image(self):
@@ -21,27 +20,17 @@ class VideoFrame(Frame[av.video.frame.VideoFrame]):
   @staticmethod
   def from_ndarray(array: np.ndarray, format: str): return VideoFrame(av.video.frame.VideoFrame.from_ndarray(array, format))
 
-
-class VideoCodecInfoMinimal(CodecInfo[VideoFrame]):
-  framerate: float
-
-  def __init__(self, codec: str, framerate: float):
-    super().__init__(codec)
-    self.framerate = framerate
-
-  def _get_av_codec_context(self, mode: str): raise NotImplementedError("VideoCodecInfoMinimal does not have all the info.")
-
-
-class VideoCodecInfo(VideoCodecInfoMinimal):
+class VideoCodecInfo(CodecInfo[VideoFrame]):
   width: int
   height: int
   bitrate: Optional[int] = None
   pixel_format: str
   crf: Optional[int] = None
 
-  def __init__(self, width: int, height: int, framerate: int, pixel_format: str = 'yuv420p',
+  def __init__(self, width: int, height: int, frame_rate: int, pixel_format: str = 'yuv420p',
                codec: str = 'h264', bitrate: Optional[int] = None, crf: Optional[int] = None):
-    super().__init__(codec, framerate)
+    super().__init__(codec)
+    self.frame_rate = frame_rate
     self.width = width
     self.height = height
     self.bitrate = bitrate
@@ -55,20 +44,20 @@ class VideoCodecInfo(VideoCodecInfoMinimal):
   def type(self): return 'video'
 
   @property
-  def rate(self) -> Optional[int]: self.framerate
+  def rate(self) -> Optional[int]: self.frame_rate
 
   def compatible_with(self, other: 'CodecInfo') -> bool:
     if not isinstance(other, VideoCodecInfo): return False
-    return self.codec == other.codec and self.pixel_format == other.pixel_format and self.framerate == other.framerate and self.width == other.width and self.height == other.height
+    return self.codec == other.codec and self.pixel_format == other.pixel_format and self.frame_rate == other.frame_rate and self.width == other.width and self.height == other.height
 
   def _get_av_codec_context(self, mode: str):
     if mode not in ('r', 'w'): raise ValueError(f'Invalid mode: {mode}. Must be "r" or "w".')
     ctx = av.codec.CodecContext.create(self.codec, mode)
     ctx.format = self.to_av_format()
-    ctx.framerate = self.framerate
+    ctx.framerate = self.frame_rate
 
     if mode == 'w':
-      ctx.time_base = DEFAULT_TIME_BASE
+      ctx.time_base = Fraction(1, self.frame_rate) if self.frame_rate == int(self.frame_rate) else Fraction(1 / self.frame_rate)
       if self.crf is not None:
         ctx.options['crf'] = str(self.crf)
       if self.bitrate is not None:

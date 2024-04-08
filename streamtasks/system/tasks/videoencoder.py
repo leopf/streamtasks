@@ -1,17 +1,14 @@
-import asyncio
-import multiprocessing as mp
-from typing import Any, Literal
-from pydantic import BaseModel
+from typing import Any
+from pydantic import BaseModel, ValidationError
 from streamtasks.media.util import list_available_codecs, list_pixel_formats
 from streamtasks.media.video import VideoCodecInfo, VideoFrame
 from streamtasks.net.message.data import MessagePackData
-from streamtasks.net.message.structures import TimestampChuckMessage
+from streamtasks.net.message.structures import MediaMessage, TimestampChuckMessage
 from streamtasks.system.configurators import static_configurator
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 import numpy as np
 
-from streamtasks.utils import get_timestamp_ms, wait_with_dependencies
 
 class VideoEncoderConfig(BaseModel):
   out_topic: int
@@ -32,7 +29,7 @@ class VideoEncoderTask(Task):
     codec_info = VideoCodecInfo(
       width=config.width,
       height=config.height,
-      framerate=config.rate,
+      frame_rate=config.rate,
       pixel_format=config.out_pixel_format,
       codec=config.codec)
     self.encoder = codec_info.get_encoder()
@@ -40,20 +37,19 @@ class VideoEncoderTask(Task):
   async def run(self):
     try:
       async with self.out_topic, self.out_topic.RegisterContext(), self.in_topic, self.in_topic.RegisterContext():
+        self.client.start()
         while True:
-          data = await self.in_topic.recv_data()
-          message = TimestampChuckMessage.model_validate(data)
-          buf = np.frombuffer(data.data, dtype=np.uint8)
-          buf = buf.reshape((self.codec_info.width, self.codec_info.height, -1))
-          frame = VideoFrame.from_ndarray(buf, self.config.in_pixel_format)
-          packets = await self.encoder.encode(frame)
-          for packet in packets:
-            await self.out_topic.send(MessagePackData({
-              "timestamp": message.timestamp,
-              **packet.as_dict()
-            }))
+          try:
+            data = await self.in_topic.recv_data()
+            message = TimestampChuckMessage.model_validate(data.data)
+            bm = np.frombuffer(message.data, dtype=np.uint8)
+            bm = bm.reshape((self.config.width, self.config.height, -1))
+            frame = VideoFrame.from_ndarray(bm, self.config.in_pixel_format)
+            packets = await self.encoder.encode(frame)
+            await self.out_topic.send(MessagePackData(MediaMessage(timestamp=message.timestamp, packets=packets).model_dump()))
+          except ValidationError: pass
     finally:
-      pass
+      self.encoder.close()
     
 class VideoEncoderTaskHost(TaskHost):
   @property
@@ -61,7 +57,7 @@ class VideoEncoderTaskHost(TaskHost):
     label="video encoder",
     inputs=[{ "label": "input", "type": "ts", "key": "in_topic", "width": 1280, "height": 720, "rate": 30, "pixel_format": "rgb24", "content": "bitmap" }],
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "width": 1280, "height": 720, "rate": 30 }],
-    default_config={ "in_pixel_format": "rgb24", "out_pixel_format": "rgb24", "codec": "h264", "width": 720, "height": 1280, "rate": 30 },
+    default_config={ "in_pixel_format": "rgb24", "out_pixel_format": "rgb24", "codec": "h264", "width": 1280, "height": 720, "rate": 30 },
     config_to_input_map={ "in_topic": { **{ v: v for v in [ "rate", "width", "height" ] }, "in_pixel_format": "pixel_format" } },
     config_to_output_map=[ { **{ v: v for v in [ "rate", "width", "height", "codec" ] }, "out_pixel_format": "pixel_format" } ],
     editor_fields=[

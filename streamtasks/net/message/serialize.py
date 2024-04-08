@@ -98,8 +98,8 @@ def _value_to_json_serializable(v: Any):
   if isinstance(v, (str, float, int, bool)) or v is None: return v
   if isinstance(v, (bytes, bytearray, memoryview)): return v.hex()
   try: v = dict(v)
-  except TypeError: v = list(v)
-  except TypeError: pass
+  except (TypeError, ValueError): v = list(v)
+  except: pass
   if isinstance(v, dict): return { _value_to_json_serializable(k): _value_to_json_serializable(v) for k, v in v.items() }
   if isinstance(v, list): return [ _value_to_json_serializable(v) for v in v ]
   return repr(v)
