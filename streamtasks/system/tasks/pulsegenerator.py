@@ -14,12 +14,6 @@ class PulseGeneratorConfig(BaseModel):
   interval: float
   message_type: Literal["id", "ts"]
   out_topic: int
-  
-class TimePulseGeneratorConfig(PulseGeneratorConfig):
-  message_type: Literal["ts"] = "ts"
-
-class IdPulseGeneratorConfig(PulseGeneratorConfig):
-  message_type: Literal["id"] = "id"
 
 class PulseGeneratorTask(Task):
   def __init__(self, client: Client, config: PulseGeneratorConfig):
@@ -43,40 +37,30 @@ class PulseGeneratorTask(Task):
         if self.interval == 7: raise Exception("For testing :)")
         if self.interval == 8: return
 
-class TimePulseGeneratorTaskHost(TaskHost):
+class PulseGeneratorTaskHost(TaskHost):
   @property
   def metadata(self): return {**static_configurator(
-    label="time pulse generator",
-    description="generates a time pulse in a specified interval.",
-    outputs=[{ "label": "output", "type": "ts", "key": "out_topic" }],
-    default_config={ "interval": 1 },
-    editor_fields=[{
+    label="pulse generator",
+    description="generates a pulse in a specified interval.",
+    outputs=[{ "label": "output", "key": "out_topic" }],
+    default_config={ "interval": 1, "message_type": "ts" },
+    config_to_output_map=[{ "message_type": "type" }],
+    editor_fields=[
+      {
+        "type": "select",
+        "key": "message_type",
+        "label": "message type",
+        "items": [ { "label": "Timestamp", "value": "ts" }, { "label": "Id", "value": "id" } ]
+      },
+      {
         "type": "number",
         "key": "interval",
         "label": "interval",
         "min": 0,
         "integer": False,
         "unit": "s"
-    }]
+      }
+    ]
   )}
   async def create_task(self, config: Any, topic_space_id: int | None):
-    return PulseGeneratorTask(await self.create_client(topic_space_id), TimePulseGeneratorConfig.model_validate(config))
-
-class IdPulseGeneratorTaskHost(TaskHost):
-  @property
-  def metadata(self): return {**static_configurator(
-    label="id pulse generator",
-    description="generates an id pulse in a specified interval.",
-    outputs=[{ "label": "output", "type": "id", "key": "out_topic" }],
-    default_config={ "interval": 1 },
-    editor_fields=[{
-        "type": "number",
-        "key": "interval",
-        "label": "interval",
-        "min": 0,
-        "integer": False,
-        "unit": "s"
-    }]
-  )}
-  async def create_task(self, config: Any, topic_space_id: int | None):
-    return PulseGeneratorTask(await self.create_client(topic_space_id), IdPulseGeneratorConfig.model_validate(config))
+    return PulseGeneratorTask(await self.create_client(topic_space_id), PulseGeneratorConfig.model_validate(config))
