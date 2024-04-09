@@ -12,12 +12,14 @@ export function extractTaskIO(taskInstance: Task): TaskIO {
     }
 }
 
-export function validateMetadataEquals(a: Metadata, b: Metadata, ignoreFields: Set<keyof TaskInput>) {
+export function getMetadataKeyDiffs(a: Metadata, b: Metadata, ignoreFields: Set<keyof TaskInput>) {
+    const diffs: string[] = [];
     for (const metadataKey of new Set([...Object.keys(a), ...Object.keys(b)].filter(k => !ignoreFields.has(k)))) {
         if (a[metadataKey] !== b[metadataKey]) {
-            throw new Error(`Metadata mismatch on field "${metadataKey}".`);
+            diffs.push(metadataKey);
         }
     }
+    return diffs;
 }
 
 export const ignoreIOFieldsInEquality = ["label"];
