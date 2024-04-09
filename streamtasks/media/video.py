@@ -1,5 +1,5 @@
 from fractions import Fraction
-from typing import Optional
+from typing import Literal, Optional
 import av
 import numpy as np
 from streamtasks.media.codec import CodecInfo, Frame
@@ -44,25 +44,27 @@ class VideoCodecInfo(CodecInfo[VideoFrame]):
   def type(self): return 'video'
 
   @property
-  def rate(self) -> Optional[int]: self.frame_rate
+  def rate(self): return self.frame_rate
+  
+  @property
+  def options(self) -> dict[str, str]: return {}
 
   def compatible_with(self, other: 'CodecInfo') -> bool:
     if not isinstance(other, VideoCodecInfo): return False
     return self.codec == other.codec and self.pixel_format == other.pixel_format and self.frame_rate == other.frame_rate and self.width == other.width and self.height == other.height
 
-  def _get_av_codec_context(self, mode: str):
+  def _get_av_codec_context(self, mode: Literal["w", "w"]):
     if mode not in ('r', 'w'): raise ValueError(f'Invalid mode: {mode}. Must be "r" or "w".')
     ctx = av.codec.CodecContext.create(self.codec, mode)
     ctx.format = self.to_av_format()
     ctx.framerate = self.frame_rate
-
-    if mode == 'w':
-      ctx.time_base = Fraction(1, self.frame_rate) if self.frame_rate == int(self.frame_rate) else Fraction(1 / self.frame_rate)
+    
+    if mode == "w":
+      ctx.time_base = self.time_base
       if self.crf is not None:
         ctx.options['crf'] = str(self.crf)
       if self.bitrate is not None:
         ctx.bit_rate = self.bitrate
-
     return ctx
 
   @staticmethod

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from fractions import Fraction
 from typing import Any, TypeVar, TypedDict, Optional, Generic
 from streamtasks.media.packet import MediaPacket
 import av
@@ -35,12 +36,10 @@ class Encoder(Generic[F]):
     self.codec_context = codec_context
   def __del__(self): self.close()
 
-  async def encode(self, data: Any) -> list[MediaPacket]:
+  async def encode(self, data: F) -> list[MediaPacket]:
     loop = asyncio.get_running_loop()
     packets = await loop.run_in_executor(None, self._encode, data)
-
     if len(packets) == 0: return []
-
     return [ MediaPacket.from_av_packet(packet) for packet in packets ]
 
   def close(self): self.codec_context.close(strict=False)
@@ -50,12 +49,13 @@ class Encoder(Generic[F]):
 class Decoder(Generic[F]):
   codec_context: av.codec.CodecContext
 
-  def __init__(self, codec_context: av.codec.CodecContext):
+  def __init__(self, codec_context: av.codec.CodecContext, time_base: Fraction | None):
     self.codec_context = codec_context
+    self.time_base = time_base
 
   async def decode(self, packet: MediaPacket) -> list[F]:
     loop = asyncio.get_running_loop()
-    av_packet = packet.to_av_packet()
+    av_packet = packet.to_av_packet(self.time_base)
     frames = await loop.run_in_executor(None, self._decode, av_packet)
     return [ Frame.from_av_frame(frame) for frame in frames ]
 
@@ -88,11 +88,6 @@ class EmptyTranscoder:
 class CodecOptions(TypedDict):
   thread_type: Optional[str]
 
-
-def apply_codec_options(ctx: av.codec.CodecContext, opt: 'CodecOptions'):
-  ctx.thread_type = opt['thread_type'] if "thread_type" in opt else "AUTO"
-
-
 class CodecInfo(ABC, Generic[F]):
   codec: str
 
@@ -106,31 +101,31 @@ class CodecInfo(ABC, Generic[F]):
   @property
   def rate(self) -> Optional[int]: return None
 
+  @property
+  def time_base(self): 
+    if self.rate is None: return None
+    return Fraction(1, self.rate) if self.rate == int(self.rate) else Fraction(1/self.rate)
+
   @abstractmethod
   def compatible_with(self, other: 'CodecInfo') -> bool: pass
 
   @abstractmethod
   def _get_av_codec_context(self, mode: str) -> av.codec.CodecContext: pass
-  def _get_av_codec_context_with_options(self, mode: str, options: CodecOptions) -> av.codec.CodecContext:
-    ctx = self._get_av_codec_context(mode)
-    apply_codec_options(ctx, options)
-    return ctx
 
-  def get_encoder(self, options: CodecOptions = {}) -> Encoder: return Encoder[F](self._get_av_codec_context_with_options("w", options))
-  def get_decoder(self, options: CodecOptions = {}) -> Decoder: return Decoder[F](self._get_av_codec_context_with_options("r", options))
-  def get_transcoder(self, to: 'CodecInfo', options: CodecOptions = {}) -> Transcoder: return AVTranscoder(self.get_decoder(options), to.get_encoder(options))
+  def get_encoder(self) -> Encoder: return Encoder[F](self._get_av_codec_context("w"))
+  def get_decoder(self) -> Decoder: return Decoder[F](self._get_av_codec_context("r"), self.time_base)
+  def get_transcoder(self, to: 'CodecInfo') -> Transcoder: return AVTranscoder(self.get_decoder(), to.get_encoder())
 
   @staticmethod
   def from_codec_context(ctx: av.codec.CodecContext) -> 'CodecInfo':
-    from streamtasks.media.video import VideoCodecInfo
-    from streamtasks.media.audio import AudioCodecInfo
-    from streamtasks.media.subtitle import SubtitleCodecInfo
-
     if ctx.type == 'video':
+      from streamtasks.media.video import VideoCodecInfo
       return VideoCodecInfo.from_codec_context(ctx)
     elif ctx.type == 'audio':
+      from streamtasks.media.audio import AudioCodecInfo
       return AudioCodecInfo.from_codec_context(ctx)
     elif ctx.type == 'subtitle':
+      from streamtasks.media.subtitle import SubtitleCodecInfo
       return SubtitleCodecInfo.from_codec_context(ctx)
     else:
       raise ValueError(f'Invalid codec type: {ctx.type}')
