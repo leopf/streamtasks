@@ -4,18 +4,18 @@ from streamtasks.media.util import list_available_codecs, list_pixel_formats
 from streamtasks.media.video import VideoCodecInfo, VideoFrame
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import MediaMessage, TimestampChuckMessage
-from streamtasks.system.configurators import static_configurator
+from streamtasks.system.configurators import IOTypes, static_configurator
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 import numpy as np
 
 class VideoEncoderConfigBase(BaseModel):
-  in_pixel_format: str
-  out_pixel_format: str
-  codec: str
-  width: int
-  height: int
-  rate: int
+  in_pixel_format: IOTypes.PixelFormat
+  out_pixel_format: IOTypes.PixelFormat
+  codec: IOTypes.Codec
+  width: IOTypes.Width
+  height: IOTypes.Height
+  rate: IOTypes.Rate
   
   @staticmethod
   def default_config(): return VideoEncoderConfigBase(in_pixel_format="rgb24", out_pixel_format="yuv420p", codec="h264", width=1280, height=720, rate=30)
@@ -59,7 +59,7 @@ class VideoEncoderTaskHost(TaskHost):
   @property
   def metadata(self): return {**static_configurator(
     label="video encoder",
-    inputs=[{ "label": "input", "type": "ts", "key": "in_topic", "content": "bitmap" }],
+    inputs=[{ "label": "input", "type": "ts", "key": "in_topic", "content": "video", "codec": "raw" }],
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic" }],
     default_config=VideoEncoderConfigBase.default_config().model_dump(),
     config_to_input_map={ "in_topic": { **{ v: v for v in [ "rate", "width", "height" ] }, "in_pixel_format": "pixel_format" } },

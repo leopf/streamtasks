@@ -11,11 +11,11 @@ const ignoreFieldsForIOColor = new Set(["topic_id", "label", "key", "id"]);
 export function TaskIOLabel(props: { io: Metadata, alignRight?: true, allowOpen?: boolean, onOpen?: () => void }) {
     const metadataKV = useMemo(() =>
         [...Object.entries(props.io)]
-            .filter(([k, v]) => !ioMetadataHideKeys.has(k))
+            .filter(([k, v]) => !ioMetadataHideKeys.has(k) && v !== undefined)
             .map(([k, v]) => [k, String(v)])
             .map(([k, v]) => [ioMetadataKeyLabels[k] ?? k, ioMetadataValueLabels[k]?.[v] ?? v]), [props.io])
     const label = props.io["label"] ?? " - ";
-    const color = useMemo(() => "#" + getStreamColor(props.io, ignoreFieldsForIOColor).toString(16).padStart(6, '0'), [props.io]);
+    const color = useMemo(() => "#" + getStreamColor(props.io as Record<string, string | number | boolean>, ignoreFieldsForIOColor).toString(16).padStart(6, '0'), [props.io]);
 
     return (
         <Tooltip title={(

@@ -413,6 +413,8 @@ export class NodeEditorRenderer extends EventEmitter<{
     private container?: HTMLElement;
     private containerResizeObserver?: ResizeObserver;
 
+    private onPointerUpHandler = () => this.onReleaseNode();
+
     private _readOnly: boolean = false;
     public get readOnly() {
         return this._readOnly;
@@ -474,7 +476,7 @@ export class NodeEditorRenderer extends EventEmitter<{
                 this.renderEditingLink(e.getLocalPosition(this.viewport))
             }
         })
-        this.viewport.on("pointerup", () => this.onReleaseNode())
+        window.addEventListener("pointerup", this.onPointerUpHandler);
         this.viewport
             .drag()
             .pinch()
@@ -593,6 +595,7 @@ export class NodeEditorRenderer extends EventEmitter<{
         this.unmount();
         this.app?.destroy();
         this.app = undefined;
+        window.removeEventListener("pointerup", this.onPointerUpHandler);
     }
 
     public unselectNode() {

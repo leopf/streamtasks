@@ -4,20 +4,20 @@ from typing import Any, Literal
 from pydantic import BaseModel
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import TimestampChuckMessage
-from streamtasks.system.configurators import static_configurator
+from streamtasks.system.configurators import IOTypes, static_configurator
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 import cv2
 
 from streamtasks.utils import get_timestamp_ms, wait_with_dependencies
 
-ColorFormat = Literal["rgb24"]
+BitmapPixelFormat = Literal["rgb24"]
 
 class VideoInputConfigBase(BaseModel):
-  width: int
-  height: int
-  rate: int
-  pixel_format: ColorFormat
+  width: IOTypes.Width
+  height: IOTypes.Height
+  rate: IOTypes.Rate
+  pixel_format: BitmapPixelFormat
   camera_id: int
   
   @staticmethod
@@ -27,7 +27,7 @@ class VideoInputConfig(VideoInputConfigBase):
   out_topic: int
 
 class VideoInputTask(Task):
-  _COLOR_FORMAT2CV_MAP: dict[ColorFormat, int] = {
+  _COLOR_FORMAT2CV_MAP: dict[BitmapPixelFormat, int] = {
     "rgb24": cv2.COLOR_BGR2RGB
   }
   
@@ -69,7 +69,7 @@ class VideoInputTaskHost(TaskHost):
   @property
   def metadata(self): return {**static_configurator(
     label="video input",
-    outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "content": "bitmap" }],
+    outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "content": "video", "codec": "raw" }],
     default_config=VideoInputConfigBase.default_config().model_dump(),
     config_to_output_map=[ { v: v for v in [ "rate", "pixel_format", "width", "height" ] } ],
     editor_fields=[

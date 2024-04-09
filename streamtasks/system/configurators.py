@@ -1,7 +1,16 @@
 from itertools import zip_longest
 import json
-from typing import Any
+from typing import Any, Literal
 from streamtasks.system.task import MetadataDict
+
+class IOTypes:
+  Type = Literal["ts", "id"]
+  Contents = Literal["image", "video", "audio"] | str
+  Codec = Literal["raw"] | str
+  Width = int
+  Height = int
+  Rate = int
+  PixelFormat = str
 
 def static_configurator(label: str, description: str | None = None, inputs: list[MetadataDict] = [],
                         outputs: list[MetadataDict] = [], default_config: dict[str, Any] | None = None,
