@@ -18,8 +18,8 @@ class TestVideoCodec(unittest.IsolatedAsyncioTestCase):
       arr[y:y + 40, x:x + 40] = 255
       yield arr
 
-  def get_video_codec(self, crf, codec='h264', pixel_format='yuv420p'):
-    return VideoCodecInfo(self.w, self.h, 1, crf=crf, codec=codec, pixel_format=pixel_format)
+  def get_video_codec(self, codec='h264', pixel_format='yuv420p'):
+    return VideoCodecInfo(self.w, self.h, 1, codec=codec, pixel_format=pixel_format)
 
   def normalize_video_frame(self, frame: VideoFrame):
     np_frame = frame.to_rgb().to_ndarray()
@@ -32,7 +32,7 @@ class TestVideoCodec(unittest.IsolatedAsyncioTestCase):
   async def test_inverse_transcoder(self):
     frame_count = 100
 
-    codec = self.get_video_codec(crf=0)
+    codec = self.get_video_codec()
     encoder = codec.get_encoder()
     decoder = codec.get_decoder()
 
@@ -48,8 +48,8 @@ class TestVideoCodec(unittest.IsolatedAsyncioTestCase):
 
   async def test_transcoder(self):
     frame_count = 100
-    codec1 = self.get_video_codec(crf=0)
-    codec2 = self.get_video_codec(crf=0, codec='libvpx-vp9', pixel_format='yuv420p')
+    codec1 = self.get_video_codec()
+    codec2 = self.get_video_codec(codec='libvpx-vp9', pixel_format='yuv420p')
     transcoder = codec1.get_transcoder(codec2)
     encoder = codec1.get_encoder()
     decoder = codec2.get_decoder()

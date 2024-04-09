@@ -75,7 +75,7 @@ class VideoOutputStream:
     
   async def mux(self, packet: MediaPacket):
     packet = dataclasses.replace(packet)
-    # packet.dts = self.dts_counter
+    packet.dts = self.dts_counter
     self.dts_counter += 1
     av_packet = packet.to_av_packet(self.time_base)
     loop = asyncio.get_running_loop()
@@ -97,4 +97,4 @@ class OutputContainer:
     time_base = codec_info.time_base
     if time_base is None: raise ValueError("time_base must not be None")
     stream = self._container.add_stream(codec_name=codec_info.codec, rate=codec_info.frame_rate, width=codec_info.width, height=codec_info.height, format=codec_info.to_av_format(), options=codec_info.options) 
-    return VideoOutputStream(self._mux_lock, stream)
+    return VideoOutputStream(self._mux_lock, time_base, stream)

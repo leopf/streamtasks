@@ -1,5 +1,4 @@
-from fractions import Fraction
-from typing import Literal, Optional
+from typing import Any, Literal
 import av
 import numpy as np
 from streamtasks.media.codec import CodecInfo, Frame
@@ -21,21 +20,13 @@ class VideoFrame(Frame[av.video.frame.VideoFrame]):
   def from_ndarray(array: np.ndarray, format: str): return VideoFrame(av.video.frame.VideoFrame.from_ndarray(array, format))
 
 class VideoCodecInfo(CodecInfo[VideoFrame]):
-  width: int
-  height: int
-  bitrate: Optional[int] = None
-  pixel_format: str
-  crf: Optional[int] = None
-
-  def __init__(self, width: int, height: int, frame_rate: int, pixel_format: str = 'yuv420p',
-               codec: str = 'h264', bitrate: Optional[int] = None, crf: Optional[int] = None):
+  def __init__(self, width: int, height: int, frame_rate: int, pixel_format: str, codec: str, options: dict[str, Any] = {}):
     super().__init__(codec)
     self.frame_rate = frame_rate
     self.width = width
     self.height = height
-    self.bitrate = bitrate
+    self.options = options
     self.pixel_format = pixel_format
-    self.crf = crf
 
   def to_av_format(self) -> av.video.format.VideoFormat:
     return av.video.format.VideoFormat(self.pixel_format, self.width, self.height)
@@ -45,9 +36,6 @@ class VideoCodecInfo(CodecInfo[VideoFrame]):
 
   @property
   def rate(self): return self.frame_rate
-  
-  @property
-  def options(self) -> dict[str, str]: return {}
 
   def compatible_with(self, other: 'CodecInfo') -> bool:
     if not isinstance(other, VideoCodecInfo): return False
@@ -58,13 +46,13 @@ class VideoCodecInfo(CodecInfo[VideoFrame]):
     ctx = av.codec.CodecContext.create(self.codec, mode)
     ctx.format = self.to_av_format()
     ctx.framerate = self.frame_rate
+    ctx.options.update(self.options)
+    
+    if "bit_rate" in self.options: ctx.bit_rate = int(self.options["bit_rate"])
+    if "bit_rate_tolerance" in self.options: ctx.bit_rate_tolerance = int(self.options["bit_rate_tolerance"])
     
     if mode == "w":
       ctx.time_base = self.time_base
-      if self.crf is not None:
-        ctx.options['crf'] = str(self.crf)
-      if self.bitrate is not None:
-        ctx.bit_rate = self.bitrate
     return ctx
 
   @staticmethod
