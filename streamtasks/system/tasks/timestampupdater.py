@@ -47,6 +47,7 @@ class TimestampUpdaterTaskHost(TaskHost):
     inputs=[{ "label": "input", "type": "ts", "key": "in_topic" }],
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic" }],
     default_config={ "time_reference": "time", "time_offset": 0, "fail_closed": True },
+    io_mirror=[("in_topic", 0)],
     editor_fields=[
       {
         "type": "select",

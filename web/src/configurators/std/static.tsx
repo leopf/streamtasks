@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { TaskConfigurator, TaskConfiguratorContext, Task, TaskOutput } from "../../types/task";
+import { TaskConfigurator, TaskConfiguratorContext, Task, TaskOutput, TaskInput, Metadata } from "../../types/task";
 import { v4 as uuidv4 } from "uuid";
-import { MetadataModel } from "../../model/task";
+import { MetadataModel, TaskOutputModel } from "../../model/task";
 import { getMetadataKeyDiffs } from "../../lib/task";
 import { ReactEditorRenderer as ReactRenderer } from "../../lib/conigurator";
 import { EditorField, EditorFieldModel } from "../../StaticEditor/types";
@@ -23,10 +23,28 @@ const compareIgnoreMetadataKeys = new Set(["key", "topic_id", "label"]);
 const reactRenderer = new ReactRenderer();
 const metadataFieldsCache = new LRUCache<string, EditorField[]>({ max: 100 });
 
+function getDefinedKeys<T extends string | number | symbol>(m: Record<T, any>) {
+    return Object.entries(m).filter(([k, v]) => v !== undefined && v !== null).map(e => e[0])
+}
+
 function getCFGFieldInputMetadata(context: TaskConfiguratorContext) {
     const inputMetadataRaw = context.taskHost.metadata["cfg:inputmetadata"];
     if (typeof inputMetadataRaw !== "string") return;
     return InputMetadataMapModel.parse(JSON.parse(inputMetadataRaw));
+}
+
+function getCFGFieldInputs(context: TaskConfiguratorContext) {
+    return z.array(TaskPartialInputModel).parse(JSON.parse(String(context.taskHost.metadata["cfg:inputs"])))
+}
+
+function getCFGFieldOutputs(context: TaskConfiguratorContext) {
+    return z.array(MetadataModel).parse(JSON.parse(String(context.taskHost.metadata["cfg:outputs"])))
+}
+
+function getCFGFieldIOMirror(context: TaskConfiguratorContext) {
+    const IOMirrorMetadataRaw = context.taskHost.metadata["cfg:iomirror"];
+    if (typeof IOMirrorMetadataRaw !== "string") return;
+    return z.array(z.tuple([z.string(), z.number()])).parse(JSON.parse(IOMirrorMetadataRaw));
 }
 
 function getCFGFieldEditorFields(context: TaskConfiguratorContext): EditorField[] | undefined {
@@ -92,6 +110,97 @@ function getDisabledFields(task: Task, context: TaskConfiguratorContext, ignoreK
     return disabledInputs;
 }
 
+function connectWithConfigOverwrite(task: Task, input: TaskInput, output: TaskOutput, diffs: string[], context: TaskConfiguratorContext) {
+    try {
+        if (diffs.some(d => output[d] === undefined || output[d] === null || input[d] === undefined || input[d] === null)) {
+            throw new Error();
+        }
+        const disabledConfigFields = getDisabledFields(task, context, input.key);
+        const inputMetadata = getCFGFieldInputMetadata(context)?.[input.key] ?? {};
+        const allowSetInputMetadataConfig = Object.fromEntries(Object.entries(inputMetadata).filter(([k, v]) => !disabledConfigFields?.has(k)).map(([k, v]) => [v, k]));
+        const allowSetInputMetadata = new Set(Object.keys(allowSetInputMetadataConfig));
+
+        if (diffs.some(d => !allowSetInputMetadata.has(d))) {
+            throw new Error();
+        }
+
+        const newConfig: Record<string, any> = {};
+        for (const diff of diffs) {
+            newConfig[allowSetInputMetadataConfig[diff]] = output[diff];
+        }
+        const fields = getCFGFieldEditorFields(context);
+        const configModel = getConfigModelByFields(fields || []).partial().passthrough();
+        Object.assign(task.config, configModel.parse(newConfig));
+        applyConfigToIOMetadata(task, context);
+        input.topic_id = output.topic_id;
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function connectMirrorIO(task: Task, input: TaskInput, output: TaskOutput, diffs: string[], context: TaskConfiguratorContext) {
+    try {
+        const rawInputsMapped = Object.fromEntries(getCFGFieldInputs(context).map(i => [i.key, i]));
+        const inputsMapped = Object.fromEntries(task.inputs.map(i => [i.key, i]));
+        const rawOutputs = getCFGFieldInputs(context);
+        const ioMirror = getCFGFieldIOMirror(context) ?? [];
+        const effectedInputKeys = new Set([input.key]);
+        const effectedOutputIdxs = new Set<number>();
+        let lastEOL = 0;
+        let lastEIL = 0;
+        while (lastEOL !== effectedOutputIdxs.size || lastEIL !== effectedInputKeys.size) {
+            lastEOL = effectedOutputIdxs.size;
+            lastEIL = effectedInputKeys.size;
+            for (const m of ioMirror.filter(m => effectedInputKeys.has(m[0]))) {
+                effectedOutputIdxs.add(m[1]);
+            }
+            for (const m of ioMirror.filter(m => effectedOutputIdxs.has(m[1]))) {
+                effectedInputKeys.add(m[0]);
+            }
+        }
+        if (Array.from(effectedInputKeys).some(ik => !rawInputsMapped[ik] || !inputsMapped[ik])) {
+            throw new Error("Input not found!");
+        }
+        const baseMetadata: Metadata[] = [rawInputsMapped[input.key]]; // this is the data that must not be changed
+        effectedInputKeys.delete(input.key);
+        for (const ik of effectedInputKeys) {
+            baseMetadata.push(inputsMapped[ik].topic_id ? inputsMapped[ik] : rawInputsMapped[ik]);
+        }
+        for (const outIdx of effectedOutputIdxs) {
+            const rawOutput = rawOutputs.at(outIdx);
+            if (rawOutput) baseMetadata.push(rawOutput);
+        }
+
+        const newMetdata = { ...output };
+        for (const ignoreKey of compareIgnoreMetadataKeys) {
+            delete newMetdata[ignoreKey];
+        }
+        for (const k of Object.keys(newMetdata)) {
+            if (newMetdata[k] === undefined || newMetdata[k] === null) {
+                delete newMetdata[k];
+            }
+        }
+
+        const diffSet = new Set(diffs);
+        for (const m of baseMetadata) {
+            for (const key of getDefinedKeys(m).filter(k => diffSet.has(k))) {
+                if (newMetdata[key] !== undefined && m[key] !== newMetdata[key]) {
+                    throw new Error("Found overwritten key, that can not be overwritten.");
+                }
+            }
+        }
+
+        task.inputs = task.inputs.map(i => effectedInputKeys.has(i.key) ? (i.topic_id ? { ...i, ...newMetdata } : { ...rawInputsMapped[i.key], ...newMetdata }) : i)
+        task.outputs = task.outputs.map((o, idx) => effectedOutputIdxs.has(idx) ? { ...rawOutputs[idx], ...newMetdata, topic_id: o.topic_id } : o)
+        Object.assign(input, newMetdata);
+        input.topic_id = output.topic_id;
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 
 const task: TaskConfigurator = {
     connect: (task: Task, key: string, output: TaskOutput | undefined, context: TaskConfiguratorContext) => {
@@ -109,31 +218,11 @@ const task: TaskConfigurator = {
                 targetInput.topic_id = output.topic_id;
             }
             else {
-                try {
-                    if (diffs.some(d => output[d] === undefined || output[d] === null || targetInput[d] === undefined || targetInput[d] === null)) {
-                        throw new Error();
-                    }
-                    const disabledConfigFields = getDisabledFields(task, context, targetInput.key);
-                    const inputMetadata = getCFGFieldInputMetadata(context)?.[targetInput.key] ?? {};
-                    const allowSetInputMetadataConfig = Object.fromEntries(Object.entries(inputMetadata).filter(([k, v]) => !disabledConfigFields?.has(k)).map(([k, v]) => [v, k]));
-                    const allowSetInputMetadata = new Set(Object.keys(allowSetInputMetadataConfig));
-
-                    if (diffs.some(d => !allowSetInputMetadata.has(d))) {
-                        throw new Error();
-                    }
-
-                    const newConfig: Record<string, any> = {};
-                    for (const diff of diffs) {
-                        newConfig[allowSetInputMetadataConfig[diff]] = output[diff];
-                    }
-                    const fields = getCFGFieldEditorFields(context);
-                    const configModel = getConfigModelByFields(fields || []).partial().passthrough();
-                    Object.assign(task.config, configModel.parse(newConfig));
-                    applyConfigToIOMetadata(task, context);
-                    targetInput.topic_id = output.topic_id;
-                } catch (e) {
-                    if (targetInput.topic_id === output.topic_id) {
-                        targetInput.topic_id = undefined;
+                if (!connectWithConfigOverwrite(task, targetInput, output, diffs, context)) {
+                    if (!connectMirrorIO(task, targetInput, output, diffs, context)) {
+                        if (targetInput.topic_id === output.topic_id) {
+                            targetInput.topic_id = undefined;
+                        }
                     }
                 }
             }
@@ -144,8 +233,8 @@ const task: TaskConfigurator = {
     create: (context: TaskConfiguratorContext) => {
         const metadata = context.taskHost.metadata;
         const label = z.string().parse(metadata["cfg:label"]);
-        const inputs = z.array(TaskPartialInputModel).parse(JSON.parse(String(metadata["cfg:inputs"])))
-        const outputs = z.array(MetadataModel).parse(JSON.parse(String(metadata["cfg:outputs"])))
+        const inputs = getCFGFieldInputs(context)
+        const outputs = getCFGFieldOutputs(context)
         const config = "cfg:config" in metadata ? z.record(z.any()).parse(JSON.parse(String(metadata["cfg:config"]))) : {};
 
         const task: Task = {
