@@ -3,6 +3,7 @@ from streamtasks.media.audio import AudioCodecInfo, AudioFrame
 import numpy as np
 import scipy
 
+from tests.media import create_audio_track
 
 class TestAudioCodec(unittest.IsolatedAsyncioTestCase):
   sample_rate = 44100
@@ -11,12 +12,7 @@ class TestAudioCodec(unittest.IsolatedAsyncioTestCase):
   def setUp(self):
     self.resampler = self.get_audio_codec("pcm_s16le", "s16").get_resampler()
 
-  def create_samples(self, freq: int, duration: float) -> bytes:
-    return np.sin(2 * np.pi * np.arange(int(self.sample_rate * duration)) * freq / self.sample_rate)
-
-  def create_track(self, duration: float = 1):
-    samples = self.create_samples(420, duration) + self.create_samples(69, duration) + self.create_samples(111, duration)
-    return (samples * 10000).astype(np.int16)
+  def create_track(self, duration: float = 1): return create_audio_track(duration, self.sample_rate)
 
   def get_audio_codec(self, codec: str, pixel_format: str):
     return AudioCodecInfo(

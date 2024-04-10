@@ -38,12 +38,16 @@ class Encoder(Generic[F]):
 
   async def encode(self, data: F) -> list[MediaPacket]:
     loop = asyncio.get_running_loop()
-    packets = await loop.run_in_executor(None, self._encode, data)
-    if len(packets) == 0: return []
+    packets = await loop.run_in_executor(None, self._encode, data.frame)
+    return [ MediaPacket.from_av_packet(packet) for packet in packets ]
+
+  async def flush(self) -> list[MediaPacket]:
+    loop = asyncio.get_running_loop()
+    packets = await loop.run_in_executor(None, self._encode, None)
     return [ MediaPacket.from_av_packet(packet) for packet in packets ]
 
   def close(self): self.codec_context.close(strict=False)
-  def _encode(self, frame: F) -> list[av.Packet]: return self.codec_context.encode(frame.frame)
+  def _encode(self, frame: F) -> list[av.Packet]: return self.codec_context.encode(frame)
 
 
 class Decoder(Generic[F]):
@@ -57,6 +61,11 @@ class Decoder(Generic[F]):
     loop = asyncio.get_running_loop()
     av_packet = packet.to_av_packet(self.time_base)
     frames = await loop.run_in_executor(None, self._decode, av_packet)
+    return [ Frame.from_av_frame(frame) for frame in frames ]
+
+  async def flush(self):
+    loop = asyncio.get_running_loop()
+    frames = await loop.run_in_executor(None, self._decode, None)
     return [ Frame.from_av_frame(frame) for frame in frames ]
 
   def close(self): self.codec_context.close()

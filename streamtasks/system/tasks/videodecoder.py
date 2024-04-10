@@ -50,7 +50,7 @@ class VideoDecoderTask(Task):
             frames: list[VideoFrame] = []
             for packet in message.packets: frames.extend(await self.decoder.decode(packet))
             for frame in frames:
-              bm = frame.convert(width=self.config.width, height=self.config.height, pixel_format=self.config.out_pixel_format)
+              bm = frame.convert(width=self.config.width, height=self.config.height, pixel_format=self.config.out_pixel_format).to_ndarray()
               await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=message.timestamp, data=bm.tobytes("C")).model_dump()))
           except ValidationError: pass
     finally:
