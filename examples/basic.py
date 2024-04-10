@@ -1,6 +1,7 @@
 import os
 import logging
 
+from streamtasks.system.tasks.inputcontainer import InputContainerTaskHost
 from streamtasks.system.tasks.outputcontainer import OutputContainerTaskHost
 from streamtasks.system.tasks.videodecoder import VideoDecoderTaskHost
 from streamtasks.system.tasks.videoencoder import VideoEncoderTaskHost
@@ -33,13 +34,14 @@ async def main():
   workers: list[Worker] = [
     TaskManager(await switch.add_local_connection()),
     TaskWebBackend(await switch.add_local_connection(), public_path="web/dist"),
-    HTTPServerOverASGI(await switch.add_local_connection(), ("127.0.0.1", 8080), AddressNames.TASK_MANAGER_WEB),
+    HTTPServerOverASGI(await switch.add_local_connection(), ("127.0.0.1", 8081), AddressNames.TASK_MANAGER_WEB),
     PulseGeneratorTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
     TimestampUpdaterTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
     VideoInputTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
     VideoEncoderTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
     VideoDecoderTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
     OutputContainerTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
+    InputContainerTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
   ]
   
   done_tasks, _ = await asyncio.wait([discovery_task] + [ asyncio.create_task(worker.run()) for worker in workers ], return_when="FIRST_COMPLETED")

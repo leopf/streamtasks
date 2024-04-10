@@ -1,3 +1,4 @@
+from fractions import Fraction
 from typing import Any, Literal
 import av
 import numpy as np
@@ -20,7 +21,7 @@ class VideoFrame(Frame[av.video.frame.VideoFrame]):
   def from_ndarray(array: np.ndarray, format: str): return VideoFrame(av.video.frame.VideoFrame.from_ndarray(array, format))
 
 class VideoCodecInfo(CodecInfo[VideoFrame]):
-  def __init__(self, width: int, height: int, frame_rate: int, pixel_format: str, codec: str, options: dict[str, Any] = {}):
+  def __init__(self, width: int, height: int, frame_rate: float, pixel_format: str, codec: str, options: dict[str, Any] = {}):
     super().__init__(codec)
     self.frame_rate = frame_rate
     self.width = width
@@ -39,7 +40,7 @@ class VideoCodecInfo(CodecInfo[VideoFrame]):
 
   def compatible_with(self, other: 'CodecInfo') -> bool:
     if not isinstance(other, VideoCodecInfo): return False
-    return self.codec == other.codec and self.pixel_format == other.pixel_format and self.frame_rate == other.frame_rate and self.width == other.width and self.height == other.height
+    return self.codec == other.codec and self.frame_rate == other.frame_rate and self.width == other.width and self.height == other.height and self.pixel_format == other.pixel_format
 
   def _get_av_codec_context(self, mode: Literal["w", "w"]):
     if mode not in ('r', 'w'): raise ValueError(f'Invalid mode: {mode}. Must be "r" or "w".')
@@ -58,4 +59,5 @@ class VideoCodecInfo(CodecInfo[VideoFrame]):
   @staticmethod
   def from_codec_context(ctx: av.codec.CodecContext):
     format = ctx.format
-    return VideoCodecInfo(ctx.width, ctx.height, ctx.framerate, format.name, ctx.name, ctx.bit_rate, ctx.options.get('crf', None))
+    framerate = float(ctx.framerate)
+    return VideoCodecInfo(ctx.width, ctx.height, framerate, format.name, ctx.name)

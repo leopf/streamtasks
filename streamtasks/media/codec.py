@@ -99,7 +99,7 @@ class CodecInfo(ABC, Generic[F]):
   def type(self) -> str: pass
 
   @property
-  def rate(self) -> Optional[int]: return None
+  def rate(self) -> Optional[float]: return None
 
   @property
   def time_base(self): 
