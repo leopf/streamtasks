@@ -1,7 +1,26 @@
 import { Box, Checkbox, FormControl, FormControlLabel, InputLabel, MenuItem, Select, Stack, TextField, Typography } from "@mui/material";
 import { Task } from "../types/task";
-import { BooleanField, EditorField, NumberField, SelectField } from "./types";
+import { BooleanField, EditorField, NumberField, SelectField, TextField as STextField } from "./types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+function TextFieldEditor(props: { config: STextField, task: Task, onUpdated: () => void, disabled?: boolean }) {
+    const [value, setValue] = useState(String(props.task.config[props.config.key]) ?? "")
+
+    useEffect(() => {
+        props.task.config[props.config.key] = value;
+        props.onUpdated();
+    }, [value]);
+
+    return (
+        <TextField
+            size="small"
+            fullWidth
+            disabled={props.disabled}
+            value={value}
+            onInput={e => setValue((e.target as HTMLInputElement).value)}
+            label={props.config.label}/>
+    )
+}
 
 function NumberFieldEditor(props: { config: NumberField, task: Task, onUpdated: () => void, disabled?: boolean }) {
     const [value, setValue] = useState(String(props.task.config[props.config.key]) ?? "")
@@ -107,6 +126,9 @@ export function StaticEditor(props: { task: Task, fields: EditorField[], beforeU
                 }
                 else if (field.type === "boolean") {
                     return <BooleanFieldEditor disabled={disabledFields.has(field.key)} key={field.key + props.task.id} task={props.task} config={field} onUpdated={onUpdated} />
+                }
+                else if (field.type === "text") {
+                    return <TextFieldEditor disabled={disabledFields.has(field.key)} key={field.key + props.task.id} task={props.task} config={field} onUpdated={onUpdated} />
                 }
             })}
         </Stack>

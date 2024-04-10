@@ -1,6 +1,6 @@
 from typing import Any
 from pydantic import BaseModel, ValidationError
-from streamtasks.media.util import list_available_codecs, list_pixel_formats
+from streamtasks.media.util import list_available_codecs, list_pixel_formats, list_sorted_available_codecs
 from streamtasks.media.video import VideoCodecInfo, VideoFrame
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import MediaMessage, TimestampChuckMessage
@@ -49,8 +49,9 @@ class VideoEncoderTask(Task):
             bm = np.frombuffer(message.data, dtype=np.uint8)
             bm = bm.reshape((self.config.height, self.config.width, -1))
             frame = VideoFrame.from_ndarray(bm, self.config.in_pixel_format)
-            packets = await self.encoder.encode(frame)
-            await self.out_topic.send(MessagePackData(MediaMessage(timestamp=message.timestamp, packets=packets).model_dump()))
+            packets = [p for p in await self.encoder.encode(frame) if p.dts is not None and p.pts is not None]
+            if len(packets) > 0:
+              await self.out_topic.send(MessagePackData(MediaMessage(timestamp=message.timestamp, packets=packets).model_dump()))
           except ValidationError: pass
     finally:
       self.encoder.close()
@@ -81,7 +82,7 @@ class VideoEncoderTaskHost(TaskHost):
         "type": "select",
         "key": "codec",
         "label": "codec",
-        "items": [ { "label": codec.name.upper(), "value": codec.name } for codec in sorted(list_available_codecs("w"), key=lambda sc: sc.name) if codec.type == "video" ]
+        "items": [ { "label": codec.name.upper(), "value": codec.name } for codec in list_sorted_available_codecs("w") if codec.type == "video" ]
       },
       {
         "type": "number",

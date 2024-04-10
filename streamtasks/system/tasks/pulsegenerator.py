@@ -10,9 +10,14 @@ from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 import asyncio
 
-class PulseGeneratorConfig(BaseModel):
+class PulseGeneratorConfigBase(BaseModel):
   interval: float
   message_type: Literal["id", "ts"]
+  
+  @staticmethod
+  def default_config(): return PulseGeneratorConfigBase(interval=1, message_type="ts")
+  
+class PulseGeneratorConfig(PulseGeneratorConfigBase):
   out_topic: int
 
 class PulseGeneratorTask(Task):
@@ -43,7 +48,7 @@ class PulseGeneratorTaskHost(TaskHost):
     label="pulse generator",
     description="generates a pulse in a specified interval.",
     outputs=[{ "label": "output", "key": "out_topic" }],
-    default_config={ "interval": 1, "message_type": "ts" },
+    default_config=PulseGeneratorConfigBase.default_config().model_dump(),
     config_to_output_map=[{ "message_type": "type" }],
     editor_fields=[
       {

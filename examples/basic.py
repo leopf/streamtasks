@@ -1,6 +1,7 @@
 import os
 import logging
 
+from streamtasks.system.tasks.outputcontainer import OutputContainerTaskHost
 from streamtasks.system.tasks.videodecoder import VideoDecoderTaskHost
 from streamtasks.system.tasks.videoencoder import VideoEncoderTaskHost
 from streamtasks.system.tasks.videoinput import VideoInputTaskHost
@@ -38,9 +39,10 @@ async def main():
     VideoInputTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
     VideoEncoderTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
     VideoDecoderTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
+    OutputContainerTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
   ]
   
-  tasks = await asyncio.wait([discovery_task] + [ asyncio.create_task(worker.run()) for worker in workers ], return_when="FIRST_COMPLETED")
-  print(tasks)
+  done_tasks, _ = await asyncio.wait([discovery_task] + [ asyncio.create_task(worker.run()) for worker in workers ], return_when="FIRST_COMPLETED")
+  for task in done_tasks: await task
 
 asyncio.run(main())

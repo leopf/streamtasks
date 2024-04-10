@@ -66,7 +66,9 @@ def list_available_codecs(mode: Literal["r", "w"]) -> Iterator[CodecInfo]:
       c = av.codec.Codec(name, mode)
       yield CodecInfo(name=name, type=c.type)
     except BaseException: pass
-      
+
+def list_sorted_available_codecs(mode: Literal["r", "w"]) -> Iterator[CodecInfo]: return sorted(list_available_codecs(mode), key=lambda c: c.name)
+
 def list_codec_formats(name: str, mode: Literal["r", "w"]):
   c = av.codec.Codec(name, mode)
   if c.type == "audio": return [ f.name for f in c.audio_formats ]

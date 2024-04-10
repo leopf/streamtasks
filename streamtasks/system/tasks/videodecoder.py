@@ -1,6 +1,6 @@
 from typing import Any
 from pydantic import BaseModel, ValidationError
-from streamtasks.media.util import list_available_codecs, list_pixel_formats
+from streamtasks.media.util import list_available_codecs, list_pixel_formats, list_sorted_available_codecs
 from streamtasks.media.video import VideoCodecInfo, VideoFrame
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import MediaMessage, TimestampChuckMessage
@@ -81,7 +81,7 @@ class VideoDecoderTaskHost(TaskHost):
         "type": "select",
         "key": "codec",
         "label": "codec",
-        "items": [ { "label": codec.name.upper(), "value": codec.name } for codec in sorted(list_available_codecs("w"), key=lambda sc: sc.name) if codec.type == "video" ]
+        "items": [ { "label": codec.name.upper(), "value": codec.name } for codec in list_sorted_available_codecs("r") if codec.type == "video" ]
       },
       {
         "type": "number",

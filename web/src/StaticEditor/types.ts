@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+export const TextFieldModel = z.object({
+    type: z.literal("text"),
+    label: z.string(),
+    key: z.string(),
+});
 export const NumberFieldModel = z.object({
     type: z.literal("number"),
     label: z.string(),
@@ -23,8 +28,9 @@ export const BooleanFieldModel = z.object({
     label: z.string(),
     key: z.string()
 });
-export const EditorFieldModel = z.discriminatedUnion("type", [NumberFieldModel, SelectFieldModel, BooleanFieldModel])
+export const EditorFieldModel = z.discriminatedUnion("type", [NumberFieldModel, SelectFieldModel, BooleanFieldModel, TextFieldModel])
 
+export type TextField = z.infer<typeof TextFieldModel>;
 export type NumberField = z.infer<typeof NumberFieldModel>;
 export type SelectField = z.infer<typeof SelectFieldModel>;
 export type BooleanField = z.infer<typeof BooleanFieldModel>;
