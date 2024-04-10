@@ -1,11 +1,14 @@
 import numpy as np
+import scipy
 
 from streamtasks.media.video import VideoFrame
 
 def create_audio_samples(sample_rate: int,  freq: int, duration: float) -> bytes:
   return np.sin(2 * np.pi * np.arange(int(sample_rate * duration)) * freq / sample_rate)
 
-def create_audio_track(duration: float, sample_rate: int, ):
+_audio_track_freq_count = 3
+
+def create_audio_track(duration: float, sample_rate: int):
     samples = create_audio_samples(sample_rate, 420, duration) + create_audio_samples(sample_rate, 69, duration) + create_audio_samples(sample_rate, 111, duration)
     return (samples * 10000).astype(np.int16)
   
@@ -25,3 +28,17 @@ def normalize_video_frame(frame: VideoFrame):
   # round frame to 0 or 255
   np_frame = np.where(np_frame > 127, 255, 0)
   return np_frame
+
+def get_spectum(samples: np.ndarray):
+  freqs = scipy.fft.fft(samples)
+  freqs = freqs[range(int(len(freqs) / 2))] # keep only first half
+  freqs = abs(freqs) # get magnitude
+  freqs = freqs / freqs.sum() # normalize
+  return freqs
+
+def get_freq_similarity(a: np.ndarray, b: np.ndarray):
+  a_freqs = np.argsort(a)[-_audio_track_freq_count:]
+  b_freqs = np.argsort(b)[-_audio_track_freq_count:]
+  a_freqs.sort()
+  b_freqs.sort()
+  return np.abs(a_freqs - b_freqs).sum()

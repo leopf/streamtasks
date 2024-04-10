@@ -8,6 +8,7 @@ from streamtasks.net.message.structures import NumberMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.tasks.gate import GateConfig, GateState, GateTask, GateFailMode
 import asyncio
+from tests.shared import full_test
 from tests.sim import Simulator
 from .shared import TaskTestBase, run_task
 
@@ -134,7 +135,7 @@ class TestGate(TaskTestBase):
   async def test_gate_fail_open(self): await self._test_fail_mode(GateFailMode.OPEN)
   async def test_gate_fail_closed(self): await self._test_fail_mode(GateFailMode.CLOSED)
 
-@unittest.skipIf(not bool(os.getenv("FULL")), "Disabled for performance reasons. Use env FULL=1 to enable.")
+@full_test
 class TestGateFull(TestGate):
   def generate_events(self): return Simulator.generate_events(list(GateSimEvent))
 

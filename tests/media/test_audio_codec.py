@@ -1,9 +1,8 @@
 import unittest
 from streamtasks.media.audio import AudioCodecInfo, AudioFrame
 import numpy as np
-import scipy
 
-from tests.media import create_audio_track
+from tests.media import create_audio_track, get_freq_similarity, get_spectum
 
 class TestAudioCodec(unittest.IsolatedAsyncioTestCase):
   sample_rate = 44100
@@ -14,30 +13,16 @@ class TestAudioCodec(unittest.IsolatedAsyncioTestCase):
 
   def create_track(self, duration: float = 1): return create_audio_track(duration, self.sample_rate)
 
-  def get_audio_codec(self, codec: str, pixel_format: str):
+  def get_audio_codec(self, codec: str, sample_format: str):
     return AudioCodecInfo(
       codec=codec,
       channels=1,
       sample_rate=self.sample_rate,
-      sample_format=pixel_format,
+      sample_format=sample_format,
     )
 
   def resample_audio_frame(self, frame: AudioFrame):
     return self.resampler.resample(frame)
-
-  def get_spectum(self, samples: np.ndarray):
-    freqs = scipy.fft.fft(samples)
-    freqs = freqs[range(int(len(freqs) / 2))] # keep only first half
-    freqs = abs(freqs) # get magnitude
-    freqs = freqs / freqs.sum() # normalize
-    return freqs
-
-  def get_freq_similarity(self, a: np.ndarray, b: np.ndarray):
-    a_freqs = np.argsort(a)[-self.freq_count:]
-    b_freqs = np.argsort(b)[-self.freq_count:]
-    a_freqs.sort()
-    b_freqs.sort()
-    return np.abs(a_freqs - b_freqs).sum()
 
   async def test_inverse_transcoder(self):
     in_samples = self.create_track()
@@ -56,9 +41,7 @@ class TestAudioCodec(unittest.IsolatedAsyncioTestCase):
 
     out_samples = np.concatenate(out_samples, axis=1)[0]
 
-    in_freqs = self.get_spectum(in_samples)
-    out_freqs = self.get_spectum(out_samples)
-    similarity = self.get_freq_similarity(in_freqs, out_freqs) # lower is better
+    similarity = get_freq_similarity(get_spectum(in_samples), get_spectum(out_samples)) # lower is better
     self.assertLess(similarity, 20)
 
   async def test_transcoder(self):
@@ -80,9 +63,7 @@ class TestAudioCodec(unittest.IsolatedAsyncioTestCase):
 
     out_samples = np.concatenate(out_samples, axis=1)[0]
 
-    in_freqs = self.get_spectum(in_samples)
-    out_freqs = self.get_spectum(out_samples)
-    similarity = self.get_freq_similarity(in_freqs, out_freqs)
+    similarity = get_freq_similarity(get_spectum(in_samples), get_spectum(out_samples)) # lower is better
     self.assertLess(similarity, 40)
 
 

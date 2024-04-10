@@ -62,14 +62,13 @@ class AudioCodecInfo(CodecInfo[AudioFrame]):
 
   @staticmethod
   def from_codec_context(ctx: av.codec.CodecContext):
-    format = ctx.format
-    return AudioCodecInfo(ctx.name, ctx.channels, ctx.sample_rate, format.name, ctx.bit_rate, ctx.options.get('crf', None))
+    return AudioCodecInfo(ctx.name, ctx.channels, ctx.sample_rate, ctx.format.name)
 
 class AudioResampler:
   def __init__(self, format: av.audio.format.AudioFormat, layout: av.audio.layout.AudioLayout, rate: int):
     self.resampler = av.audio.resampler.AudioResampler(format, layout, rate)
 
-  async def resample(self, frame: AudioFrame) -> AudioFrame:
+  async def resample(self, frame: AudioFrame) -> list[AudioFrame]:
     loop = asyncio.get_running_loop()
     av_frames = await loop.run_in_executor(None, self.resampler.resample, frame.frame)
     return [ AudioFrame(av_frame) for av_frame in av_frames ]
