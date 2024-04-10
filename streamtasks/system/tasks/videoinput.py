@@ -54,6 +54,7 @@ class VideoInputTask(Task):
   def _run_input_recorder(self):
     try:
       vc = cv2.VideoCapture(self.config.camera_id)
+      vc.set(cv2.CAP_PROP_FPS, self.config.rate)
       if not vc.isOpened(): raise Exception(f"Failed to open video capture on id {self.config.camera_id}")
       while vc.isOpened() and not self.mp_close_event.is_set():
         result, frame = vc.read()

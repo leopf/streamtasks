@@ -16,9 +16,10 @@ class VideoEncoderConfigBase(BaseModel):
   width: IOTypes.Width
   height: IOTypes.Height
   rate: IOTypes.Rate
+  codec_options: dict[str, str]
   
   @staticmethod
-  def default_config(): return VideoEncoderConfigBase(in_pixel_format="rgb24", out_pixel_format="yuv420p", codec="h264", width=1280, height=720, rate=30)
+  def default_config(): return VideoEncoderConfigBase(in_pixel_format="rgb24", out_pixel_format="yuv420p", codec="h264", width=1280, height=720, rate=30, codec_options={})
 
 class VideoEncoderConfig(VideoEncoderConfigBase):
   out_topic: int
@@ -35,7 +36,7 @@ class VideoEncoderTask(Task):
       height=config.height,
       frame_rate=config.rate,
       pixel_format=config.out_pixel_format,
-      codec=config.codec)
+      codec=config.codec, options=config.codec_options)
     self.encoder = codec_info.get_encoder()
 
   async def run(self):
@@ -108,6 +109,11 @@ class VideoEncoderTaskHost(TaskHost):
         "min": 0,
         "unit": "fps"
       },
+      {
+        "type": "kvoptions",
+        "key": "codec_options",
+        "label": "codec options",
+      }
     ]
   )}
   async def create_task(self, config: Any, topic_space_id: int | None):

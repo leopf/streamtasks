@@ -15,9 +15,10 @@ class OutputContainerConfigBase(BaseModel):
   width: IOTypes.Width
   height: IOTypes.Height
   rate: IOTypes.Rate
+  container_options: dict[str, str]
 
   @staticmethod
-  def default_config(): return OutputContainerConfigBase(destination="", pixel_format="yuv420p", codec="h264", width=1280, height=720, rate=30)
+  def default_config(): return OutputContainerConfigBase(destination="", pixel_format="yuv420p", codec="h264", width=1280, height=720, rate=30, container_options={})
 
 class OutputContainerConfig(OutputContainerConfigBase):
   in_topic: int
@@ -30,7 +31,8 @@ class OutputContainerTask(Task):
 
   async def run(self):
     try:
-      container = OutputContainer(self.config.destination)
+      container = None
+      container = OutputContainer(self.config.destination, **self.config.container_options)
       video_stream = container.add_video_stream(VideoCodecInfo(self.config.width, self.config.height, self.config.rate, self.config.pixel_format, self.config.codec))
       async with self.in_topic, self.in_topic.RegisterContext():
         self.client.start()
@@ -41,7 +43,7 @@ class OutputContainerTask(Task):
             for packet in message.packets: await video_stream.mux(packet)
           except ValidationError: pass
     finally:
-      await container.close()
+      if container is not None: await container.close()
 
 class OutputContainerTaskHost(TaskHost):
   @property
@@ -91,6 +93,11 @@ class OutputContainerTaskHost(TaskHost):
         "integer": True,
         "min": 0,
         "unit": "fps"
+      },
+      {
+        "type": "kvoptions",
+        "key": "container_options",
+        "label": "container options",
       }
     ])}
   async def create_task(self, config: Any, topic_space_id: int | None):

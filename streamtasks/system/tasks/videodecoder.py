@@ -16,9 +16,10 @@ class VideoDecoderConfigBase(BaseModel):
   width: IOTypes.Width
   height: IOTypes.Height
   rate: IOTypes.Rate
+  codec_options: dict[str, str]
   
   @staticmethod
-  def default_config(): return VideoDecoderConfigBase(in_pixel_format="yuv420p", out_pixel_format="rgb24", codec="h264", width=1280, height=720, rate=30)
+  def default_config(): return VideoDecoderConfigBase(in_pixel_format="yuv420p", out_pixel_format="rgb24", codec="h264", width=1280, height=720, rate=30, codec_options={})
   
 class VideoDecoderConfig(VideoDecoderConfigBase):
   out_topic: int
@@ -35,7 +36,7 @@ class VideoDecoderTask(Task):
       height=config.height,
       frame_rate=config.rate,
       pixel_format=config.out_pixel_format,
-      codec=config.codec)
+      codec=config.codec, options=config.codec_options)
     self.decoder = codec_info.get_decoder()
 
   async def run(self):
@@ -53,7 +54,7 @@ class VideoDecoderTask(Task):
               await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=message.timestamp, data=bm.tobytes("C")).model_dump()))
           except ValidationError: pass
     finally:
-      self.encoder.close()
+      self.decoder.close()
     
 class VideoDecoderTaskHost(TaskHost):
   @property
@@ -107,6 +108,11 @@ class VideoDecoderTaskHost(TaskHost):
         "min": 0,
         "unit": "fps"
       },
+      {
+        "type": "kvoptions",
+        "key": "codec_options",
+        "label": "codec options",
+      }
     ]
   )}
   async def create_task(self, config: Any, topic_space_id: int | None):

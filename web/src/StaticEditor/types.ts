@@ -28,11 +28,19 @@ export const BooleanFieldModel = z.object({
     label: z.string(),
     key: z.string()
 });
-export const EditorFieldModel = z.discriminatedUnion("type", [NumberFieldModel, SelectFieldModel, BooleanFieldModel, TextFieldModel])
+export const KVOptionsFieldModel = z.object({
+    type: z.literal("kvoptions"),
+    label: z.string(),
+    key: z.string(),
+    suggestions: z.array(z.string()).optional()
+});
+
+export const EditorFieldModel = z.discriminatedUnion("type", [NumberFieldModel, SelectFieldModel, BooleanFieldModel, TextFieldModel, KVOptionsFieldModel])
 
 export type TextField = z.infer<typeof TextFieldModel>;
 export type NumberField = z.infer<typeof NumberFieldModel>;
 export type SelectField = z.infer<typeof SelectFieldModel>;
 export type BooleanField = z.infer<typeof BooleanFieldModel>;
+export type KVOptionsField = z.infer<typeof KVOptionsFieldModel>;
 
 export type EditorField = z.infer<typeof EditorFieldModel>;

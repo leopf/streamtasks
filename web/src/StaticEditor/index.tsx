@@ -1,7 +1,8 @@
-import { Box, Checkbox, FormControl, FormControlLabel, InputLabel, MenuItem, Select, Stack, TextField, Typography } from "@mui/material";
+import { Box, Checkbox, FormControl, FormControlLabel, Grid, IconButton, InputLabel, MenuItem, Select, Stack, TextField, Typography } from "@mui/material";
 import { Task } from "../types/task";
-import { BooleanField, EditorField, NumberField, SelectField, TextField as STextField } from "./types";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BooleanField, EditorField, KVOptionsField, NumberField, SelectField, TextField as STextField } from "./types";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Add as AddIcon, Close as CloseIcon } from "@mui/icons-material";
 
 function TextFieldEditor(props: { config: STextField, task: Task, onUpdated: () => void, disabled?: boolean }) {
     const [value, setValue] = useState(String(props.task.config[props.config.key]) ?? "")
@@ -18,7 +19,7 @@ function TextFieldEditor(props: { config: STextField, task: Task, onUpdated: () 
             disabled={props.disabled}
             value={value}
             onInput={e => setValue((e.target as HTMLInputElement).value)}
-            label={props.config.label}/>
+            label={props.config.label} />
     )
 }
 
@@ -91,6 +92,67 @@ function SelectFieldEditor(props: { config: SelectField, task: Task, onUpdated: 
     );
 }
 
+function KVOptionsFieldEditor(props: { config: KVOptionsField, task: Task, onUpdated: () => void, disabled?: boolean }) {
+    const [record, setRecord] = useState<Record<string, string>>(props.task.config[props.config.key] ?? {})
+    const [newItemKey, setNewItemKey] = useState("");
+    const [newItemValue, setNewItemValue] = useState("");
+
+    const items = useMemo(() => Object.entries(record).sort((a, b) => a[0].localeCompare(b[0])), [record]);
+
+    useEffect(() => {
+        props.task.config[props.config.key] = record;
+        props.onUpdated();
+    }, [record])
+
+    return (
+        <Stack spacing={0.25}>
+            <Typography color="GrayText">{props.config.label}</Typography>
+            <Grid container rowSpacing={1}>
+                {items.map(item => (
+                    <React.Fragment key={item[0]}>
+                        <Grid item xs={5}>
+                            <TextField fullWidth size="small" value={item[0]} label="key" disabled />
+                        </Grid>
+                        <Grid item xs={1}>
+                            <Stack alignItems="center" justifyContent="center" height="100%">
+                                <Typography fontSize="1.2rem">=</Typography>
+                            </Stack>
+                        </Grid>
+                        <Grid item xs={5}>
+                            <TextField fullWidth size="small" value={item[1]} label="key" disabled />
+                        </Grid>
+                        <Grid item xs={1} paddingX={1}>
+                            <IconButton onClick={() => setRecord(pv => Object.fromEntries(Object.entries(pv).filter(e => e[0] !== item[0])))}>
+                                <CloseIcon />
+                            </IconButton>
+                        </Grid>
+                    </React.Fragment>
+                ))}
+                <Grid item xs={5}>
+                    <TextField fullWidth size="small" value={newItemKey} label="key" onInput={e => setNewItemKey((e.target as HTMLInputElement).value)} />
+                </Grid>
+                <Grid item xs={1}>
+                    <Stack alignItems="center" justifyContent="center" height="100%">
+                        <Typography fontSize="1.2rem">=</Typography>
+                    </Stack>
+                </Grid>
+                <Grid item xs={5}>
+                    <TextField fullWidth size="small" value={newItemValue} label="key" onInput={e => setNewItemValue((e.target as HTMLInputElement).value)} />
+                </Grid>
+                <Grid item xs={1} paddingX={1}>
+                    <IconButton onClick={() => {
+                        setRecord(pv => ({ ...pv, [newItemKey]: newItemValue }));
+                        setNewItemKey("");
+                        setNewItemValue("");
+                    }}>
+                        <AddIcon />
+                    </IconButton>
+                </Grid>
+            </Grid>
+        </Stack>
+    );
+}
+
 function BooleanFieldEditor(props: { config: BooleanField, task: Task, onUpdated: () => void, disabled?: boolean }) {
     return (
         <FormControlLabel control={(
@@ -129,6 +191,9 @@ export function StaticEditor(props: { task: Task, fields: EditorField[], beforeU
                 }
                 else if (field.type === "text") {
                     return <TextFieldEditor disabled={disabledFields.has(field.key)} key={field.key + props.task.id} task={props.task} config={field} onUpdated={onUpdated} />
+                }
+                else if (field.type === "kvoptions") {
+                    return <KVOptionsFieldEditor disabled={disabledFields.has(field.key)} key={field.key + props.task.id} task={props.task} config={field} onUpdated={onUpdated} />
                 }
             })}
         </Stack>
