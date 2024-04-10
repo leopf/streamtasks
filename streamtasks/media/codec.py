@@ -9,10 +9,8 @@ import asyncio
 T = TypeVar('T')
 
 class Frame(ABC, Generic[T]):
-  frame: T
-
   def __init__(self, frame: T):
-    self.frame = frame
+    self.frame: T = frame
 
   def from_av_frame(av_frame: Any) -> 'Frame[T]':
     if isinstance(av_frame, av.video.frame.VideoFrame):
@@ -30,8 +28,6 @@ F = TypeVar('F', bound=Frame)
 
 
 class Encoder(Generic[F]):
-  codec_context: av.codec.CodecContext
-
   def __init__(self, codec_context: av.codec.CodecContext):
     self.codec_context = codec_context
   def __del__(self): self.close()
@@ -51,8 +47,6 @@ class Encoder(Generic[F]):
 
 
 class Decoder(Generic[F]):
-  codec_context: av.codec.CodecContext
-
   def __init__(self, codec_context: av.codec.CodecContext, time_base: Fraction | None):
     self.codec_context = codec_context
     self.time_base = time_base
@@ -98,8 +92,6 @@ class CodecOptions(TypedDict):
   thread_type: Optional[str]
 
 class CodecInfo(ABC, Generic[F]):
-  codec: str
-
   def __init__(self, codec: str):
     self.codec = codec
 

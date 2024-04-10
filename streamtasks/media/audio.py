@@ -17,19 +17,13 @@ class AudioFrame(Frame[av.audio.frame.AudioFrame]):
 
 
 class AudioCodecInfo(CodecInfo[AudioFrame]):
-  channels: int # NOTE: may be insufficient
-  sample_rate: int
-  sample_format: str # NOTE: may be insufficient
-  bitrate: Optional[int]
-  crf: Optional[int]
 
-  def __init__(self, codec: str, channels: int, sample_rate: int, sample_format: str, bitrate: Optional[int] = None, crf: Optional[int] = None):
+  def __init__(self, codec: str, channels: int, sample_rate: int, sample_format: str, options: dict[str, str] = {}):
     super().__init__(codec)
-    self.bitrate = bitrate
     self.channels = channels
     self.sample_rate = sample_rate
     self.sample_format = sample_format
-    self.crf = crf
+    self.options = options
 
   def to_av_format(self):
     return av.audio.format.AudioFormat(self.sample_format)
@@ -41,7 +35,7 @@ class AudioCodecInfo(CodecInfo[AudioFrame]):
   def type(self): return 'audio'
 
   @property
-  def rate(self) -> Optional[int]: self.sample_rate
+  def rate(self) -> int: return self.sample_rate
 
   def compatible_with(self, other: 'CodecInfo') -> bool:
     if not isinstance(other, AudioCodecInfo): return False
@@ -56,13 +50,13 @@ class AudioCodecInfo(CodecInfo[AudioFrame]):
     ctx.format = self.to_av_format()
     ctx.channels = self.channels
     ctx.sample_rate = self.sample_rate
+    ctx.options.update(self.options)
 
+    if "bit_rate" in self.options: ctx.bit_rate = int(self.options["bit_rate"])
+    if "bit_rate_tolerance" in self.options: ctx.bit_rate_tolerance = int(self.options["bit_rate_tolerance"])
+    
     if mode == 'w':
-      ctx.time_base = Fraction(1, self.sample_rate)
-      if self.crf is not None:
-        ctx.options['crf'] = str(self.crf)
-      if self.bitrate is not None:
-        ctx.bit_rate = self.bitrate
+      ctx.time_base = self.time_base
 
     return ctx
 
@@ -70,7 +64,6 @@ class AudioCodecInfo(CodecInfo[AudioFrame]):
   def from_codec_context(ctx: av.codec.CodecContext):
     format = ctx.format
     return AudioCodecInfo(ctx.name, ctx.channels, ctx.sample_rate, format.name, ctx.bit_rate, ctx.options.get('crf', None))
-
 
 class AudioResampler:
   def __init__(self, format: av.audio.format.AudioFormat, layout: av.audio.layout.AudioLayout, rate: int):
