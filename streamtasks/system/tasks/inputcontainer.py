@@ -18,9 +18,10 @@ class InputContainerConfigBase(BaseModel):
   height: IOTypes.Height
   rate: IOTypes.Rate
   container_options: dict[str, str]
+  transcode: bool
 
   @staticmethod
-  def default_config(): return InputContainerConfigBase(source="", pixel_format="yuv420p", codec="h264", width=1280, height=720, rate=30, container_options={})
+  def default_config(): return InputContainerConfigBase(source="", pixel_format="yuv420p", codec="h264", width=1280, height=720, rate=30, transcode=False, container_options={})
 
 class InputContainerConfig(InputContainerConfigBase):
   out_topic: int
@@ -36,16 +37,16 @@ class InputContainerTask(Task):
     try:
       container = None
       container = InputContainer(self.config.source, **self.config.container_options)
-      video_stream = container.get_video_stream(0)
+      video_stream = container.get_video_stream(0, self.config.transcode)
       if not self.codec_info.compatible_with(video_stream.codec_info): raise ValueError("Codec not compatible with input container")
       
       async with self.out_topic, self.out_topic.RegisterContext():
         self.client.start()
         while True:
           try:
-            packet = await video_stream.demux()
-            if packet is not None:
-              await self.out_topic.send(MessagePackData(MediaMessage(timestamp=get_timestamp_ms(), packets=[packet]))) # TODO: better timestamp
+            packets = await video_stream.demux()
+            if len(packets) > 0:
+              await self.out_topic.send(MessagePackData(MediaMessage(timestamp=get_timestamp_ms(), packets=packets))) # TODO: better timestamp
           except ValidationError: pass
     finally:
       if container is not None: await container.close()
@@ -98,6 +99,11 @@ class InputContainerTaskHost(TaskHost):
         "integer": True,
         "min": 0,
         "unit": "fps"
+      },
+      {
+        "type": "boolean",
+        "key": "transcode",
+        "label": "transcode outputs",
       },
       {
         "type": "kvoptions",

@@ -104,7 +104,7 @@ class CodecInfo(ABC, Generic[F]):
   @property
   def time_base(self): 
     if self.rate is None: return None
-    return Fraction(1, self.rate) if self.rate == int(self.rate) else Fraction(1/self.rate)
+    return Fraction(1, int(self.rate)) if self.rate == int(self.rate) else Fraction(1/self.rate)
 
   @abstractmethod
   def compatible_with(self, other: 'CodecInfo') -> bool: pass
