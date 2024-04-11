@@ -8,18 +8,22 @@ def create_audio_samples(sample_rate: int,  freq: int, duration: float) -> bytes
 
 _audio_track_freq_count = 3
 
-def create_audio_track(duration: float, sample_rate: int):
+def create_audio_track(duration: float, sample_rate: int) -> np.ndarray:
     samples = create_audio_samples(sample_rate, 420, duration) + create_audio_samples(sample_rate, 69, duration) + create_audio_samples(sample_rate, 111, duration)
     return (samples * 10000).astype(np.int16)
-  
+
+frame_box_size = (40, 40)
+frame_box_size_value = frame_box_size[0] * frame_box_size[1] * 255
 def generate_frames(w, h, frame_count):
   for i in range(frame_count):
     arr = np.zeros((h, w, 3), dtype=np.uint8)
     # draw 40x40 square at (i, i)
-    y = i % (h - 40)
-    x = i % (w - 40)
-    arr[y:y + 40, x:x + 40] = 255
+    y = i % (h - frame_box_size[1])
+    x = i % (w - frame_box_size[0])
+    arr[y:y + frame_box_size[1], x:x + frame_box_size[0]] = 255
     yield arr
+  
+
   
 def normalize_video_frame(frame: VideoFrame):
   np_frame = frame.to_rgb().to_ndarray()

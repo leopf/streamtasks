@@ -8,6 +8,7 @@ from streamtasks.media.audio import AudioCodecInfo
 from streamtasks.media.codec import AVTranscoder, CodecInfo, Decoder
 from streamtasks.media.packet import MediaPacket
 from streamtasks.media.video import VideoCodecInfo
+from streamtasks.utils import AsyncTrigger
 
 class AVInputStream:
   def __init__(self, demux_lock: asyncio.Lock, stream: av.stream.Stream, transcode: bool) -> None:
@@ -56,26 +57,73 @@ class InputContainer:
     await self._demux_lock.acquire()
     self._container.close()
 
+class _StreamContext:
+  def __init__(self) -> None:
+    self.lock = asyncio.Lock()
+    self.time_base = Fraction(1, 1)
+  
+    self._sync_update_trigger = AsyncTrigger()
+    self._sync_channels: dict[int, int] = {}
+  
+  def create_sync_channel(self):
+    channel_id = len(self._sync_channels)
+    self._sync_channels[channel_id] = 0
+    return channel_id
+  
+  async def sync_wait_channel_min(self, channel: int):
+    while self._sync_channels[channel] != min(self._sync_channels.values()):
+      await self._sync_update_trigger.wait()
+
+  def set_sync_channel_time(self, channel: int, time: int, time_base: Fraction):
+    time = time * round(float(time_base / self.time_base))
+    self._sync_channels[channel] = max(self._sync_channels[channel], time)
+    self._sync_update_trigger.trigger()
+    
+  def add_time_base(self, time_base: Fraction): self.time_base = max(self.time_base * time_base, Fraction(1, 10_000_000)) 
+
 class AVOutputStream:
-  def __init__(self, mux_lock: asyncio.Lock, time_base: Fraction, stream: av.stream.Stream) -> None:
+  def __init__(self, ctx: _StreamContext, time_base: Fraction, stream: av.stream.Stream) -> None:
     self._stream = stream
-    self._mux_lock = mux_lock
+    self._ctx = ctx
     self._time_base = time_base
     self._dts_counter = 0
-    
+    self._sync_channel = ctx.create_sync_channel()
+    self._packet_len: int
+    self._ctx.add_time_base(time_base)
+    if stream.type == "audio": self._packet_len = stream.codec_context.frame_size
+    else: self._packet_len = 1 
+  
+  @property
+  def duration(self): return self._time_base * self._dts_counter
+  
+  @duration.setter
+  def duration(self, duration: Fraction): 
+    self._dts_counter = max(self._dts_counter, int(duration / self._time_base))
+    self._ctx.set_sync_channel_time(self._sync_channel, self._dts_counter, self._time_base)
+  
   async def mux(self, packet: MediaPacket):
     packet = dataclasses.replace(packet)
-    packet.dts = self._dts_counter
-    self._dts_counter += 1
+    packet.dts = self._dts_counter    
     av_packet = packet.to_av_packet(self._time_base)
+    av_packet.stream = self._stream 
+    
+    await self._ctx.sync_wait_channel_min(self._sync_channel)
+    print(f"mux {self._stream.codec_context.type} at {float(self._time_base * packet.dts)}/{self._dts_counter}")
+    
     loop = asyncio.get_running_loop()
-    async with self._mux_lock:
+    async with self._ctx.lock:
       await loop.run_in_executor(None, self._stream.container.mux, av_packet)
+      if self._stream.type == "audio":
+        self._dts_counter += self._stream.codec_context.frame_size
+      else:
+        self._dts_counter += 1
+      self._ctx.set_sync_channel_time(self._sync_channel, self._dts_counter, self._time_base)
 
 class OutputContainer:
   def __init__(self, url_or_path: str, **kwargs):
     self._container: av.container.OutputContainer = av.open(url_or_path, "w", **kwargs)
     self._mux_lock = asyncio.Lock()
+    self._ctx = _StreamContext()
     
   def __del__(self): self._container.close()
   
@@ -87,10 +135,10 @@ class OutputContainer:
     time_base = codec_info.time_base
     if time_base is None: raise ValueError("time_base must not be None")
     stream = self._container.add_stream(codec_name=codec_info.codec, rate=codec_info.frame_rate, width=codec_info.width, height=codec_info.height, format=codec_info.to_av_format(), options=codec_info.options) 
-    return AVOutputStream(self._mux_lock, time_base, stream)
+    return AVOutputStream(self._ctx, time_base, stream)
   
   def add_audio_stream(self, codec_info: AudioCodecInfo):
     time_base = codec_info.time_base
     if time_base is None: raise ValueError("time_base must not be None")
     stream = self._container.add_stream(codec_name=codec_info.codec, rate=codec_info.sample_rate, format=codec_info.to_av_format(), options=codec_info.options) 
-    return AVOutputStream(self._mux_lock, time_base, stream)
+    return AVOutputStream(self._ctx, time_base, stream)
