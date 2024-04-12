@@ -1,16 +1,51 @@
+import asyncio
+from typing import Iterable
 import numpy as np
 import scipy
 
-from streamtasks.media.video import VideoFrame
+from streamtasks.media.audio import AudioCodecInfo, AudioFrame
+from streamtasks.media.codec import Decoder, Encoder
+from streamtasks.media.container import AVInputStream
+from streamtasks.media.packet import MediaPacket
+from streamtasks.media.video import VideoCodecInfo, VideoFrame
 
-def create_audio_samples(sample_rate: int,  freq: int, duration: float) -> bytes:
+async def encode_all_frames(encoder: Encoder, frames: list):
+    packets = []
+    for frame in frames: packets.extend(await encoder.encode(frame))
+    packets.extend(await encoder.flush())
+    return packets 
+
+async def decode_all_packets(decoder: Decoder, packets: Iterable[MediaPacket]):
+  frames = []
+  for packet in packets: frames.extend(await decoder.decode(packet))
+  frames.extend(await decoder.flush())
+  return frames
+
+async def demux_all_packets(stream: AVInputStream):
+  packets: list[MediaPacket] = []
+  try:
+    while True: 
+      for packet in await stream.demux():
+        packets.append(packet)
+  except EOFError: pass
+  except asyncio.CancelledError: pass
+  finally:
+    return packets
+
+def generate_audio_samples(sample_rate: int,  freq: int, duration: float) -> bytes:
   return np.sin(2 * np.pi * np.arange(int(sample_rate * duration)) * freq / sample_rate)
 
 _audio_track_freq_count = 3
 
-def create_audio_track(duration: float, sample_rate: int) -> np.ndarray:
-    samples = create_audio_samples(sample_rate, 420, duration) + create_audio_samples(sample_rate, 69, duration) + create_audio_samples(sample_rate, 111, duration)
+def generate_audio_track(duration: float, sample_rate: int) -> np.ndarray:
+    samples = generate_audio_samples(sample_rate, 420, duration) + generate_audio_samples(sample_rate, 69, duration) + generate_audio_samples(sample_rate, 111, duration)
     return (samples * 10000).astype(np.int16)
+
+async def generate_audio_media_track(codec: AudioCodecInfo, duration: float):
+  audio_samples = generate_audio_track(duration, codec.sample_rate * codec.channels)
+  audio_resampler = codec.get_resampler()
+  audio_frame = AudioFrame.from_ndarray(audio_samples[np.newaxis,:], "s16", codec.channels, codec.sample_rate)
+  return await audio_resampler.resample(audio_frame), audio_samples
 
 frame_box_size = (40, 40)
 frame_box_size_value = frame_box_size[0] * frame_box_size[1] * 255
@@ -23,7 +58,12 @@ def generate_frames(w, h, frame_count):
     arr[y:y + frame_box_size[1], x:x + frame_box_size[0]] = 255
     yield arr
   
-
+def generate_media_frames(codec: VideoCodecInfo, frame_count: int):
+  raw_frames = generate_frames(codec.width, codec.height, frame_count)
+  frames: list[VideoFrame] = []
+  for frame in raw_frames:
+    frames.append(VideoFrame.from_ndarray(frame, "rgb24").convert(pixel_format=codec.pixel_format))
+  return frames, raw_frames
   
 def normalize_video_frame(frame: VideoFrame):
   np_frame = frame.to_rgb().to_ndarray()

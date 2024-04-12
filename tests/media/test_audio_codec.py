@@ -2,7 +2,7 @@ import unittest
 from streamtasks.media.audio import AudioCodecInfo, AudioFrame
 import numpy as np
 
-from tests.media import create_audio_track, get_freq_similarity, get_spectum
+from tests.media import generate_audio_track, get_freq_similarity, get_spectum
 
 class TestAudioCodec(unittest.IsolatedAsyncioTestCase):
   sample_rate = 44100
@@ -11,7 +11,7 @@ class TestAudioCodec(unittest.IsolatedAsyncioTestCase):
   def setUp(self):
     self.resampler = self.get_audio_codec("pcm_s16le", "s16").get_resampler()
 
-  def create_track(self, duration: float = 1): return create_audio_track(duration, self.sample_rate)
+  def create_track(self, duration: float = 1): return generate_audio_track(duration, self.sample_rate)
 
   def get_audio_codec(self, codec: str, sample_format: str):
     return AudioCodecInfo(

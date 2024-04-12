@@ -10,6 +10,32 @@ from streamtasks.media.packet import MediaPacket
 from streamtasks.media.video import VideoCodecInfo
 from streamtasks.utils import AsyncTrigger
 
+class _StreamContext:
+  def __init__(self) -> None:
+    self.lock = asyncio.Lock()
+    self.time_base = Fraction(1, 1)
+  
+    self._sync_update_trigger = AsyncTrigger()
+    self._sync_channels: dict[int, int] = {}
+  
+  def create_sync_channel(self):
+    channel_id = len(self._sync_channels)
+    self._sync_channels[channel_id] = 0
+    return channel_id
+  
+  def is_min(self, channel: int): return self._sync_channels[channel] == min(self._sync_channels.values())
+  
+  async def sync_wait_channel_min(self, channel: int):
+    while not self.is_min(channel):
+      await self._sync_update_trigger.wait()
+
+  def set_sync_channel_time(self, channel: int, time: int, time_base: Fraction):
+    time = time * round(float(time_base / self.time_base))
+    self._sync_channels[channel] = max(self._sync_channels[channel], time)
+    self._sync_update_trigger.trigger()
+    
+  def add_time_base(self, time_base: Fraction): self.time_base = max(self.time_base * time_base, Fraction(1, 10_000_000)) 
+
 class AVInputStream:
   def __init__(self, demux_lock: asyncio.Lock, stream: av.stream.Stream, transcode: bool) -> None:
     self._stream = stream
@@ -32,10 +58,7 @@ class AVInputStream:
   
   def _demux(self):
     for packet in self._stream.container.demux(self._stream):
-      return MediaPacket.from_av_packet(packet)
-
-  def _demux(self):
-    for packet in self._stream.container.demux(self._stream):
+      if packet.size == 0 and packet.dts is None and packet.pts is None: raise EOFError() # HACK: for some reason dummy packets are emittied forever after some streams
       return MediaPacket.from_av_packet(packet)
 
 class InputContainer:
@@ -57,30 +80,6 @@ class InputContainer:
     await self._demux_lock.acquire()
     self._container.close()
 
-class _StreamContext:
-  def __init__(self) -> None:
-    self.lock = asyncio.Lock()
-    self.time_base = Fraction(1, 1)
-  
-    self._sync_update_trigger = AsyncTrigger()
-    self._sync_channels: dict[int, int] = {}
-  
-  def create_sync_channel(self):
-    channel_id = len(self._sync_channels)
-    self._sync_channels[channel_id] = 0
-    return channel_id
-  
-  async def sync_wait_channel_min(self, channel: int):
-    while self._sync_channels[channel] != min(self._sync_channels.values()):
-      await self._sync_update_trigger.wait()
-
-  def set_sync_channel_time(self, channel: int, time: int, time_base: Fraction):
-    time = time * round(float(time_base / self.time_base))
-    self._sync_channels[channel] = max(self._sync_channels[channel], time)
-    self._sync_update_trigger.trigger()
-    
-  def add_time_base(self, time_base: Fraction): self.time_base = max(self.time_base * time_base, Fraction(1, 10_000_000)) 
-
 class AVOutputStream:
   def __init__(self, ctx: _StreamContext, time_base: Fraction, stream: av.stream.Stream) -> None:
     self._stream = stream
@@ -101,6 +100,9 @@ class AVOutputStream:
     self._dts_counter = max(self._dts_counter, int(duration / self._time_base))
     self._ctx.set_sync_channel_time(self._sync_channel, self._dts_counter, self._time_base)
   
+  @property
+  def ready_for_packet(self): return self._ctx.is_min(self._sync_channel)
+  
   async def mux(self, packet: MediaPacket):
     packet = dataclasses.replace(packet)
     packet.dts = self._dts_counter    
@@ -108,7 +110,6 @@ class AVOutputStream:
     av_packet.stream = self._stream 
     
     await self._ctx.sync_wait_channel_min(self._sync_channel)
-    print(f"mux {self._stream.codec_context.type} at {float(self._time_base * packet.dts)}/{self._dts_counter}")
     
     loop = asyncio.get_running_loop()
     async with self._ctx.lock:
