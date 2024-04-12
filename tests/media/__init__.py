@@ -59,7 +59,7 @@ def generate_frames(w, h, frame_count):
     yield arr
   
 def generate_media_frames(codec: VideoCodecInfo, frame_count: int):
-  raw_frames = generate_frames(codec.width, codec.height, frame_count)
+  raw_frames = list(generate_frames(codec.width, codec.height, frame_count))
   frames: list[VideoFrame] = []
   for frame in raw_frames:
     frames.append(VideoFrame.from_ndarray(frame, "rgb24").convert(pixel_format=codec.pixel_format))

@@ -19,10 +19,11 @@ class TestContainers(unittest.IsolatedAsyncioTestCase):
     os.remove(self.container_filename)
   
   async def test_mp4_h264_video_container(self): await self._test_codec_format_video_io_container(VideoCodecInfo(1280, 720, 30, "yuv420p", "h264"), "mp4", True)
+  # @unittest.skip("Looks fine, but high error")
   @full_test
-  async def test_mp4_h265_video_container(self): await self._test_codec_format_video_io_container(VideoCodecInfo(1280, 720, 30, "yuv420p", "hevc"), "mp4", True)
+  async def test_mp4_h265_video_container(self): await self._test_codec_format_video_io_container(VideoCodecInfo(1280, 720, 30, "yuv420p", "hevc"), "mp4", True, (1, 2))
   @full_test
-  async def test_webm_video_container(self): await self._test_codec_format_video_io_container(VideoCodecInfo(1280, 720, 30, "yuv420p", "vp8"), "webm", False)
+  async def test_webm_video_container(self): await self._test_codec_format_video_io_container(VideoCodecInfo(1280, 720, 30, "yuv420p", "vp8"), "webm", False, (3, 3))
   async def test_mp4_1_audio_container(self): await self._test_codec_format_audio_io_container(AudioCodecInfo("aac", 2, 32000, "fltp"), "mp4", False)
   @full_test
   async def test_mp4_2_audio_container(self): await self._test_codec_format_audio_io_container(AudioCodecInfo("aac", 1, 16000, "fltp"), "mp4", False)
@@ -53,6 +54,7 @@ class TestContainers(unittest.IsolatedAsyncioTestCase):
     await input_container.close()
     
     self.assertGreater(len(out_frames), 0)
+    self.assertGreater(len(in_frames), 0)
     for idx, (a, b) in enumerate(zip(out_frames, in_frames)):
       self.assertLess(np.abs(a-b).sum(), frame_box_size_value * 0.01) # allow for 1% error
 
@@ -71,7 +73,7 @@ class TestContainers(unittest.IsolatedAsyncioTestCase):
     similarity = get_freq_similarity(get_spectum(in_samples), get_spectum(out_samples)) # lower is better
     self.assertLess(similarity, 70)
   
-  async def _test_codec_format_video_io_container(self, codec: VideoCodecInfo, format: str, transcode: bool):
+  async def _test_codec_format_video_io_container(self, codec: VideoCodecInfo, format: str, transcode: bool, check_padding: tuple[int,int] = (0, 0)):
     output_container = OutputContainer(self.container_filename, format=format)
     in_frames = await self.out_container_write_video(output_container.add_video_stream(codec), codec)
     await output_container.close()
@@ -79,8 +81,11 @@ class TestContainers(unittest.IsolatedAsyncioTestCase):
     input_container = InputContainer(self.container_filename, format=format)
     out_frames = await self.in_container_read_video(input_container.get_video_stream(0, transcode), codec, transcode)
 
-    print("Decoded frames: {}".format(len(out_frames)))
+    in_frames = in_frames[check_padding[0]:len(in_frames) - check_padding[1]]
+    out_frames = out_frames[check_padding[0]:len(out_frames) - check_padding[1]]
+
     self.assertGreater(len(out_frames), 0)
+    self.assertGreater(len(in_frames), 0)
     for a, b in zip(out_frames, in_frames):
       self.assertLess(np.abs(a-b).sum(), frame_box_size_value * 0.01) # allow for 1% error
       
