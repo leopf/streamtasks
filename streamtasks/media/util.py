@@ -3,6 +3,7 @@ import ctypes.util
 from dataclasses import dataclass
 from typing import Iterator, Literal
 import av
+import av.codec
 
 lib = ctypes.CDLL(ctypes.util.find_library("avutil"))
 

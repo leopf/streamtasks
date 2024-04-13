@@ -1,4 +1,5 @@
 import av
+import av.codec
 from streamtasks.media.codec import CodecInfo, Frame
 from av.subtitles.subtitle import SubtitleSet
 

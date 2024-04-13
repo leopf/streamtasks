@@ -1,17 +1,18 @@
-from fractions import Fraction
-from typing import Optional
+import av.audio
+import av.audio.codeccontext
+import av.codec
 from streamtasks.media.codec import CodecInfo, Frame
 import numpy as np
 import asyncio
 import av
 
-class AudioFrame(Frame[av.audio.frame.AudioFrame]):
+class AudioFrame(Frame[av.AudioFrame]):
   def to_ndarray(self):
     return self.frame.to_ndarray()
 
   @staticmethod
   def from_ndarray(ndarray: np.ndarray, sample_format: str, channels: int, sample_rate: int):
-    av_frame = av.audio.frame.AudioFrame.from_ndarray(ndarray, sample_format, channels)
+    av_frame = av.AudioFrame.from_ndarray(ndarray, sample_format, channels)
     av_frame.sample_rate = sample_rate
     return AudioFrame(av_frame)
 
@@ -26,10 +27,10 @@ class AudioCodecInfo(CodecInfo[AudioFrame]):
     self.options = options
 
   def to_av_format(self):
-    return av.audio.format.AudioFormat(self.sample_format)
+    return av.AudioFormat(self.sample_format)
 
   def to_av_layout(self):
-    return av.audio.layout.AudioLayout(self.channels)
+    return av.AudioLayout(self.channels)
 
   @property
   def type(self): return 'audio'
@@ -46,7 +47,7 @@ class AudioCodecInfo(CodecInfo[AudioFrame]):
 
   def _get_av_codec_context(self, mode: str):
     if mode not in ('r', 'w'): raise ValueError(f'Invalid mode: {mode}. Must be "r" or "w".')
-    ctx = av.codec.CodecContext.create(self.codec, mode)
+    ctx: av.audio.codeccontext.AudioCodecContext = av.audio.codeccontext.AudioCodecContext.create(self.codec, mode)
     ctx.format = self.to_av_format()
     ctx.channels = self.channels
     ctx.sample_rate = self.sample_rate
@@ -61,12 +62,12 @@ class AudioCodecInfo(CodecInfo[AudioFrame]):
     return ctx
 
   @staticmethod
-  def from_codec_context(ctx: av.codec.CodecContext):
+  def from_codec_context(ctx: av.audio.codeccontext.AudioCodecContext):
     return AudioCodecInfo(ctx.name, ctx.channels, ctx.sample_rate, ctx.format.name)
 
 class AudioResampler:
-  def __init__(self, format: av.audio.format.AudioFormat, layout: av.audio.layout.AudioLayout, rate: int):
-    self.resampler = av.audio.resampler.AudioResampler(format, layout, rate)
+  def __init__(self, format: av.AudioFormat, layout: av.AudioLayout, rate: int):
+    self.resampler = av.AudioResampler(format, layout, rate)
 
   async def resample(self, frame: AudioFrame) -> list[AudioFrame]:
     loop = asyncio.get_running_loop()

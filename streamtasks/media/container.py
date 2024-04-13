@@ -1,7 +1,6 @@
 import dataclasses
 from fractions import Fraction
 import av.stream
-import av.video
 import av
 import asyncio
 from streamtasks.media.audio import AudioCodecInfo
@@ -122,7 +121,7 @@ class AVOutputStream:
 
 class OutputContainer:
   def __init__(self, url_or_path: str, **kwargs):
-    self._container: av.container.OutputContainer = av.open(url_or_path, "w", **kwargs)
+    self._container: av.OutputContainer = av.open(url_or_path, "w", **kwargs)
     self._mux_lock = asyncio.Lock()
     self._ctx = _StreamContext()
     

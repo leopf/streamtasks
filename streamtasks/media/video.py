@@ -1,10 +1,12 @@
-from fractions import Fraction
 from typing import Any, Literal
 import av
+import av.codec
+import av.video
+import av.video.codeccontext
 import numpy as np
 from streamtasks.media.codec import CodecInfo, Frame
 
-class VideoFrame(Frame[av.video.frame.VideoFrame]):
+class VideoFrame(Frame[av.VideoFrame]):
   def to_rgb(self):
     return VideoFrame(self.frame.to_rgb())
 
@@ -15,10 +17,10 @@ class VideoFrame(Frame[av.video.frame.VideoFrame]):
     return VideoFrame(self.frame.reformat(width=width, height=height, format=pixel_format))
 
   @staticmethod
-  def from_image(image): return VideoFrame(av.video.frame.VideoFrame.from_image(image))
+  def from_image(image): return VideoFrame(av.VideoFrame.from_image(image))
 
   @staticmethod
-  def from_ndarray(array: np.ndarray, format: str): return VideoFrame(av.video.frame.VideoFrame.from_ndarray(array, format))
+  def from_ndarray(array: np.ndarray, format: str): return VideoFrame(av.VideoFrame.from_ndarray(array, format))
 
 class VideoCodecInfo(CodecInfo[VideoFrame]):
   def __init__(self, width: int, height: int, frame_rate: float, pixel_format: str, codec: str, options: dict[str, Any] = {}):
@@ -29,8 +31,8 @@ class VideoCodecInfo(CodecInfo[VideoFrame]):
     self.options = options
     self.pixel_format = pixel_format
 
-  def to_av_format(self) -> av.video.format.VideoFormat:
-    return av.video.format.VideoFormat(self.pixel_format, self.width, self.height)
+  def to_av_format(self) -> av.VideoFormat:
+    return av.VideoFormat(self.pixel_format, self.width, self.height)
 
   @property
   def type(self): return 'video'
@@ -44,20 +46,18 @@ class VideoCodecInfo(CodecInfo[VideoFrame]):
 
   def _get_av_codec_context(self, mode: Literal["w", "w"]):
     if mode not in ('r', 'w'): raise ValueError(f'Invalid mode: {mode}. Must be "r" or "w".')
-    ctx = av.codec.CodecContext.create(self.codec, mode)
+    ctx: av.video.codeccontext.VideoCodecContext = av.video.codeccontext.VideoCodecContext.create(self.codec, mode)
     ctx.format = self.to_av_format()
     ctx.framerate = self.frame_rate
     ctx.options.update(self.options)
     
     if "bit_rate" in self.options: ctx.bit_rate = int(self.options["bit_rate"])
     if "bit_rate_tolerance" in self.options: ctx.bit_rate_tolerance = int(self.options["bit_rate_tolerance"])
-    
-    if mode == "w":
-      ctx.time_base = self.time_base
+    if mode == "w": ctx.time_base = self.time_base
     return ctx
 
   @staticmethod
-  def from_codec_context(ctx: av.codec.CodecContext):
+  def from_codec_context(ctx: av.video.codeccontext.VideoCodecContext):
     format = ctx.format
     framerate = float(ctx.framerate)
     return VideoCodecInfo(ctx.width, ctx.height, framerate, format.name, ctx.name)

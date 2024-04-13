@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
 from fractions import Fraction
 from typing import Any, TypeVar, TypedDict, Optional, Generic
+import av.codec
 from streamtasks.media.packet import MediaPacket
 import av
-import time
+import av.subtitles.subtitle
 import asyncio
 
 T = TypeVar('T')
@@ -13,10 +14,10 @@ class Frame(ABC, Generic[T]):
     self.frame: T = frame
 
   def from_av_frame(av_frame: Any) -> 'Frame[T]':
-    if isinstance(av_frame, av.video.frame.VideoFrame):
+    if isinstance(av_frame, av.VideoFrame):
       from streamtasks.media.video import VideoFrame
       return VideoFrame(av_frame)
-    elif isinstance(av_frame, av.audio.frame.AudioFrame):
+    elif isinstance(av_frame, av.AudioFrame):
       from streamtasks.media.audio import AudioFrame
       return AudioFrame(av_frame)
     elif isinstance(av_frame, av.subtitles.subtitle.SubtitleSet):
