@@ -8,9 +8,27 @@ const outDir = "dist";
 const dev = !!process.env.DEV;
 
 const buildConfigurator = async (filename: string, out: string = ".") => {
+    const fnStat = await fsExtra.stat(filename);
+    let entryName: string | undefined;
+    if (fnStat.isDirectory()) {
+        const extensions = [".ts", ".tsx"];
+        for (const ext of extensions) {
+            const filepath = path.join(filename, "index" + ext);
+            if (await fsExtra.exists(filepath)) {
+                entryName = filepath;
+                break;
+            }
+        }
+    }
+    else {
+        entryName = filename;
+    }
+
+    if (!entryName) return;
+
     const outFilename = path.join(outDir, out, path.basename(filename).split(".", 2)[0] + ".js");
     await esbuild.build({
-        entryPoints: [filename],
+        entryPoints: [entryName],
         bundle: true,
         outfile: outFilename,
         format: "esm",
@@ -48,6 +66,6 @@ export const buildAll = parallel(
 );
 export const watchAll = parallel(
     () => watch("public/**", movePublic),
-    () => watch("src/configurators/std/*", buildStdConfigurators),
+    () => watch("src/configurators/std/**", buildStdConfigurators),
     async () => await (await esbuild.context(appBuildConfig)).watch(),
 );

@@ -1,62 +1,57 @@
 import { z } from "zod";
-import { TaskConfigurator, TaskConfiguratorContext, Task, TaskOutput, TaskInput, Metadata } from "../../types/task";
-import { v4 as uuidv4 } from "uuid";
-import { MetadataModel, TaskOutputModel } from "../../model/task";
-import { getMetadataKeyDiffs } from "../../lib/task";
-import { ReactEditorRenderer as ReactRenderer } from "../../lib/conigurator";
-import { EditorField, EditorFieldModel } from "../../StaticEditor/types";
-import { StaticEditor } from "../../StaticEditor";
+import { Metadata, Task, TaskConfiguratorContext, TaskInput, TaskOutput } from "../../../types/task";
+import { EditorField, EditorFieldModel } from "../../../StaticEditor/types";
 import { LRUCache } from "lru-cache";
-import { getConfigModelByFields } from "../../StaticEditor/util";
+import { MetadataModel } from "../../../model/task";
+import { getConfigModelByFields } from "../../../StaticEditor/util";
+import { v4 as uuidv4 } from "uuid";
 
 export const TaskPartialInputModel = MetadataModel.and(z.object({
     key: z.string()
 }));
 export type TaskPartialInput = z.infer<typeof TaskPartialInputModel>;
 
+const metadataFieldsCache = new LRUCache<string, EditorField[]>({ max: 100 });
 const InputMetadataMapModel = z.record(z.string(), z.record(z.string(), z.string()));
 const OutputMetadataMapModel = z.array(z.record(z.string(), z.string()).optional());
 const OutputKeysMapModel = z.array(z.string().optional());
 
-const compareIgnoreMetadataKeys = new Set(["key", "topic_id", "label"]);
+export const compareIgnoreMetadataKeys = new Set(["key", "topic_id", "label"]);
 
-const reactRenderer = new ReactRenderer();
-const metadataFieldsCache = new LRUCache<string, EditorField[]>({ max: 100 });
-
-function getDefinedKeys<T extends string | number | symbol>(m: Record<T, any>) {
+export function getDefinedKeys<T extends string | number | symbol>(m: Record<T, any>) {
     return Object.entries(m).filter(([k, v]) => v !== undefined && v !== null).map(e => e[0])
 }
 
-function getCFGFieldInputMetadata(context: TaskConfiguratorContext) {
+export function getCFGFieldInputMetadata(context: TaskConfiguratorContext) {
     const inputMetadataRaw = context.taskHost.metadata["cfg:inputmetadata"];
     if (typeof inputMetadataRaw !== "string") return;
     return InputMetadataMapModel.parse(JSON.parse(inputMetadataRaw));
 }
 
-function getCFGFieldInputs(context: TaskConfiguratorContext) {
+export function getCFGFieldInputs(context: TaskConfiguratorContext) {
     return z.array(TaskPartialInputModel).parse(JSON.parse(String(context.taskHost.metadata["cfg:inputs"])))
 }
 
-function getCFGFieldOutputs(context: TaskConfiguratorContext) {
+export function getCFGFieldOutputs(context: TaskConfiguratorContext) {
     return z.array(MetadataModel).parse(JSON.parse(String(context.taskHost.metadata["cfg:outputs"])))
 }
 
-function getCFGFieldIOMirror(context: TaskConfiguratorContext) {
+export function getCFGFieldIOMirror(context: TaskConfiguratorContext) {
     const IOMirrorMetadataRaw = context.taskHost.metadata["cfg:iomirror"];
     if (typeof IOMirrorMetadataRaw !== "string") return;
     return z.array(z.tuple([z.string(), z.number()])).parse(JSON.parse(IOMirrorMetadataRaw));
 }
 
-function getCFGFieldEditorFields(context: TaskConfiguratorContext): EditorField[] | undefined {
-    if (typeof context.taskHost.metadata["cfg:editorfields"] !== "string") return;
-    const fieldsData = String(context.taskHost.metadata["cfg:editorfields"]);
+export function getCFGFieldEditorFields(context: TaskConfiguratorContext, key: string = "cfg:editorfields"): EditorField[] | undefined {
+    if (typeof context.taskHost.metadata[key] !== "string") return;
+    const fieldsData = String(context.taskHost.metadata[key]);
     const fields = metadataFieldsCache.get(fieldsData) ?? z.array(EditorFieldModel).parse(JSON.parse(fieldsData))
     if (!metadataFieldsCache.has(fieldsData)) metadataFieldsCache.set(fieldsData, fields)
     return fields;
 }
 
 // maps output topic ids to config fiels with config = { [output key]: [output topic id] } + [old config]
-function applyOutputIdsToConfig(task: Task, context: TaskConfiguratorContext) {
+export function applyOutputIdsToConfig(task: Task, context: TaskConfiguratorContext) {
     const outputKeysRaw = context.taskHost.metadata["cfg:outputkeys"];
     if (typeof outputKeysRaw !== "string") return;
     OutputKeysMapModel.parse(JSON.parse(outputKeysRaw)).forEach((key, idx) => {
@@ -69,7 +64,7 @@ function applyOutputIdsToConfig(task: Task, context: TaskConfiguratorContext) {
 
 
 // maps config values to output metadata values with map { [config key]: [output metadata key] }
-function applyConfigToOutputMetadata(task: Task, context: TaskConfiguratorContext) {
+export function applyConfigToOutputMetadata(task: Task, context: TaskConfiguratorContext) {
     const outputMetadataRaw = context.taskHost.metadata["cfg:outputmetadata"];
     if (typeof outputMetadataRaw !== "string") return;
     OutputMetadataMapModel.parse(JSON.parse(outputMetadataRaw)).forEach((map, idx) => {
@@ -82,7 +77,7 @@ function applyConfigToOutputMetadata(task: Task, context: TaskConfiguratorContex
 }
 
 // maps config values to input metadata values with map { [input key]: { [config key]: [input metadata key] } }
-function applyConfigToInputMetadata(task: Task, context: TaskConfiguratorContext) {
+export function applyConfigToInputMetadata(task: Task, context: TaskConfiguratorContext) {
     for (const [inputKey, map] of Object.entries(getCFGFieldInputMetadata(context) ?? {})) {
         const foundInput = task.inputs.find(input => input.key === inputKey)
         if (foundInput) {
@@ -93,12 +88,12 @@ function applyConfigToInputMetadata(task: Task, context: TaskConfiguratorContext
     }
 }
 
-function applyConfigToIOMetadata(task: Task, context: TaskConfiguratorContext) {
+export function applyConfigToIOMetadata(task: Task, context: TaskConfiguratorContext) {
     applyConfigToOutputMetadata(task, context);
     applyConfigToInputMetadata(task, context);
 }
 
-function getDisabledFields(task: Task, context: TaskConfiguratorContext, ignoreKey?: string) {
+export function getDisabledFields(task: Task, context: TaskConfiguratorContext, ignoreKey?: string) {
     const inputMetadataRaw = context.taskHost.metadata["cfg:inputmetadata"];
     if (typeof inputMetadataRaw !== "string") return new Set<string>();
     const disabledInputs = new Set<string>();
@@ -110,7 +105,7 @@ function getDisabledFields(task: Task, context: TaskConfiguratorContext, ignoreK
     return disabledInputs;
 }
 
-function connectWithConfigOverwrite(task: Task, input: TaskInput, output: TaskOutput, diffs: string[], context: TaskConfiguratorContext) {
+export function connectWithConfigOverwrite(task: Task, input: TaskInput, output: TaskOutput, diffs: string[], context: TaskConfiguratorContext) {
     try {
         if (diffs.some(d => output[d] === undefined || output[d] === null || input[d] === undefined || input[d] === null)) {
             throw new Error();
@@ -139,7 +134,7 @@ function connectWithConfigOverwrite(task: Task, input: TaskInput, output: TaskOu
     }
 }
 
-function connectMirrorIO(task: Task, input: TaskInput, output: TaskOutput, diffs: string[], context: TaskConfiguratorContext) {
+export function connectMirrorIO(task: Task, input: TaskInput, output: TaskOutput, diffs: string[], context: TaskConfiguratorContext) {
     try {
         const rawInputsMapped = Object.fromEntries(getCFGFieldInputs(context).map(i => [i.key, i]));
         const inputsMapped = Object.fromEntries(task.inputs.map(i => [i.key, i]));
@@ -201,63 +196,24 @@ function connectMirrorIO(task: Task, input: TaskInput, output: TaskOutput, diffs
     }
 }
 
+export function createTaskFromContext(context: TaskConfiguratorContext) {
+    const metadata = context.taskHost.metadata;
+    const label = z.string().parse(metadata["cfg:label"]);
+    const inputs = getCFGFieldInputs(context)
+    const outputs = getCFGFieldOutputs(context)
+    const config = "cfg:config" in metadata ? z.record(z.any()).parse(JSON.parse(String(metadata["cfg:config"]))) : {};
 
-const task: TaskConfigurator = {
-    connect: (task: Task, key: string, output: TaskOutput | undefined, context: TaskConfiguratorContext) => {
-        const targetInput = task.inputs.find(input => input.key === key);
-        if (!targetInput) {
-            throw new Error("Input not found!"); // should not happen during normal operation
-        }
+    const task: Task = {
+        id: uuidv4(),
+        task_host_id: context.taskHost.id,
+        label: label,
+        config: config,
+        inputs: inputs,
+        outputs: outputs.map(output => ({ ...output, topic_id: context.idGenerator() }))
+    };
 
-        if (!output) {
-            targetInput.topic_id = undefined;
-        }
-        else {
-            const diffs = getMetadataKeyDiffs(output, targetInput, compareIgnoreMetadataKeys);
-            if (diffs.length == 0) {
-                targetInput.topic_id = output.topic_id;
-            }
-            else {
-                if (!connectWithConfigOverwrite(task, targetInput, output, diffs, context)) {
-                    if (!connectMirrorIO(task, targetInput, output, diffs, context)) {
-                        if (targetInput.topic_id === output.topic_id) {
-                            targetInput.topic_id = undefined;
-                        }
-                    }
-                }
-            }
-        }
-        task.config[targetInput.key] = targetInput.topic_id
-        return task;
-    },
-    create: (context: TaskConfiguratorContext) => {
-        const metadata = context.taskHost.metadata;
-        const label = z.string().parse(metadata["cfg:label"]);
-        const inputs = getCFGFieldInputs(context)
-        const outputs = getCFGFieldOutputs(context)
-        const config = "cfg:config" in metadata ? z.record(z.any()).parse(JSON.parse(String(metadata["cfg:config"]))) : {};
+    applyOutputIdsToConfig(task, context);
+    applyConfigToIOMetadata(task, context);
 
-        const task: Task = {
-            id: uuidv4(),
-            task_host_id: context.taskHost.id,
-            label: label,
-            config: config,
-            inputs: inputs,
-            outputs: outputs.map(output => ({ ...output, topic_id: context.idGenerator() }))
-        };
-
-        applyOutputIdsToConfig(task, context);
-        applyConfigToIOMetadata(task, context);
-
-        return task;
-    },
-    renderEditor: (task: Task, element: HTMLElement, context: TaskConfiguratorContext) => {
-        const fields = getCFGFieldEditorFields(context);
-        if (!fields) return;
-        reactRenderer.render(element, <StaticEditor task={task} fields={fields} beforeUpdate={() => {
-            applyConfigToIOMetadata(task, context);
-        }} disabledFields={getDisabledFields(task, context)} />)
-    }
-};
-
-export default task;
+    return task;
+}
