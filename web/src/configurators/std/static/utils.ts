@@ -196,6 +196,10 @@ export function connectMirrorIO(task: Task, input: TaskInput, output: TaskOutput
     }
 }
 
+export function elementEmitUpdate(element: HTMLElement, task: Task) {
+    element.dispatchEvent(new CustomEvent("task-instance-updated", { detail: task, bubbles: true }));
+}
+
 export function createTaskFromContext(context: TaskConfiguratorContext) {
     const metadata = context.taskHost.metadata;
     const label = z.string().parse(metadata["cfg:label"]);

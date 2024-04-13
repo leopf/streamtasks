@@ -4,7 +4,7 @@ import { StaticEditor } from "../../StaticEditor";
 import { getMetadataKeyDiffs } from "../../lib/task";
 import { TaskConfigurator, Task, TaskOutput, TaskConfiguratorContext } from "../../types/task";
 import { ReactEditorRenderer } from "../../lib/conigurator";
-import { compareIgnoreMetadataKeys, connectWithConfigOverwrite, connectMirrorIO, getCFGFieldInputs, getCFGFieldOutputs, applyOutputIdsToConfig, applyConfigToIOMetadata, getCFGFieldEditorFields, getDisabledFields, createTaskFromContext } from "./static/utils";
+import { compareIgnoreMetadataKeys, connectWithConfigOverwrite, connectMirrorIO, getCFGFieldInputs, getCFGFieldOutputs, applyOutputIdsToConfig, applyConfigToIOMetadata, getCFGFieldEditorFields, getDisabledFields, createTaskFromContext, elementEmitUpdate } from "./static/utils";
 
 const reactRenderer = new ReactEditorRenderer();
 const configurator: TaskConfigurator = {
@@ -39,8 +39,9 @@ const configurator: TaskConfigurator = {
     renderEditor: (task: Task, element: HTMLElement, context: TaskConfiguratorContext) => {
         const fields = getCFGFieldEditorFields(context);
         if (!fields) return;
-        reactRenderer.render(element, <StaticEditor task={task} fields={fields} beforeUpdate={() => {
+        reactRenderer.render(element, <StaticEditor data={task.config} fields={fields} onUpdated={() => {
             applyConfigToIOMetadata(task, context);
+            elementEmitUpdate(element, task);
         }} disabledFields={getDisabledFields(task, context)} />)
     }
 };

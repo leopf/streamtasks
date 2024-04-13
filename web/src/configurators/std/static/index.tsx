@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import { getMetadataKeyDiffs } from "../../../lib/task";
 import { ReactEditorRenderer as ReactRenderer } from "../../../lib/conigurator";
 import { StaticEditor } from "../../../StaticEditor";
-import { applyConfigToIOMetadata, applyOutputIdsToConfig, compareIgnoreMetadataKeys, connectMirrorIO, connectWithConfigOverwrite, createTaskFromContext, getCFGFieldEditorFields, getCFGFieldInputs, getCFGFieldOutputs, getDisabledFields } from "./utils";
+import { applyConfigToIOMetadata, applyOutputIdsToConfig, compareIgnoreMetadataKeys, connectMirrorIO, connectWithConfigOverwrite, createTaskFromContext, elementEmitUpdate, getCFGFieldEditorFields, getCFGFieldInputs, getCFGFieldOutputs, getDisabledFields } from "./utils";
 
 const reactRenderer = new ReactRenderer();
 const configurator: TaskConfigurator = {
@@ -40,7 +40,9 @@ const configurator: TaskConfigurator = {
         const mainFields = getCFGFieldEditorFields(context) ?? [];
         const videoFields = getCFGFieldEditorFields(context, "cfg:videoeditorfields") ?? [];
         const audioFields = getCFGFieldEditorFields(context, "cfg:audioeditorfields") ?? [];
-        reactRenderer.render(element, <StaticEditor task={task} fields={mainFields} />)
+        reactRenderer.render(element, <StaticEditor data={task.config} fields={mainFields} onUpdated={() => {
+            elementEmitUpdate(element, task);
+        }} />)
     }
 };
 
