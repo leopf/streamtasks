@@ -34,7 +34,7 @@ class TestContainers(unittest.IsolatedAsyncioTestCase):
   async def test_mp4_av_container_basic(self): await self._test_mp4_av_container(VideoCodecInfo(1280, 720, 30, "yuv420p", "h264"), AudioCodecInfo("aac", 2, 32000, "fltp"))
   
   async def _test_mp4_av_container(self, video_codec: VideoCodecInfo, audio_codec: AudioCodecInfo):
-    output_container = OutputContainer(self.container_filename, format="mp4")
+    output_container = await OutputContainer.open(self.container_filename, format="mp4")
     in_tasks = (
       asyncio.create_task(self.out_container_write_audio(output_container.add_audio_stream(audio_codec), audio_codec)),
       asyncio.create_task(self.out_container_write_video(output_container.add_video_stream(video_codec), video_codec))
@@ -44,7 +44,7 @@ class TestContainers(unittest.IsolatedAsyncioTestCase):
     in_samples, in_frames = await in_tasks[0], await in_tasks[1]
     await output_container.close()
     
-    input_container = InputContainer(self.container_filename, format="mp4")
+    input_container = await InputContainer.open(self.container_filename, format="mp4")
     out_tasks = (
       asyncio.create_task(self.in_container_read_audio(input_container.get_audio_stream(0, False), audio_codec, False)),
       asyncio.create_task(self.in_container_read_video(input_container.get_video_stream(0, True), video_codec, True))
@@ -62,11 +62,11 @@ class TestContainers(unittest.IsolatedAsyncioTestCase):
     self.assertLess(audio_similarity, 150)
   
   async def _test_codec_format_audio_io_container(self, codec: AudioCodecInfo, format: str, transcode: bool):
-    output_container = OutputContainer(self.container_filename, format=format)
+    output_container = await OutputContainer.open(self.container_filename, format=format)
     in_samples = await self.out_container_write_audio(output_container.add_audio_stream(codec), codec)
     await output_container.close()
     
-    input_container = InputContainer(self.container_filename, format=format)
+    input_container = await InputContainer.open(self.container_filename, format=format)
     out_samples = await self.in_container_read_audio(input_container.get_audio_stream(0, transcode), codec, transcode)
     await input_container.close()
     
@@ -74,11 +74,11 @@ class TestContainers(unittest.IsolatedAsyncioTestCase):
     self.assertLess(similarity, 70)
   
   async def _test_codec_format_video_io_container(self, codec: VideoCodecInfo, format: str, transcode: bool, check_padding: tuple[int,int] = (0, 0)):
-    output_container = OutputContainer(self.container_filename, format=format)
+    output_container = await OutputContainer.open(self.container_filename, format=format)
     in_frames = await self.out_container_write_video(output_container.add_video_stream(codec), codec)
     await output_container.close()
     
-    input_container = InputContainer(self.container_filename, format=format)
+    input_container = await InputContainer.open(self.container_filename, format=format)
     out_frames = await self.in_container_read_video(input_container.get_video_stream(0, transcode), codec, transcode)
 
     in_frames = in_frames[check_padding[0]:len(in_frames) - check_padding[1]]

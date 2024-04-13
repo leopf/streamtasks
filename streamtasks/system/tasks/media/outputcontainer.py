@@ -65,7 +65,8 @@ class OutputContainerTask(Task):
           message = MediaMessage.model_validate(data.data)
           start_time = start_time or message.timestamp
           for packet in message.packets: await stream.mux(packet)
-          # stream.duration = Fraction(message.timestamp - start_time, 1000) # NOTE this should optimally happen before, how do we solve this?
+          assert all(p.rel_dts >= 0 for p in message.packets), "rel dts must be greater >= 0"
+          stream.duration = Fraction(message.timestamp - start_time, 1000) # NOTE this should optimally happen before, how do we solve this?
         except ValidationError: pass
 
   async def _run_audio(self, config: ContainerAudioOutputConfig, container: OutputContainer):
@@ -80,13 +81,14 @@ class OutputContainerTask(Task):
           message = MediaMessage.model_validate(data.data)
           start_time = start_time or message.timestamp
           for packet in message.packets: await stream.mux(packet)
-          # stream.duration = Fraction(message.timestamp - start_time, 1000) # NOTE this should optimally happen before, how do we solve this?
+          assert all(p.rel_dts >= 0 for p in message.packets), "rel dts must be greater >= 0"
+          stream.duration = Fraction(message.timestamp - start_time, 1000) # NOTE this should optimally happen before, how do we solve this?
         except ValidationError: pass
 
   async def run(self):
     try:
       container = None
-      container = OutputContainer(self.config.destination, **self.config.container_options)
+      container = await OutputContainer.open(self.config.destination, **self.config.container_options)
       tasks = [ 
         *(asyncio.create_task(self._run_video(cfg, container)) for cfg in self.config.videos),
         *(asyncio.create_task(self._run_audio(cfg, container)) for cfg in self.config.audios) 

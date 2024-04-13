@@ -1,5 +1,7 @@
 import dataclasses
 from fractions import Fraction
+import functools
+import av.container
 import av.stream
 import av
 import asyncio
@@ -61,8 +63,8 @@ class AVInputStream:
       return MediaPacket.from_av_packet(packet)
 
 class InputContainer:
-  def __init__(self, url_or_path: str, **kwargs):
-    self._container = av.open(url_or_path, "r", **kwargs)
+  def __init__(self, container: av.container.InputContainer):
+    self._container = container
     self._demux_lock = asyncio.Lock()
   
   def __del__(self): self._container.close()
@@ -77,7 +79,15 @@ class InputContainer:
   
   async def close(self):
     await self._demux_lock.acquire()
-    self._container.close()
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, self._container.close)
+
+  @staticmethod
+  async def open(url_or_path: str, **kwargs):
+    loop = asyncio.get_running_loop()
+    container = await loop.run_in_executor(None, functools.partial(av.open, url_or_path, "r", **kwargs))
+    container.flags |= av.container.Flags.NOBUFFER
+    return InputContainer(container)
 
 class AVOutputStream:
   def __init__(self, ctx: _StreamContext, time_base: Fraction, stream: av.stream.Stream) -> None:
@@ -95,7 +105,7 @@ class AVOutputStream:
   def duration(self): return self._time_base * self._dts_counter
   
   @duration.setter
-  def duration(self, duration: Fraction): 
+  def duration(self, duration: Fraction):
     self._dts_counter = max(self._dts_counter, int(duration / self._time_base))
     self._ctx.set_sync_channel_time(self._sync_channel, self._dts_counter, self._time_base)
   
@@ -120,16 +130,16 @@ class AVOutputStream:
       self._ctx.set_sync_channel_time(self._sync_channel, self._dts_counter, self._time_base)
 
 class OutputContainer:
-  def __init__(self, url_or_path: str, **kwargs):
-    self._container: av.OutputContainer = av.open(url_or_path, "w", **kwargs)
-    self._mux_lock = asyncio.Lock()
+  def __init__(self, container: av.container.OutputContainer):
+    self._container: av.OutputContainer = container
     self._ctx = _StreamContext()
     
   def __del__(self): self._container.close()
   
   async def close(self):
-    await self._mux_lock.acquire()
-    self._container.close()
+    await self._ctx.lock.acquire()
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, self._container.close)
   
   def add_video_stream(self, codec_info: VideoCodecInfo):
     time_base = codec_info.time_base
@@ -142,3 +152,10 @@ class OutputContainer:
     if time_base is None: raise ValueError("time_base must not be None")
     stream = self._container.add_stream(codec_name=codec_info.codec, rate=codec_info.sample_rate, format=codec_info.to_av_format(), options=codec_info.options) 
     return AVOutputStream(self._ctx, time_base, stream)
+  
+  @staticmethod
+  async def open(url_or_path: str, **kwargs):
+    loop = asyncio.get_running_loop()
+    container: av.OutputContainer = await loop.run_in_executor(None, functools.partial(av.open, url_or_path, "w", **kwargs)) 
+    container.flags |= av.container.Flags.NOBUFFER
+    return OutputContainer(container)

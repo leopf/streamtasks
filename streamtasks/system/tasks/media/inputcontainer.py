@@ -65,7 +65,7 @@ class InputContainerTask(Task):
       while True:
         packets = await stream.demux()
         if len(packets) > 0:
-          # print("rdts", packets[0].rel_dts)
+          assert all(p.rel_dts >= 0 for p in packets), "rel dts must be greater >= 0"
           await out_topic.send(MessagePackData(MediaMessage(timestamp=get_timestamp_ms(), packets=packets).model_dump()))
           
   async def _run_audio(self, index: int, config: ContainerAudioInputConfig, container: InputContainer):
@@ -77,13 +77,13 @@ class InputContainerTask(Task):
       while True:
         packets = await stream.demux()
         if len(packets) > 0:
-          # print("rdts", packets[0].rel_dts)
+          assert all(p.rel_dts >= 0 for p in packets), "rel dts must be greater >= 0"
           await out_topic.send(MessagePackData(MediaMessage(timestamp=get_timestamp_ms(), packets=packets).model_dump()))
           
   async def run(self):
     try:
       container = None
-      container = InputContainer(self.config.source, **self.config.container_options)
+      container = await InputContainer.open(self.config.source, **self.config.container_options)
       tasks = [ 
         *(asyncio.create_task(self._run_video(idx, cfg, container)) for idx, cfg in enumerate(self.config.videos)),
         *(asyncio.create_task(self._run_audio(idx, cfg, container)) for idx, cfg in enumerate(self.config.audios)) 

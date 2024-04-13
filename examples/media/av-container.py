@@ -10,7 +10,7 @@ from tests.media import encode_all_frames, generate_audio_media_track, generate_
 async def main():
     vid_path = ".data/av.webm"
     if os.path.exists(vid_path): os.remove(vid_path)
-    container = OutputContainer(vid_path)
+    container = await OutputContainer.open(vid_path)
     audio_codec = AudioCodecInfo("libopus", 1, 24000, "flt")
     video_codec = VideoCodecInfo(1280, 720, 30, "yuv420p", "vp8")
     audio_stream = container.add_audio_stream(audio_codec)

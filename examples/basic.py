@@ -43,7 +43,6 @@ async def main():
     OutputContainerTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
     InputContainerTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
   ]
-  
   done_tasks, _ = await asyncio.wait([discovery_task] + [ asyncio.create_task(worker.run()) for worker in workers ], return_when="FIRST_COMPLETED")
   for task in done_tasks: await task
 
