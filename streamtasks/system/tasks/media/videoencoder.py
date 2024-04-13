@@ -20,13 +20,15 @@ class VideoEncoderConfigBase(BaseModel):
   codec_options: dict[str, str]
   
   @staticmethod
-  def default_config(): return VideoEncoderConfigBase(in_pixel_format="rgb24", out_pixel_format="yuv420p", codec="h264", width=1280, height=720, rate=30, codec_options={})
+  def default_config(): return VideoEncoderConfigBase(in_pixel_format="bgr24", out_pixel_format="yuv420p", codec="h264", width=1280, height=720, rate=30, codec_options={})
 
 class VideoEncoderConfig(VideoEncoderConfigBase):
   out_topic: int
   in_topic: int
 
 class VideoEncoderTask(Task):  
+  _squeeze_pixel_formats = {"gray"}
+  
   def __init__(self, client: Client, config: VideoEncoderConfig):
     super().__init__(client)
     self.out_topic = self.client.out_topic(config.out_topic)
@@ -39,6 +41,7 @@ class VideoEncoderTask(Task):
       pixel_format=config.out_pixel_format,
       codec=config.codec, options=config.codec_options)
     self.encoder = codec_info.get_encoder()
+    self.squeeze_frame = config.in_pixel_format in VideoEncoderTask._squeeze_pixel_formats
 
   async def run(self):
     try:
@@ -50,6 +53,7 @@ class VideoEncoderTask(Task):
             message = TimestampChuckMessage.model_validate(data.data)
             bm = np.frombuffer(message.data, dtype=np.uint8)
             bm = bm.reshape((self.config.height, self.config.width, -1))
+            if self.squeeze_frame: bm = bm.squeeze()
             frame = VideoFrame.from_ndarray(bm, self.config.in_pixel_format)
             packets = [p for p in await self.encoder.encode(frame) if p.dts is not None and p.pts is not None]
             if len(packets) > 0:

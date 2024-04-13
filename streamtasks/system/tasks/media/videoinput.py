@@ -1,7 +1,7 @@
 import asyncio
 import multiprocessing as mp
-from typing import Any, Literal
-from pydantic import BaseModel
+from typing import Any
+from pydantic import BaseModel, field_validator
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import TimestampChuckMessage
 from streamtasks.system.configurators import IOTypes, static_configurator
@@ -12,24 +12,31 @@ import cv2
 from streamtasks.system.tasks.media.utils import MediaEditorFields
 from streamtasks.utils import get_timestamp_ms, wait_with_dependencies
 
-BitmapPixelFormat = Literal["rgb24"]
-
 class VideoInputConfigBase(BaseModel):
   width: IOTypes.Width
   height: IOTypes.Height
   rate: IOTypes.Rate
-  pixel_format: BitmapPixelFormat
+  pixel_format: str
   camera_id: int
   
+  @field_validator('pixel_format')
+  @classmethod
+  def pixel_format_must_be_convertable(cls, v: str) -> str:
+    if v not in VideoInputTask._COLOR_FORMAT2CV_MAP: raise ValueError('pixel_format must be convertable')
+    return v
+  
   @staticmethod
-  def default_config(): return VideoInputConfigBase(width=1280, height=720, rate=30, pixel_format="rgb24", camera_id=0)
+  def default_config(): return VideoInputConfigBase(width=1280, height=720, rate=30, pixel_format="bgr24", camera_id=0)
 
 class VideoInputConfig(VideoInputConfigBase):
   out_topic: int
 
 class VideoInputTask(Task):
-  _COLOR_FORMAT2CV_MAP: dict[BitmapPixelFormat, int] = {
-    "rgb24": cv2.COLOR_BGR2RGB
+  _COLOR_FORMAT2CV_MAP: dict[str, int] = {
+    "rgb24": (cv2.COLOR_BGR2RGB,),
+    "bgra": (cv2.COLOR_BGR2BGRA,),
+    "gray": (cv2.COLOR_BGR2GRAY,),
+    "bgr24": ()
   }
   
   def __init__(self, client: Client, config: VideoInputConfig):
@@ -62,7 +69,7 @@ class VideoInputTask(Task):
         timestamp = get_timestamp_ms()
         if not result: raise Exception("Failed to read image!")
         frame = cv2.resize(frame, (self.config.width, self.config.height))
-        frame = cv2.cvtColor(frame, VideoInputTask._COLOR_FORMAT2CV_MAP[self.config.pixel_format])
+        for clr_coversion in VideoInputTask._COLOR_FORMAT2CV_MAP[self.config.pixel_format]: frame = cv2.cvtColor(frame, clr_coversion)
         self.message_queue.put_nowait(TimestampChuckMessage(timestamp=timestamp, data=frame.tobytes()))
     finally:
       vc.release()
