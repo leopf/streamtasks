@@ -1,11 +1,11 @@
 import os
 import logging
 
-from streamtasks.system.tasks.inputcontainer import InputContainerTaskHost
-from streamtasks.system.tasks.outputcontainer import OutputContainerTaskHost
-from streamtasks.system.tasks.videodecoder import VideoDecoderTaskHost
-from streamtasks.system.tasks.videoencoder import VideoEncoderTaskHost
-from streamtasks.system.tasks.videoinput import VideoInputTaskHost
+from streamtasks.system.tasks.media.inputcontainer import InputContainerTaskHost
+from streamtasks.system.tasks.media.outputcontainer import OutputContainerTaskHost
+from streamtasks.system.tasks.media.videodecoder import VideoDecoderTaskHost
+from streamtasks.system.tasks.media.videoencoder import VideoEncoderTaskHost
+from streamtasks.system.tasks.media.videoinput import VideoInputTaskHost
 logging.basicConfig(level=logging.INFO)
 os.environ["DATA_DIR"] = ".data"
 

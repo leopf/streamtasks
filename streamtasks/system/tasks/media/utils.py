@@ -4,12 +4,12 @@ from streamtasks.media.util import list_pixel_formats, list_sorted_available_cod
 def _key_to_label(key: str): return " ".join(key.split("_"))
 
 class MediaEditorFields:
-  def pixel_format(key: str = "pixel_format", label: str | None = None):
+  def pixel_format(key: str = "pixel_format", label: str | None = None, allowed_values: set[str] | None = None):
     return {
       "type": "select",
       "key": key,
       "label": label or _key_to_label(key),
-      "items": [ { "label": pxl_fmt.upper(), "value": pxl_fmt } for pxl_fmt in list_pixel_formats() ]
+      "items": [ { "label": pxl_fmt.upper(), "value": pxl_fmt } for pxl_fmt in list_pixel_formats() if allowed_values is None or pxl_fmt in allowed_values ]
     }
   
   def video_codec_name(mode: Literal["w", "r"], key: str = "codec", label: str | None = None):

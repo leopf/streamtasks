@@ -1,13 +1,13 @@
 from typing import Any
 from pydantic import BaseModel, ValidationError
-from streamtasks.media.util import list_available_codecs, list_pixel_formats, list_sorted_available_codecs
 from streamtasks.media.video import VideoCodecInfo, VideoFrame
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import MediaMessage, TimestampChuckMessage
 from streamtasks.system.configurators import IOTypes, static_configurator
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
-import numpy as np
+
+from streamtasks.system.tasks.media.utils import MediaEditorFields
 
 class VideoDecoderConfigBase(BaseModel):
   in_pixel_format: IOTypes.PixelFormat
@@ -66,53 +66,13 @@ class VideoDecoderTaskHost(TaskHost):
     config_to_input_map={ "in_topic": { **{ v: v for v in [ "rate", "width", "height", "codec" ] }, "in_pixel_format": "pixel_format" } },
     config_to_output_map=[ { **{ v: v for v in [ "rate", "width", "height" ] }, "out_pixel_format": "pixel_format" } ],
     editor_fields=[
-      {
-        "type": "select",
-        "key": "in_pixel_format",
-        "label": "input pixel format",
-        "items": [ { "label": pxl_fmt.upper(), "value": pxl_fmt } for pxl_fmt in list_pixel_formats() ]
-      },
-      {
-        "type": "select",
-        "key": "out_pixel_format",
-        "label": "output pixel format",
-        "items": [ { "label": pxl_fmt.upper(), "value": pxl_fmt } for pxl_fmt in list_pixel_formats() ]
-      },
-      {
-        "type": "select",
-        "key": "codec",
-        "label": "codec",
-        "items": [ { "label": codec.name.upper(), "value": codec.name } for codec in list_sorted_available_codecs("r") if codec.type == "video" ]
-      },
-      {
-        "type": "number",
-        "key": "width",
-        "label": "width",
-        "integer": True,
-        "min": 0,
-        "unit": "px"
-      },
-      {
-        "type": "number",
-        "key": "height",
-        "label": "height",
-        "integer": True,
-        "min": 0,
-        "unit": "px"
-      },
-      {
-        "type": "number",
-        "key": "rate",
-        "label": "frame rate",
-        "integer": True,
-        "min": 0,
-        "unit": "fps"
-      },
-      {
-        "type": "kvoptions",
-        "key": "codec_options",
-        "label": "codec options",
-      }
+      MediaEditorFields.pixel_format("in_pixel_format", "input pixel format"),
+      MediaEditorFields.pixel_format("out_pixel_format", "output pixel format"),
+      MediaEditorFields.video_codec_name("r"),
+      MediaEditorFields.pixel_size("width"),
+      MediaEditorFields.pixel_size("height"),
+      MediaEditorFields.frame_rate(),
+      MediaEditorFields.options("codec_options"),
     ]
   )}
   async def create_task(self, config: Any, topic_space_id: int | None):

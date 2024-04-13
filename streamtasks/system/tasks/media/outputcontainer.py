@@ -1,12 +1,12 @@
 from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.media.container import OutputContainer
-from streamtasks.media.util import list_pixel_formats, list_sorted_available_codecs
 from streamtasks.media.video import VideoCodecInfo
 from streamtasks.system.configurators import IOTypes, static_configurator
 from streamtasks.net.message.structures import MediaMessage
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
+from streamtasks.system.tasks.media.utils import MediaEditorFields
 
 class OutputContainerConfigBase(BaseModel):
   destination: str
@@ -58,47 +58,12 @@ class OutputContainerTaskHost(TaskHost):
         "key": "destination",
         "label": "destination path or url",
       },
-      {
-        "type": "select",
-        "key": "pixel_format",
-        "label": "pixel format",
-        "items": [ { "label": pxl_fmt.upper(), "value": pxl_fmt } for pxl_fmt in list_pixel_formats() ]
-      },
-      {
-        "type": "select",
-        "key": "codec",
-        "label": "codec",
-        "items": [ { "label": codec.name.upper(), "value": codec.name } for codec in list_sorted_available_codecs("w") if codec.type == "video" ]
-      },
-      {
-        "type": "number",
-        "key": "width",
-        "label": "width",
-        "integer": True,
-        "min": 0,
-        "unit": "px"
-      },
-      {
-        "type": "number",
-        "key": "height",
-        "label": "height",
-        "integer": True,
-        "min": 0,
-        "unit": "px"
-      },
-      {
-        "type": "number",
-        "key": "rate",
-        "label": "frame rate",
-        "integer": True,
-        "min": 0,
-        "unit": "fps"
-      },
-      {
-        "type": "kvoptions",
-        "key": "container_options",
-        "label": "container options",
-      }
+      MediaEditorFields.pixel_format(),
+      MediaEditorFields.video_codec_name("w"),
+      MediaEditorFields.pixel_size("width"),
+      MediaEditorFields.pixel_size("height"),
+      MediaEditorFields.frame_rate(),
+      MediaEditorFields.options("container_options"),
     ])}
   async def create_task(self, config: Any, topic_space_id: int | None):
     return OutputContainerTask(await self.create_client(topic_space_id), OutputContainerConfig.model_validate(config))

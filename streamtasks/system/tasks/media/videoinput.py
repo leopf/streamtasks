@@ -9,6 +9,7 @@ from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 import cv2
 
+from streamtasks.system.tasks.media.utils import MediaEditorFields
 from streamtasks.utils import get_timestamp_ms, wait_with_dependencies
 
 BitmapPixelFormat = Literal["rgb24"]
@@ -75,43 +76,16 @@ class VideoInputTaskHost(TaskHost):
     config_to_output_map=[ { v: v for v in [ "rate", "pixel_format", "width", "height" ] } ],
     editor_fields=[
       {
-        "type": "select",
-        "key": "pixel_format",
-        "label": "pixel format",
-        "items": [ { "label": "RGB 24", "value": "rgb24" } ]
-      },
-      {
         "type": "number",
         "key": "camera_id",
         "label": "camera id",
         "integer": True,
-        "min": 0,
-        "max": 256
+        "min": 0
       },
-      {
-        "type": "number",
-        "key": "width",
-        "label": "width",
-        "integer": True,
-        "min": 0,
-        "unit": "px"
-      },
-      {
-        "type": "number",
-        "key": "height",
-        "label": "height",
-        "integer": True,
-        "min": 0,
-        "unit": "px"
-      },
-      {
-        "type": "number",
-        "key": "rate",
-        "label": "frame rate",
-        "integer": True,
-        "min": 0,
-        "unit": "fps"
-      },
+      MediaEditorFields.pixel_format(allowed_values=set(VideoInputTask._COLOR_FORMAT2CV_MAP.keys())),
+      MediaEditorFields.pixel_size("width"),
+      MediaEditorFields.pixel_size("height"),
+      MediaEditorFields.frame_rate(),
     ]
   )}
   async def create_task(self, config: Any, topic_space_id: int | None):
