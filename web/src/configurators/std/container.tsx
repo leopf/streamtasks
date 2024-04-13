@@ -166,7 +166,7 @@ const configurator: TaskConfigurator = {
             audioDefaultConfig: parseMetadataFieldJson(context, "cfg:audioconfig", z.record(z.string(), z.any()), false) ?? {},
         };
         const disabledIds = new Set(task.inputs.filter(i => !!i.topic_id).map(i => Number(i.key)));
-        reactRenderer.render(element, <ContainerEditor disabledIds={disabledIds} data={task.config} {...editorProps} newTopic={context.idGenerator} onUpdated={() => {
+        reactRenderer.render(element, <ContainerEditor key={task.id} disabledIds={disabledIds} data={task.config} {...editorProps} newTopic={context.idGenerator} onUpdated={() => {
             if (isInput) {
                 task.outputs = createContainerOutputs(task, context);
             }

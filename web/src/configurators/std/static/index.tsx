@@ -37,7 +37,7 @@ const configurator: TaskConfigurator = {
     renderEditor: (task: Task, element: HTMLElement, context: TaskConfiguratorContext) => {
         const fields = getCFGFieldEditorFields(context);
         if (!fields) return;
-        reactRenderer.render(element, <StaticEditor data={task.config} fields={fields} onUpdated={() => {
+        reactRenderer.render(element, <StaticEditor key={task.id} data={task.config} fields={fields} onUpdated={() => {
             applyConfigToIOMetadata(task, context);
             elementEmitUpdate(element, task);
         }} disabledFields={getDisabledFields(task, context)} />)
