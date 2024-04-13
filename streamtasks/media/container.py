@@ -60,6 +60,7 @@ class AVInputStream:
   def _demux(self):
     for packet in self._stream.container.demux(self._stream):
       if packet.size == 0 and packet.dts is None and packet.pts is None: raise EOFError() # HACK: for some reason dummy packets are emittied forever after some streams
+      assert packet.dts <= packet.pts, "dts must be lower than pts while demuxing"
       return MediaPacket.from_av_packet(packet)
 
 class InputContainer:
@@ -122,7 +123,9 @@ class AVOutputStream:
     
     loop = asyncio.get_running_loop()
     async with self._ctx.lock:
+      assert av_packet.dts <= av_packet.pts, "dts must be lower than pts before muxing"
       await loop.run_in_executor(None, self._stream.container.mux, av_packet)
+      assert av_packet.dts <= av_packet.pts, "dts must be lower than pts after muxing"
       if self._stream.type == "audio":
         self._dts_counter += self._stream.codec_context.frame_size
       else:
