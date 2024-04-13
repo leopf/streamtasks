@@ -11,6 +11,8 @@ class IOTypes:
   Height = int
   Rate = int
   PixelFormat = str
+  SampleFormat = str
+  Channels = int
 
 def static_configurator(label: str, description: str | None = None, inputs: list[MetadataDict] = [],
                         outputs: list[MetadataDict] = [], default_config: dict[str, Any] | None = None,

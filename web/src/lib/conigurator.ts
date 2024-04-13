@@ -3,15 +3,22 @@ import React from "react";
 import { Task } from "../types/task";
 
 export class ReactEditorRenderer {
-    private roots: WeakMap<HTMLElement, Root> = new WeakMap();
+    private roots: WeakMap<Node, Root> = new WeakMap();
     public render(container: HTMLElement, element: React.ReactNode) {
+        let innerContainer = container.firstChild;
+
         let root: Root;
-        if (this.roots.has(container)) {
-            root = this.roots.get(container)!;
+        if (innerContainer !== null && this.roots.has(innerContainer)) {
+            root = this.roots.get(innerContainer)!;
         }
         else {
-            root = createRoot(container);
-            this.roots.set(container, root);
+            while (container.firstChild) {
+                container.removeChild(container.firstChild);
+            }
+            const innerContainer = document.createElement("div");
+            container.appendChild(innerContainer);
+            root = createRoot(innerContainer);
+            this.roots.set(innerContainer, root);
         }
         root.render(element);
     }

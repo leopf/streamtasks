@@ -55,7 +55,7 @@ class InputContainerTaskHost(TaskHost):
   @property
   def metadata(self): return {**static_configurator(
     label="input container",
-    outputs=[{ "label": "input", "type": "ts", "key": "out_topic" }],
+    outputs=[{ "label": "input", "type": "ts", "key": "out_topic", "content": "video" }],
     default_config=InputContainerConfigBase.default_config().model_dump(),
     config_to_output_map=[ { **{ v: v for v in [ "rate", "width", "height", "codec", "pixel_format" ] } } ],
     editor_fields=[

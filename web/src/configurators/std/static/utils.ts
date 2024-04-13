@@ -22,25 +22,23 @@ export function getDefinedKeys<T extends string | number | symbol>(m: Record<T, 
     return Object.entries(m).filter(([k, v]) => v !== undefined && v !== null).map(e => e[0])
 }
 
-export function getCFGFieldInputMetadata(context: TaskConfiguratorContext) {
-    const inputMetadataRaw = context.taskHost.metadata["cfg:inputmetadata"];
-    if (typeof inputMetadataRaw !== "string") return;
-    return InputMetadataMapModel.parse(JSON.parse(inputMetadataRaw));
+export function parseMetadataFieldJson<T, F extends boolean = false>(context: TaskConfiguratorContext, field: string, model: z.ZodType<T>, force: F) : F extends false ? T | undefined : T {
+    const inputMetadataRaw = context.taskHost.metadata[field];
+    if (typeof inputMetadataRaw !== "string") {
+        if (force) {
+            throw new Error(`Field ${field} not found!`);
+        }
+        else {
+            return undefined as any; // trick ts
+        }
+    }
+    return model.parse(JSON.parse(inputMetadataRaw));
 }
 
-export function getCFGFieldInputs(context: TaskConfiguratorContext) {
-    return z.array(TaskPartialInputModel).parse(JSON.parse(String(context.taskHost.metadata["cfg:inputs"])))
-}
-
-export function getCFGFieldOutputs(context: TaskConfiguratorContext) {
-    return z.array(MetadataModel).parse(JSON.parse(String(context.taskHost.metadata["cfg:outputs"])))
-}
-
-export function getCFGFieldIOMirror(context: TaskConfiguratorContext) {
-    const IOMirrorMetadataRaw = context.taskHost.metadata["cfg:iomirror"];
-    if (typeof IOMirrorMetadataRaw !== "string") return;
-    return z.array(z.tuple([z.string(), z.number()])).parse(JSON.parse(IOMirrorMetadataRaw));
-}
+export const getCFGFieldInputMetadata = (context: TaskConfiguratorContext) => parseMetadataFieldJson(context, "cfg:inputmetadata", InputMetadataMapModel, false);
+export const getCFGFieldInputs = (context: TaskConfiguratorContext) => parseMetadataFieldJson(context, "cfg:inputs", z.array(TaskPartialInputModel), true);
+export const getCFGFieldOutputs = (context: TaskConfiguratorContext) => parseMetadataFieldJson(context, "cfg:outputs", z.array(MetadataModel), true);
+export const getCFGFieldIOMirror = (context: TaskConfiguratorContext) => parseMetadataFieldJson(context, "cfg:iomirror", z.array(z.tuple([z.string(), z.number()])), false);
 
 export function getCFGFieldEditorFields(context: TaskConfiguratorContext, key: string = "cfg:editorfields"): EditorField[] | undefined {
     if (typeof context.taskHost.metadata[key] !== "string") return;
@@ -203,6 +201,7 @@ export function elementEmitUpdate(element: HTMLElement, task: Task) {
 export function createTaskFromContext(context: TaskConfiguratorContext) {
     const metadata = context.taskHost.metadata;
     const label = z.string().parse(metadata["cfg:label"]);
+    console.log(label);
     const inputs = getCFGFieldInputs(context)
     const outputs = getCFGFieldOutputs(context)
     const config = "cfg:config" in metadata ? z.record(z.any()).parse(JSON.parse(String(metadata["cfg:config"]))) : {};

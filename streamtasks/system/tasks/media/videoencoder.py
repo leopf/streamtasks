@@ -67,7 +67,7 @@ class VideoEncoderTaskHost(TaskHost):
   def metadata(self): return {**static_configurator(
     label="video encoder",
     inputs=[{ "label": "input", "type": "ts", "key": "in_topic", "content": "video", "codec": "raw" }],
-    outputs=[{ "label": "output", "type": "ts", "key": "out_topic" }],
+    outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "content": "video" }],
     default_config=VideoEncoderConfigBase.default_config().model_dump(),
     config_to_input_map={ "in_topic": { **{ v: v for v in [ "rate", "width", "height" ] }, "in_pixel_format": "pixel_format" } },
     config_to_output_map=[ { **{ v: v for v in [ "rate", "width", "height", "codec" ] }, "out_pixel_format": "pixel_format" } ],

@@ -1,10 +1,8 @@
-import { z } from "zod";
 import { TaskConfigurator, TaskConfiguratorContext, Task, TaskOutput } from "../../../types/task";
-import { v4 as uuidv4 } from "uuid";
 import { getMetadataKeyDiffs } from "../../../lib/task";
 import { ReactEditorRenderer as ReactRenderer } from "../../../lib/conigurator";
 import { StaticEditor } from "../../../StaticEditor";
-import { applyConfigToIOMetadata, applyOutputIdsToConfig, compareIgnoreMetadataKeys, connectMirrorIO, connectWithConfigOverwrite, createTaskFromContext, elementEmitUpdate, getCFGFieldEditorFields, getCFGFieldInputs, getCFGFieldOutputs, getDisabledFields } from "./utils";
+import { applyConfigToIOMetadata, compareIgnoreMetadataKeys, connectMirrorIO, connectWithConfigOverwrite, createTaskFromContext, elementEmitUpdate, getCFGFieldEditorFields, getDisabledFields } from "./utils";
 
 const reactRenderer = new ReactRenderer();
 const configurator: TaskConfigurator = {
@@ -37,12 +35,12 @@ const configurator: TaskConfigurator = {
     },
     create: createTaskFromContext,
     renderEditor: (task: Task, element: HTMLElement, context: TaskConfiguratorContext) => {
-        const mainFields = getCFGFieldEditorFields(context) ?? [];
-        const videoFields = getCFGFieldEditorFields(context, "cfg:videoeditorfields") ?? [];
-        const audioFields = getCFGFieldEditorFields(context, "cfg:audioeditorfields") ?? [];
-        reactRenderer.render(element, <StaticEditor data={task.config} fields={mainFields} onUpdated={() => {
+        const fields = getCFGFieldEditorFields(context);
+        if (!fields) return;
+        reactRenderer.render(element, <StaticEditor data={task.config} fields={fields} onUpdated={() => {
+            applyConfigToIOMetadata(task, context);
             elementEmitUpdate(element, task);
-        }} />)
+        }} disabledFields={getDisabledFields(task, context)} />)
     }
 };
 

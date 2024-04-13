@@ -60,7 +60,7 @@ class VideoDecoderTaskHost(TaskHost):
   @property
   def metadata(self): return {**static_configurator(
     label="video decoder",
-    inputs=[{ "label": "input", "type": "ts", "key": "in_topic" }],
+    inputs=[{ "label": "input", "type": "ts", "key": "in_topic", "content": "video" }],
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "content": "video", "codec": "raw" }],
     default_config=VideoDecoderConfigBase.default_config().model_dump(),
     config_to_input_map={ "in_topic": { **{ v: v for v in [ "rate", "width", "height", "codec" ] }, "in_pixel_format": "pixel_format" } },

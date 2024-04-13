@@ -7,8 +7,10 @@ function TextFieldEditor(props: { config: STextField, data: Record<string, any>,
     const [value, setValue] = useState(String(props.data[props.config.key]) ?? "")
 
     useEffect(() => {
-        props.data[props.config.key] = value;
-        props.onUpdated();
+        if (props.data[props.config.key] != value) {
+            props.data[props.config.key] = value;
+            props.onUpdated();
+        }
     }, [value]);
 
     return (
@@ -99,8 +101,10 @@ function KVOptionsFieldEditor(props: { config: KVOptionsField, data: Record<stri
     const items = useMemo(() => Object.entries(record).sort((a, b) => a[0].localeCompare(b[0])), [record]);
 
     useEffect(() => {
-        props.data[props.config.key] = record;
-        props.onUpdated();
+        if (props.data[props.config.key] !== record) {
+            props.data[props.config.key] = record;
+            props.onUpdated();
+        }
     }, [record])
 
     return (
