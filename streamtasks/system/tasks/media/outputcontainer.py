@@ -65,7 +65,7 @@ class OutputContainerTask(Task):
           message = MediaMessage.model_validate(data.data)
           start_time = start_time or message.timestamp
           for packet in message.packets: await stream.mux(packet)
-          stream.duration = Fraction(message.timestamp - start_time, 1000) # NOTE this should optimally happen before, how do we solve this?
+          # stream.duration = Fraction(message.timestamp - start_time, 1000) # NOTE this should optimally happen before, how do we solve this?
         except ValidationError: pass
 
   async def _run_audio(self, config: ContainerAudioOutputConfig, container: OutputContainer):
@@ -80,7 +80,7 @@ class OutputContainerTask(Task):
           message = MediaMessage.model_validate(data.data)
           start_time = start_time or message.timestamp
           for packet in message.packets: await stream.mux(packet)
-          stream.duration = Fraction(message.timestamp - start_time, 1000) # NOTE this should optimally happen before, how do we solve this?
+          # stream.duration = Fraction(message.timestamp - start_time, 1000) # NOTE this should optimally happen before, how do we solve this?
         except ValidationError: pass
 
   async def run(self):
@@ -104,7 +104,6 @@ class OutputContainerTaskHost(TaskHost):
   def metadata(self): return {
     **static_configurator(
       label="output container",
-      inputs=[],
       default_config=OutputContainerConfig.default_config().model_dump(),
       editor_fields=[
         {

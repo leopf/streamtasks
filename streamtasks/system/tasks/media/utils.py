@@ -38,6 +38,14 @@ class MediaEditorFields:
       "unit": "px"
     }
     
+  def boolean(key: str, label: str | None = None):
+    return {
+      "type": "boolean",
+      "key": key,
+      "label": label or _key_to_label(key),
+    }
+    
+    
   def options(key: str, label: str | None = None):
     return {
       "type": "kvoptions",
