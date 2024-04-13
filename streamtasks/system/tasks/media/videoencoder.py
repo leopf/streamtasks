@@ -9,6 +9,8 @@ from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 import numpy as np
 
+from streamtasks.system.tasks.media.utils import MediaEditorFields
+
 class VideoEncoderConfigBase(BaseModel):
   in_pixel_format: IOTypes.PixelFormat
   out_pixel_format: IOTypes.PixelFormat
