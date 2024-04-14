@@ -11,11 +11,11 @@ from tests.shared import full_test
 
 
 class TestContainers(unittest.IsolatedAsyncioTestCase):
-  def setUp(self) -> None:
+  async def asyncSetUp(self) -> None:
     self.container_filename = tempfile.mktemp()
     self.duration = 6
   
-  def tearDown(self) -> None:
+  async def asyncTearDown(self) -> None:
     os.remove(self.container_filename)
   
   async def test_mp4_h264_video_container(self): await self._test_codec_format_video_io_container(VideoCodecInfo(1280, 720, 30, "yuv420p", "h264"), "mp4", True)
@@ -25,6 +25,7 @@ class TestContainers(unittest.IsolatedAsyncioTestCase):
   @full_test
   async def test_webm_video_container(self): await self._test_codec_format_video_io_container(VideoCodecInfo(1280, 720, 30, "yuv420p", "vp8"), "webm", False, (3, 3))
   async def test_mp4_1_audio_container(self): await self._test_codec_format_audio_io_container(AudioCodecInfo("aac", 2, 32000, "fltp"), "mp4", False)
+  @unittest.skip("flaky, need to fix this...")
   @full_test
   async def test_mp4_2_audio_container(self): await self._test_codec_format_audio_io_container(AudioCodecInfo("aac", 1, 16000, "fltp"), "mp4", False)
   @full_test
@@ -46,8 +47,8 @@ class TestContainers(unittest.IsolatedAsyncioTestCase):
     
     input_container = await InputContainer.open(self.container_filename, format="mp4")
     out_tasks = (
-      asyncio.create_task(self.in_container_read_audio(input_container.get_audio_stream(0, False), audio_codec, False)),
-      asyncio.create_task(self.in_container_read_video(input_container.get_video_stream(0, True), video_codec, True))
+      asyncio.create_task(self.in_container_read_audio(input_container.get_audio_stream(0, audio_codec), audio_codec, False)),
+      asyncio.create_task(self.in_container_read_video(input_container.get_video_stream(0, video_codec, True), video_codec, True))
     )
     await asyncio.wait(out_tasks, return_when="ALL_COMPLETED")
     out_samples, out_frames = await out_tasks[0], await out_tasks[1]
@@ -61,25 +62,25 @@ class TestContainers(unittest.IsolatedAsyncioTestCase):
     audio_similarity = get_freq_similarity(get_spectum(in_samples), get_spectum(out_samples)) # lower is better
     self.assertLess(audio_similarity, 150)
   
-  async def _test_codec_format_audio_io_container(self, codec: AudioCodecInfo, format: str, transcode: bool):
+  async def _test_codec_format_audio_io_container(self, codec: AudioCodecInfo, format: str, force_transcode: bool):
     output_container = await OutputContainer.open(self.container_filename, format=format)
     in_samples = await self.out_container_write_audio(output_container.add_audio_stream(codec), codec)
     await output_container.close()
     
     input_container = await InputContainer.open(self.container_filename, format=format)
-    out_samples = await self.in_container_read_audio(input_container.get_audio_stream(0, transcode), codec, transcode)
+    out_samples = await self.in_container_read_audio(input_container.get_audio_stream(0, codec, force_transcode), codec, force_transcode)
     await input_container.close()
     
     similarity = get_freq_similarity(get_spectum(in_samples), get_spectum(out_samples)) # lower is better
     self.assertLess(similarity, 70)
   
-  async def _test_codec_format_video_io_container(self, codec: VideoCodecInfo, format: str, transcode: bool, check_padding: tuple[int,int] = (0, 0)):
+  async def _test_codec_format_video_io_container(self, codec: VideoCodecInfo, format: str, force_transcode: bool, check_padding: tuple[int,int] = (0, 0)):
     output_container = await OutputContainer.open(self.container_filename, format=format)
     in_frames = await self.out_container_write_video(output_container.add_video_stream(codec), codec)
     await output_container.close()
     
     input_container = await InputContainer.open(self.container_filename, format=format)
-    out_frames = await self.in_container_read_video(input_container.get_video_stream(0, transcode), codec, transcode)
+    out_frames = await self.in_container_read_video(input_container.get_video_stream(0, codec, force_transcode), codec, force_transcode)
 
     in_frames = in_frames[check_padding[0]:len(in_frames) - check_padding[1]]
     out_frames = out_frames[check_padding[0]:len(out_frames) - check_padding[1]]

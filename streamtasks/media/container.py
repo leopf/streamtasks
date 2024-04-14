@@ -38,19 +38,23 @@ class _StreamContext:
   def add_time_base(self, time_base: Fraction): self.time_base = max(self.time_base * time_base, Fraction(1, 10_000_000)) 
 
 class AVInputStream:
-  def __init__(self, demux_lock: asyncio.Lock, stream: av.stream.Stream, transcode: bool) -> None:
+  def __init__(self, demux_lock: asyncio.Lock, stream: av.stream.Stream, target_codec: CodecInfo, force_transcode: bool) -> None:
     self._stream = stream
     self._demux_lock = demux_lock
     self._transcoder: None | AVTranscoder = None
-    if transcode:
-      codec_info = self.codec_info
-      self._transcoder = AVTranscoder(Decoder(stream.codec_context, codec_info.time_base), codec_info.get_encoder())
+    
+    try:
+      codec_info = CodecInfo.from_codec_context(self._stream.codec_context)
+      if force_transcode or not target_codec.compatible_with(codec_info):
+        # TODO format conversion and resampling!!
+        self._transcoder = AVTranscoder(Decoder(stream.codec_context, codec_info.time_base), target_codec.get_encoder())
+    except TypeError: pass # NOTE: some contexts dont have all the codec info
     
   @property
   def codec_info(self) -> CodecInfo: return CodecInfo.from_codec_context(self._stream.codec_context)
 
   async def demux(self) -> list[MediaPacket]:
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     async with self._demux_lock:
       packet = await loop.run_in_executor(None, self._demux)
       if packet is None: return []
@@ -70,13 +74,13 @@ class InputContainer:
   
   def __del__(self): self._container.close()
   
-  def get_video_stream(self, idx: int, transcode: bool):
+  def get_video_stream(self, idx: int, target_codec: VideoCodecInfo, force_transcode: bool = False):
     av_stream = self._container.streams.video[idx]
-    return AVInputStream(self._demux_lock, av_stream, transcode)
+    return AVInputStream(self._demux_lock, av_stream, target_codec, force_transcode)
   
-  def get_audio_stream(self, idx: int, transcode: bool):
+  def get_audio_stream(self, idx: int, target_codec: AudioCodecInfo, force_transcode: bool = False):
     av_stream = self._container.streams.audio[idx]
-    return AVInputStream(self._demux_lock, av_stream, transcode)
+    return AVInputStream(self._demux_lock, av_stream, target_codec, force_transcode)
   
   async def close(self):
     await self._demux_lock.acquire()

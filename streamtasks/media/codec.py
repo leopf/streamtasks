@@ -2,12 +2,14 @@ from abc import ABC, abstractmethod
 from fractions import Fraction
 from typing import Any, TypeVar, TypedDict, Optional, Generic
 import av.codec
+import av.frame
+import av.video
 from streamtasks.media.packet import MediaPacket
 import av
 import av.subtitles.subtitle
 import asyncio
 
-T = TypeVar('T')
+T = TypeVar('T', bound=av.frame.Frame)
 
 class Frame(ABC, Generic[T]):
   def __init__(self, frame: T):
@@ -81,6 +83,8 @@ class AVTranscoder:
     frames = await self.decoder.decode(packet)
     packets = []
     for frame in frames:
+      frame.frame.pts = None
+      frame.frame.dts = None
       packets += await self.encoder.encode(frame)
     return packets
 

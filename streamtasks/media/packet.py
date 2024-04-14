@@ -31,5 +31,5 @@ class MediaPacket:
 
   @staticmethod
   def from_av_packet(packet: av.Packet):
-    rel_dts = None if packet.dts is None or packet.pts is None else packet.pts - packet.dts
+    rel_dts = 0 if packet.dts is None or packet.pts is None else packet.pts - packet.dts
     return MediaPacket(bytes(packet), packet.pts, packet.is_keyframe, rel_dts)

@@ -1,8 +1,7 @@
 # MY TODOS
 
+- need to rethink and improve media timing (what is required where and why? Make guidelines, that work.)
 - from codec context should transfer some options
-- test containers + improve with twitchbot example 
-        Can we sort by dts and assume it being incrementing with step size?
 
 Frontend:
 - list raw task instances

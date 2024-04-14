@@ -19,11 +19,11 @@ class ContainerVideoInputConfigBase(BaseModel):
   width: IOTypes.Width
   height: IOTypes.Height
   rate: IOTypes.Rate
-  transcode: bool
+  force_transcode: bool
   codec_options: dict[str, str]
   
   @staticmethod
-  def default_config(): return ContainerVideoInputConfigBase(pixel_format="yuv420p", codec="h264", width=1280, height=720, rate=30, transcode=False, codec_options={})
+  def default_config(): return ContainerVideoInputConfigBase(pixel_format="yuv420p", codec="h264", width=1280, height=720, rate=30, force_transcode=False, codec_options={})
 
 class ContainerVideoInputConfig(ContainerVideoInputConfigBase):
   out_topic: int
@@ -33,11 +33,11 @@ class ContainerAudioInputConfigBase(BaseModel):
   codec: IOTypes.Codec
   channels: IOTypes.Channels
   rate: IOTypes.Rate
-  transcode: bool
+  force_transcode: bool
   codec_options: dict[str, str]
   
   @staticmethod
-  def default_config(): return ContainerAudioInputConfigBase(codec="aac", sample_format="fltp", channels=1, rate=32000, transcode=False, codec_options={})
+  def default_config(): return ContainerAudioInputConfigBase(codec="aac", sample_format="fltp", channels=1, rate=32000, force_transcode=False, codec_options={})
 
 class ContainerAudioInputConfig(ContainerAudioInputConfigBase):
   out_topic: int
@@ -59,8 +59,7 @@ class InputContainerTask(Task):
   async def _run_video(self, index: int, config: ContainerVideoInputConfig, container: InputContainer):
     out_topic = self.client.out_topic(config.out_topic)
     codec_info = VideoCodecInfo(width=config.width, height=config.height, frame_rate=config.rate, pixel_format=config.pixel_format, codec=config.codec, options=config.codec_options)
-    stream = container.get_video_stream(index, config.transcode)
-    if not codec_info.compatible_with(stream.codec_info): raise ValueError("Supplied codec is not compatible with stream codec!")
+    stream = container.get_video_stream(index, codec_info, config.force_transcode)
     async with out_topic, out_topic.RegisterContext():
       while True:
         packets = await stream.demux()
@@ -71,8 +70,7 @@ class InputContainerTask(Task):
   async def _run_audio(self, index: int, config: ContainerAudioInputConfig, container: InputContainer):
     out_topic = self.client.out_topic(config.out_topic)
     codec_info = AudioCodecInfo(channels=config.channels, codec=config.codec, sample_rate=config.rate, sample_format=config.sample_format, options=config.codec_options)
-    stream = container.get_audio_stream(index, config.transcode)
-    if not codec_info.compatible_with(stream.codec_info): raise ValueError("Supplied codec is not compatible with stream codec!")
+    stream = container.get_audio_stream(index, codec_info, config.force_transcode)
     async with out_topic, out_topic.RegisterContext():
       while True:
         packets = await stream.demux()
@@ -120,7 +118,7 @@ class InputContainerTaskHost(TaskHost):
       MediaEditorFields.pixel_size("width"),
       MediaEditorFields.pixel_size("height"),
       MediaEditorFields.frame_rate(),
-      MediaEditorFields.boolean("transcode"),
+      MediaEditorFields.boolean("force_transcode"),
       MediaEditorFields.options("codec_options"),
     ]),
     "cfg:audioiomap": json.dumps({ v: v for v in [ "codec", "rate", "channels", "sample_format" ] }),
@@ -131,7 +129,7 @@ class InputContainerTaskHost(TaskHost):
       MediaEditorFields.sample_format(),
       MediaEditorFields.sample_rate(),
       MediaEditorFields.channel_count(),
-      MediaEditorFields.boolean("transcode"),
+      MediaEditorFields.boolean("force_transcode"),
       MediaEditorFields.options("codec_options"),
     ])
   }
