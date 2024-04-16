@@ -57,26 +57,30 @@ class InputContainerTask(Task):
     self.config = config
 
   async def _run_video(self, index: int, config: ContainerVideoInputConfig, container: InputContainer):
-    out_topic = self.client.out_topic(config.out_topic)
-    codec_info = VideoCodecInfo(width=config.width, height=config.height, frame_rate=config.rate, pixel_format=config.pixel_format, codec=config.codec, options=config.codec_options)
-    stream = container.get_video_stream(index, codec_info, config.force_transcode)
-    async with out_topic, out_topic.RegisterContext():
-      while True:
-        packets = await stream.demux()
-        if len(packets) > 0:
-          assert all(p.rel_dts >= 0 for p in packets), "rel dts must be greater >= 0"
-          await out_topic.send(MessagePackData(MediaMessage(timestamp=get_timestamp_ms(), packets=packets).model_dump()))
+    try:
+      out_topic = self.client.out_topic(config.out_topic)
+      codec_info = VideoCodecInfo(width=config.width, height=config.height, frame_rate=config.rate, pixel_format=config.pixel_format, codec=config.codec, options=config.codec_options)
+      stream = container.get_video_stream(index, codec_info, config.force_transcode)
+      async with out_topic, out_topic.RegisterContext():
+        while True:
+          packets = await stream.demux()
+          if len(packets) > 0:
+            assert all(p.rel_dts >= 0 for p in packets), "rel dts must be greater >= 0"
+            await out_topic.send(MessagePackData(MediaMessage(timestamp=get_timestamp_ms(), packets=packets).model_dump()))
+    except EOFError: pass
           
   async def _run_audio(self, index: int, config: ContainerAudioInputConfig, container: InputContainer):
-    out_topic = self.client.out_topic(config.out_topic)
-    codec_info = AudioCodecInfo(channels=config.channels, codec=config.codec, sample_rate=config.rate, sample_format=config.sample_format, options=config.codec_options)
-    stream = container.get_audio_stream(index, codec_info, config.force_transcode)
-    async with out_topic, out_topic.RegisterContext():
-      while True:
-        packets = await stream.demux()
-        if len(packets) > 0:
-          assert all(p.rel_dts >= 0 for p in packets), "rel dts must be greater >= 0"
-          await out_topic.send(MessagePackData(MediaMessage(timestamp=get_timestamp_ms(), packets=packets).model_dump()))
+    try:
+      out_topic = self.client.out_topic(config.out_topic)
+      codec_info = AudioCodecInfo(channels=config.channels, codec=config.codec, sample_rate=config.rate, sample_format=config.sample_format, options=config.codec_options)
+      stream = container.get_audio_stream(index, codec_info, config.force_transcode)
+      async with out_topic, out_topic.RegisterContext():
+        while True:
+          packets = await stream.demux()
+          if len(packets) > 0:
+            assert all(p.rel_dts >= 0 for p in packets), "rel dts must be greater >= 0"
+            await out_topic.send(MessagePackData(MediaMessage(timestamp=get_timestamp_ms(), packets=packets).model_dump()))
+    except EOFError: pass
           
   async def run(self):
     try:
@@ -88,9 +92,12 @@ class InputContainerTask(Task):
       ]
       self.client.start()
       
-      done, pending = await asyncio.wait(tasks, return_when="FIRST_COMPLETED")
+      done, pending = await asyncio.wait(tasks, return_when="FIRST_EXCEPTION")
       for t in pending: t.cancel()
       for t in done: await t 
+    except BaseException as e:
+      print(e)
+      raise
     finally:
       if container is not None: await container.close()
 
