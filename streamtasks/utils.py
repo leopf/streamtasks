@@ -99,7 +99,8 @@ class AsyncBool:
     self._value = initial_value
     self._change_trigger = AsyncTrigger()
   @property
-  def value(self): return self._value
+  def value(self): return bool(self)
+  def __bool__(self): return self._value
   def set(self, value: bool):
     if self.value != value:
       self._value = value
@@ -146,6 +147,8 @@ class AsyncProducer(Generic[T0]):
     self._task: asyncio.Task | None = None
     self._entered_count: int = 0
     self._consumers: set['AsyncConsumer[T0]'] = set()
+    self._exit_lock = asyncio.Lock()
+    self._enter_lock = asyncio.Lock()
   
   @abstractmethod
   async def run(self): pass
@@ -161,18 +164,21 @@ class AsyncProducer(Generic[T0]):
   async def __aenter__(self):
     self._entered_count += 1
     if self._entered_count == 1:
-      if self._task is not None:
-        try: await self._task
-        except asyncio.CancelledError: pass
-      self._task = asyncio.create_task(self.run())
+      async with self._enter_lock:
+        if self._task is not None:
+          try: await self._task
+          except asyncio.CancelledError: pass
+        self._task = asyncio.create_task(self.run())
   
   async def __aexit__(self, *_):
-    self._entered_count -= 1
-    if self._entered_count == 0 and self._task is not None:
-      self._stop()
-      try: await self._task
-      except asyncio.CancelledError: pass
-      finally: self._task = None
+    self._entered_count = max(self._entered_count - 1, 0)
+    if self._entered_count == 0:
+      async with self._exit_lock:
+        if self._task is not None:
+          self._stop()
+          try: await self._task
+          except asyncio.CancelledError: pass
+          finally: self._task = None
     
 class AsyncMPProducer(AsyncProducer[T0]):
   def __init__(self) -> None:
