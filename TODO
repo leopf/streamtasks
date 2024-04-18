@@ -1,9 +1,17 @@
 # MY TODOS
+- improve av tests
+- write more tests for utils
+- dts based timestamps
+
+BUGS:
+- None Type cant be used in await, when starting and stopping audio
+- flaky test of av container
+
+---
 
 - need to rethink and improve media timing (what is required where and why? Make guidelines, that work.)
 - from codec context should transfer some options
 - multi threading in av stuff
-- input container timing
 
 Frontend:
 - list raw task instances

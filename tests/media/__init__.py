@@ -29,8 +29,7 @@ async def demux_all_packets(stream: AVInputStream):
         packets.append(packet)
   except EOFError: pass
   except asyncio.CancelledError: pass
-  finally:
-    return packets
+  return packets
 
 def generate_audio_samples(sample_rate: int,  freq: int, duration: float) -> bytes:
   return np.sin(2 * np.pi * np.arange(int(sample_rate * duration)) * freq / sample_rate)

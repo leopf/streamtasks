@@ -1,4 +1,5 @@
 import asyncio
+from fractions import Fraction
 import json
 from typing import Any
 from pydantic import BaseModel, ValidationError
@@ -55,6 +56,7 @@ class InputContainerTask(Task):
   def __init__(self, client: Client, config: InputContainerConfig):
     super().__init__(client)
     self.config = config
+    self._t0: int | None = None
 
   async def _run_video(self, index: int, config: ContainerVideoInputConfig, container: InputContainer):
     try:
@@ -64,9 +66,11 @@ class InputContainerTask(Task):
       async with out_topic, out_topic.RegisterContext():
         while True:
           packets = await stream.demux()
+          self._t0 = self._t0 or get_timestamp_ms()
           if len(packets) > 0:
+            ts = stream.convert_position(packets[0].dts or 0, Fraction(1, 1000))
             assert all(p.rel_dts >= 0 for p in packets), "rel dts must be greater >= 0"
-            await out_topic.send(MessagePackData(MediaMessage(timestamp=get_timestamp_ms(), packets=packets).model_dump()))
+            await out_topic.send(MessagePackData(MediaMessage(timestamp=ts, packets=packets).model_dump()))
     except EOFError: pass
           
   async def _run_audio(self, index: int, config: ContainerAudioInputConfig, container: InputContainer):
@@ -77,9 +81,11 @@ class InputContainerTask(Task):
       async with out_topic, out_topic.RegisterContext():
         while True:
           packets = await stream.demux()
+          self._t0 = self._t0 or get_timestamp_ms()
           if len(packets) > 0:
+            ts = stream.convert_position(packets[0].dts or 0, Fraction(1, 1000))
             assert all(p.rel_dts >= 0 for p in packets), "rel dts must be greater >= 0"
-            await out_topic.send(MessagePackData(MediaMessage(timestamp=get_timestamp_ms(), packets=packets).model_dump()))
+            await out_topic.send(MessagePackData(MediaMessage(timestamp=ts, packets=packets).model_dump()))
     except EOFError: pass
           
   async def run(self):
@@ -96,7 +102,8 @@ class InputContainerTask(Task):
       for t in pending: t.cancel()
       for t in done: await t 
     except BaseException as e:
-      print(e)
+      import traceback
+      print(traceback.format_exc())
       raise
     finally:
       if container is not None: await container.close()

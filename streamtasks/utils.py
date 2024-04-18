@@ -1,6 +1,9 @@
+from abc import abstractmethod
+from collections import deque
 import platform
+import threading
 from types import CoroutineType, coroutine
-from typing import Any, Awaitable, ClassVar, Iterable, Optional
+from typing import Any, Awaitable, ClassVar, Generic, Iterable, Optional, TypeVar
 import asyncio
 import time
 import os
@@ -81,10 +84,10 @@ class AsyncTrigger:
   def __init__(self) -> None:
     self._futs: list[asyncio.Future] = []
 
-  async def wait(self):
+  def wait(self):
     fut = asyncio.Future()
     self._futs.append(fut)
-    return await fut
+    return fut
 
   def trigger(self):
     for fut in self._futs: fut.set_result(None)
@@ -137,6 +140,91 @@ class AsyncObservableDict:
       self._data[key] = value
       self._change_trigger.trigger()
 
+T0 = TypeVar("T0")
+class AsyncProducer(Generic[T0]):
+  def __init__(self) -> None:
+    self._task: asyncio.Task | None = None
+    self._entered_count: int = 0
+    self._consumers: set['AsyncConsumer[T0]'] = set()
+  
+  @abstractmethod
+  async def run(self): pass
+  
+  def close_all(self):
+    for consumer in self._consumers: consumer.close()
+  
+  def send_message(self, message: T0):
+    for consumer in self._consumers: consumer.put(message)
+  
+  def _stop(self): self._task.cancel()
+  
+  async def __aenter__(self):
+    self._entered_count += 1
+    if self._entered_count == 1:
+      if self._task is not None:
+        try: await self._task
+        except asyncio.CancelledError: pass
+      self._task = asyncio.create_task(self.run())
+  
+  async def __aexit__(self, *_):
+    self._entered_count -= 1
+    if self._entered_count == 0 and self._task is not None:
+      self._stop()
+      try: await self._task
+      except asyncio.CancelledError: pass
+      finally: self._task = None
+    
+class AsyncMPProducer(AsyncProducer[T0]):
+  def __init__(self) -> None:
+    super().__init__()
+    self.stop_event = threading.Event()
+    self._loop: asyncio.BaseEventLoop 
+  
+  async def run(self):
+    self._loop = asyncio.get_running_loop()
+    await self._loop.run_in_executor(None, self.run_sync)
+    self.stop_event.clear()
+  
+  @abstractmethod
+  def run_sync(self): pass
+  def send_message(self, message: Any): self._loop.call_soon_threadsafe(super().send_message, message)
+  def close_all(self): self._loop.call_soon_threadsafe(super().close_all)
+  def _stop(self): self.stop_event.set()
+
+T1 = TypeVar("T1")
+class AsyncConsumer(Generic[T1]):
+  def __init__(self, producer: AsyncProducer) -> None:
+    self._producer = producer
+    self._queue: deque[T1] = deque() 
+    self._trigger = AsyncTrigger()
+    self._closed = False
+    
+  def register(self): self._producer._consumers.add(self)
+  def unregister(self): self._producer._consumers.remove(self)
+    
+  async def get(self):
+    if len(self._queue) != 0: return self._queue.popleft()
+    if self._closed: raise EOFError()
+    _fut = self._trigger.wait()
+    async with self._producer:
+      while len(self._queue) == 0 and not self._closed: 
+        await _fut 
+        _fut = self._trigger.wait()
+      # TODO we need to do this in here to prevent double deques
+      if self._closed: raise EOFError()
+      return self._queue.popleft()
+  
+  def put(self, e: T1):
+    if self.test_message(e):
+      self._queue.append(e)
+      self._trigger.trigger()
+    
+  def close(self):
+    self._closed = True
+    self._trigger.trigger()
+    
+  @abstractmethod
+  def test_message(self, message: T1) -> bool: pass
 
 async def wait_with_dependencies(main: Awaitable, deps: Iterable[asyncio.Future]):
   main_task = asyncio.Task(main)

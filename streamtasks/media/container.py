@@ -9,7 +9,7 @@ from streamtasks.media.audio import AudioCodecInfo
 from streamtasks.media.codec import AVTranscoder, CodecInfo, Decoder
 from streamtasks.media.packet import MediaPacket
 from streamtasks.media.video import VideoCodecInfo
-from streamtasks.utils import AsyncTrigger
+from streamtasks.utils import AsyncConsumer, AsyncMPProducer, AsyncProducer, AsyncTrigger
 
 class _StreamContext:
   def __init__(self) -> None:
@@ -37,14 +37,32 @@ class _StreamContext:
     
   def add_time_base(self, time_base: Fraction): self.time_base = max(self.time_base * time_base, Fraction(1, 10_000_000)) 
 
+class _Demuxer(AsyncMPProducer[av.Packet]):
+  def __init__(self, container: av.container.InputContainer) -> None:
+    super().__init__()
+    self.container = container
+  
+  def run_sync(self):
+    for av_packet in self.container.demux():
+      if av_packet.size == 0 and av_packet.dts is None and av_packet.pts is None: break # HACK: for some reason dummy packets are emittied forever after some streams
+      assert av_packet.dts <= av_packet.pts, "dts must be lower than pts while demuxing"    
+      self.send_message(av_packet)
+      if self.stop_event.is_set(): return
+    self.close_all()
+
+class StreamConsumer(AsyncConsumer[av.Packet]):
+  def __init__(self, producer: AsyncProducer, stream_index: int) -> None:
+    super().__init__(producer)
+    self._stream_index = stream_index  
+  def test_message(self, message: av.Packet) -> bool: return self._stream_index == message.stream_index
+
 class AVInputStream:
-  def __init__(self, container: 'InputContainer', stream: av.stream.Stream, target_codec: CodecInfo, force_transcode: bool) -> None:
+  def __init__(self, demuxer: _Demuxer, stream: av.stream.Stream, target_codec: CodecInfo, force_transcode: bool) -> None:
     self._stream = stream
     self._transcoder: None | AVTranscoder = None
-    self._demux_queue = asyncio.Queue[MediaPacket]()
-    self._container = container
-    self._target_codec = target_codec
-    
+    self._consumer = StreamConsumer(demuxer, stream.index)
+    self._consumer.register()
+    self._time_base = target_codec.time_base
     try:
       codec_info = CodecInfo.from_codec_context(self._stream.codec_context)
       if force_transcode or not target_codec.compatible_with(codec_info):
@@ -55,69 +73,42 @@ class AVInputStream:
   @property
   def codec_info(self) -> CodecInfo: return CodecInfo.from_codec_context(self._stream.codec_context)
 
-  def on_packet(self, packet: av.Packet):
-    time_base_factor = int(self._target_codec.time_base / packet.time_base)
-    packet.time_base = self._target_codec.time_base
-    packet.dts = packet.dts / time_base_factor
-    packet.pts = packet.pts / time_base_factor
-    self._demux_queue.put_nowait(MediaPacket.from_av_packet(packet))
+  def convert_position(self, position: int, target_time: Fraction): return int((self._time_base * position) / target_time)
 
   async def demux(self) -> list[MediaPacket]:
-    while self._demux_queue.empty():
-      await self._container.demux()
-    
-    packet = await self._demux_queue.get()
-    if packet is None: return []
+    av_packet = await self._consumer.get()
+    time_base_factor = float(self._time_base / av_packet.time_base)
+    packet = MediaPacket.from_av_packet(av_packet)
+    packet.rel_dts = int((packet.pts - packet.dts) / time_base_factor)
+    packet.pts = int(packet.pts / time_base_factor)
     if self._transcoder is not None: return await self._transcoder.transcode(packet)
     else: return [ packet ]
 
 class InputContainer:
   def __init__(self, container: av.container.InputContainer):
     self._container = container
-    self._demux_lock = asyncio.Lock()
-    self.streams: list[AVInputStream] = []
+    self._demuxer = _Demuxer(container)
   
   def __del__(self): self._container.close()
   
   def get_video_stream(self, idx: int, target_codec: VideoCodecInfo, force_transcode: bool = False):
     av_stream = self._container.streams.video[idx]
-    stream = AVInputStream(self, av_stream, target_codec, force_transcode)
-    self.streams.append(stream)
+    stream = AVInputStream(self._demuxer, av_stream, target_codec, force_transcode)
     return stream
     
   def get_audio_stream(self, idx: int, target_codec: AudioCodecInfo, force_transcode: bool = False):
     av_stream = self._container.streams.audio[idx]
-    stream = AVInputStream(self, av_stream, target_codec, force_transcode)
-    self.streams.append(stream)
+    stream = AVInputStream(self._demuxer, av_stream, target_codec, force_transcode)
     return stream
   
-  async def demux(self) -> list[MediaPacket]:
-    loop = asyncio.get_running_loop()
-    if self._demux_lock.locked():
-      async with self._demux_lock: return
-
-    async with self._demux_lock:
-      await loop.run_in_executor(None, self._demux)
-
-  def _demux(self):
-    streams = [ stream._stream.index for stream in self.streams ]
-    for av_packet in self._container.demux(streams=streams):
-      if av_packet.size == 0 and av_packet.dts is None and av_packet.pts is None: raise EOFError() # HACK: for some reason dummy packets are emittied forever after some streams
-      assert av_packet.dts <= av_packet.pts, "dts must be lower than pts while demuxing"    
-      for stream in self.streams:
-        if av_packet.stream_index == stream._stream.index:
-          stream.on_packet(av_packet)
-      return
-  
   async def close(self):
-    await self._demux_lock.acquire()
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, self._container.close)
 
   @staticmethod
   async def open(url_or_path: str, **kwargs):
     loop = asyncio.get_running_loop()
-    container = await loop.run_in_executor(None, functools.partial(av.open, url_or_path, "r", **kwargs))
+    container: av.container.InputContainer = await loop.run_in_executor(None, functools.partial(av.open, url_or_path, "r", **kwargs))
     container.flags |= av.container.Flags.NOBUFFER
     return InputContainer(container)
 
@@ -135,7 +126,6 @@ class AVOutputStream:
   
   @duration.setter
   def duration(self, duration: Fraction):
-    # return
     if int(duration / self._time_base) > self._dts_counter: print(f"set duration {self._stream.type}")
     self._dts_counter = max(self._dts_counter, int(duration / self._time_base))
     self._ctx.set_sync_channel_time(self._sync_channel, self._dts_counter, self._time_base)
