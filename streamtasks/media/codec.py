@@ -72,9 +72,10 @@ class Decoder(Generic[F]):
 class Transcoder(ABC):
   @abstractmethod
   async def transcode(self, packet: MediaPacket) -> list[MediaPacket]: pass
+  @abstractmethod
+  async def flush(self) -> list[MediaPacket]: pass
 
-
-class AVTranscoder:
+class AVTranscoder(Transcoder):
   def __init__(self, decoder: Decoder, encoder: Encoder):
     self.decoder = decoder
     self.encoder = encoder
