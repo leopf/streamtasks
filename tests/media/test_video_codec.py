@@ -2,7 +2,7 @@ import unittest
 from streamtasks.media.packet import MediaPacket
 from streamtasks.media.video import VideoCodecInfo
 import numpy as np
-from tests.media import decode_all_packets, encode_all_frames, generate_media_frames, normalize_video_frame
+from tests.media import decode_all_packets, decode_video_packets, encode_all_frames, generate_media_frames, normalize_video_frame
 
 class TestVideoCodec(unittest.IsolatedAsyncioTestCase):
   w = 480
@@ -15,8 +15,7 @@ class TestVideoCodec(unittest.IsolatedAsyncioTestCase):
     codec = self.get_video_codec()
     frames, in_frames = generate_media_frames(codec, self.frame_count)
     packets = await encode_all_frames(codec.get_encoder(), frames)
-    frames = await decode_all_packets(codec.get_decoder(), packets)
-    out_frames = [normalize_video_frame(f) for f in frames]
+    out_frames = await decode_video_packets(codec, packets)
     self.assertGreater(len(out_frames), 0)
     for a, b in zip(in_frames, out_frames): self.assertTrue(np.array_equal(a, b))
 
@@ -31,8 +30,7 @@ class TestVideoCodec(unittest.IsolatedAsyncioTestCase):
     for packet in packets: t_packets.extend(await transcoder.transcode(packet))
     t_packets.extend(await transcoder.flush())
     
-    frames = await decode_all_packets(codec2.get_decoder(), t_packets)
-    out_frames = [normalize_video_frame(f) for f in frames]
+    out_frames = await decode_video_packets(codec2, t_packets)
     self.assertGreater(len(out_frames), 0)
     for a, b in zip(in_frames, out_frames): self.assertTrue(np.array_equal(a, b))
 

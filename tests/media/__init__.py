@@ -10,10 +10,10 @@ from streamtasks.media.packet import MediaPacket
 from streamtasks.media.video import VideoCodecInfo, VideoFrame
 
 async def encode_all_frames(encoder: Encoder, frames: list):
-    packets = []
-    for frame in frames: packets.extend(await encoder.encode(frame))
-    packets.extend(await encoder.flush())
-    return packets 
+  packets = []
+  for frame in frames: packets.extend(await encoder.encode(frame))
+  packets.extend(await encoder.flush())
+  return packets 
 
 async def decode_all_packets(decoder: Decoder, packets: Iterable[MediaPacket]):
   frames = []
@@ -35,7 +35,7 @@ async def decode_video_packets(codec: VideoCodecInfo, packets: list[MediaPacket]
   out_frames: list[np.ndarray] = [ normalize_video_frame(f) for f in out_frames ]
   return out_frames
 
-async def decode_audio_packets(codec: AudioCodecInfo, packets: list[MediaPacket]):
+async def decode_audio_packets(codec: AudioCodecInfo, packets: list[MediaPacket]) -> np.ndarray:
   validation_codec = AudioCodecInfo("pcm_s16le", codec.channels, codec.sample_rate, "s16")
   validation_resampler = validation_codec.get_resampler()
   out_frames: list[AudioFrame] = []
