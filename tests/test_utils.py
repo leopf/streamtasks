@@ -1,7 +1,7 @@
 import asyncio
 import unittest
 
-from streamtasks.utils import AsyncBool, AsyncMPProducer, AsyncObservable, AsyncProducer, AsyncTaskManager
+from streamtasks.utils import AsyncBool, AsyncConsumer, AsyncMPProducer, AsyncObservable, AsyncProducer, AsyncTaskManager
 from tests.shared import async_timeout
 
 
@@ -67,6 +67,7 @@ class DemoProducerMP(AsyncMPProducer):
 class TestProducer(unittest.IsolatedAsyncioTestCase):
   def setUp(self) -> None:
     self.producer = DemoProducer()
+    self.consumer = AsyncConsumer(self.producer)
 
   @async_timeout(1)
   async def test_flow_double_enter_exit(self):
@@ -110,10 +111,15 @@ class TestProducer(unittest.IsolatedAsyncioTestCase):
     
     for f in futs: await f
     self.assertFalse(self.producer.running)
+    
+  # @async_timeout(1)
+  # async def test_consumer(self):
+  #   self.consumer.get()
 
 class TestProducerMP(TestProducer):
   def setUp(self) -> None:
     self.producer = DemoProducerMP()
+    self.consumer = AsyncConsumer(self.producer)
 
 if __name__ == '__main__':
   unittest.main()

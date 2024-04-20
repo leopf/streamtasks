@@ -5,7 +5,7 @@ import scipy
 
 from streamtasks.media.audio import AudioCodecInfo, AudioFrame
 from streamtasks.media.codec import Decoder, Encoder
-from streamtasks.media.container import AVInputStream
+from streamtasks.media.container import AVInputStream, AVOutputStream
 from streamtasks.media.packet import MediaPacket
 from streamtasks.media.video import VideoCodecInfo, VideoFrame
 
@@ -28,8 +28,25 @@ async def demux_all_packets(stream: AVInputStream):
       for packet in await stream.demux():
         packets.append(packet)
   except EOFError: pass
-  except asyncio.CancelledError: pass
   return packets
+
+async def decode_video_packets(codec: VideoCodecInfo, packets: list[MediaPacket]):
+  out_frames: list[VideoFrame] = await decode_all_packets(codec.get_decoder(), packets)
+  out_frames: list[np.ndarray] = [ normalize_video_frame(f) for f in out_frames ]
+  return out_frames
+
+async def decode_audio_packets(codec: AudioCodecInfo, packets: list[MediaPacket]):
+  validation_codec = AudioCodecInfo("pcm_s16le", codec.channels, codec.sample_rate, "s16")
+  validation_resampler = validation_codec.get_resampler()
+  out_frames: list[AudioFrame] = []
+  for frame in await decode_all_packets(codec.get_decoder(), packets): out_frames.extend(await validation_resampler.resample(frame))
+  out_frames: list[np.ndarray] = [ frame.to_ndarray() for frame in out_frames ]
+  return np.concatenate(out_frames, axis=1)[0]
+
+async def mux_all_packets(stream: AVOutputStream, packets: Iterable[MediaPacket]):
+  try:
+    for packet in packets: await stream.mux(packet)
+  except asyncio.CancelledError: pass
 
 def generate_audio_samples(sample_rate: int,  freq: int, duration: float) -> bytes:
   return np.sin(2 * np.pi * np.arange(int(sample_rate * duration)) * freq / sample_rate)
@@ -49,11 +66,12 @@ async def generate_audio_media_track(codec: AudioCodecInfo, duration: float):
 frame_box_size = (40, 40)
 frame_box_size_value = frame_box_size[0] * frame_box_size[1] * 255
 def generate_frames(w, h, frame_count):
+  speed = int(max(min(w, h) / frame_count, 1))
   for i in range(frame_count):
     arr = np.zeros((h, w, 3), dtype=np.uint8)
     # draw 40x40 square at (i, i)
-    y = i % (h - frame_box_size[1])
-    x = i % (w - frame_box_size[0])
+    y = (i * speed) % (h - frame_box_size[1])
+    x = (i * speed) % (w - frame_box_size[0])
     arr[y:y + frame_box_size[1], x:x + frame_box_size[0]] = 255
     yield arr
   

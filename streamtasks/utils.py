@@ -229,8 +229,7 @@ class AsyncConsumer(Generic[T1]):
     self._closed = True
     self._trigger.trigger()
     
-  @abstractmethod
-  def test_message(self, message: T1) -> bool: pass
+  def test_message(self, message: T1) -> bool: return True
 
 async def wait_with_dependencies(main: Awaitable, deps: Iterable[asyncio.Future]):
   main_task = asyncio.Task(main)

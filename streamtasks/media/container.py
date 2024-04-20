@@ -76,13 +76,17 @@ class AVInputStream:
   def convert_position(self, position: int, target_time: Fraction): return int((self._time_base * position) / target_time)
 
   async def demux(self) -> list[MediaPacket]:
-    av_packet = await self._consumer.get()
-    time_base_factor = float(self._time_base / av_packet.time_base)
-    packet = MediaPacket.from_av_packet(av_packet)
-    packet.rel_dts = int((packet.pts - packet.dts) / time_base_factor)
-    packet.pts = int(packet.pts / time_base_factor)
-    if self._transcoder is not None: return await self._transcoder.transcode(packet)
-    else: return [ packet ]
+    try:
+      av_packet = await self._consumer.get()
+      time_base_factor = float(self._time_base / av_packet.time_base)
+      packet = MediaPacket.from_av_packet(av_packet)
+      packet.rel_dts = int((packet.pts - packet.dts) / time_base_factor)
+      packet.pts = int(packet.pts / time_base_factor)
+      if self._transcoder is not None: return await self._transcoder.transcode(packet)
+      else: return [ packet ]
+    except EOFError:
+      if self._transcoder is None or self._transcoder.flushed: raise
+      return await self._transcoder.flush()
 
 class InputContainer:
   def __init__(self, container: av.container.InputContainer):

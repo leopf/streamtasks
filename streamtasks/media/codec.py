@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from fractions import Fraction
-from typing import Any, TypeVar, TypedDict, Optional, Generic
+from typing import Any, Iterable, TypeVar, TypedDict, Optional, Generic
 import av.codec
 import av.frame
 import av.video
@@ -78,16 +78,28 @@ class AVTranscoder:
   def __init__(self, decoder: Decoder, encoder: Encoder):
     self.decoder = decoder
     self.encoder = encoder
+    self._flushed = False
 
+  @property
+  def flushed(self): return self._flushed
+  
   async def transcode(self, packet: MediaPacket) -> list[MediaPacket]:
-    frames = await self.decoder.decode(packet)
-    packets = []
+    self._flushed = False
+    return await self._encode_frames(await self.decoder.decode(packet))
+  
+  async def flush(self):
+    packets = await self._encode_frames(await self.decoder.flush())
+    for packet in await self.encoder.flush(): packets.append(packet)
+    self._flushed = True
+    return packets
+
+  async def _encode_frames(self, frames: Iterable[Frame]):
+    packets: list[MediaPacket] = []
     for frame in frames:
       frame.frame.pts = None
       frame.frame.dts = None
       packets += await self.encoder.encode(frame)
     return packets
-
 
 class EmptyTranscoder:
   async def transcode(self, packet: MediaPacket) -> list[MediaPacket]: return [ packet ]
