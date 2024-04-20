@@ -11,4 +11,4 @@ def async_timeout(seconds):
         return wrapper
     return decorator
 
-def full_test(o): return unittest.skipIf(not bool(os.getenv("FULL")), "Disabled for performance reasons. Use env FULL=1 to enable.")(o)
+def full_test(o): return unittest.skipIf(not int(os.getenv("FULL")), "Disabled for performance reasons. Use env FULL=1 to enable.")(o)

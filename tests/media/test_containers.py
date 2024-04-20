@@ -9,7 +9,7 @@ from tests.media import decode_audio_packets, decode_video_packets, demux_all_pa
 import numpy as np
 from tests.shared import full_test
 
-
+@full_test
 class TestContainers(unittest.IsolatedAsyncioTestCase):
   def setUp(self) -> None:
     self.container_filename = tempfile.mktemp()
@@ -18,22 +18,14 @@ class TestContainers(unittest.IsolatedAsyncioTestCase):
   def tearDown(self) -> None:
     os.remove(self.container_filename)
   
+  async def test_mp4_av_container_basic(self): await self._test_mp4_av_container(VideoCodecInfo(1280, 720, 30, "yuv420p", "h264"), AudioCodecInfo("aac", 2, 32000, "fltp"))
   async def test_mp4_h264_video_container(self): await self._test_codec_format_video_io_container(VideoCodecInfo(1280, 720, 30, "yuv420p", "h264"), "mp4", True)
-  # @unittest.skip("Looks fine, but high error")
-  @full_test
   async def test_mp4_h265_video_container(self): await self._test_codec_format_video_io_container(VideoCodecInfo(1280, 720, 30, "yuv420p", "hevc"), "mp4", True, skip_end=2)
-  @full_test
   async def test_webm_video_container(self): await self._test_codec_format_video_io_container(VideoCodecInfo(1280, 720, 30, "yuv420p", "vp8"), "webm", False, skip_start=2)
   async def test_mp4_1_audio_container(self): await self._test_codec_format_audio_io_container(AudioCodecInfo("aac", 2, 32000, "fltp"), "mp4", False)
-  @unittest.skip("flaky, need to fix this...")
-  @full_test
   async def test_mp4_2_audio_container(self): await self._test_codec_format_audio_io_container(AudioCodecInfo("aac", 1, 16000, "fltp"), "mp4", False)
-  @full_test
   async def test_wav_audio_container(self): await self._test_codec_format_audio_io_container(AudioCodecInfo("pcm_s16le", 1, 16000, "s16"), "wav", False)
-  @full_test
   async def test_flac_audio_container(self): await self._test_codec_format_audio_io_container(AudioCodecInfo("flac", 1, 16000, "s16"), "flac", False)
-  # @unittest.skip("flaky")
-  async def test_mp4_av_container_basic(self): await self._test_mp4_av_container(VideoCodecInfo(1280, 720, 30, "yuv420p", "h264"), AudioCodecInfo("aac", 2, 32000, "fltp"))
   
   async def _test_mp4_av_container(self, video_codec: VideoCodecInfo, audio_codec: AudioCodecInfo):
     output_container = await OutputContainer.open(self.container_filename, format="mp4")
