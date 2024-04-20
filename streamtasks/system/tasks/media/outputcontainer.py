@@ -98,6 +98,7 @@ class OutputContainerTask(Task):
       done, pending = await asyncio.wait(tasks, return_when="FIRST_COMPLETED")
       for t in pending: t.cancel()
       for t in done: await t 
+    except asyncio.CancelledError: pass
     finally:
       if container is not None: await container.close()
 

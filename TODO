@@ -1,11 +1,10 @@
 # MY TODOS
-- improve av tests
 - write more tests for utils
-- dts based timestamps
+- fix sync
 
 BUGS:
-- None Type cant be used in await, when starting and stopping audio
-- flaky test of av container
+- full crash when stopping deployment
+- flaky test of audio container
 
 ---
 

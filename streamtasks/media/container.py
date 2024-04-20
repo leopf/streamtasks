@@ -78,10 +78,10 @@ class AVInputStream:
   async def demux(self) -> list[MediaPacket]:
     try:
       av_packet = await self._consumer.get()
-      time_base_factor = float(self._time_base / av_packet.time_base)
+      time_base_factor = float(av_packet.time_base / self._time_base)
       packet = MediaPacket.from_av_packet(av_packet)
-      packet.rel_dts = int((packet.pts - packet.dts) / time_base_factor)
-      packet.pts = int(packet.pts / time_base_factor)
+      packet.rel_dts = int((packet.pts - packet.dts) * time_base_factor)
+      packet.pts = int(packet.pts * time_base_factor)
       if self._transcoder is not None: return await self._transcoder.transcode(packet)
       else: return [ packet ]
     except EOFError:

@@ -2,9 +2,9 @@ import asyncio
 from fractions import Fraction
 import json
 from typing import Any
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 from streamtasks.media.audio import AudioCodecInfo
-from streamtasks.media.container import InputContainer
+from streamtasks.media.container import AVInputStream, InputContainer
 from streamtasks.media.video import VideoCodecInfo
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.system.configurators import IOTypes, static_configurator
@@ -23,6 +23,8 @@ class ContainerVideoInputConfigBase(BaseModel):
   force_transcode: bool
   codec_options: dict[str, str]
   
+  def to_codec_info(self): return VideoCodecInfo(width=self.width, height=self.height, frame_rate=self.rate, pixel_format=self.pixel_format, codec=self.codec, options=self.codec_options)
+  
   @staticmethod
   def default_config(): return ContainerVideoInputConfigBase(pixel_format="yuv420p", codec="h264", width=1280, height=720, rate=30, force_transcode=False, codec_options={})
 
@@ -36,6 +38,8 @@ class ContainerAudioInputConfigBase(BaseModel):
   rate: IOTypes.Rate
   force_transcode: bool
   codec_options: dict[str, str]
+  
+  def to_codec_info(self): return AudioCodecInfo(codec=self.codec, channels=self.channels, sample_rate=self.rate, sample_format=self.sample_format, options=self.codec_options)
   
   @staticmethod
   def default_config(): return ContainerAudioInputConfigBase(codec="aac", sample_format="fltp", channels=1, rate=32000, force_transcode=False, codec_options={})
@@ -58,34 +62,19 @@ class InputContainerTask(Task):
     self.config = config
     self._t0: int | None = None
 
-  async def _run_video(self, index: int, config: ContainerVideoInputConfig, container: InputContainer):
+  async def _run_stream(self, stream: AVInputStream, out_topic_id: int):
     try:
-      out_topic = self.client.out_topic(config.out_topic)
-      codec_info = VideoCodecInfo(width=config.width, height=config.height, frame_rate=config.rate, pixel_format=config.pixel_format, codec=config.codec, options=config.codec_options)
-      stream = container.get_video_stream(index, codec_info, config.force_transcode)
+      out_topic = self.client.out_topic(out_topic_id)
       async with out_topic, out_topic.RegisterContext():
         while True:
           packets = await stream.demux()
           self._t0 = self._t0 or get_timestamp_ms()
           if len(packets) > 0:
             ts = stream.convert_position(packets[0].dts or 0, Fraction(1, 1000))
+            if self._t0 is None: self._t0 = get_timestamp_ms() - ts
+            
             assert all(p.rel_dts >= 0 for p in packets), "rel dts must be greater >= 0"
-            await out_topic.send(MessagePackData(MediaMessage(timestamp=ts, packets=packets).model_dump()))
-    except EOFError: pass
-          
-  async def _run_audio(self, index: int, config: ContainerAudioInputConfig, container: InputContainer):
-    try:
-      out_topic = self.client.out_topic(config.out_topic)
-      codec_info = AudioCodecInfo(channels=config.channels, codec=config.codec, sample_rate=config.rate, sample_format=config.sample_format, options=config.codec_options)
-      stream = container.get_audio_stream(index, codec_info, config.force_transcode)
-      async with out_topic, out_topic.RegisterContext():
-        while True:
-          packets = await stream.demux()
-          self._t0 = self._t0 or get_timestamp_ms()
-          if len(packets) > 0:
-            ts = stream.convert_position(packets[0].dts or 0, Fraction(1, 1000))
-            assert all(p.rel_dts >= 0 for p in packets), "rel dts must be greater >= 0"
-            await out_topic.send(MessagePackData(MediaMessage(timestamp=ts, packets=packets).model_dump()))
+            await out_topic.send(MessagePackData(MediaMessage(timestamp=self._t0 + ts, packets=packets).model_dump()))
     except EOFError: pass
           
   async def run(self):
@@ -93,14 +82,15 @@ class InputContainerTask(Task):
       container = None
       container = await InputContainer.open(self.config.source, **self.config.container_options)
       tasks = [ 
-        *(asyncio.create_task(self._run_video(idx, cfg, container)) for idx, cfg in enumerate(self.config.videos)),
-        *(asyncio.create_task(self._run_audio(idx, cfg, container)) for idx, cfg in enumerate(self.config.audios)) 
+        *(asyncio.create_task(self._run_stream(container.get_video_stream(idx, cfg.to_codec_info(), cfg.force_transcode), cfg.out_topic)) for idx, cfg in enumerate(self.config.videos)),
+        *(asyncio.create_task(self._run_stream(container.get_audio_stream(idx, cfg.to_codec_info(), cfg.force_transcode), cfg.out_topic)) for idx, cfg in enumerate(self.config.audios)),
       ]
       self.client.start()
       
       done, pending = await asyncio.wait(tasks, return_when="FIRST_EXCEPTION")
       for t in pending: t.cancel()
       for t in done: await t 
+    except asyncio.CancelledError: pass
     except BaseException as e:
       import traceback
       print(traceback.format_exc())

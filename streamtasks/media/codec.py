@@ -96,18 +96,8 @@ class AVTranscoder(Transcoder):
 
   async def _encode_frames(self, frames: Iterable[Frame]):
     packets: list[MediaPacket] = []
-    for frame in frames:
-      frame.frame.pts = None
-      frame.frame.dts = None
-      packets += await self.encoder.encode(frame)
+    for frame in frames: packets.extend(await self.encoder.encode(frame))
     return packets
-
-class EmptyTranscoder:
-  async def transcode(self, packet: MediaPacket) -> list[MediaPacket]: return [ packet ]
-
-
-class CodecOptions(TypedDict):
-  thread_type: Optional[str]
 
 class CodecInfo(ABC, Generic[F]):
   def __init__(self, codec: str):
