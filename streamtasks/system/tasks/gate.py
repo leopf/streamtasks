@@ -1,7 +1,6 @@
-from dataclasses import dataclass
 
 from pydantic import BaseModel, ValidationError
-from streamtasks.client.topic import InTopicSynchronizer
+from streamtasks.client.topic import SequentialInTopicSynchronizer
 from streamtasks.utils import AsyncObservable
 from streamtasks.net.message.structures import NumberMessage
 from streamtasks.net.message.types import TopicControlData
@@ -43,7 +42,7 @@ class GateTask(Task):
   def __init__(self, client: Client, config: GateConfig):
     super().__init__(client)
     if config.synchronized:
-      sync = InTopicSynchronizer()
+      sync = SequentialInTopicSynchronizer()
       self.in_topic = self.client.sync_in_topic(config.in_topic, sync)
       self.gate_topic = self.client.sync_in_topic(config.gate_topic, sync)
       self.out_topic = self.client.out_topic(config.out_topic)

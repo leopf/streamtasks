@@ -3,7 +3,7 @@ import contextlib
 from dataclasses import dataclass
 import functools
 from streamtasks.client import Client
-from streamtasks.client.topic import InTopic, InTopicSynchronizer
+from streamtasks.client.topic import InTopic, SequentialInTopicSynchronizer
 from streamtasks.utils import AsyncObservable, AsyncObservableDict, TimeSynchronizer
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import NumberMessage
@@ -219,7 +219,7 @@ class CalculatorTask(Task):
       for input_var in config.input_vars
     })
     if config.synchronized:
-      sync = InTopicSynchronizer()
+      sync = SequentialInTopicSynchronizer()
       self.in_topics = [
         (client.sync_in_topic(input_var.topic_id, sync), input_var.name, input_var.default_value)
         for input_var in config.input_vars

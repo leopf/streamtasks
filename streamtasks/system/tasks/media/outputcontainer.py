@@ -3,7 +3,7 @@ from fractions import Fraction
 import json
 from typing import Any
 from pydantic import BaseModel, ValidationError
-from streamtasks.client.topic import InTopicSynchronizer
+from streamtasks.client.topic import SequentialInTopicSynchronizer
 from streamtasks.media.audio import AudioCodecInfo
 from streamtasks.media.container import AVOutputStream, OutputContainer
 from streamtasks.media.video import VideoCodecInfo
@@ -55,7 +55,7 @@ class OutputContainerTask(Task):
   def __init__(self, client: Client, config: OutputContainerConfig):
     super().__init__(client)
     self.config = config
-    self.sync = InTopicSynchronizer()
+    self.sync = SequentialInTopicSynchronizer()
 
   async def _run_stream(self, stream: AVOutputStream, in_topic_id: int):
     in_topic = self.client.sync_in_topic(in_topic_id, self.sync)

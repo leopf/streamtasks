@@ -114,35 +114,35 @@ class InTopic(_TopicBase):
     if registered: await self._client.register_in_topics([ self._topic ])
     else: await self._client.unregister_in_topics([ self._topic ])
 
-
 class InTopicSynchronizer:
+  @abstractmethod
+  async def wait_for(self, topic_id: int, timestamp: int) -> bool: pass
+  @abstractmethod
+  async def set_paused(self, topic_id: int, paused: bool): pass 
+
+class SequentialInTopicSynchronizer(InTopicSynchronizer):
   def __init__(self) -> None:
+    super().__init__()
     self._topic_timestamps: dict[int, int] = {}
     self._timestamp_trigger = AsyncTrigger()
-
+    
   @property
-  def current_timestamp(self): return 0 if len(self._topic_timestamps) == 0 else min(self._topic_timestamps.values())
+  def min_timestamp(self): return 0 if len(self._topic_timestamps) == 0 else min(self._topic_timestamps.values())
+    
+  async def wait_for(self, topic_id: int, timestamp: int) -> bool:
+    if timestamp < self._topic_timestamps.get(timestamp, 0): return False # NOTE: drop the past
+    self._set_topic_timestamp(topic_id, timestamp)
+    while self.min_timestamp < timestamp: await self._timestamp_trigger.wait()
+    return True
 
-  def set_paused(self, topic_id: int, paused: bool): self.set_topic_timestamp(topic_id, None if paused else self.current_timestamp)
-  def set_topic_timestamp(self, topic_id: int, timestamp: int | None):
+  async def set_paused(self, topic_id: int, paused: bool):
+    if paused: self._set_topic_timestamp(topic_id, None)
+    else: self._set_topic_timestamp(topic_id, self.min_timestamp)
+    
+  def _set_topic_timestamp(self, topic_id: int, timestamp: int | None):
     if timestamp is None: self._topic_timestamps.pop(topic_id, None)
     else: self._topic_timestamps[topic_id] = timestamp
     self._timestamp_trigger.trigger()
-  
-  async def wait_for_min(self, topic_id: int):
-    print(">> wait for min", topic_id, self._topic_timestamps.get(topic_id, 0))
-    while self.current_timestamp < self._topic_timestamps.get(topic_id, 0): await self._timestamp_trigger.wait()
-    print("<< done: wait for min", topic_id)
-
-  def _update_waiters(self):
-    current_timestamp = self.current_timestamp
-    resolve_timestamps = [ timestamp for timestamp in self._timestamp_waiters if timestamp <= current_timestamp ]
-    resolve_timestamps.sort() # make sure early timestamps are resolved first
-    for timestamp in resolve_timestamps:
-      fut = self._timestamp_waiters.pop(timestamp)
-      assert fut is not None, "the selected timestamps should be present in the set when popping."
-      fut.set_result(None)
-
 
 class _SynchronizedInTopicReceiver(_InTopicReceiver):
   def __init__(self, client: 'Client', topic: int, sync: InTopicSynchronizer):
@@ -151,24 +151,17 @@ class _SynchronizedInTopicReceiver(_InTopicReceiver):
 
   async def get(self):
     while True:
-      print(">> recv", self._topic)
       action, data = await super().get()
-      print("<< recv", self._topic)
-      
       if action == _InTopicAction.SET_CONTROL:
         assert isinstance(data, TopicControlData)
-        self._sync.set_paused(self._topic, data.paused)
+        await self._sync.set_paused(self._topic, data.paused)
         return data
       elif action == _InTopicAction.DATA:
         try:
           timestamp = get_timestamp_from_message(data)
-          if timestamp < self._sync.current_timestamp: continue # NOTE drop the past
-          self._sync.set_topic_timestamp(self._topic, timestamp)
-          await self._sync.wait_for_min(self._topic)
-          print("recv", self._topic, timestamp)
+          if not await self._sync.wait_for(self._topic, timestamp): continue # NOTE drop (the past)
         except ValueError: pass
       return (action, data)
-
 
 class SynchronizedInTopic(InTopic):
   def __init__(self, client: 'Client', topic: int, sync: InTopicSynchronizer) -> None:
