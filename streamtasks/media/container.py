@@ -130,7 +130,7 @@ class AVOutputStream:
   
   @duration.setter
   def duration(self, duration: Fraction):
-    if int(duration / self._time_base) > self._dts_counter: print(f"set duration {self._stream.type}")
+    if int(duration / self._time_base) > self._dts_counter: print(f"set duration {self._stream.type} to {float(int(duration / self._time_base) * self._time_base)}s")
     self._dts_counter = max(self._dts_counter, int(duration / self._time_base))
     self._ctx.set_sync_channel_time(self._sync_channel, self._dts_counter, self._time_base)
   

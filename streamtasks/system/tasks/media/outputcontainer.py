@@ -56,30 +56,38 @@ class OutputContainerTask(Task):
     super().__init__(client)
     self.config = config
     self.sync = SequentialInTopicSynchronizer()
+    self._t0: int | None = None
 
   async def _run_stream(self, stream: AVOutputStream, in_topic_id: int):
     in_topic = self.client.sync_in_topic(in_topic_id, self.sync)
-    start_time: int | None = None
     async with in_topic, in_topic.RegisterContext():
       while True:
         try:
           data = await in_topic.recv_data()
           message = MediaMessage.model_validate(data.data)
-          # print(stream._stream.type, message.timestamp)
-          start_time = start_time or message.timestamp
-          if start_time == message.timestamp: print("start time ", stream._stream.type, start_time)
+          if self._t0 is None: self._t0 = message.timestamp
           for packet in message.packets: await stream.mux(packet)
           assert all(p.rel_dts >= 0 for p in message.packets), "rel dts must be greater >= 0"
-          stream.duration = Fraction(message.timestamp - start_time, 1000) # NOTE this should optimally happen before, how do we solve this?
         except ValidationError: pass
+
+  async def _run_syncer(self, streams: dict[int, AVOutputStream]):
+    while True:
+      await self.sync._timestamp_trigger.wait()
+      if self._t0 is None: continue
+      for tid, stream in streams.items():
+        if tid in self.sync._topic_timestamps: # TODO pausing support
+          stream.duration = Fraction(self.sync._topic_timestamps[tid] - self._t0, 1000)
 
   async def run(self):
     try:
       container = None
       container = await OutputContainer.open(self.config.destination, **self.config.container_options)
-      tasks = [ 
-        *(asyncio.create_task(self._run_stream(container.add_video_stream(cfg.to_codec_info()), cfg.in_topic)) for cfg in self.config.videos),
-        *(asyncio.create_task(self._run_stream(container.add_audio_stream(cfg.to_codec_info()), cfg.in_topic)) for cfg in self.config.audios),
+      streams: dict[int, AVOutputStream] = {}
+      streams.update({ cfg.in_topic: container.add_video_stream(cfg.to_codec_info()) for cfg in self.config.videos })
+      streams.update({ cfg.in_topic: container.add_audio_stream(cfg.to_codec_info()) for cfg in self.config.audios })
+      tasks = [
+        asyncio.create_task(self._run_syncer(streams)),
+        *(asyncio.create_task(self._run_stream(stream, in_topic_id)) for in_topic_id, stream in streams.items()),
       ]
       # TODO add barrier here
       self.client.start()
