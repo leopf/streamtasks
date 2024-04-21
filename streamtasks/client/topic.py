@@ -3,7 +3,7 @@ import asyncio
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Coroutine, Iterable, Optional
 from streamtasks.client.receiver import Receiver
-from streamtasks.utils import AsyncBool
+from streamtasks.utils import AsyncBool, AsyncTrigger
 from streamtasks.net.message.data import SerializableData
 from streamtasks.net.message.utils import get_timestamp_from_message
 from streamtasks.net import Message
@@ -118,23 +118,21 @@ class InTopic(_TopicBase):
 class InTopicSynchronizer:
   def __init__(self) -> None:
     self._topic_timestamps: dict[int, int] = {}
-    self._timestamp_waiters: dict[int, asyncio.Future] = {}
+    self._timestamp_trigger = AsyncTrigger()
 
   @property
   def current_timestamp(self): return 0 if len(self._topic_timestamps) == 0 else min(self._topic_timestamps.values())
 
-  def set_paused(self, topic_id: int, paused: bool):
-    if paused:
-      self._topic_timestamps.pop(topic_id, None)
-      self._update_waiters()
-    else: self._topic_timestamps[topic_id] = self.current_timestamp
-
-  async def topic_wait_timstamp(self, topic_id: int, timestamp: int):
-    self._topic_timestamps[topic_id] = timestamp
-    fut = asyncio.Future()
-    self._timestamp_waiters[timestamp] = fut
-    self._update_waiters()
-    return await fut
+  def set_paused(self, topic_id: int, paused: bool): self.set_topic_timestamp(topic_id, None if paused else self.current_timestamp)
+  def set_topic_timestamp(self, topic_id: int, timestamp: int | None):
+    if timestamp is None: self._topic_timestamps.pop(topic_id, None)
+    else: self._topic_timestamps[topic_id] = timestamp
+    self._timestamp_trigger.trigger()
+  
+  async def wait_for_min(self, topic_id: int):
+    print(">> wait for min", topic_id, self._topic_timestamps.get(topic_id, 0))
+    while self.current_timestamp < self._topic_timestamps.get(topic_id, 0): await self._timestamp_trigger.wait()
+    print("<< done: wait for min", topic_id)
 
   def _update_waiters(self):
     current_timestamp = self.current_timestamp
@@ -151,10 +149,12 @@ class _SynchronizedInTopicReceiver(_InTopicReceiver):
     super().__init__(client, topic)
     self._sync = sync
 
-  # TODO: refactor
-  async def recv(self) -> Coroutine[Any, Any, Any]:
+  async def get(self):
     while True:
-      action, data = await super().recv()
+      print(">> recv", self._topic)
+      action, data = await super().get()
+      print("<< recv", self._topic)
+      
       if action == _InTopicAction.SET_CONTROL:
         assert isinstance(data, TopicControlData)
         self._sync.set_paused(self._topic, data.paused)
@@ -163,7 +163,9 @@ class _SynchronizedInTopicReceiver(_InTopicReceiver):
         try:
           timestamp = get_timestamp_from_message(data)
           if timestamp < self._sync.current_timestamp: continue # NOTE drop the past
-          await self._sync.topic_wait_timstamp(self._topic, timestamp)
+          self._sync.set_topic_timestamp(self._topic, timestamp)
+          await self._sync.wait_for_min(self._topic)
+          print("recv", self._topic, timestamp)
         except ValueError: pass
       return (action, data)
 

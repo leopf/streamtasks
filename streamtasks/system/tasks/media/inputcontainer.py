@@ -68,9 +68,10 @@ class InputContainerTask(Task):
       async with out_topic, out_topic.RegisterContext():
         while True:
           packets = await stream.demux()
-          self._t0 = self._t0 or get_timestamp_ms()
+          # self._t0 = self._t0 or get_timestamp_ms()
           if len(packets) > 0:
             ts = stream.convert_position(packets[0].dts or 0, Fraction(1, 1000))
+            # print(stream._stream.type, ts)
             if self._t0 is None: self._t0 = get_timestamp_ms() - ts
             
             assert all(p.rel_dts >= 0 for p in packets), "rel dts must be greater >= 0"

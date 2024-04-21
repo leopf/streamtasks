@@ -3,8 +3,9 @@ from fractions import Fraction
 import json
 from typing import Any
 from pydantic import BaseModel, ValidationError
+from streamtasks.client.topic import InTopicSynchronizer
 from streamtasks.media.audio import AudioCodecInfo
-from streamtasks.media.container import OutputContainer
+from streamtasks.media.container import AVOutputStream, OutputContainer
 from streamtasks.media.video import VideoCodecInfo
 from streamtasks.system.configurators import IOTypes, static_configurator
 from streamtasks.net.message.structures import MediaMessage
@@ -19,6 +20,8 @@ class ContainerVideoOutputConfigBase(BaseModel):
   height: IOTypes.Height
   rate: IOTypes.Rate
   
+  def to_codec_info(self): return VideoCodecInfo(width=self.width, height=self.height, frame_rate=self.rate, pixel_format=self.pixel_format, codec=self.codec)
+  
   @staticmethod
   def default_config(): return ContainerVideoOutputConfigBase(pixel_format="yuv420p", codec="h264", width=1280, height=720, rate=30)
 
@@ -30,6 +33,8 @@ class ContainerAudioOutputConfigBase(BaseModel):
   codec: IOTypes.Codec
   channels: IOTypes.Channels
   rate: IOTypes.Rate
+  
+  def to_codec_info(self): return AudioCodecInfo(codec=self.codec, channels=self.channels, sample_rate=self.rate, sample_format=self.sample_format)
   
   @staticmethod
   def default_config(): return ContainerAudioOutputConfigBase(codec="aac", sample_format="fltp", channels=1, rate=32000)
@@ -50,36 +55,19 @@ class OutputContainerTask(Task):
   def __init__(self, client: Client, config: OutputContainerConfig):
     super().__init__(client)
     self.config = config
+    self.sync = InTopicSynchronizer()
 
-  async def _run_video(self, config: ContainerVideoOutputConfig, container: OutputContainer):
-    stream = container.add_video_stream(VideoCodecInfo(
-      width=config.width, height=config.height, frame_rate=config.rate,
-      pixel_format=config.pixel_format, codec=config.codec))
-    
-    in_topic = self.client.in_topic(config.in_topic)
+  async def _run_stream(self, stream: AVOutputStream, in_topic_id: int):
+    in_topic = self.client.sync_in_topic(in_topic_id, self.sync)
     start_time: int | None = None
     async with in_topic, in_topic.RegisterContext():
       while True:
         try:
           data = await in_topic.recv_data()
           message = MediaMessage.model_validate(data.data)
+          # print(stream._stream.type, message.timestamp)
           start_time = start_time or message.timestamp
-          for packet in message.packets: await stream.mux(packet)
-          assert all(p.rel_dts >= 0 for p in message.packets), "rel dts must be greater >= 0"
-          stream.duration = Fraction(message.timestamp - start_time, 1000) # NOTE this should optimally happen before, how do we solve this?
-        except ValidationError: pass
-
-  async def _run_audio(self, config: ContainerAudioOutputConfig, container: OutputContainer):
-    stream = container.add_audio_stream(AudioCodecInfo(codec=config.codec, sample_rate=config.rate, channels=config.channels, sample_format=config.sample_format))
-    
-    in_topic = self.client.in_topic(config.in_topic)
-    start_time: int | None = None
-    async with in_topic, in_topic.RegisterContext():
-      while True:
-        try:
-          data = await in_topic.recv_data()
-          message = MediaMessage.model_validate(data.data)
-          start_time = start_time or message.timestamp
+          if start_time == message.timestamp: print("start time ", stream._stream.type, start_time)
           for packet in message.packets: await stream.mux(packet)
           assert all(p.rel_dts >= 0 for p in message.packets), "rel dts must be greater >= 0"
           stream.duration = Fraction(message.timestamp - start_time, 1000) # NOTE this should optimally happen before, how do we solve this?
@@ -90,12 +78,12 @@ class OutputContainerTask(Task):
       container = None
       container = await OutputContainer.open(self.config.destination, **self.config.container_options)
       tasks = [ 
-        *(asyncio.create_task(self._run_video(cfg, container)) for cfg in self.config.videos),
-        *(asyncio.create_task(self._run_audio(cfg, container)) for cfg in self.config.audios) 
+        *(asyncio.create_task(self._run_stream(container.add_video_stream(cfg.to_codec_info()), cfg.in_topic)) for cfg in self.config.videos),
+        *(asyncio.create_task(self._run_stream(container.add_audio_stream(cfg.to_codec_info()), cfg.in_topic)) for cfg in self.config.audios),
       ]
       # TODO add barrier here
       self.client.start()
-      done, pending = await asyncio.wait(tasks, return_when="FIRST_COMPLETED")
+      done, pending = await asyncio.wait(tasks, return_when="FIRST_EXCEPTION")
       for t in pending: t.cancel()
       for t in done: await t 
     except asyncio.CancelledError: pass
