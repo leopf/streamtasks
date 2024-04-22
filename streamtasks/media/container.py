@@ -67,7 +67,7 @@ class AVInputStream:
       codec_info = CodecInfo.from_codec_context(self._stream.codec_context)
       if force_transcode or not target_codec.compatible_with(codec_info):
         # TODO format conversion and resampling!!
-        self._transcoder = AVTranscoder(Decoder(stream.codec_context, codec_info.time_base), target_codec.get_encoder())
+        self._transcoder = AVTranscoder(Decoder(codec_info, codec_context=stream.codec_context), target_codec.get_encoder())
     except TypeError: pass # NOTE: some contexts dont have all the codec info
     
   @property

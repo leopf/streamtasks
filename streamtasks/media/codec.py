@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from fractions import Fraction
-from typing import Any, Iterable, TypeVar, TypedDict, Optional, Generic
+from typing import Any, Iterable, TypeVar, Generic
 import av.codec
 import av.frame
 import av.video
@@ -26,8 +26,10 @@ F = TypeVar('F', bound=Frame)
 
 
 class Encoder(Generic[F]):
-  def __init__(self, codec_context: av.codec.CodecContext):
-    self.codec_context = codec_context
+  def __init__(self, codec_info: 'CodecInfo[F]'):
+    self.codec_context = codec_info._get_av_codec_context("w")
+    self.time_base = codec_info.time_base
+
   def __del__(self): self.close()
 
   async def encode(self, data: F) -> list[MediaPacket]:
@@ -43,11 +45,10 @@ class Encoder(Generic[F]):
   def close(self): self.codec_context.close(strict=False)
   def _encode(self, frame: F) -> list[av.Packet]: return self.codec_context.encode(frame)
 
-
 class Decoder(Generic[F]):
-  def __init__(self, codec_context: av.codec.CodecContext, time_base: Fraction | None):
-    self.codec_context = codec_context
-    self.time_base = time_base
+  def __init__(self, codec_info: 'CodecInfo[F]', codec_context: av.codec.context.CodecContext | None = None):
+    self.codec_context = codec_context or codec_info._get_av_codec_context("r")
+    self.time_base = codec_info.time_base
 
   async def decode(self, packet: MediaPacket) -> list[F]:
     loop = asyncio.get_running_loop()
@@ -75,17 +76,22 @@ class AVTranscoder(Transcoder):
     self.decoder = decoder
     self.encoder = encoder
     self._flushed = False
+    self._in_start_pts_abs: Fraction | None = None
+    self._out_offset_pts: Fraction | None = None
 
   @property
   def flushed(self): return self._flushed
   
   async def transcode(self, packet: MediaPacket) -> list[MediaPacket]:
+    if self._in_start_pts_abs is None: self._in_start_pts_abs = self.encoder.time_base * (packet.pts or 0)
     self._flushed = False
-    return await self._encode_frames(await self.decoder.decode(packet))
-  
+    packets = await self._encode_frames(await self.decoder.decode(packet))
+    self._rebase_packets(packets)
+    return packets
   async def flush(self):
     packets = await self._encode_frames(await self.decoder.flush())
     for packet in await self.encoder.flush(): packets.append(packet)
+    self._rebase_packets(packets)
     self._flushed = True
     return packets
 
@@ -93,6 +99,14 @@ class AVTranscoder(Transcoder):
     packets: list[MediaPacket] = []
     for frame in frames: packets.extend(await self.encoder.encode(frame))
     return packets
+
+  def _rebase_packets(self, packets: list[MediaPacket]): # TODO: improve this
+    for packet in packets:
+      if packet.pts is None: continue
+      if self._out_offset_pts is None:
+        packet_abs_pts = self.decoder.time_base * packet.pts
+        self._out_offset_pts = int((packet_abs_pts - self._in_start_pts_abs) / self.decoder.time_base)
+      packet.pts -= self._out_offset_pts
 
 class CodecInfo(ABC, Generic[F]):
   def __init__(self, codec: str):
@@ -103,12 +117,11 @@ class CodecInfo(ABC, Generic[F]):
   def type(self) -> str: pass
 
   @property
-  def rate(self) -> Optional[float]: return None
+  @abstractmethod
+  def rate(self) -> float | int: pass
 
   @property
-  def time_base(self): 
-    if self.rate is None: return None
-    return Fraction(1, int(self.rate)) if self.rate == int(self.rate) else Fraction(1/self.rate)
+  def time_base(self): return Fraction(1, int(self.rate)) if self.rate == int(self.rate) else Fraction(1/self.rate)
 
   @abstractmethod
   def compatible_with(self, other: 'CodecInfo') -> bool: pass
@@ -116,8 +129,8 @@ class CodecInfo(ABC, Generic[F]):
   @abstractmethod
   def _get_av_codec_context(self, mode: str) -> av.codec.CodecContext: pass
 
-  def get_encoder(self) -> Encoder: return Encoder[F](self._get_av_codec_context("w"))
-  def get_decoder(self) -> Decoder: return Decoder[F](self._get_av_codec_context("r"), self.time_base)
+  def get_encoder(self) -> Encoder: return Encoder[F](self)
+  def get_decoder(self) -> Decoder: return Decoder[F](self)
   def get_transcoder(self, to: 'CodecInfo') -> Transcoder: return AVTranscoder(self.get_decoder(), to.get_encoder())
 
   @staticmethod
