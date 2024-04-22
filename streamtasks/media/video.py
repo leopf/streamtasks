@@ -23,7 +23,7 @@ class VideoFrame(Frame[av.VideoFrame]):
   def from_ndarray(array: np.ndarray, format: str): return VideoFrame(av.VideoFrame.from_ndarray(array, format))
 
 class VideoCodecInfo(CodecInfo[VideoFrame]):
-  def __init__(self, width: int, height: int, frame_rate: float, pixel_format: str, codec: str, options: dict[str, Any] = {}):
+  def __init__(self, width: int, height: int, frame_rate: float | int, pixel_format: str, codec: str, options: dict[str, Any] = {}):
     super().__init__(codec)
     self.frame_rate = frame_rate
     self.width = width

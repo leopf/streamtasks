@@ -6,7 +6,6 @@ import av.frame
 import av.video
 from streamtasks.media.packet import MediaPacket
 import av
-import av.subtitles.subtitle
 import asyncio
 
 T = TypeVar('T', bound=av.frame.Frame)
@@ -22,10 +21,6 @@ class Frame(ABC, Generic[T]):
     elif isinstance(av_frame, av.AudioFrame):
       from streamtasks.media.audio import AudioFrame
       return AudioFrame(av_frame)
-    elif isinstance(av_frame, av.subtitles.subtitle.SubtitleSet):
-      from streamtasks.media.subtitle import SubtitleFrame
-      return SubtitleFrame(av_frame)
-
 
 F = TypeVar('F', bound=Frame)
 
@@ -133,8 +128,5 @@ class CodecInfo(ABC, Generic[F]):
     elif ctx.type == 'audio':
       from streamtasks.media.audio import AudioCodecInfo
       return AudioCodecInfo.from_codec_context(ctx)
-    elif ctx.type == 'subtitle':
-      from streamtasks.media.subtitle import SubtitleCodecInfo
-      return SubtitleCodecInfo.from_codec_context(ctx)
     else:
       raise ValueError(f'Invalid codec type: {ctx.type}')

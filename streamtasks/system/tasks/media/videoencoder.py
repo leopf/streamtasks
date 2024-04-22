@@ -3,12 +3,11 @@ from pydantic import BaseModel, ValidationError
 from streamtasks.media.video import VideoCodecInfo, VideoFrame
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import MediaMessage, TimestampChuckMessage
+from streamtasks.system.tasks.media.utils import MediaEditorFields
 from streamtasks.system.configurators import IOTypes, static_configurator
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 import numpy as np
-
-from streamtasks.system.tasks.media.utils import MediaEditorFields
 
 class VideoEncoderConfigBase(BaseModel):
   in_pixel_format: IOTypes.PixelFormat
