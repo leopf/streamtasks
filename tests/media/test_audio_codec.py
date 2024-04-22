@@ -28,11 +28,17 @@ class TestAudioCodec(unittest.IsolatedAsyncioTestCase):
     codec2 = self.get_audio_codec("ac3", "fltp")
     transcoder = codec1.get_transcoder(codec2)
     frames, in_samples = await generate_audio_media_track(codec1, self.duration)
-    packets = await encode_all_frames(codec1.get_encoder(), frames)
-    
+    encoder1 = codec1.get_encoder()
+    packets = await encode_all_frames(encoder1, frames)
+    packet_size = encoder1.codec_context.frame_size
+
     t_packets: list[MediaPacket] = []
-    for packet in packets: t_packets.extend(await transcoder.transcode(packet))
+    for idx, packet in enumerate(packets): 
+      packet.pts = packet_size * idx # add timestamps to packets
+      t_packets.extend(await transcoder.transcode(packet))
     t_packets.extend(await transcoder.flush())
+    
+    self.assertEqual(packets[0].pts, t_packets[0].pts)
     
     out_samples = await decode_audio_packets(codec2, t_packets)    
     similarity = get_freq_similarity(get_spectum(in_samples), get_spectum(out_samples)) # lower is better

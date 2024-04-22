@@ -10,7 +10,7 @@ from streamtasks.media.packet import MediaPacket
 from streamtasks.media.video import VideoCodecInfo, VideoFrame
 
 async def encode_all_frames(encoder: Encoder, frames: list):
-  packets = []
+  packets: list[MediaPacket] = []
   for frame in frames: packets.extend(await encoder.encode(frame))
   packets.extend(await encoder.flush())
   return packets 
