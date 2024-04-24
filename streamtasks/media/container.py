@@ -48,7 +48,7 @@ class _Demuxer(AsyncMPProducer[av.Packet]):
       assert av_packet.dts <= av_packet.pts, "dts must be lower than pts while demuxing"    
       self.send_message(av_packet)
       if self.stop_event.is_set(): return
-    self.close_all()
+    raise EOFError()
 
 class StreamConsumer(AsyncConsumer[av.Packet]):
   def __init__(self, producer: AsyncProducer, stream_index: int) -> None:
@@ -106,6 +106,7 @@ class InputContainer:
     return stream
   
   async def close(self):
+    await self._demuxer.close()
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, self._container.close)
 

@@ -2,14 +2,11 @@ from abc import abstractmethod
 from collections import deque
 import platform
 import threading
-from types import CoroutineType, coroutine
-from typing import Any, Awaitable, ClassVar, Generic, Iterable, Optional, TypeVar
+from types import CoroutineType
+from typing import Any, Awaitable, Generic, Iterable, Optional, TypeVar
 import asyncio
 import time
 import os
-import functools
-from contextlib import ContextDecorator
-
 
 class AsyncTaskManager:
   def __init__(self) -> None: self._tasks: set[asyncio.Task] = set()
@@ -149,26 +146,31 @@ class AsyncProducer(Generic[T0]):
     self._consumers: set['AsyncConsumer[T0]'] = set()
     self._exit_lock = asyncio.Lock()
     self._enter_lock = asyncio.Lock()
+    self._ended: bool = False
   
   @abstractmethod
   async def run(self): pass
   
-  def close_all(self):
+  def close_consumers(self):
     for consumer in self._consumers: consumer.close()
   
   def send_message(self, message: T0):
     for consumer in self._consumers: consumer.put(message)
-  
-  def _stop(self): self._task.cancel()
+
+  async def close(self):
+    self._on_ended()
+    self._stop()
+    if self._task is not None: 
+      try: await self._task
+      except (asyncio.CancelledError, EOFError): pass
   
   async def __aenter__(self):
+    if self._ended: raise EOFError()
     self._entered_count += 1
     if self._entered_count == 1:
       async with self._enter_lock:
-        if self._task is not None:
-          try: await self._task
-          except asyncio.CancelledError: pass
-        self._task = asyncio.create_task(self.run())
+        if self._task is not None: await self._task
+        self._task = asyncio.create_task(self._run())
   
   async def __aexit__(self, *_):
     self._entered_count = max(self._entered_count - 1, 0)
@@ -179,7 +181,19 @@ class AsyncProducer(Generic[T0]):
           try: await self._task
           except asyncio.CancelledError: pass
           finally: self._task = None
-    
+
+  def _stop(self): self._task.cancel()
+  async def _run(self):
+    try: await self.run()
+    except EOFError: 
+      self._on_ended()
+      raise
+    except asyncio.CancelledError: pass
+  
+  def _on_ended(self):
+    self._ended = True
+    self.close_consumers()
+  
 class AsyncMPProducer(AsyncProducer[T0]):
   def __init__(self) -> None:
     super().__init__()
@@ -187,14 +201,15 @@ class AsyncMPProducer(AsyncProducer[T0]):
     self._loop: asyncio.BaseEventLoop 
   
   async def run(self):
-    self._loop = asyncio.get_running_loop()
-    await self._loop.run_in_executor(None, self.run_sync)
-    self.stop_event.clear()
+    try:
+      self._loop = asyncio.get_running_loop()
+      await self._loop.run_in_executor(None, self.run_sync)
+    finally: self.stop_event.clear()
   
   @abstractmethod
   def run_sync(self): pass
   def send_message(self, message: Any): self._loop.call_soon_threadsafe(super().send_message, message)
-  def close_all(self): self._loop.call_soon_threadsafe(super().close_all)
+  def close_consumers(self): self._loop.call_soon_threadsafe(super().close_consumers)
   def _stop(self): self.stop_event.set()
 
 T1 = TypeVar("T1")
