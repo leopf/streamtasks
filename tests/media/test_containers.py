@@ -5,7 +5,7 @@ import unittest
 from streamtasks.media.audio import AudioCodecInfo
 from streamtasks.media.container import AVInputStream, AVOutputStream, InputContainer, OutputContainer
 from streamtasks.media.video import VideoCodecInfo
-from tests.media import decode_audio_packets, decode_video_packets, demux_all_packets, encode_all_frames, frame_box_size_value, generate_audio_media_track, generate_media_frames, get_freq_similarity, get_spectum, mux_all_packets
+from tests.media import decode_audio_packets, decode_video_packets, demux_all_packets, encode_all_frames, frame_box_size_value, generate_audio_media_track, generate_media_frames, get_freq_similarity, get_spectrum, mux_all_packets
 import numpy as np
 from tests.shared import full_test
 
@@ -59,7 +59,7 @@ class TestContainers(unittest.IsolatedAsyncioTestCase):
     out_samples = await decode_audio_packets(audio_codec, out_audio_packets)
     
     self.check_video_error(in_frames, out_frames, skip_end=3)
-    self.check_audio_error(in_samples, out_samples)
+    self.check_audio_error(in_samples, out_samples, audio_codec.rate)
   
   async def _test_codec_format_audio_io_container(self, codec: AudioCodecInfo, format: str, force_transcode: bool):
     output_container = await OutputContainer.open(self.container_filename, format=format)
@@ -70,7 +70,7 @@ class TestContainers(unittest.IsolatedAsyncioTestCase):
     out_samples = await self.in_container_read_audio(input_container.get_audio_stream(0, codec, force_transcode), codec, force_transcode)
     await input_container.close()
     
-    self.check_audio_error(in_samples, out_samples)
+    self.check_audio_error(in_samples, out_samples, codec.rate)
   
   async def _test_codec_format_video_io_container(self, codec: VideoCodecInfo, format: str, force_transcode: bool, skip_start=0, skip_end=0):
     output_container = await OutputContainer.open(self.container_filename, format=format)
@@ -111,8 +111,8 @@ class TestContainers(unittest.IsolatedAsyncioTestCase):
     for index, (a, b) in enumerate(zip(out_frames, in_frames)):
       self.assertLess(np.abs(a-b).sum(), frame_box_size_value * 0.01, f"failed at frame {index + skip_start}/{frame_count}") # allow for 1% error
       
-  def check_audio_error(self, in_samples: list[np.ndarray], out_samples: list[np.ndarray]):
-    audio_similarity = get_freq_similarity(get_spectum(in_samples), get_spectum(out_samples)) # lower is better
+  def check_audio_error(self, in_samples: list[np.ndarray], out_samples: list[np.ndarray], rate: int):
+    audio_similarity = get_freq_similarity(get_spectrum(in_samples, sample_rate=rate), get_spectrum(out_samples, sample_rate=rate)) # lower is better
     self.assertLess(audio_similarity, 70) # TODO: this is too high
 
 if __name__ == '__main__':

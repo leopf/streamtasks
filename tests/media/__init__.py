@@ -1,7 +1,7 @@
 import asyncio
 from typing import Iterable
 import numpy as np
-import scipy
+import scipy.fft
 
 from streamtasks.media.audio import AudioCodecInfo, AudioFrame
 from streamtasks.media.codec import Decoder, Encoder
@@ -90,16 +90,39 @@ def normalize_video_frame(frame: VideoFrame):
   np_frame = np.where(np_frame > 127, 255, 0)
   return np_frame
 
-def get_spectum(samples: np.ndarray):
-  freqs = scipy.fft.fft(samples)
-  freqs = freqs[range(int(len(freqs) / 2))] # keep only first half
-  freqs = abs(freqs) # get magnitude
-  freqs = freqs / freqs.sum() # normalize
-  return freqs
+def get_spectrum(samples: np.ndarray, sample_rate: int | None = None):
+  sample_rate = sample_rate or samples.size
+  raw_spec = scipy.fft.rfft(samples)
+  raw_spec = abs(raw_spec)
+  spec = np.zeros((sample_rate // 2))
+  sum_size = raw_spec.size / spec.size
+  sum_index = 0
+  for i in range(spec.size):
+      spec[i] = raw_spec[int(sum_index):int(sum_index + sum_size)].sum()
+      sum_index += sum_size
+  spec = spec / spec.sum()
+  return spec
+
+# TODO maybe tweak this a little to make it more reliable
+def get_freq_peeks(spec: np.ndarray, conv_count = 5):
+    conv_kernel = np.ones((11))
+    conv_kernel[5] = 2
+    conv_kernel = conv_kernel / conv_kernel.sum()
+    for _ in range(conv_count):
+        spec = np.convolve(spec, conv_kernel, mode="same")
+    spec[spec < spec.max() / 4] = 0
+    spec = spec[:-1] > spec[1:]
+    spec = spec[:-1] > spec[1:]
+    return np.where(spec > 0)[0]
 
 def get_freq_similarity(a: np.ndarray, b: np.ndarray):
-  a_freqs = np.argsort(a)[-_audio_track_freq_count:]
-  b_freqs = np.argsort(b)[-_audio_track_freq_count:]
+  a_freqs = get_freq_peeks(a)
+  b_freqs = get_freq_peeks(b)
   a_freqs.sort()
   b_freqs.sort()
+  size = min(a_freqs.size, b_freqs.size)
+  assert size > 0, "no frequency peeks found"
+  a_freqs = a_freqs[:size]
+  b_freqs = b_freqs[:size]
+  
   return np.abs(a_freqs - b_freqs).sum()
