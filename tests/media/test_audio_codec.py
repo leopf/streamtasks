@@ -1,7 +1,7 @@
 import unittest
 from streamtasks.media.audio import AudioCodecInfo
 from streamtasks.media.packet import MediaPacket
-from tests.media import decode_audio_packets, encode_all_frames, generate_audio_media_track, generate_audio_samples, generate_audio_track, get_freq_similarity, get_spectrum
+from tests.media import audio_frames_to_s16_samples, decode_audio_packets, encode_all_frames, generate_audio_media_track, generate_audio_samples, generate_audio_track, get_freq_similarity, get_spectrum
 
 class TestAudioCodec(unittest.IsolatedAsyncioTestCase):
   sample_rates = [44100,32000,16000]
@@ -27,7 +27,7 @@ class TestAudioCodec(unittest.IsolatedAsyncioTestCase):
 
   async def _test_transcoder(self, codec1: AudioCodecInfo, codec2: AudioCodecInfo):
     transcoder = codec1.get_transcoder(codec2)
-    frames, in_samples = await generate_audio_media_track(codec1, self.duration)
+    frames, _ = await generate_audio_media_track(codec1, self.duration)
     encoder1 = codec1.get_encoder()
     packets = await encode_all_frames(encoder1, frames)
     packet_size = encoder1.codec_context.frame_size
@@ -39,8 +39,11 @@ class TestAudioCodec(unittest.IsolatedAsyncioTestCase):
     t_packets.extend(await transcoder.flush())
     
     self.assertEqual(packets[0].pts, t_packets[0].pts)
+    self.assertLessEqual(int(t_packets[-1].pts * codec2.time_base), self.duration)
     
-    out_samples = await decode_audio_packets(codec2, t_packets)    
+    in_samples = await audio_frames_to_s16_samples(frames, codec1)
+    out_samples = await decode_audio_packets(codec2, t_packets)
+    self.assertLessEqual(out_samples.size - codec2.sample_rate / 2, (codec2.sample_rate / codec1.sample_rate) * in_samples.size, "resampling not working")
     similarity = get_freq_similarity(get_spectrum(in_samples, codec1.sample_rate), get_spectrum(out_samples, codec2.sample_rate)) # lower is better
     self.assertLess(similarity, 35)
 

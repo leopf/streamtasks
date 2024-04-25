@@ -35,13 +35,16 @@ async def decode_video_packets(codec: VideoCodecInfo, packets: list[MediaPacket]
   out_frames: list[np.ndarray] = [ normalize_video_frame(f) for f in out_frames ]
   return out_frames
 
-async def decode_audio_packets(codec: AudioCodecInfo, packets: list[MediaPacket]) -> np.ndarray:
+def audio_frames_to_samples(frames: list[AudioFrame]): return np.concatenate([ frame.to_ndarray() for frame in frames ], axis=1)[0]
+async def audio_frames_to_s16_samples(frames: list[AudioFrame], codec: AudioCodecInfo):
   validation_codec = AudioCodecInfo("pcm_s16le", codec.channels, codec.sample_rate, "s16")
   validation_resampler = validation_codec.get_resampler()
   out_frames: list[AudioFrame] = []
-  for frame in await decode_all_packets(codec.get_decoder(), packets): out_frames.extend(await validation_resampler.resample(frame))
-  out_frames: list[np.ndarray] = [ frame.to_ndarray() for frame in out_frames ]
-  return np.concatenate(out_frames, axis=1)[0]
+  for frame in frames: out_frames.extend(await validation_resampler.resample(frame))
+  return audio_frames_to_samples(out_frames)
+
+async def decode_audio_packets(codec: AudioCodecInfo, packets: list[MediaPacket]) -> np.ndarray:
+  return await audio_frames_to_s16_samples(await decode_all_packets(codec.get_decoder(), packets), codec)
 
 async def mux_all_packets(stream: AVOutputStream, packets: Iterable[MediaPacket]):
   try:
