@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from fractions import Fraction
-from typing import Any, Iterable, TypeVar, Generic
+from typing import Any, Iterable, Literal, TypeVar, Generic
 import av.codec
 import av.frame
 import av.video
@@ -72,12 +72,14 @@ class Transcoder(ABC):
   async def flush(self) -> list[MediaPacket]: pass
 
 class AVTranscoder(Transcoder):
-  def __init__(self, decoder: Decoder, encoder: Encoder):
+  def __init__(self, decoder: Decoder, encoder: Encoder, frame_duration: Fraction = Fraction(1)):
     self.decoder = decoder
     self.encoder = encoder
     self._flushed = False
     self._in_start_pts_abs: Fraction | None = None
     self._out_offset_pts: Fraction | None = None
+    self._frame_duration = frame_duration
+    self._frame_lo: Fraction = Fraction()
 
   @property
   def flushed(self): return self._flushed
@@ -97,7 +99,11 @@ class AVTranscoder(Transcoder):
 
   async def _encode_frames(self, frames: Iterable[Frame]):
     packets: list[MediaPacket] = []
-    for frame in frames: packets.extend(await self.encoder.encode(frame))
+    for frame in frames:
+      self._frame_lo += self._frame_duration
+      for _ in range(int(self._frame_lo)):
+        packets.extend(await self.encoder.encode(frame))
+        self._frame_lo -= 1
     return packets
 
   def _rebase_packets(self, packets: list[MediaPacket]): # TODO: improve this
@@ -114,7 +120,7 @@ class CodecInfo(ABC, Generic[F]):
 
   @property
   @abstractmethod
-  def type(self) -> str: pass
+  def type(self) -> Literal["video", "audio"]: pass
 
   @property
   @abstractmethod
@@ -131,7 +137,8 @@ class CodecInfo(ABC, Generic[F]):
 
   def get_encoder(self) -> Encoder: return Encoder[F](self)
   def get_decoder(self) -> Decoder: return Decoder[F](self)
-  def get_transcoder(self, to: 'CodecInfo') -> Transcoder: return AVTranscoder(self.get_decoder(), to.get_encoder())
+  def get_transcoder(self, to: 'CodecInfo') -> Transcoder:
+    return AVTranscoder(self.get_decoder(), to.get_encoder(), Fraction(to.rate / self.rate) if self.type == "video" else Fraction(1))
 
   @staticmethod
   def from_codec_context(ctx: av.codec.CodecContext) -> 'CodecInfo':
