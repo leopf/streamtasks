@@ -18,10 +18,8 @@ DEBUG_MEDIA = int(os.getenv("DEBUG_MEDIA", "0"))
 class _StreamContext:
   def __init__(self) -> None:
     self.lock = asyncio.Lock()
-    self.time_base = Fraction(1, 1)
-  
     self._sync_update_trigger = AsyncTrigger()
-    self._sync_channels: dict[int, int] = {}
+    self._sync_channels: dict[int, Fraction] = {}
   
   def create_sync_channel(self):
     channel_id = len(self._sync_channels)
@@ -34,12 +32,9 @@ class _StreamContext:
     while not self.is_min(channel):
       await self._sync_update_trigger.wait()
 
-  def set_sync_channel_time(self, channel: int, time: int):
-    time = time / self.time_base
+  def set_sync_channel_time(self, channel: int, time: Fraction):
     self._sync_channels[channel] = max(self._sync_channels[channel], time)
     self._sync_update_trigger.trigger()
-    
-  def add_time_base(self, time_base: Fraction): self.time_base = max(self.time_base * time_base, Fraction(1, 10_000_000)) 
 
 class _Demuxer(AsyncMPProducer[av.Packet]):
   def __init__(self, container: av.container.InputContainer) -> None:
@@ -128,8 +123,6 @@ class AVOutputStream:
     self._time_base = time_base
     self._dts_counter = 0
     self._sync_channel = ctx.create_sync_channel()
-    self._ctx.add_time_base(time_base)
-  
   @property
   def duration(self): return self._time_base * self._dts_counter
   
@@ -157,10 +150,10 @@ class AVOutputStream:
       await loop.run_in_executor(None, self._stream.container.mux, av_packet)
       assert av_packet.dts <= av_packet.pts, "dts must be lower than pts after muxing"
       if self._stream.type == "audio":
-        self._dts_counter += self._stream.codec_context.frame_size
+        self._dts_counter += int(self._stream.codec_context.frame_size)
       else:
         self._dts_counter += 1
-      self._ctx.set_sync_channel_time(self._sync_channel, self._dts_counter * self._time_base)
+      self._ctx.set_sync_channel_time(self._sync_channel, self._time_base * self._dts_counter)
 
 class OutputContainer:
   def __init__(self, container: av.container.OutputContainer):

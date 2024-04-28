@@ -1,14 +1,12 @@
 # MY TODOS
 - write more tests for utils
-- fix sync
 
 BUGS:
-- full crash when stopping deployment
-- flaky test of audio container
+- full crash when stopping deployment (seg fault)
+- make test that has dts order problem with sync
 
 ---
 
-- need to rethink and improve media timing (what is required where and why? Make guidelines, that work.)
 - from codec context should transfer some options
 - multi threading in av stuff
 
@@ -28,12 +26,6 @@ Backend:
 
 Add task with:
 https://github.com/cloudflare/stpyv8
-
-Media:
-time bases
-transcode framerate change
-use video reformatter
-check bitrate  in compatible_with
 
 IDEAS:
 - topic relabeling on the switch level to allow for traffic to be rerouted
