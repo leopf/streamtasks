@@ -8,7 +8,7 @@ from streamtasks.client.fetch import FetchRequest, FetchRequestReceiver
 from streamtasks.client.receiver import AddressReceiver, TopicsReceiver
 from streamtasks.client.signal import SignalRequestReceiver, SignalServer, send_signal
 from streamtasks.net.message.data import TextData
-from streamtasks.net import Switch, create_queue_connection
+from streamtasks.net import ConnectionClosedError, Switch, create_queue_connection
 from streamtasks.services.discovery import DiscoveryWorker
 from streamtasks.services.protocols import WorkerPorts, WorkerTopics
 from tests.shared import async_timeout
@@ -39,7 +39,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     for task in self.tasks: task.cancel()
     for task in self.tasks: 
       try: await task
-      except asyncio.CancelledError: pass
+      except (asyncio.CancelledError, ConnectionClosedError): pass
       except: raise
     self.switch.stop_receiving()
 

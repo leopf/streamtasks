@@ -2,6 +2,7 @@ import asyncio
 from fractions import Fraction
 import json
 from typing import Any
+from extra.debugging import ddebug_value
 from pydantic import BaseModel, ValidationError
 from streamtasks.client.topic import SequentialInTopicSynchronizer
 from streamtasks.media.audio import AudioCodecInfo
@@ -65,6 +66,7 @@ class OutputContainerTask(Task):
         try:
           data = await in_topic.recv_data()
           message = MediaMessage.model_validate(data.data)
+          ddebug_value("in", stream._stream.type, message.timestamp)
           if self._t0 is None: self._t0 = message.timestamp
           for packet in message.packets: await stream.mux(packet)
           assert all(p.rel_dts >= 0 for p in message.packets), "rel dts must be greater >= 0"

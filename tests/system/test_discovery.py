@@ -1,7 +1,7 @@
 import unittest
 from streamtasks.client.discovery import delete_topic_space, get_topic_space, register_address_name, register_topic_space, request_addresses, wait_for_address_name, wait_for_topic_signal
 from streamtasks.client.fetch import FetchError
-from streamtasks.net import Switch, create_queue_connection
+from streamtasks.net import ConnectionClosedError, Switch, create_queue_connection
 from streamtasks.services.protocols import WorkerAddresses, WorkerTopics
 from streamtasks.client import Client
 from streamtasks.services.discovery import DiscoveryWorker
@@ -21,7 +21,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     for task in self.tasks: task.cancel()
     for task in self.tasks: 
       try: await task
-      except asyncio.CancelledError: pass
+      except (asyncio.CancelledError, ConnectionClosedError): pass
       except: raise
     self.switch.stop_receiving()
 

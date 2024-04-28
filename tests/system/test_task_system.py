@@ -3,7 +3,7 @@ import unittest
 import httpx
 from streamtasks.asgi import ASGIProxyApp
 from streamtasks.client.discovery import register_topic_space, wait_for_topic_signal
-from streamtasks.net import Link, Switch
+from streamtasks.net import ConnectionClosedError, Link, Switch
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.services.protocols import AddressNames, WorkerTopics
 from streamtasks.system.task import Task, TaskHost, TaskHostRegistrationList, TaskManager, TaskManagerClient, TaskStatus
@@ -63,7 +63,7 @@ class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
     for task in self.tasks: task.cancel()
     for task in self.tasks: 
       try: await task
-      except asyncio.CancelledError: pass
+      except (asyncio.CancelledError, ConnectionClosedError): pass
       except: raise
     self.switch.stop_receiving()
 

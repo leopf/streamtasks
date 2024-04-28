@@ -4,7 +4,7 @@ import unittest
 
 from streamtasks.client import Client
 from streamtasks.client.topic import InTopic, InTopicSynchronizer, SequentialInTopicSynchronizer
-from streamtasks.net import Switch, create_queue_connection
+from streamtasks.net import ConnectionClosedError, Switch, create_queue_connection
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import NumberMessage
 from streamtasks.utils import get_timestamp_ms
@@ -30,7 +30,7 @@ class TestSync(unittest.IsolatedAsyncioTestCase):
     for task in self.tasks: task.cancel()
     for task in self.tasks: 
       try: await task
-      except asyncio.CancelledError: pass
+      except (asyncio.CancelledError, ConnectionClosedError): pass
       except: raise
     self.switch.stop_receiving()
 
