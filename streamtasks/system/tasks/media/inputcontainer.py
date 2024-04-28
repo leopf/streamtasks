@@ -5,7 +5,7 @@ from typing import Any
 from extra.debugging import ddebug_value
 from pydantic import BaseModel
 from streamtasks.media.audio import AudioCodecInfo
-from streamtasks.media.container import AVInputStream, InputContainer
+from streamtasks.media.container import DEBUG_MEDIA, AVInputStream, InputContainer
 from streamtasks.media.video import VideoCodecInfo
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.system.configurators import IOTypes, static_configurator
@@ -71,7 +71,7 @@ class InputContainerTask(Task):
           packets = await stream.demux()
           if len(packets) > 0:
             ts = stream.convert_position(packets[0].dts or 0, Fraction(1, 1000))
-            ddebug_value("in", stream._stream.type, ts)
+            if DEBUG_MEDIA: ddebug_value("in", stream._stream.type, ts)
             if self._t0 is None: self._t0 = get_timestamp_ms() - ts
             assert all(p.rel_dts >= 0 for p in packets), "rel dts must be greater >= 0"
             await out_topic.send(MessagePackData(MediaMessage(timestamp=self._t0 + ts, packets=packets).model_dump()))

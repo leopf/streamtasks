@@ -6,13 +6,14 @@ from extra.debugging import ddebug_value
 from pydantic import BaseModel, ValidationError
 from streamtasks.client.topic import SequentialInTopicSynchronizer
 from streamtasks.media.audio import AudioCodecInfo
-from streamtasks.media.container import AVOutputStream, OutputContainer
+from streamtasks.media.container import DEBUG_MEDIA, AVOutputStream, OutputContainer
 from streamtasks.media.video import VideoCodecInfo
 from streamtasks.system.configurators import IOTypes, static_configurator
 from streamtasks.net.message.structures import MediaMessage
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 from streamtasks.system.tasks.media.utils import MediaEditorFields
+from streamtasks.utils import AsyncTrigger
 
 class ContainerVideoOutputConfigBase(BaseModel):
   pixel_format: IOTypes.PixelFormat
@@ -57,6 +58,7 @@ class OutputContainerTask(Task):
     super().__init__(client)
     self.config = config
     self.sync = SequentialInTopicSynchronizer()
+    self._packet_processed_trigger = AsyncTrigger()
     self._t0: int | None = None
 
   async def _run_stream(self, stream: AVOutputStream, in_topic_id: int):
@@ -66,7 +68,7 @@ class OutputContainerTask(Task):
         try:
           data = await in_topic.recv_data()
           message = MediaMessage.model_validate(data.data)
-          ddebug_value("in", stream._stream.type, message.timestamp)
+          if DEBUG_MEDIA: ddebug_value("out", stream._stream.type, message.timestamp)
           if self._t0 is None: self._t0 = message.timestamp
           for packet in message.packets: await stream.mux(packet)
           assert all(p.rel_dts >= 0 for p in message.packets), "rel dts must be greater >= 0"
@@ -79,6 +81,7 @@ class OutputContainerTask(Task):
       for tid, stream in streams.items():
         if tid in self.sync._topic_timestamps: # TODO pausing support
           stream.duration = Fraction(self.sync._topic_timestamps[tid] - self._t0, 1000)
+          if DEBUG_MEDIA: ddebug_value("out stream dur.", stream._stream.type, (float(stream.duration), self.sync._topic_timestamps[tid]))
 
   async def run(self):
     try:

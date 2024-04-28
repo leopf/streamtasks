@@ -1,15 +1,19 @@
 import dataclasses
 from fractions import Fraction
 import functools
+import os
 import av.container
 import av.stream
 import av
 import asyncio
+from extra.debugging import ddebug_value
 from streamtasks.media.audio import AudioCodecInfo
 from streamtasks.media.codec import AVTranscoder, CodecInfo, Decoder
 from streamtasks.media.packet import MediaPacket
 from streamtasks.media.video import VideoCodecInfo
 from streamtasks.utils import AsyncConsumer, AsyncMPProducer, AsyncProducer, AsyncTrigger
+
+DEBUG_MEDIA = int(os.getenv("DEBUG_MEDIA", "0"))
 
 class _StreamContext:
   def __init__(self) -> None:
@@ -30,8 +34,8 @@ class _StreamContext:
     while not self.is_min(channel):
       await self._sync_update_trigger.wait()
 
-  def set_sync_channel_time(self, channel: int, time: int, time_base: Fraction):
-    time = time * round(float(time_base / self.time_base))
+  def set_sync_channel_time(self, channel: int, time: int):
+    time = time / self.time_base
     self._sync_channels[channel] = max(self._sync_channels[channel], time)
     self._sync_update_trigger.trigger()
     
@@ -131,9 +135,9 @@ class AVOutputStream:
   
   @duration.setter
   def duration(self, duration: Fraction):
-    if int(duration / self._time_base) > self._dts_counter: print(f"set duration {self._stream.type} to {float(int(duration / self._time_base) * self._time_base)}s")
+    if DEBUG_MEDIA: ddebug_value("out stream tb dur.", self._stream.type, float(duration / self._time_base))
     self._dts_counter = max(self._dts_counter, int(duration / self._time_base))
-    self._ctx.set_sync_channel_time(self._sync_channel, self._dts_counter, self._time_base)
+    self._ctx.set_sync_channel_time(self._sync_channel, duration)
   
   @property
   def ready_for_packet(self): return self._ctx.is_min(self._sync_channel)
@@ -144,6 +148,7 @@ class AVOutputStream:
     av_packet = packet.to_av_packet(self._time_base)
     av_packet.stream = self._stream
     
+    if DEBUG_MEDIA: ddebug_value("mux", self._stream.type, self._ctx._sync_channels)
     await self._ctx.sync_wait_channel_min(self._sync_channel)
     
     loop = asyncio.get_running_loop()
@@ -155,7 +160,7 @@ class AVOutputStream:
         self._dts_counter += self._stream.codec_context.frame_size
       else:
         self._dts_counter += 1
-      self._ctx.set_sync_channel_time(self._sync_channel, self._dts_counter, self._time_base)
+      self._ctx.set_sync_channel_time(self._sync_channel, self._dts_counter * self._time_base)
 
 class OutputContainer:
   def __init__(self, container: av.container.OutputContainer):

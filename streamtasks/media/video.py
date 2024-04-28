@@ -59,5 +59,5 @@ class VideoCodecInfo(CodecInfo[VideoFrame]):
   @staticmethod
   def from_codec_context(ctx: av.video.codeccontext.VideoCodecContext):
     format = ctx.format
-    framerate = float(ctx.framerate)
+    framerate = float(ctx.rate)
     return VideoCodecInfo(ctx.width, ctx.height, framerate, format.name, ctx.name)
