@@ -1,7 +1,7 @@
 import { StaticEditor } from "../../StaticEditor";
 import { getMetadataKeyDiffs } from "../../lib/task";
 import { TaskConfigurator, Task, TaskOutput, TaskConfiguratorContext, TaskInput } from "../../types/task";
-import { ReactEditorRenderer } from "../../lib/conigurator";
+import { ReactElementRenderer } from "../../lib/conigurator";
 import { compareIgnoreMetadataKeys, getCFGFieldEditorFields, createTaskFromContext, elementEmitUpdate, parseMetadataFieldJson } from "./static/utils";
 import { z } from "zod";
 import { EditorField } from "../../StaticEditor/types";
@@ -124,7 +124,7 @@ function createContainerInputs(task: Task, context: TaskConfiguratorContext): Ta
     }))
 }
 
-const reactRenderer = new ReactEditorRenderer();
+const reactRenderer = new ReactElementRenderer();
 const configurator: TaskConfigurator = {
     connect: (task: Task, key: string, output: TaskOutput | undefined, context: TaskConfiguratorContext) => {
         const targetInput = task.inputs.find(input => input.key === key);

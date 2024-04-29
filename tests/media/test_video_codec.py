@@ -2,7 +2,7 @@ import unittest
 from streamtasks.media.packet import MediaPacket
 from streamtasks.media.video import VideoCodecInfo
 import numpy as np
-from tests.media import decode_all_packets, decode_video_packets, encode_all_frames, generate_media_frames, normalize_video_frame
+from tests.media import decode_video_packets, encode_all_frames, generate_media_frames
 
 class TestVideoCodec(unittest.IsolatedAsyncioTestCase):
   w = 480

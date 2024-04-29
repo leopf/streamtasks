@@ -1,7 +1,7 @@
 import unittest
 from streamtasks.media.audio import AudioCodecInfo
 from streamtasks.media.packet import MediaPacket
-from tests.media import audio_frames_to_s16_samples, decode_audio_packets, encode_all_frames, generate_audio_media_track, generate_audio_samples, generate_audio_track, get_freq_similarity, get_spectrum
+from tests.media import audio_frames_to_s16_samples, decode_audio_packets, encode_all_frames, generate_audio_media_track, get_freq_similarity, get_spectrum
 
 class TestAudioCodec(unittest.IsolatedAsyncioTestCase):
   sample_rates = [44100,32000,16000]

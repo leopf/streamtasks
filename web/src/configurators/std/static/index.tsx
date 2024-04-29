@@ -1,6 +1,6 @@
 import { TaskConfigurator, TaskConfiguratorContext, Task, TaskOutput } from "../../../types/task";
 import { getMetadataKeyDiffs } from "../../../lib/task";
-import { ReactEditorRenderer as ReactRenderer } from "../../../lib/conigurator";
+import { ReactElementRenderer as ReactRenderer } from "../../../lib/conigurator";
 import { StaticEditor } from "../../../StaticEditor";
 import { applyConfigToIOMetadata, compareIgnoreMetadataKeys, connectMirrorIO, connectWithConfigOverwrite, createTaskFromContext, elementEmitUpdate, getCFGFieldEditorFields, getDisabledFields } from "./utils";
 

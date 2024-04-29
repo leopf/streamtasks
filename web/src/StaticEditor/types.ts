@@ -12,7 +12,7 @@ export const NumberFieldModel = z.object({
     min: z.number().optional(),
     max: z.number().optional(),
     unit: z.string().optional(),
-    integer: z.boolean().default(false),
+    integer: z.boolean().optional(),
 });
 export const SelectFieldModel = z.object({
     type: z.literal("select"),
@@ -36,6 +36,7 @@ export const KVOptionsFieldModel = z.object({
 });
 
 export const EditorFieldModel = z.discriminatedUnion("type", [NumberFieldModel, SelectFieldModel, BooleanFieldModel, TextFieldModel, KVOptionsFieldModel])
+export const EditorFieldsModel = z.array(EditorFieldModel)
 
 export type TextField = z.infer<typeof TextFieldModel>;
 export type NumberField = z.infer<typeof NumberFieldModel>;

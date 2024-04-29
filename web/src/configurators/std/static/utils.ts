@@ -201,7 +201,6 @@ export function elementEmitUpdate(element: HTMLElement, task: Task) {
 export function createTaskFromContext(context: TaskConfiguratorContext) {
     const metadata = context.taskHost.metadata;
     const label = z.string().parse(metadata["cfg:label"]);
-    console.log(label);
     const inputs = getCFGFieldInputs(context)
     const outputs = getCFGFieldOutputs(context)
     const config = "cfg:config" in metadata ? z.record(z.any()).parse(JSON.parse(String(metadata["cfg:config"]))) : {};
