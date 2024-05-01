@@ -38,7 +38,7 @@ def static_configurator(label: str, description: str | None = None, inputs: list
   if default_config is not None: metadata["cfg:config"] = json.dumps(default_config)
   if description is not None: metadata["cfg:description"] = description
   if editor_fields is not None: metadata["cfg:editorfields"] = json.dumps(editor_fields)
-  if config_to_output_map is not None: metadata["cfg:outputmetadata"] = json.dumps(config_to_output_map)
-  if config_to_input_map is not None: metadata["cfg:inputmetadata"] = json.dumps(config_to_input_map)
+  if config_to_input_map is not None: metadata["cfg:config2inputmap"] = json.dumps(config_to_input_map)
+  if config_to_output_map is not None: metadata["cfg:config2outputmap"] = json.dumps(config_to_output_map)
   if io_mirror is not None: metadata["cfg:iomirror"] = json.dumps(io_mirror)
   return metadata

@@ -9,6 +9,9 @@ export const TaskInputModel = MetadataModel.and(z.object({
     topic_id: z.number().optional(),
     key: z.string()
 }));
+export const TaskPartialInputModel = MetadataModel.and(z.object({
+    key: z.string()
+}));
 export const TaskModel = z.object({
     id: z.string().uuid(),
     task_host_id: z.string(),

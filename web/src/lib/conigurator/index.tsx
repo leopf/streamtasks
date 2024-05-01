@@ -1,7 +1,9 @@
 import { Root, createRoot } from "react-dom/client";
 import React from "react";
-import { Task, TaskConfigurator, TaskConfiguratorContext, TaskInput, TaskOutput } from "../types/task";
+import { Task, TaskConfigurator, TaskConfiguratorContext, TaskInput, TaskOutput } from "../../types/task";
 import { z } from "zod";
+import cloneDeep from "clone-deep";
+import objectPath from "object-path";
 
 export class ReactElementRenderer {
     private roots: WeakMap<Node, Root> = new WeakMap();
@@ -35,7 +37,7 @@ export abstract class TaskCLSConfigurator {
 
     private _task: Task;
     public get task() {
-        return this._task;
+        return cloneDeep(this._task);
     }
 
     public get id() {
@@ -44,6 +46,19 @@ export abstract class TaskCLSConfigurator {
 
     public get config() {
         return this._task.config;
+    }
+
+    public get inputs() {
+        return this._task.inputs;
+    }
+    public set inputs(v: TaskInput[]) {
+        this._task.inputs = v;
+    }
+    public get outputs() {
+        return this._task.outputs;
+    }
+    public set outputs(v: TaskOutput[]) {
+        this._task.outputs = v;
     }
 
     public get taskHost() {
@@ -84,11 +99,25 @@ export abstract class TaskCLSConfigurator {
             return undefined;
         }
     }
-    public getInput(key: string): TaskInput {
-        const input = this._task.inputs.find(i => i.key === key);
-        if (input === undefined) throw new Error("Input not found");
-        return input; // TS fix
+    public getInput(key: string, withIndex: true): [TaskInput, number];
+    public getInput(key: string, withIndex: false): TaskInput;
+    public getInput(key: string, withIndex: boolean = false): TaskInput | [TaskInput, number] {
+        const inputIndex = this._task.inputs.findIndex(i => i.key === key);
+        if (inputIndex === -1) throw new Error("Input not found");
+        const input = this._task.inputs[inputIndex]; // TS fix
+        if (withIndex) {
+            return [input, inputIndex];
+        }
+        else {
+            return input;
+        }
     } 
+
+    protected setFields(fields: Record<string, any>) {
+        for (const [k, v] of Object.entries(fields)) {
+            objectPath.set(this._task, k, v);
+        }
+    }
 }
 
 type Constructor = abstract new (...args: any[]) => TaskCLSConfigurator;

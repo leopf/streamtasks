@@ -1,6 +1,6 @@
 import { StaticEditor } from "../../StaticEditor";
 import { getMetadataKeyDiffs } from "../../lib/task";
-import { Task, TaskConfiguratorContext } from "../../types/task";
+import { Metadata, Task, TaskConfiguratorContext } from "../../types/task";
 import { TaskCLSConfigurator, TaskCLSReactRendererMixin, createCLSConfigurator } from "../../lib/conigurator";
 import { z } from "zod";
 import { EditorField, EditorFieldModel, EditorFieldsModel } from "../../StaticEditor/types";
@@ -9,13 +9,15 @@ import { Add as AddIcon, Delete as DeleteIcon } from "@mui/icons-material";
 import cloneDeep from "clone-deep";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { MetadataModel } from "../../model/task";
-import { compareIgnoreMetadataKeys, createTaskFromContext } from "./static/utils";
+import { GraphSetter } from "../../lib/conigurator/helpers";
+import { StaticCLSConfigurator } from "./static";
 
 const TrackConfigModel = z.object({
     key: z.string(),
     label: z.string().optional(),
     max: z.number().int(),
     defaultConfig: MetadataModel,
+    ioMap: z.record(z.string(), z.string()),
     editorFields: z.array(EditorFieldModel)
 });
 const TrackConfigsModel = z.array(TrackConfigModel);
@@ -101,69 +103,37 @@ function MultiTrackEditor(props: {
     );
 }
 
-abstract class MultiTrackConfigurator extends TaskCLSReactRendererMixin(TaskCLSConfigurator) {
-    private get trackConfigs() {
+abstract class MultiTrackConfigurator extends StaticCLSConfigurator {
+    protected get trackConfigs() {
         return this.parseMetadataField("cfg:trackconfigs", TrackConfigsModel, true);
     }
-    private get editorFields() {
-        return this.parseMetadataField("cfg:editorfields", EditorFieldsModel, false) ?? [];
-    }
-    private get trackEntries() {
-        const keys = this.trackConfigs.map(c =>`${c.key}_tracks`);
+    protected get trackEntries() {
         const result: TrackMetadata[] = [];
-        for (const key of keys) {
-            const trackRes = TrackMetadataListModel.safeParse(this.config[key]);
-            if (trackRes.success) {
-                result.push(...trackRes.data);
-            }
+        for (const config of this.trackConfigs) {
+            result.push(...(this.getTrackEntries(config.key) ?? []));
         }
         return result;
     }
 
-    constructor(context: TaskConfiguratorContext, task?: Task) {
-        super(context, task ?? createTaskFromContext(context));
-        this.beforeUpdate();
-    }
-    
-    public connect(key: string, output?: (Record<string, string | number | boolean | undefined> & { topic_id: number; }) | undefined): void | Promise<void> {
-        const targetInput = this.getInput(key);
-
-        if (!output) {
-            targetInput.topic_id = undefined;
-        }
-        else {
-            const diffs = getMetadataKeyDiffs(output, targetInput, compareIgnoreMetadataKeys);
-            if (diffs.length == 0) {
-                targetInput.topic_id = output.topic_id;
-            }
-            else {
-                if (targetInput.topic_id === output.topic_id) {
-                    targetInput.topic_id = undefined;
-                }
-            }
-        }
-        const targetConfig = this.trackEntries.find(e => e._key === targetInput.key);
-        if (targetConfig) {
-            targetConfig.in_topic = targetInput.topic_id;
-        }
-        this.beforeUpdate();
-    }
     public rrenderEditor(onUpdate: () => void): ReactNode {
         return (
             <MultiTrackEditor disabledIds={new Set()} data={this.config} fields={this.editorFields} trackConfigs={this.trackConfigs} newId={this.newId} onUpdated={() => {
-                this.beforeUpdate();
+                this.applyConfig();
                 onUpdate();
             }} />
         )
     }
 
-    protected abstract beforeUpdate(): void;
+    protected getTrackEntries(key: string) {
+        const trackRes = TrackMetadataListModel.safeParse(this.config[`${key}_tracks`]);
+        if (trackRes.success) {
+            return trackRes.data;
+        }
+    }
 }
 
 class MultiTrackInputConfigurator extends MultiTrackConfigurator {
-    protected beforeUpdate(): void {
-        throw new Error("Method not implemented.");
-    }
+    
 }
 
 const configurator = createCLSConfigurator((context, task) => new MultiTrackInputConfigurator(context, task))

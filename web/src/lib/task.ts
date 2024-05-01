@@ -22,7 +22,6 @@ export function getMetadataKeyDiffs(a: Metadata, b: Metadata, ignoreFields: Set<
     return diffs;
 }
 
-export const ignoreIOFieldsInEquality = ["label"];
 export const taskHostLabelFields = ["label", "cfg:label"];
 export const taskHostDescriptionFields = ["description", "cfg:description"];
 export const ioMetadataKeyLabels: Record<string, string> = { "topic_id": "topic id" }
