@@ -1,16 +1,14 @@
 import { StaticEditor } from "../../StaticEditor";
-import { getMetadataKeyDiffs } from "../../lib/task";
-import { Metadata, Task, TaskConfiguratorContext } from "../../types/task";
-import { TaskCLSConfigurator, TaskCLSReactRendererMixin, createCLSConfigurator } from "../../lib/conigurator";
+import { createCLSConfigurator } from "../../lib/conigurator";
 import { z } from "zod";
-import { EditorField, EditorFieldModel, EditorFieldsModel } from "../../StaticEditor/types";
+import { EditorField, EditorFieldModel } from "../../StaticEditor/types";
 import { Box, IconButton, Stack, Typography } from "@mui/material";
 import { Add as AddIcon, Delete as DeleteIcon } from "@mui/icons-material";
 import cloneDeep from "clone-deep";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { MetadataModel } from "../../model/task";
-import { GraphSetter } from "../../lib/conigurator/helpers";
 import { StaticCLSConfigurator } from "./static";
+import { parseMetadataField } from "../../lib/conigurator/helpers";
 
 const TrackConfigModel = z.object({
     key: z.string(),
@@ -105,7 +103,7 @@ function MultiTrackEditor(props: {
 
 abstract class MultiTrackConfigurator extends StaticCLSConfigurator {
     protected get trackConfigs() {
-        return this.parseMetadataField("cfg:trackconfigs", TrackConfigsModel, true);
+        return parseMetadataField(this.taskHost.metadata, "cfg:trackconfigs", TrackConfigsModel, true);
     }
     protected get trackEntries() {
         const result: TrackMetadata[] = [];
@@ -118,7 +116,7 @@ abstract class MultiTrackConfigurator extends StaticCLSConfigurator {
     public rrenderEditor(onUpdate: () => void): ReactNode {
         return (
             <MultiTrackEditor disabledIds={new Set()} data={this.config} fields={this.editorFields} trackConfigs={this.trackConfigs} newId={this.newId} onUpdated={() => {
-                this.applyConfig();
+                this.applyConfig(true);
                 onUpdate();
             }} />
         )

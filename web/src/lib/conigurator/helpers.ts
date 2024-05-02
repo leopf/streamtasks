@@ -7,7 +7,11 @@ export function parseMetadataField<O>(metadata: Metadata, key: string, model: z.
 export function parseMetadataField<O>(metadata: Metadata, key: string, model: z.ZodType<O>, force: false): O | undefined;
 export function parseMetadataField<O>(metadata: Metadata, key: string, model: z.ZodType<O>): O | undefined;
 export function parseMetadataField<O>(metadata: Metadata, key: string, model: z.ZodType<O>, force?: boolean) {
-    const rawData = metadata[key]; 
+    let rawData: any = metadata[key]
+    try {
+        rawData = JSON.parse(String(rawData));
+    }  
+    catch {}
     if (rawData === undefined) {
         if (force) {
             throw new Error(`Field "${key}" not defined!`);
@@ -26,13 +30,24 @@ export function parseMetadataField<O>(metadata: Metadata, key: string, model: z.
     }
 }
 
+export function extractObjectPathValues(data: any, prefix: string = "", result?: Map<string, any>) {
+    result = result ?? new Map();
+    // TODO: fix recursion
+    if (typeof data == "object") {
+        if (Array.isArray(data)) {
+            data.forEach((v, idx) => extractObjectPathValues(v, prefix + idx + ".", result));
+        }
+        else {
+            Object.entries(data).forEach(([k, v]) => extractObjectPathValues(v, prefix + k + ".", result))
+        }
+    }
+    else {
+        result.set(prefix.substring(0, prefix.length - 1), data);
+    }
+    return result;
+}
+
 export class GraphSetter {
-    clearSetters() {
-        throw new Error("Method not implemented.");
-    }
-    enable(arg0: string) {
-        throw new Error("Method not implemented.");
-    }
     private validatorsConstraints: Record<string, (v: any) => boolean> = {};
     private valueConstraints: Record<string, any> = {};
     private disabledPaths = new Set<string>();
@@ -49,6 +64,13 @@ export class GraphSetter {
 
     public disable(field: string) {
         this.disabledPaths.add(field);
+    }
+
+    public clearSetters() {
+        this.setters.clear();
+    }
+    public enable(field: string) {
+        this.disabledPaths.delete(field); // TODO this should probably also watch sub paths
     }
 
     public addEquals(field1: string, field2: string) {
@@ -69,13 +91,16 @@ export class GraphSetter {
     }
 
     public getDisabledFields(path: string, strip: boolean = true) {
+        if (path.length > 0) {
+            path += ".";
+        }
         const paths = new Set([
             ...Object.keys(this.valueConstraints),
             ...Object.keys(this.validatorsConstraints),
             ...Object.keys(this.equalities),
         ].filter(p => p.startsWith(path)));
         const result = new Set<string>();
-        const substringStart = strip ? path.length : 0; 
+        const substringStart = (strip && path.length > 0) ? path.length : 0; 
         for (const p of paths) {
             if (this.isDisabled(p)) {
                 result.add(p.substring(substringStart));
@@ -113,7 +138,7 @@ export class GraphSetter {
                 throw new Error(`Validation for field "${setField}" failed!`);
             }
 
-            const valueConstraint = this.validatorsConstraints[setField];
+            const valueConstraint = this.valueConstraints[setField];
             if (valueConstraint !== undefined && valueConstraint !== setValue) {
                 throw new Error(`Validation for field "${setField}" failed!`);
             }
@@ -133,6 +158,7 @@ export class GraphSetter {
                 for (const nfield of fields) {
                     if (!visitedFields.has(nfield)) {
                         newFields.add(nfield);
+                        visitedFields.add(nfield);
                     }
                 }
             }

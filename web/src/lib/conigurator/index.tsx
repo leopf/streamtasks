@@ -4,6 +4,7 @@ import { Task, TaskConfigurator, TaskConfiguratorContext, TaskInput, TaskOutput 
 import { z } from "zod";
 import cloneDeep from "clone-deep";
 import objectPath from "object-path";
+import { parseMetadataField } from "./helpers";
 
 export class ReactElementRenderer {
     private roots: WeakMap<Node, Root> = new WeakMap();
@@ -75,29 +76,6 @@ export abstract class TaskCLSConfigurator {
         if (this.id != task.id) throw new Error("Task ids do not match!");
         this._task = task;
         this.context = context;
-    }
-
-    public parseMetadataField<O>(key: string, model: z.ZodType<O>, force: true): O;
-    public parseMetadataField<O>(key: string, model: z.ZodType<O>, force: false): O | undefined;
-    public parseMetadataField<O>(key: string, model: z.ZodType<O>): O | undefined;
-    public parseMetadataField<O>(key: string, model: z.ZodType<O>, force?: boolean) {
-        const rawData = this.taskHost.metadata[key]; 
-        if (rawData === undefined) {
-            if (force) {
-                throw new Error(`Field "${key}" not defined!`);
-            }
-            return undefined;
-        }
-        if (force) {
-            return model.parse(rawData)
-        }
-        else {
-            const res = model.safeParse(rawData);
-            if (res.success) {
-                return res.data;
-            }
-            return undefined;
-        }
     }
     public getInput(key: string, withIndex: true): [TaskInput, number];
     public getInput(key: string, withIndex: false): TaskInput;

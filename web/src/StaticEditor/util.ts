@@ -6,7 +6,7 @@ export function getFieldValidator(field: EditorField) {
         return z.union(field.items.map(item => z.literal(item.value)) as any);
     }
     else if (field.type === "boolean") {
-        return z.boolean()
+        return z.boolean();
     }
     else if (field.type === "number") {
         let f = z.number();
@@ -14,6 +14,12 @@ export function getFieldValidator(field: EditorField) {
         if (field.max !== undefined) f = f.max(field.max);
         if (field.min !== undefined) f = f.min(field.min);
         return f;
+    }
+    else if (field.type === "kvoptions") {
+        return z.record(z.string(), z.string());
+    }
+    else if (field.type === "text") {
+        return z.string();
     }
     throw new Error("No validator for field!");
 }
