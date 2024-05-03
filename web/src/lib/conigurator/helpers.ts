@@ -47,49 +47,75 @@ export function extractObjectPathValues(data: any, prefix: string = "", result?:
     return result;
 }
 
+export function matchBasePath(path: string, basePath: string) {
+    if (path === basePath) {
+        return "";
+    }
+    else if (path.startsWith(basePath + ".")) {
+        return path.substring(basePath.length + 1);
+    }
+    else {
+        return undefined;
+    }
+}
+
 export class GraphSetter {
     private validatorsConstraints: Record<string, (v: any) => boolean> = {};
     private valueConstraints: Record<string, any> = {};
     private disabledPaths = new Set<string>();
-    private equalities = new Map<string, string[]>();
+    
+    private edges = new Map<string, string[]>();
+    private edgeGenerators: [string, (subPath: string, basePath: string) => string[]][] = [];
 
     private setters = new Map<string, any>();
 
-    public constrainValidator(field: string, validator: (v: any) => boolean) {
-        this.validatorsConstraints[field] = validator;
+    public constrainValidator(path: string, validator: (v: any) => boolean) {
+        this.validatorsConstraints[path] = validator;
     }
-    public constrainValue(field: string, value: any) {
-        this.valueConstraints[field] = value;
+    public constrainValue(path: string, value: any) {
+        this.valueConstraints[path] = value;
     }
 
-    public disable(field: string) {
-        this.disabledPaths.add(field);
+    public disable(path: string) {
+        this.disabledPaths.add(path);
+    }
+
+    public enable(path: string, deep: boolean = false) {
+        this.disabledPaths.delete(path);
+        if (deep) {
+            Array.from(this.disabledPaths).forEach(dpath => {
+                if (matchBasePath(dpath, path) !== undefined) {
+                    this.disabledPaths.delete(dpath);
+                }
+            })
+        }
     }
 
     public clearSetters() {
         this.setters.clear();
     }
-    public enable(field: string) {
-        this.disabledPaths.delete(field); // TODO this should probably also watch sub paths
+
+    public addEdge(path1: string, path2: string) {
+        this.edges.set(path1, [...(this.edges.get(path1) ?? []), path2]);
+        this.edges.set(path2, [...(this.edges.get(path2) ?? []), path1]);
+    }
+    public addEdgeGenerator(basePath: string, gen: (subPath: string, basePath: string) => string[]) {
+        this.edgeGenerators.push([basePath, gen]);
     }
 
-    public addEquals(field1: string, field2: string) {
-        this.equalities.set(field1, [...(this.equalities.get(field1) ?? []), field2]);
-        this.equalities.set(field2, [...(this.equalities.get(field2) ?? []), field1]);
-    }
-
-    public set(field: string, value: any) {
-        const fields = this.getEffectedFields(field);
-        for (const field of fields) {
-            if (!this.setters.has(field)) {
-                this.setters.set(field, value);
+    public set(path: string, value: any) {
+        const paths = this.getEffectedPaths(path);
+        for (const p of paths) {
+            if (!this.setters.has(p)) {
+                this.setters.set(p, value);
             }
-            else if (this.setters.get(field) !== value) {
-                throw new Error("Setter has a value conflict on field " + field);
+            else if (this.setters.get(p) !== value) {
+                throw new Error("Setter has a value conflict on path " + p);
             }
         }
     }
 
+    // TODO: remove?
     public getDisabledFields(path: string, strip: boolean = true) {
         if (path.length > 0) {
             path += ".";
@@ -97,7 +123,7 @@ export class GraphSetter {
         const paths = new Set([
             ...Object.keys(this.valueConstraints),
             ...Object.keys(this.validatorsConstraints),
-            ...Object.keys(this.equalities),
+            ...Object.keys(this.edges),
         ].filter(p => p.startsWith(path)));
         const result = new Set<string>();
         const substringStart = (strip && path.length > 0) ? path.length : 0; 
@@ -109,14 +135,14 @@ export class GraphSetter {
         return result;
     }
 
-    public isDisabled(field: string): boolean {
-        const fields = this.getEffectedFields(field);
-        for (const field of fields) {
-            if (field in this.valueConstraints) {
+    public isDisabled(path: string): boolean {
+        const paths = this.getEffectedPaths(path);
+        for (const p of paths) {
+            if (p in this.valueConstraints) {
                 return true;
             }
             for (const disabledPath of this.disabledPaths) {
-                if (field.startsWith(disabledPath)) {
+                if (p.startsWith(disabledPath)) {
                     return true;
                 }
             }
@@ -130,39 +156,50 @@ export class GraphSetter {
             // check if any setters are disabled
             for (const disabledPath of this.disabledPaths) {
                 if (setField.startsWith(disabledPath)) {
-                    throw new Error(`Trying to set field "${setField}" which is in the disabled path "${disabledPath}"!`);
+                    throw new Error(`Trying to set path "${setField}" which is in the disabled path "${disabledPath}"!`);
                 }
             }
             const validatorConstraint = this.validatorsConstraints[setField];
             if (validatorConstraint && !validatorConstraint(setValue)) {
-                throw new Error(`Validation for field "${setField}" failed!`);
+                throw new Error(`Validation for path "${setField}" failed!`);
             }
 
             const valueConstraint = this.valueConstraints[setField];
             if (valueConstraint !== undefined && valueConstraint !== setValue) {
-                throw new Error(`Validation for field "${setField}" failed!`);
+                throw new Error(`Validation for path "${setField}" failed!`);
             }
             result[setField] = setValue;
         }
         return result;
     }
 
-    private getEffectedFields(field: string) {
-        const visitedFields = new Set([field]);
-        const newFields = new Set([field]);
-        while (newFields.size > 0) {
-            const visitFields = Array.from(newFields);
-            newFields.clear();
-            for (const field of visitFields) {
-                const fields = this.equalities.get(field) ?? [];
-                for (const nfield of fields) {
-                    if (!visitedFields.has(nfield)) {
-                        newFields.add(nfield);
-                        visitedFields.add(nfield);
+    private getEffectedPaths(path: string) {
+        const visitedPaths = new Set([path]);
+        const newPaths = new Set([path]);
+        while (newPaths.size > 0) {
+            const visitPaths = Array.from(newPaths);
+            newPaths.clear();
+            for (const path of visitPaths) {
+                const paths = this.getConnectedNodes(path);
+                for (const npath of paths) {
+                    if (!visitedPaths.has(npath)) {
+                        newPaths.add(npath);
+                        visitedPaths.add(npath);
                     }
                 }
             }
         }
-        return visitedFields;
+        return visitedPaths;
+    }
+
+    private getConnectedNodes(path: string) {
+        const nodes = Array.from(this.edges.get(path) ?? []);
+        for (const [basePath, gen] of this.edgeGenerators) {
+            const subPath = matchBasePath(path, basePath)
+            if (subPath !== undefined) {
+                nodes.push(...gen(subPath, basePath));
+            }
+        }
+        return nodes;
     }
 }
