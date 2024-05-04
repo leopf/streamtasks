@@ -13,7 +13,6 @@ export const TaskTemplateItem = observer((props: { taskHost: TaskHost }) => {
     const containerRef = useRef<HTMLImageElement>(null);
     const rootStore = useRootStore()
 
-    const label = useMemo(() => taskHostLabelFields.map(f => props.taskHost.metadata[f]).find(l => l), [props.taskHost]);
     const description = useMemo(() => taskHostDescriptionFields.map(f => props.taskHost.metadata[f]).find(l => l), [props.taskHost]);
     const nodeName = useMemo(() => props.taskHost.metadata["nodename"], [props.taskHost]);
 
@@ -31,11 +30,12 @@ export const TaskTemplateItem = observer((props: { taskHost: TaskHost }) => {
             const nodeRect = containerRef.current.getBoundingClientRect()
             const dragData: TaskHostDragData = { id: props.taskHost.id, ox: e.clientX - nodeRect.x, oy: e.clientY - nodeRect.y };
             e.dataTransfer.setData("task_host", JSON.stringify(dragData));
+            e.dataTransfer.setDragImage(containerRef.current, dragData.ox, dragData.oy);
         }}>
             <NodeOverlayTile header={<Typography lineHeight={1} fontSize="0.7rem">node: {nodeName}</Typography>}>
-                <Box padding={3}>
+                <Stack padding={3} direction="column" alignItems="center">
                     <Box ref={containerRef} />
-                </Box>
+                </Stack>
                 {description && (
                     <Box padding={1}>
                         <Typography variant="caption">{description}</Typography>
