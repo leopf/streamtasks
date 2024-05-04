@@ -1,4 +1,4 @@
-import { Point } from "./point";
+import { Point, addPoints, divPoints, mulPoints, scalarToPoint, subPoints } from "./point";
 
 export class HTMLViewport {
     private _translate: Point = { x: 0, y: 0 };
@@ -55,6 +55,18 @@ export class HTMLViewport {
 
     public toLocal(p: Point) {
         return { x: (p.x - this.translate.x) / this.zoom, y: (p.y - this.translate.y) / this.zoom }
+    }
+
+    public panToCenter() {
+        let xSum = 0;
+        let ySum = 0;
+        for (const child of Array.from(this._host.children)) {
+            const el = child as HTMLElement;
+            xSum += el.offsetLeft + el.offsetWidth / 2
+            ySum += el.offsetTop + el.offsetHeight / 2
+        }
+        const targetPos: Point = { x: xSum / this._host.childElementCount, y: ySum / this._host.childElementCount };
+        this.translate = subPoints({ x: this._container.clientWidth / 2, y: this._container.clientHeight / 2 }, mulPoints(targetPos, scalarToPoint(this.zoom)) );
     }
 
     public mount(element: HTMLElement) {

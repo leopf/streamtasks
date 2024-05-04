@@ -48,6 +48,7 @@ export const NodeEditor = observer(() => {
 
     useEffect(() => {
         nodeRenderer.clear();
+        const centerTimeoutHdl = setTimeout(() => nodeRenderer.viewport.panToCenter(), 500);
         const disposers = [
             observe(deployment.tasks, (a) => {
                 console.log(a);
@@ -58,7 +59,8 @@ export const NodeEditor = observer(() => {
                     nodeRenderer.addNode(new TaskNode(a.newValue));
                 }
             }),
-            reaction(() => deployment.running, () => nodeRenderer.readOnly = deployment.running, { fireImmediately: true })
+            reaction(() => deployment.running, () => nodeRenderer.readOnly = deployment.running, { fireImmediately: true }),
+            () => clearTimeout(centerTimeoutHdl)
         ];
         return () => disposers.forEach(d => d());
     }, [deployment]);

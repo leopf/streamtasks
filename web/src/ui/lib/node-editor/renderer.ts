@@ -1,20 +1,12 @@
-// import * as PIXI from 'pixi.js';
 import objectHash from "object-hash";
-import { Connection, Node, ConnectResult, InputConnection, NodeDisplayOptions, NodeRenderOptions, OutputConnection } from "./types";
+import { Connection, Node, ConnectResult, InputConnection, OutputConnection } from "./types";
 import EventEmitter from 'eventemitter3';
 import { HTMLViewport } from '../html-viewport';
 import { Point, addPoints, scalarToPoint, subPoints } from '../point';
-import { min } from "underscore";
 
-const appBackgroundColor = "#eee";
-const paddingVertical = 10;
-const nodeLabelHPadding = 20;
-const streamsBottomOffset = paddingVertical;
-const streamHeight = 30;
 const streamCircleRadiusRem = 0.5;
 const outlineColor = "#333";
 const outlineWidth = 2;
-const minLabelSpace = 20;
 const selectedNodeFillColor = "#f0f6ff";
 
 const connectionColorSamples = [
@@ -678,10 +670,11 @@ export class NodeEditorRenderer extends EventEmitter<{
         const a = addPoints(subPoints(inputPoint, minPos), hPaddingVec);
         const b = addPoints(subPoints(outputPoint, minPos), hPaddingVec);
         const cpYOffset = inputPoint.x < outputPoint.x ? 100 : 0;
+        const cpXOffset = inputPoint.x < outputPoint.x ? 100 : 50;
         const cpYOffsetScale = inputPoint.y < outputPoint.y ? 1 : -1;
 
-        const cp1 = { x: a.x - 100, y: a.y + cpYOffset * cpYOffsetScale };
-        const cp2 = { x: b.x + 100, y: b.y + cpYOffset * cpYOffsetScale * -1 };
+        const cp1 = { x: a.x - cpXOffset, y: a.y + cpYOffset * cpYOffsetScale };
+        const cp2 = { x: b.x + cpXOffset, y: b.y + cpYOffset * cpYOffsetScale * -1 };
         element.innerHTML = `<path d="M ${a.x},${a.y} C ${cp1.x},${cp1.y} ${cp2.x},${cp2.y} ${b.x},${b.y}" style="fill:none; stroke:${outlineColor}; stroke-width:${outlineWidth}px;" />`;
 
         const position = subPoints(minPos, hPaddingVec);
