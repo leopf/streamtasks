@@ -658,27 +658,33 @@ export class NodeEditorRenderer extends EventEmitter<{
     }
 
     private drawConnectionLine(inputPoint: Point, outputPoint: Point) {
+        const svgPadding = 200 + outlineWidth; 
         const size: Point = {
-            x: Math.abs(inputPoint.x - outputPoint.x) + outlineWidth,
-            y: Math.abs(inputPoint.y - outputPoint.y) + outlineWidth,
+            x: Math.abs(inputPoint.x - outputPoint.x) + svgPadding,
+            y: Math.abs(inputPoint.y - outputPoint.y) + svgPadding,
         }
         const minPos: Point = {
             x: Math.min(inputPoint.x, outputPoint.x),
             y: Math.min(inputPoint.y, outputPoint.y)
         };
 
-        const hOutlineWidthVec = scalarToPoint(outlineWidth / 2);
+        const hPaddingVec = scalarToPoint(svgPadding / 2);
 
         const element = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         element.setAttribute("width", String(size.x));
         element.setAttribute("height", String(size.y));
         element.style.position = "absolute";
 
-        const a = addPoints(subPoints(inputPoint, minPos), hOutlineWidthVec);
-        const b = addPoints(subPoints(outputPoint, minPos), hOutlineWidthVec);
-        element.innerHTML = `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" style="stroke:${outlineColor};stroke-width:${outlineWidth}px;" />`;
+        const a = addPoints(subPoints(inputPoint, minPos), hPaddingVec);
+        const b = addPoints(subPoints(outputPoint, minPos), hPaddingVec);
+        const cpYOffset = inputPoint.x < outputPoint.x ? 100 : 0;
+        const cpYOffsetScale = inputPoint.y < outputPoint.y ? 1 : -1;
 
-        const position = subPoints(minPos, hOutlineWidthVec);
+        const cp1 = { x: a.x - 100, y: a.y + cpYOffset * cpYOffsetScale };
+        const cp2 = { x: b.x + 100, y: b.y + cpYOffset * cpYOffsetScale * -1 };
+        element.innerHTML = `<path d="M ${a.x},${a.y} C ${cp1.x},${cp1.y} ${cp2.x},${cp2.y} ${b.x},${b.y}" style="fill:none; stroke:${outlineColor}; stroke-width:${outlineWidth}px;" />`;
+
+        const position = subPoints(minPos, hPaddingVec);
         element.style.left = `${position.x}px`;
         element.style.top = `${position.y}px`;
 

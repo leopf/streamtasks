@@ -3,7 +3,7 @@ import { Box, CircularProgress, Stack, Typography } from "@mui/material";
 import { TaskHost } from "../../types/task";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { taskHostDescriptionFields, taskHostLabelFields } from "../../lib/task";
-import { TaskNode } from "../../lib/task-node";
+import { TaskNode } from "../lib/task-node";
 import { TaskHostDragData } from "../../types/task-host";
 import { NodeOverlayTile } from "./NodeOverlayTile";
 import { useRootStore } from "../../state/root-store";

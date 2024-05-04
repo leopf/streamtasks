@@ -1,11 +1,11 @@
 import deepEqual from "deep-equal";
-import { TaskIO, Task, TaskOutput, FullTask, TaskInstanceStatus } from "../types/task";
-import { InputConnection, Node, OutputConnection } from "./node-editor";
-import { ManagedTask, extractTaskIO, taskInstance2GeneralStatusMap } from "./task";
+import { TaskIO, TaskOutput, FullTask, TaskInstanceStatus } from "../../types/task";
+import { ManagedTask, extractTaskIO, taskInstance2GeneralStatusMap } from "../../lib/task";
 import { EventEmitter } from "eventemitter3";
 import _ from "underscore";
-import { GeneralStatus } from "../types/status";
-import { generalStatusColors } from "./status";
+import { GeneralStatus } from "../../types/status";
+import { generalStatusColors } from "../../lib/status";
+import { InputConnection, OutputConnection, Node } from "./node-editor";
 
 type TaskNodeData = TaskIO & { label: string, status?: TaskInstanceStatus };
 
@@ -98,8 +98,8 @@ export class TaskNode extends EventEmitter<{ "updated": [] }> implements Node {
         let newOutput: undefined | TaskOutput;
         if (output) {
             newOutput = { ...output, topic_id: output.streamId };
-            delete newOutput.id;
-            delete newOutput.streamId;
+            delete newOutput!.id;
+            delete newOutput!.streamId;
         }
         try {
             this.inputKeyIgnoreTopicId = key;

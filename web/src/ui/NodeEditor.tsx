@@ -1,6 +1,6 @@
 import Box from '@mui/material/Box';
 import { useState, useRef, useEffect } from 'react';
-import { TaskNode } from '../lib/task-node';
+import { TaskNode } from './lib/task-node';
 import { observer, useLocalObservable } from "mobx-react-lite";
 import { TaskHostDragDataModel } from '../model/task-host';
 import { observe, reaction } from 'mobx';
