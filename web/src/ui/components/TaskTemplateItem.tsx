@@ -3,21 +3,14 @@ import { Box, CircularProgress, Stack, Typography } from "@mui/material";
 import { TaskHost } from "../../types/task";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { taskHostDescriptionFields, taskHostLabelFields } from "../../lib/task";
-import { renderNodeToImage } from "../../lib/node-editor";
 import { TaskNode } from "../../lib/task-node";
 import { TaskHostDragData } from "../../types/task-host";
-import { LRUCache } from "lru-cache";
 import { NodeOverlayTile } from "./NodeOverlayTile";
 import { useRootStore } from "../../state/root-store";
-
-const taskHostImageCache = new LRUCache<string, string>({
-    maxSize: 1e7,
-    sizeCalculation: (a, b) => b.length
-});
+import { renderNodeToElement } from "../lib/node-editor";
 
 export const TaskTemplateItem = observer((props: { taskHost: TaskHost }) => {
-    const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
-    const imageRef = useRef<HTMLImageElement>(null);
+    const containerRef = useRef<HTMLImageElement>(null);
     const rootStore = useRootStore()
 
     const label = useMemo(() => taskHostLabelFields.map(f => props.taskHost.metadata[f]).find(l => l), [props.taskHost]);
@@ -25,38 +18,24 @@ export const TaskTemplateItem = observer((props: { taskHost: TaskHost }) => {
     const nodeName = useMemo(() => props.taskHost.metadata["nodename"], [props.taskHost]);
 
     useEffect(() => {
-        if (taskHostImageCache.has(props.taskHost.id)) {
-            setImageUrl(taskHostImageCache.get(props.taskHost.id));
-        }
-        else {
-            rootStore.taskManager.createManagedTask(props.taskHost)
-                .then(task => renderNodeToImage(new TaskNode(task), { width: 200, backgroundColor: "#0000" }))
-                .then(imageUrl => {
-                    taskHostImageCache.set(props.taskHost.id, imageUrl)
-                    setImageUrl(imageUrl);
-                });
-        }
+        rootStore.taskManager.createManagedTask(props.taskHost)
+            .then(task => {
+                const element = renderNodeToElement(new TaskNode(task));
+                containerRef.current?.appendChild(element);
+            })
     }, []);
 
     return (
         <Box width="100%" draggable={true} onDragStart={(e) => {
-            if (!imageRef.current) return;
-            const imageRect = imageRef.current.getBoundingClientRect()
-            const dragData: TaskHostDragData = { id: props.taskHost.id, ox: e.clientX - imageRect.x, oy: e.clientY - imageRect.y };
+            if (!containerRef.current) return;
+            const nodeRect = containerRef.current.getBoundingClientRect()
+            const dragData: TaskHostDragData = { id: props.taskHost.id, ox: e.clientX - nodeRect.x, oy: e.clientY - nodeRect.y };
             e.dataTransfer.setData("task_host", JSON.stringify(dragData));
-            e.dataTransfer.setDragImage(imageRef.current, dragData.ox, dragData.oy)
         }}>
             <NodeOverlayTile header={<Typography lineHeight={1} fontSize="0.7rem">node: {nodeName}</Typography>}>
-                {imageUrl ? (
-                    <Box padding={3}>
-                        <img ref={imageRef} style={{ width: "100%", display: "block" }} src={imageUrl} />
-                    </Box>
-                ) : (
-                    <Stack alignItems="center" spacing={2}>
-                        <CircularProgress />
-                        <Typography>{label}</Typography>
-                    </Stack>
-                )}
+                <Box padding={3}>
+                    <Box ref={containerRef} />
+                </Box>
                 {description && (
                     <Box padding={1}>
                         <Typography variant="caption">{description}</Typography>

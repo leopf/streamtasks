@@ -2,8 +2,8 @@ import { Box, IconButton, Stack, Tooltip, Typography } from "@mui/material";
 import { Metadata } from "../../types/task";
 import { useMemo } from "react";
 import { ioMetadataHideKeys, ioMetadataKeyLabels, ioMetadataValueLabels } from "../../lib/task";
-import { getStreamColor } from "../../lib/node-editor";
 import { Launch as LaunchIcon } from "@mui/icons-material";
+import { getStreamColor } from "../lib/node-editor";
 
 const ignoreFieldsForIOColor = new Set(["topic_id", "label", "key", "id"]);
 
@@ -15,7 +15,7 @@ export function TaskIOLabel(props: { io: Metadata, alignRight?: true, allowOpen?
             .map(([k, v]) => [k, String(v)])
             .map(([k, v]) => [ioMetadataKeyLabels[k] ?? k, ioMetadataValueLabels[k]?.[v] ?? v]), [props.io])
     const label = props.io["label"] ?? " - ";
-    const color = useMemo(() => "#" + getStreamColor(props.io as Record<string, string | number | boolean>, ignoreFieldsForIOColor).toString(16).padStart(6, '0'), [props.io]);
+    const color = useMemo(() => getStreamColor(props.io as Record<string, string | number | boolean>, ignoreFieldsForIOColor), [props.io]);
 
     return (
         <Tooltip title={(

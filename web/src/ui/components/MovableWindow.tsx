@@ -1,6 +1,6 @@
 import { Box, Stack, Typography } from "@mui/material";
 import React, { useEffect, useRef, useState } from "react";
-import { Point } from "../../types/basic";
+import { Point } from "../lib/point";
 
 export function MovableWindow(props: React.PropsWithChildren<{
     title: string,

@@ -1,77 +1,61 @@
-import * as PIXI from 'pixi.js';
+// import * as PIXI from 'pixi.js';
 import objectHash from "object-hash";
-import { Viewport } from 'pixi-viewport';
 import { Connection, Node, ConnectResult, InputConnection, NodeDisplayOptions, NodeRenderOptions, OutputConnection } from "./types";
-import { Point } from '../../types/basic';
 import EventEmitter from 'eventemitter3';
+import { HTMLViewport } from '../html-viewport';
+import { Point, addPoints, scalarToPoint, subPoints } from '../point';
+import { min } from "underscore";
 
-const appBackgroundColor = 0xeeeeee;
+const appBackgroundColor = "#eee";
 const paddingVertical = 10;
 const nodeLabelHPadding = 20;
 const streamsBottomOffset = paddingVertical;
 const streamHeight = 30;
-const streamCircleRadius = 8;
-const outlineColor = 0x333333;
+const streamCircleRadiusRem = 0.5;
+const outlineColor = "#333";
 const outlineWidth = 2;
-const xOffset = streamCircleRadius + outlineWidth / 2;
-const labelEdgeOffset = streamCircleRadius + 5;
 const minLabelSpace = 20;
-const selectedNodeFillColor = 0xf0f6ff;
+const selectedNodeFillColor = "#f0f6ff";
 
 const connectionColorSamples = [
-    0x6528F7,
-    0xA076F9,
-    0xFFE300,
-    0xFF7800,
-    0x0CCA98,
-    0x00FFCC,
-    0xF9A828,
-    0xEEB76B,
-    0xADE498,
-    0xEDE682,
-    0x91CA62,
-    0xF1EBBB,
-    0xF8B500,
-    0xAA14F0,
-    0xBC8CF2,
-    0x6D67E4,
-    0xFFC5A1,
-    0xEF3F61,
-    0xDF8931,
-    0x85EF47,
-    0xF9FD50
+    "#6528F7",
+    "#A076F9",
+    "#FFE300",
+    "#FF7800",
+    "#0CCA98",
+    "#00FFCC",
+    "#F9A828",
+    "#EEB76B",
+    "#ADE498",
+    "#EDE682",
+    "#91CA62",
+    "#F1EBBB",
+    "#F8B500",
+    "#AA14F0",
+    "#BC8CF2",
+    "#6D67E4",
+    "#FFC5A1",
+    "#EF3F61",
+    "#DF8931",
+    "#85EF47",
+    "#F9FD50"
 ]
 
-const ignoreFieldsForContentComparison = new Set([ "streamId", "label", "key", "id" ]);
+const ignoreFieldsForContentComparison = new Set(["streamId", "label", "key", "id"]);
 
 export function getStreamColor(connection: Record<string, number | string | boolean>, ignoreFields: Set<string> = ignoreFieldsForContentComparison) {
 
-    const newConnection = {...Object.fromEntries(Object.entries(connection).filter(([k, _]) => !ignoreFields.has(k)))};
+    const newConnection = { ...Object.fromEntries(Object.entries(connection).filter(([k, _]) => !ignoreFields.has(k))) };
 
     return connectionColorSamples[parseInt(objectHash([1, newConnection]).slice(0, 6), 16) % connectionColorSamples.length];
 }
 
 export class NodeRenderer {
-    private group: PIXI.Container;
+    private group: HTMLDivElement;
     private node: Node;
     private editor?: NodeEditorRenderer;
 
-    private _relConnectorPositions = new Map<string | number, Point>();
-    private _absuluteConnectorPositions = new Map<string | number, Point>();
-    private connectorPositionsOutdated = true;
-
-    private connectionLabelTextStyle = new PIXI.TextStyle({
-        fontFamily: 'Arial',
-        fontSize: 16,
-        fill: '#000000',
-        wordWrap: false
-    });
-    private nodeLabelTextStyle = new PIXI.TextStyle({
-        fontFamily: 'Arial',
-        fontSize: 18,
-        fill: '#000000',
-        wordWrap: false
-    });
+    private connectorElements = new Map<string | number, HTMLElement>();
 
     public get id() {
         return this.node.id;
@@ -83,21 +67,7 @@ export class NodeRenderer {
         return this.editor?.selectedNode === this;
     }
     private get fillColor() {
-        return this.isSelected ? selectedNodeFillColor : 0xffffff;
-    }
-
-    public get connectorPositions() {
-        if (this.connectorPositionsOutdated) {
-            this._absuluteConnectorPositions.clear();
-            for (const [refId, relPos] of this._relConnectorPositions) {
-                this._absuluteConnectorPositions.set(refId, {
-                    x: relPos.x + this.group.position.x,
-                    y: relPos.y + this.group.position.y
-                });
-            }
-            this.connectorPositionsOutdated = false;
-        }
-        return this._absuluteConnectorPositions;
+        return this.isSelected ? selectedNodeFillColor : "#ffffff";
     }
 
     public get inputs() {
@@ -113,15 +83,23 @@ export class NodeRenderer {
 
     constructor(node: Node, editor?: NodeEditorRenderer) {
         this.node = node;
-        this.node.on?.call(this.node, "updated", async () => await this.editor?.updateNode(this.id));
         this.editor = editor;
+        this.node.on?.call(this.node, "updated", async () => await this.editor?.updateNode(this.id));
 
-        this.group = new PIXI.Container();
-        this.group.interactive = true;
+        this.group = document.createElement("div");
+        this.group.style.position = "absolute";
+        this.group.style.width = "min-content";
+        this.group.style.direction = "ltr";
+        this.group.addEventListener('pointerdown', () => this.editor?.onPressNode(this.id));
 
-        this.group.on('pointerdown', () => this.editor?.onPressNode(this.id));
+        this.editor?.viewport.host.appendChild(this.group);
+    }
 
-        this.editor?.viewport.addChild(this.group);
+    public getConnectorPosition(id: string | number) {
+        const element = this.connectorElements.get(id);
+        if (!element) return undefined;
+        const pos = this.calculateConnectionCirclePosition(element);
+        return addPoints(pos, { x: this.group.offsetLeft + outlineWidth, y: this.group.offsetTop  + outlineWidth});
     }
 
     public async connect(key: string, output?: OutputConnection) {
@@ -130,8 +108,8 @@ export class NodeRenderer {
 
     public updatePosition(pos: Point) {
         this.node.position = { x: pos.x, y: pos.y };
-        this.group.position.set(pos.x, pos.y);
-        this.connectorPositionsOutdated = true;
+        this.group.style.left = `${pos.x}px`;
+        this.group.style.top = `${pos.y}px`;
     }
 
     public move(x: number, y: number) {
@@ -140,112 +118,125 @@ export class NodeRenderer {
     }
 
     public destroy() {
-        this.group.removeFromParent();
-        this.group.destroy();
+        this.group.remove();
         this.node.destroy?.call(this.node);
     }
 
     public render() {
-        this.group.removeChildren();
-        this._relConnectorPositions.clear();
+        while (this.group.firstChild) this.group.removeChild(this.group.firstChild);
+        this.connectorElements.clear();
         this.updatePosition(this.position);
 
-        const nodeLabel = new PIXI.Text(this.node.label, this.nodeLabelTextStyle);
-        nodeLabel.resolution = 2;
-        const streamsTopOffset = paddingVertical * 2 + nodeLabel.height;
+        const containerRect = document.createElement("div");
+        containerRect.style.position = "relative";
+        containerRect.style.border = `${outlineWidth}px solid ${this.node.outlineColor ?? outlineColor}`
+        containerRect.style.backgroundColor = this.fillColor;
+        containerRect.style.borderRadius = `${streamCircleRadiusRem}rem`;
+        containerRect.style.boxSizing = "border-box";
+        this.group.appendChild(containerRect);
+
+        const nodeLabel = document.createElement("div");
+        nodeLabel.innerText = this.node.label;
+        nodeLabel.style.fontFamily = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+        nodeLabel.style.fontSize = "1rem";
+        nodeLabel.style.color = "#000";
+        nodeLabel.style.whiteSpace = "nowrap";
+        nodeLabel.style.width = "100%";
+        nodeLabel.style.textAlign = "center";
+        nodeLabel.style.padding = "0.5rem 0.75rem 0 0.75rem";
+        nodeLabel.style.boxSizing = "border-box";
+        containerRect.appendChild(nodeLabel);
 
 
-        // rect width and height
-        const ioHeight = Math.max(this.node.inputs.length, this.node.outputs.length)
-        const rectHeight = ioHeight * streamHeight + streamsBottomOffset + streamsTopOffset;
+        const ioContainer = document.createElement("div")
+        ioContainer.style.display = "flex";
+        ioContainer.style.flexDirection = "row";
+        ioContainer.style.alignItems = "stretch";
+        ioContainer.style.width = "100%";
+        ioContainer.style.padding = "0.5rem 0";
+        containerRect.appendChild(ioContainer);
 
-        const inputLabelMaxSize = this.measureStreamLabelSizes(this.node.inputs);
-        const outputLabelMaxSize = this.measureStreamLabelSizes(this.node.outputs);
+        const ioSpacer = document.createElement("div");
+        ioSpacer.style.minWidth = "0.5rem";
+        ioSpacer.style.flex = "1";
 
-        const rectWidth = Math.max(
-            inputLabelMaxSize.width + outputLabelMaxSize.width + minLabelSpace + labelEdgeOffset * 2,
-            nodeLabel.width + nodeLabelHPadding * 2
-        );
+        const inputsContainer = document.createElement("div");
+        inputsContainer.style.display = "flex";
+        inputsContainer.style.flexDirection = "column";
+        inputsContainer.style.alignItems = "start";
+        inputsContainer.style.gap = "0.5rem";
+        inputsContainer.style.marginLeft = `calc(-${streamCircleRadiusRem}rem - ${outlineWidth / 2}px)`;
+        ioContainer.appendChild(inputsContainer);
 
-        // set label position
-        nodeLabel.position.set(xOffset + (rectWidth - nodeLabel.width) / 2, paddingVertical);
+        ioContainer.appendChild(ioSpacer);
 
-        // gray rect with rounded corners
-        const containerRect = new PIXI.Graphics();
-        containerRect.lineStyle(outlineWidth, this.node.outlineColor ?? outlineColor);
-        containerRect.beginFill(this.fillColor);
-        containerRect.drawRoundedRect(xOffset, 0, rectWidth, rectHeight, streamCircleRadius);
-        containerRect.endFill();
-        this.group.addChild(containerRect);
-        this.group.addChild(nodeLabel);
+        const outputsContainer = document.createElement("div");
+        outputsContainer.style.display = "flex";
+        outputsContainer.style.flexDirection = "column";
+        outputsContainer.style.alignItems = "end";
+        outputsContainer.style.gap = "0.5rem";
+        outputsContainer.style.marginRight = `calc(-${streamCircleRadiusRem}rem - ${outlineWidth / 2}px)`;
+        ioContainer.appendChild(outputsContainer);
 
+        for (const input of this.inputs) {
+            const inputContainer = document.createElement("div")
+            inputContainer.style.display = "flex";
+            inputContainer.style.flexDirection = "row";
+            inputContainer.style.alignItems = "center";
+            inputContainer.style.gap = "0.25rem";
+            inputsContainer.appendChild(inputContainer);
 
-        for (let i = 0; i < this.node.inputs.length; i++) {
-            const connection = this.node.inputs[i];
-            const yOffsetCenter = (i + 0.5) * streamHeight + streamsTopOffset;
-
-            // draw a circle on the edge of the rect
-            const circle = this.createConnectionCircle(connection);
-            circle.position.set(xOffset, yOffsetCenter);
-            this._relConnectorPositions.set(connection.id, circle.position);
-
-            // draw the stream label
-            const label = new PIXI.Text(connection.label, this.connectionLabelTextStyle);
-            label.position.set(xOffset + labelEdgeOffset, yOffsetCenter - label.height / 2);
-            label.resolution = 2;
-
-            this.group.addChild(circle);
-            this.group.addChild(label);
+            const connectionCircle = this.createConnectionCircle(input);
+            inputContainer.appendChild(connectionCircle);
+            inputContainer.appendChild(this.createConnectionLabel(input.label ?? ""));
+            this.connectorElements.set(input.key, connectionCircle);
         }
 
-        for (let i = 0; i < this.node.outputs.length; i++) {
-            const connection = this.node.outputs[i];
-            const yOffsetCenter = (i + 0.5) * streamHeight + streamsTopOffset;
+        for (const output of this.outputs) {
+            const outputContainer = document.createElement("div")
+            outputContainer.style.display = "flex";
+            outputContainer.style.flexDirection = "row";
+            outputContainer.style.alignItems = "center";
+            outputContainer.style.gap = "0.25rem";
+            outputsContainer.appendChild(outputContainer);
 
-            const circle = this.createConnectionCircle(connection);
-            circle.position.set(xOffset + rectWidth, yOffsetCenter);
-            this._relConnectorPositions.set(connection.id, circle.position);
+            outputContainer.appendChild(this.createConnectionLabel(output.label ?? ""));
 
-            // draw the stream label
-            const label = new PIXI.Text(connection.label, this.connectionLabelTextStyle);
-            label.position.set(xOffset + rectWidth - labelEdgeOffset - label.width, yOffsetCenter - label.height / 2);
-            label.resolution = 2;
-
-            this.group.addChild(circle);
-            this.group.addChild(label);
+            const connectionCircle = this.createConnectionCircle(output);
+            outputContainer.appendChild(connectionCircle);
+            this.connectorElements.set(output.streamId, connectionCircle);
         }
     }
 
+    private calculateConnectionCirclePosition(element: HTMLElement) {
+        return { x: element.offsetWidth / 2 + element.offsetLeft, y: element.offsetHeight / 2 + element.offsetTop };
+    }
+
+    private createConnectionLabel(label: string) {
+        const element = document.createElement("div");
+        element.style.fontFamily = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+        element.style.fontSize = "0.9rem";
+        element.style.color = "#000";
+        element.style.whiteSpace = "nowrap";
+        element.innerText = label;
+        return element;
+    }
     private createConnectionCircle(connection: Connection) {
-        const circle = new PIXI.Graphics();
-        circle.lineStyle(outlineWidth, outlineColor);
-        circle.beginFill(getStreamColor(connection));
-        circle.drawCircle(0, 0, streamCircleRadius);
-        circle.endFill();
-        circle.interactive = true;
+        const element = document.createElement("div");
+        element.style.borderRadius = "50%";
+        element.style.width = `${streamCircleRadiusRem * 2}rem`
+        element.style.height = `${streamCircleRadiusRem * 2}rem`
+        element.style.boxSizing = "border-box";
+        element.style.cursor = "pointer";
+        element.style.border = `${outlineWidth}px solid ${this.node.outlineColor ?? outlineColor}`
+        element.style.backgroundColor = getStreamColor(connection);
 
-        circle.on('pointerdown', async () => await this.editor?.onSelectStartConnection(connection.id));
-        circle.on('pointerup', async () => await this.editor?.onSelectEndConnection(this.id, connection.id));
-
-        return circle;
+        element.addEventListener('pointerdown', async () => {
+            await this.editor?.onSelectStartConnection(connection.id)
+        });
+        element.addEventListener('pointerup', async () => await this.editor?.onSelectEndConnection(this.id, connection.id));
+        return element;
     }
-
-    private measureStreamLabelSizes(streams: { label?: string }[]) {
-        let maxWidth = 0;
-        let maxHeight = 0;
-        for (const stream of streams) {
-            const size = PIXI.TextMetrics.measureText(stream.label || "", this.connectionLabelTextStyle);
-            if (size.width > maxWidth) {
-                maxWidth = size.width;
-            }
-            if (size.height > maxHeight) {
-                maxHeight = size.height;
-            }
-        }
-        return { width: maxWidth, height: maxHeight };
-    }
-
-
 }
 
 type ConnectionLink = {
@@ -253,7 +244,7 @@ type ConnectionLink = {
     inputNodeId: string;
     outputId: number;
     outputNodeId: string;
-    rendered?: PIXI.Container
+    rendered?: SVGSVGElement
 };
 
 class ConnectionLinkCollection {
@@ -278,141 +269,31 @@ class ConnectionLinkCollection {
     }
 }
 
-export class NodeDisplayRenderer {
-    private app: PIXI.Application;
-    private nodeRenderer: NodeRenderer;
-    private resizeObserver: ResizeObserver;
-    private _perfectWidth: number = 0;
-    private _perfectHeight: number = 0;
-    private updateHandlers: (() => void)[] = [];
-    private hostEl: HTMLElement;
-
-    public padding: number = 20;
-
-    public get perfectWidth() {
-        return this._perfectWidth;
-    }
-    public get perfectHeight() {
-        return this._perfectHeight;
-    }
-
-    constructor(node: Node, hostEl: HTMLElement, options: NodeDisplayOptions = {}) {
-        this.hostEl = hostEl;
-        this.nodeRenderer = new NodeRenderer(node);
-        this.padding = options.padding !== undefined ? options.padding : this.padding;
-        this.app = new PIXI.Application({
-            width: this.hostEl.clientWidth,
-            height: this.hostEl.clientHeight,
-            backgroundColor: options.backgroundColor ?? appBackgroundColor,
-            antialias: true,
-            autoDensity: true,
-            autoStart: false,
-        });
-        this.app.stage.addChild(this.nodeRenderer.container);
-        this.hostEl.appendChild(this.app.view as HTMLCanvasElement);
-
-        this.resizeObserver = new ResizeObserver(() => {
-            this.resize();
-            this.update();
-        });
-        if (!options.disableAutoResize) {
-            this.resizeObserver.observe(this.hostEl);
-        }
-    }
-
-    public resize() {
-        this.app.renderer.resize(this.hostEl.clientWidth, this.hostEl.clientHeight);
-    }
-    public toDataUrl() {
-        return this.app.renderer.extract.base64(this.app.stage);
-    }
-
-    public update() {
-        this.nodeRenderer.render();
-
-        const containerWidth = this.nodeRenderer.container.width / this.nodeRenderer.container.scale.x;
-        const containerHeight = this.nodeRenderer.container.height / this.nodeRenderer.container.scale.y;
-
-        const widthScale = (this.hostEl.clientWidth - this.padding * 2) / containerWidth;
-        const heightScale = (this.hostEl.clientHeight - this.padding * 2) / containerHeight;
-        const scale = Math.min(widthScale, heightScale);
-
-        if (scale > 0) {
-            const newWidth = containerWidth * scale;
-            const newHeight = containerHeight * scale;
-
-            this.nodeRenderer.container.transform.scale.set(scale, scale);
-            this.nodeRenderer.container.position.set(
-                (this.app.renderer.width - newWidth) / 2,
-                (this.app.renderer.height - newHeight) / 2
-            );
-        }
-
-        this._perfectWidth = heightScale * containerWidth + this.padding * 2;
-        this._perfectHeight = widthScale * containerHeight + this.padding * 2;
-
-        this.app.render();
-
-        this.updateHandlers.forEach(h => h());
-    }
-
-    public destroy() {
-        this.nodeRenderer.destroy();
-        this.app.destroy();
-        this.resizeObserver.disconnect();
-        this.updateHandlers = [];
-    }
-}
-
-export async function renderNodeToImage(node: Node, options: NodeRenderOptions) {
-    const hostEl = document.createElement('div');
-    if (options.width) {
-        hostEl.style.width = options.width + 'px';
-    }
-    else if (options.height) {
-        hostEl.style.height = options.height + 'px';
-    }
-    hostEl.style.visibility = 'hidden';
-    document.body.appendChild(hostEl);
-
-    const renderer = new NodeDisplayRenderer(node, hostEl, { ...options, disableAutoResize: true });
-    renderer.update();
-    if (options.width) {
-        hostEl.style.height = renderer.perfectHeight + 'px';
-    }
-    else if (options.height) {
-        hostEl.style.width = renderer.perfectWidth + 'px';
-    }
-    renderer.resize();
-    renderer.update();
-    const dataUrl = await renderer.toDataUrl();
-    renderer.destroy();
-    hostEl.remove();
-
-    return dataUrl;
+export function renderNodeToElement(node: Node) {
+    const renderer = new NodeRenderer(node);
+    renderer.render();
+    renderer.container.style.position = "static";
+    return renderer.container;
 }
 
 export class NodeEditorRenderer extends EventEmitter<{
-"connectError": [ string ],
-"updated": [ string ],
-"selected": [ string | undefined ],
+    "connectError": [string],
+    "updated": [string],
+    "selected": [string | undefined],
 }> {
-    public viewport: Viewport;
-    private app?: PIXI.Application;
-    private connectionLayer = new PIXI.Container();
+    public viewport: HTMLViewport;
+    private connectionLayer: HTMLDivElement;
     private nodeRenderers = new Map<string, NodeRenderer>();
     private links = new ConnectionLinkCollection();
 
-    private pressActive = false;
+    private nodePressActive = false;
     private selectedNodeId?: string;
 
     private selectedConnectionId?: string | number;
     private keepEditingLinkLine = false;
-    private editingLinkLine?: PIXI.Graphics;
+    private editingLinkLine?: SVGSVGElement;
 
     private container?: HTMLElement;
-    private containerResizeObserver?: ResizeObserver;
-
     private onPointerUpHandler = () => this.onReleaseNode();
 
     private _readOnly: boolean = false;
@@ -421,7 +302,7 @@ export class NodeEditorRenderer extends EventEmitter<{
     }
     public set readOnly(value: boolean) {
         this._readOnly = value;
-        this.editingLinkLine?.removeFromParent();
+        this.editingLinkLine?.remove();
     }
 
     public get selectedNode(): NodeRenderer | undefined {
@@ -431,7 +312,7 @@ export class NodeEditorRenderer extends EventEmitter<{
         return this.nodeRenderers.get(this.selectedNodeId);
     }
     public get zoom() {
-        return this.viewport.scaled;
+        return this.viewport.zoom;
     }
     private get selectedInputConnection() {
         if (!this.selectedConnectionId) {
@@ -443,49 +324,39 @@ export class NodeEditorRenderer extends EventEmitter<{
         if (!this.selectedConnectionId) {
             return undefined;
         }
-        return this.selectedNode?.connectorPositions.get(this.selectedConnectionId);
+        return this.selectedNode?.getConnectorPosition(this.selectedConnectionId);
     }
 
     constructor() {
         super();
-        this.app = new PIXI.Application({
-            width: 1,
-            height: 1,
-            backgroundColor: appBackgroundColor,
-            antialias: true,
-            autoDensity: true,
-            autoStart: false,
-        });
+        this.connectionLayer = document.createElement("div");
+        this.connectionLayer.style.position = "absolute";
+        this.connectionLayer.style.top = "0";
+        this.connectionLayer.style.left = "0";
 
-        this.app.ticker.maxFPS = 60;
-        this.viewport = new Viewport({
-            worldWidth: 1000,
-            worldHeight: 1000,
-            events: this.app.renderer.events,
-        });
-        this.app.stage.addChild(this.viewport);
-        this.viewport.addChild(this.connectionLayer);
-        this.viewport.on("pointermove", (e) => {
-            if (!this.pressActive || !this.selectedNodeId || this._readOnly) return;
+        this.viewport = new HTMLViewport();
+        this.viewport.host.appendChild(this.connectionLayer);
+
+        this.viewport.container.addEventListener("pointermove", (e) => {
+            if (!this.nodePressActive || !this.selectedNodeId || this._readOnly) return;
             const selectedConnectionPosition = this.selectedConnectionPosition;
             if (!selectedConnectionPosition) {
-                this.selectedNode?.move(e.movementX / this.viewport.scale.x, e.movementY / this.viewport.scale.y);
+                this.selectedNode?.move(e.movementX / this.viewport.zoom, e.movementY / this.viewport.zoom);
                 this.renderNodeLinks(this.selectedNodeId);
             }
             else {
-                this.renderEditingLink(e.getLocalPosition(this.viewport))
+                const containerRect = this.viewport.container.getBoundingClientRect();
+                this.renderEditingLink(this.viewport.toLocal({ 
+                    x: e.clientX - containerRect.x, 
+                    y: e.clientY - containerRect.y
+                }));
             }
         })
         window.addEventListener("pointerup", this.onPointerUpHandler);
-        this.viewport
-            .drag()
-            .pinch()
-            .wheel()
     }
 
-    public getInternalPosition(p: Point): Point {
-        const r = this.viewport.toLocal(p);
-        return { x: r.x, y: r.y }
+    public getLocalPosition(p: Point): Point {
+        return this.viewport.toLocal(p);
     }
 
     public async addNode(node: Node, center: boolean = false) {
@@ -507,11 +378,11 @@ export class NodeEditorRenderer extends EventEmitter<{
         this.renderNode(node.id);
 
         if (center) {
-            const xOffset = nodeRenderer.container.width / 2;
-            const yOffset = nodeRenderer.container.height / 2;
+            const xOffset = nodeRenderer.container.clientWidth / 2;
+            const yOffset = nodeRenderer.container.clientHeight / 2;
             nodeRenderer.updatePosition({
-                x: this.viewport.center.x - xOffset,
-                y: this.viewport.center.y - yOffset
+                x: this.viewport.localCenter.x - xOffset,
+                y: this.viewport.localCenter.y - yOffset
             });
             this.renderNode(node.id);
         }
@@ -532,7 +403,7 @@ export class NodeEditorRenderer extends EventEmitter<{
     public clear() {
         this.nodeRenderers.forEach(node => node.destroy());
         this.nodeRenderers.clear();
-        this.links.values.forEach(link => link.rendered?.removeFromParent());
+        this.links.values.forEach(link => link.rendered?.remove());
         this.links = new ConnectionLinkCollection();
     }
 
@@ -566,35 +437,25 @@ export class NodeEditorRenderer extends EventEmitter<{
             }
         }
         finally {
-            this.editingLinkLine?.removeFromParent();
+            this.editingLinkLine?.remove();
             this.keepEditingLinkLine = false;
         }
     }
-    
+
     public unmount() {
         if (!this.container) return;
-        this.app?.stop();
-        this.containerResizeObserver?.disconnect();
-        this.containerResizeObserver = undefined;
+        this.viewport.unmount();
         while (this.container.firstChild) {
             this.container.removeChild(this.container.firstChild);
         }
     }
     public mount(container: HTMLElement) {
         this.unmount();
-        if (!this.app) return;
         this.container = container;
-        container.appendChild(this.app.view as HTMLCanvasElement);
-        this.app.start();
-
-        this.resize()
-        this.containerResizeObserver = new ResizeObserver(this.resize.bind(this));
-        this.containerResizeObserver.observe(container);
+        this.viewport.mount(container);
     }
     public destroy() {
         this.unmount();
-        this.app?.destroy();
-        this.app = undefined;
         window.removeEventListener("pointerup", this.onPointerUpHandler);
     }
 
@@ -614,29 +475,24 @@ export class NodeEditorRenderer extends EventEmitter<{
             this.renderNode(oldNodeId)
         }
         this.emit("selected", id);
-        this.pressActive = true;
-        this.viewport.plugins.pause('drag');
+        this.nodePressActive = true;
+        this.viewport.disableDrag = true;
 
         this.renderNode(id);
         this.selectedNode?.render();
         this.renderNodeLinks(id);
     }
     private onReleaseNode() {
-        if (this.pressActive) {
-            this.pressActive = false;
+        if (this.nodePressActive) {
+            this.nodePressActive = false;
             this.selectedConnectionId = undefined;
             if (!this.keepEditingLinkLine) {
-                this.editingLinkLine?.removeFromParent();
+                this.editingLinkLine?.remove();
             }
-            this.viewport.plugins.resume('drag');
         }
+        this.viewport.disableDrag = false;
     }
 
-    private resize() {
-        if (!this.container) return;
-        this.app?.renderer.resize(this.container.clientWidth, this.container.clientHeight);
-        this.viewport.resize(this.container.clientWidth, this.container.clientHeight, 1000, 1000);
-    }
     private createLinksFromOutputConnections(nodeId: string, outputConnections: OutputConnection[]) {
         const outputConnectionIdsSet = new Set(outputConnections.map(c => c.streamId));
 
@@ -735,7 +591,7 @@ export class NodeEditorRenderer extends EventEmitter<{
 
     private renderEditingLink(pos: Point) {
         if (this.editingLinkLine) {
-            this.editingLinkLine?.removeFromParent();
+            this.editingLinkLine?.remove();
         }
         const selectedConnectionIsInput = this.selectedInputConnection;
         const inputPos = selectedConnectionIsInput ? this.selectedConnectionPosition : pos;
@@ -777,15 +633,15 @@ export class NodeEditorRenderer extends EventEmitter<{
 
     private renderLink(link: ConnectionLink) {
         if (link.rendered) {
-            link.rendered.removeFromParent();
+            link.rendered.remove();
         }
 
         const inputNode = this.nodeRenderers.get(link.inputNodeId);
         const outputNode = this.nodeRenderers.get(link.outputNodeId);
         if (!inputNode || !outputNode) return false;
 
-        const inputPosition = inputNode.connectorPositions.get(link.inputKey);
-        const outputPosition = outputNode.connectorPositions.get(link.outputId);
+        const inputPosition = inputNode.getConnectorPosition(link.inputKey);
+        const outputPosition = outputNode.getConnectorPosition(link.outputId);
 
         if (!inputPosition || !outputPosition) return;
 
@@ -796,28 +652,37 @@ export class NodeEditorRenderer extends EventEmitter<{
 
     private removeLinks(links: ConnectionLink[]) {
         for (const link of links) {
-            link.rendered?.removeFromParent();
+            link.rendered?.remove();
             this.links.remove(link);
         }
     }
 
     private drawConnectionLine(inputPoint: Point, outputPoint: Point) {
-        const dist = Math.sqrt(Math.pow(inputPoint.x - outputPoint.x, 2) + Math.pow(inputPoint.y - outputPoint.y, 2));
-
-        let cpYOffset = Math.min(150, dist);
-        if (outputPoint.y >= inputPoint.y) {
-            cpYOffset *= -1;
+        const size: Point = {
+            x: Math.abs(inputPoint.x - outputPoint.x) + outlineWidth,
+            y: Math.abs(inputPoint.y - outputPoint.y) + outlineWidth,
         }
-        if (inputPoint.x > outputPoint.x) {
-            cpYOffset = 0;
-        }
+        const minPos: Point = {
+            x: Math.min(inputPoint.x, outputPoint.x),
+            y: Math.min(inputPoint.y, outputPoint.y)
+        };
 
-        const cpXOffset = Math.min(150, dist / 2);
-        const line = new PIXI.Graphics();
-        line.lineStyle(outlineWidth, outlineColor);
-        line.moveTo(inputPoint.x, inputPoint.y);
-        line.bezierCurveTo(inputPoint.x - cpXOffset, inputPoint.y + cpYOffset, outputPoint.x + cpXOffset, outputPoint.y + cpYOffset, outputPoint.x, outputPoint.y);
-        this.connectionLayer.addChild(line);
-        return line;
+        const hOutlineWidthVec = scalarToPoint(outlineWidth / 2);
+
+        const element = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        element.setAttribute("width", String(size.x));
+        element.setAttribute("height", String(size.y));
+        element.style.position = "absolute";
+
+        const a = addPoints(subPoints(inputPoint, minPos), hOutlineWidthVec);
+        const b = addPoints(subPoints(outputPoint, minPos), hOutlineWidthVec);
+        element.innerHTML = `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" style="stroke:${outlineColor};stroke-width:${outlineWidth}px;" />`;
+
+        const position = subPoints(minPos, hOutlineWidthVec);
+        element.style.left = `${position.x}px`;
+        element.style.top = `${position.y}px`;
+
+        this.connectionLayer.appendChild(element);
+        return element;
     }
 }

@@ -34,7 +34,7 @@ async def main():
   workers: list[Worker] = [
     TaskManager(await switch.add_local_connection()),
     TaskWebBackend(await switch.add_local_connection(), public_path="web/dist"),
-    HTTPServerOverASGI(await switch.add_local_connection(), ("127.0.0.1", 8081), AddressNames.TASK_MANAGER_WEB),
+    HTTPServerOverASGI(await switch.add_local_connection(), ("0.0.0.0", 8080), AddressNames.TASK_MANAGER_WEB),
     PulseGeneratorTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
     TimestampUpdaterTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
     VideoInputTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),

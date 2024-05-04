@@ -8,6 +8,6 @@ import { RootStore, RootStoreContext } from '../state/root-store';
 const root = createRoot(document.getElementById("root")!);
 root.render((
     <RootStoreContext.Provider value={new RootStore()}>
-                <App />
+        <App />
     </RootStoreContext.Provider>
 ))

@@ -1,6 +1,5 @@
 import Box from '@mui/material/Box';
 import { useState, useRef, useEffect } from 'react';
-import { NodeEditorRenderer } from '../lib/node-editor';
 import { TaskNode } from '../lib/task-node';
 import { observer, useLocalObservable } from "mobx-react-lite";
 import { TaskHostDragDataModel } from '../model/task-host';
@@ -10,6 +9,7 @@ import { useDeployment } from '../state/deployment-manager';
 import { Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button } from '@mui/material';
 import { TaskDisplayWindow } from './components/TaskDisplayWindow';
 import { useRootStore } from '../state/root-store';
+import { NodeEditorRenderer } from './lib/node-editor';
 
 export const NodeEditor = observer(() => {
     const [nodeRenderer, _] = useState(() => new NodeEditorRenderer());
@@ -77,7 +77,7 @@ export const NodeEditor = observer(() => {
                             const taskHostData = TaskHostDragDataModel.parse(JSON.parse(e.dataTransfer.getData("task_host")));
                             const task = await rootStore.taskManager.createManagedTask(taskHostData.id)
                             const containerOffset = containerRef.current!.getBoundingClientRect();
-                            task.frontend_config.position = nodeRenderer.getInternalPosition({ x: e.clientX - containerOffset.x - taskHostData.ox * nodeRenderer.zoom, y: e.clientY - containerOffset.y - taskHostData.oy * nodeRenderer.zoom });
+                            task.frontend_config.position = nodeRenderer.getLocalPosition({ x: e.clientX - containerOffset.x - taskHostData.ox * nodeRenderer.zoom, y: e.clientY - containerOffset.y - taskHostData.oy * nodeRenderer.zoom });
                             await deployment.addTask(task);
                         } catch {}
                     }}
