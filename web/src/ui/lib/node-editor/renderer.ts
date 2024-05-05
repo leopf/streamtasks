@@ -2,7 +2,7 @@ import objectHash from "object-hash";
 import { Connection, Node, ConnectResult, InputConnection, OutputConnection } from "./types";
 import EventEmitter from 'eventemitter3';
 import { HTMLViewport } from '../html-viewport';
-import { Point, addPoints, scalarToPoint, subPoints } from '../point';
+import { Point, addPoints, pointDistance, scalarToPoint, subPoints } from '../point';
 
 const streamCircleRadiusRem = 0.5;
 const outlineColor = "#333";
@@ -36,9 +36,7 @@ const connectionColorSamples = [
 const ignoreFieldsForContentComparison = new Set(["streamId", "label", "key", "id"]);
 
 export function getStreamColor(connection: Record<string, number | string | boolean>, ignoreFields: Set<string> = ignoreFieldsForContentComparison) {
-
     const newConnection = { ...Object.fromEntries(Object.entries(connection).filter(([k, _]) => !ignoreFields.has(k))) };
-
     return connectionColorSamples[parseInt(objectHash([1, newConnection]).slice(0, 6), 16) % connectionColorSamples.length];
 }
 
@@ -201,7 +199,19 @@ export class NodeRenderer {
     }
 
     private calculateConnectionCirclePosition(element: HTMLElement) {
-        return { x: element.offsetWidth / 2 + element.offsetLeft, y: element.offsetHeight / 2 + element.offsetTop };
+        const pos: Point = { x: element.offsetWidth / 2, y: element.offsetHeight / 2 };
+        let currentElement: HTMLElement | null = element;
+        while (currentElement !== null && currentElement !== this.group) {
+            pos.x += currentElement.offsetLeft;
+            pos.y += currentElement.offsetTop;
+            if (currentElement.offsetParent instanceof HTMLElement) {
+                currentElement = currentElement.offsetParent;
+            }
+            else {
+                currentElement = null;
+            }
+        }
+        return pos;
     }
 
     private createConnectionLabel(label: string) {
@@ -670,11 +680,13 @@ export class NodeEditorRenderer extends EventEmitter<{
         const a = addPoints(subPoints(inputPoint, minPos), hPaddingVec);
         const b = addPoints(subPoints(outputPoint, minPos), hPaddingVec);
         const cpYOffset = inputPoint.x < outputPoint.x ? 100 : 0;
-        const cpXOffset = inputPoint.x < outputPoint.x ? 100 : 50;
+        const cpXOffset = Math.min(pointDistance(a, b) / 3, 50);
+
+        const cpXOffsetScale = inputPoint.x < outputPoint.x ? 2 : 1;
         const cpYOffsetScale = inputPoint.y < outputPoint.y ? 1 : -1;
 
-        const cp1 = { x: a.x - cpXOffset, y: a.y + cpYOffset * cpYOffsetScale };
-        const cp2 = { x: b.x + cpXOffset, y: b.y + cpYOffset * cpYOffsetScale * -1 };
+        const cp1 = { x: a.x - cpXOffset * cpXOffsetScale, y: a.y + cpYOffset * cpYOffsetScale };
+        const cp2 = { x: b.x + cpXOffset * cpXOffsetScale, y: b.y - cpYOffset * cpYOffsetScale };
         element.innerHTML = `<path d="M ${a.x},${a.y} C ${cp1.x},${cp1.y} ${cp2.x},${cp2.y} ${b.x},${b.y}" style="fill:none; stroke:${outlineColor}; stroke-width:${outlineWidth}px;" />`;
 
         const position = subPoints(minPos, hPaddingVec);

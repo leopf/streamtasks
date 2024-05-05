@@ -15,3 +15,6 @@ export function divPoints(a: Point, b: Point): Point {
 export function scalarToPoint(a: number): Point {
     return { x: a, y: a };
 }
+export function pointDistance(a: Point, b: Point) {
+    return Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2))
+}

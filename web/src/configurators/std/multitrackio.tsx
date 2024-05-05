@@ -208,8 +208,9 @@ class MultiTrackOutputConfigurator extends MultiTrackConfigurator {
         Array.from(trackOutputMap.keys()).filter(key => !trackKeys.has(key)).forEach(key => trackOutputMap.delete(key)); // delete from map
 
         for (const track of tracks.filter(t => !trackOutputMap.has(t.data._key))) {
+            track.data.out_topic = this.newId();
             this.outputs.push({
-                topic_id: this.newId(),
+                topic_id: track.data.out_topic,
                 ...track.config.defaultIO
             });
         }
