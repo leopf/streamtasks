@@ -65,8 +65,9 @@ export class HTMLViewport {
             xSum += el.offsetLeft + el.offsetWidth / 2
             ySum += el.offsetTop + el.offsetHeight / 2
         }
+        const containerRect = this._container.getBoundingClientRect();
         const targetPos: Point = { x: xSum / this._host.childElementCount, y: ySum / this._host.childElementCount };
-        this.translate = subPoints({ x: this._container.clientWidth / 2, y: this._container.clientHeight / 2 }, mulPoints(targetPos, scalarToPoint(this.zoom)) );
+        this.translate = subPoints({ x: containerRect.width / 2, y: containerRect.height / 2 }, divPoints(targetPos, scalarToPoint(this.zoom)) ); // TODO: not working well
     }
 
     public mount(element: HTMLElement) {
@@ -84,7 +85,10 @@ export class HTMLViewport {
     }
 
     private setupEvents() {
-        const getTouchPosition = (t: Touch) => <Point>{ x: t.clientX - this._container!.clientLeft, y: t.clientY - this._container!.clientTop }
+        const getTouchPosition = (t: Touch) => {
+            const containerRect = this._container.getBoundingClientRect();
+            return  <Point>{ x: t.clientX - containerRect.x, y: t.clientY - containerRect.y };
+        }
         const getPointDistance = (a: Point, b: Point) => Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2))
 
         let allowMove = false;
