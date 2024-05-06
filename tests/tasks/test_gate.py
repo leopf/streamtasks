@@ -46,17 +46,17 @@ class GateSim(Simulator):
     if event == GateSimEvent.SEND_DATA:
       self.expect_receive_data = self.state.get_open(self.fail_mode)
     elif event == GateSimEvent.SET_GATE_CLOSED:
-      self.state.gate_value = False
-      self.state.gate_errored = False
+      self.state.control = False
+      self.state.control_errored = False
     elif event == GateSimEvent.SET_GATE_OPEN:
-      self.state.gate_value = True
-      self.state.gate_errored = False
+      self.state.control = True
+      self.state.control_errored = False
     elif event == GateSimEvent.SET_GATE_INVALID:
-      self.state.gate_errored = True
+      self.state.control_errored = True
     elif event == GateSimEvent.SET_GATE_PAUSED:
-      self.state.gate_paused = True
+      self.state.control_paused = True
     elif event == GateSimEvent.SET_GATE_UNPAUSED:
-      self.state.gate_paused = False
+      self.state.control_paused = False
 
 
 class TestGate(TaskTestBase):
@@ -71,7 +71,7 @@ class TestGate(TaskTestBase):
     task = GateTask(self.worker_client, GateConfig(
       fail_mode=fail_mode,
       in_topic=self.in_topic.topic,
-      gate_topic=self.gate_topic.topic,
+      control_topic=self.gate_topic.topic,
       out_topic=self.out_topic.topic,
       synchronized=False
     ))
