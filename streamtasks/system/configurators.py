@@ -1,6 +1,6 @@
 from itertools import zip_longest
 import json
-from typing import Any, Literal
+from typing import Any, Literal, NotRequired, TypedDict
 from streamtasks.system.task import MetadataDict
 
 class IOTypes:
@@ -13,6 +13,14 @@ class IOTypes:
   PixelFormat = str
   SampleFormat = str
   Channels = int
+  
+class TrackConfig(TypedDict):
+  key: str
+  label: NotRequired[str]
+  defaultConfig: dict[str, Any]
+  defaultIO: MetadataDict
+  ioMap: dict[str, str]
+  editorFields: list[dict]
 
 def static_configurator(label: str, description: str | None = None, inputs: list[MetadataDict] = [],
                         outputs: list[MetadataDict] = [], default_config: dict[str, Any] | None = None,
@@ -41,4 +49,12 @@ def static_configurator(label: str, description: str | None = None, inputs: list
   if config_to_input_map is not None: metadata["cfg:config2inputmap"] = json.dumps(config_to_input_map)
   if config_to_output_map is not None: metadata["cfg:config2outputmap"] = json.dumps(config_to_output_map)
   if io_mirror is not None: metadata["cfg:iomirror"] = json.dumps(io_mirror)
+  return metadata
+
+def multitrackio_configurator(track_configs: list[TrackConfig], is_input: bool):
+  metadata = {
+    "js:configurator": "std:multitrackio",
+    "cfg:trackconfigs": json.dumps(track_configs),
+    "cfg:isinput": "true" if is_input else "false"
+  }
   return metadata

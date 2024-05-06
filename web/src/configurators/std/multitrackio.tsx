@@ -15,41 +15,34 @@ import { v4 as uuidv4 } from "uuid";
 const TrackConfigModel = z.object({
     key: z.string(),
     label: z.string().optional(),
-    max: z.number().int(),
-    defaultConfig: MetadataModel,
+    defaultConfig: z.record(z.any()),
     defaultIO: MetadataModel,
     ioMap: z.record(z.string(), z.string()),
     editorFields: z.array(EditorFieldModel)
 });
 const TrackConfigsModel = z.array(TrackConfigModel);
 
-const TrackMetadataModel = z.object({ _key: z.string() }).and(MetadataModel)
+const TrackMetadataModel = z.object({ _key: z.string() }).and(z.record(z.any()))
 const TrackMetadataListModel = TrackMetadataModel.array();
 
 type TrackConfig = z.infer<typeof TrackConfigModel>;
 type TrackMetadata = z.infer<typeof TrackMetadataModel>;
 
 function TrackList(props: {
-    disabledIds: Set<number>,
+    disabledTracks: Set<string>,
     config: TrackConfig,
     data: Record<string, any>,
     onUpdated: () => void,
 }) {
-    const [tracks, setTracks] = useState(() => {
-        const res = TrackMetadataListModel.safeParse(props.data[`${props.config.key}_tracks`])
-        if (res.success) {
-            return res.data;
-        }
-        else {
-            return [];
-        }
-    });
+    const [tracks, setTracks] = useState(() => TrackMetadataListModel.safeParse(props.data[`${props.config.key}_tracks`]).data ?? []);
     const allFields = useMemo(() => new Set(props.config.editorFields.map(f => f.key)), [props.config]);
 
-    useEffect(() => {
+    const onUpdated = () => {
         props.data[`${props.config.key}_tracks`] = tracks;
         props.onUpdated();
-    }, [tracks]);
+    };
+
+    useEffect(onUpdated, [tracks]);
 
     const onCreate = () => {
         setTracks(pv => [...pv, {
@@ -78,7 +71,7 @@ function TrackList(props: {
                             <DeleteIcon fontSize="inherit" />
                         </IconButton>
                     </Stack>
-                    <StaticEditor disabledFields={props.disabledIds.has(Number(t._key)) ? allFields : new Set()} data={t} fields={props.config.editorFields} onUpdated={props.onUpdated} />
+                    <StaticEditor disabledFields={props.disabledTracks.has(t._key) ? allFields : new Set()} data={t} fields={props.config.editorFields} onUpdated={onUpdated} />
                 </Box>
             ))}
         </Stack>
@@ -90,12 +83,12 @@ function MultiTrackEditor(props: {
     data: Record<string, any>,
     fields: EditorField[],
     trackConfigs: TrackConfig[],
-    disabledIds: Set<number>,
+    disabledTracks: Set<string>,
 }) {
     return (
         <Stack spacing={3}>
             <StaticEditor data={props.data} fields={props.fields} onUpdated={props.onUpdated} />
-            {props.trackConfigs.map(c => <TrackList config={c} data={props.data} disabledIds={props.disabledIds} onUpdated={props.onUpdated} />)}
+            {props.trackConfigs.map(c => <TrackList config={c} data={props.data} disabledTracks={props.disabledTracks} onUpdated={props.onUpdated} />)}
         </Stack>
     );
 }
@@ -113,7 +106,7 @@ abstract class MultiTrackConfigurator extends StaticCLSConfigurator {
 
     public rrenderEditor(onUpdate: () => void): ReactNode {
         return (
-            <MultiTrackEditor disabledIds={new Set()} data={this.config} fields={this.editorFields} trackConfigs={this.trackConfigs} onUpdated={() => {
+            <MultiTrackEditor disabledTracks={new Set(this.inputs.filter(i => i.topic_id !== undefined).map(i => i.key))} data={this.config} fields={this.editorFields} trackConfigs={this.trackConfigs} onUpdated={() => {
                 this.beforeUpdate();
                 this.applyConfig(true);
                 onUpdate();
@@ -124,8 +117,10 @@ abstract class MultiTrackConfigurator extends StaticCLSConfigurator {
     protected listTracks() {
         const result: TrackDescription[] = [];
         for (const config of this.trackConfigs) {
-            const tracks = TrackMetadataListModel.safeParse(this.config[`${config.key}_tracks`]).data ?? [];
-            result.push(...tracks.map((track, idx) => ({ config: config, index: idx, data: track })));
+            const tracks = this.config[`${config.key}_tracks`] ?? [];
+            if (Array.isArray(tracks)) {
+                result.push(...tracks.map((track, idx) => ({ config: config, index: idx, data: track })));
+            }
         }
         return result;
     }
@@ -152,16 +147,24 @@ class MultiTrackInputConfigurator extends MultiTrackConfigurator {
         const tracks = this.listTracks();
         const trackInputKeys = new Set(this.trackInputKeys);
 
-        const trackKeys = new Set(tracks.map(d => d.data.key));
+        const trackKeys = new Set(tracks.map(d => d.data._key));
 
         const deleteInputs = new Set([...trackInputKeys].filter(k => !trackKeys.has(k)));
-        this.inputs = this.inputs.filter(i => deleteInputs.has(i.key));
+        this.inputs = this.inputs.filter(i => !deleteInputs.has(i.key));
 
         for (const track of tracks.filter(t => !trackInputKeys.has(t.data._key))) {
             this.inputs.push({
                 key: track.data._key,
                 ...track.config.defaultIO
             });
+        }
+
+        // set labels
+        for (const track of tracks) {
+            try {
+                const input = this.getInput(track.data._key, false);
+                input.label = `${track.config.label ?? track.config.key} ${track.index + 1}`;
+            } catch {}
         }
 
         this.trackInputKeys = tracks.map(t => t.data._key);
@@ -201,18 +204,29 @@ class MultiTrackOutputConfigurator extends MultiTrackConfigurator {
         const tracks = this.listTracks();
         const trackOutputMap = new Map(Object.entries(this.trackOutputMap));
 
-        const trackKeys = new Set(tracks.map(d => d.data.key));
+        const trackKeys = new Set(tracks.map(d => d.data._key));
 
         const deleteOutputsTopicIds = new Set([...trackOutputMap.entries()].filter(([ key, _ ]) => !trackKeys.has(key)).map(([_, topic_id]) => topic_id));
-        this.outputs = this.outputs.filter(o => deleteOutputsTopicIds.has(o.topic_id));
+        this.outputs = this.outputs.filter(o => !deleteOutputsTopicIds.has(o.topic_id));
         Array.from(trackOutputMap.keys()).filter(key => !trackKeys.has(key)).forEach(key => trackOutputMap.delete(key)); // delete from map
 
         for (const track of tracks.filter(t => !trackOutputMap.has(t.data._key))) {
             track.data.out_topic = this.newId();
+            trackOutputMap.set(track.data._key, track.data.out_topic);
             this.outputs.push({
                 topic_id: track.data.out_topic,
                 ...track.config.defaultIO
             });
+        }
+
+        for (const track of tracks) {
+            try {
+                const out_topic = trackOutputMap.get(track.data._key);
+                if (out_topic) {
+                    const output = this.getOutput(out_topic, false);
+                    output.label = `${track.config.label ?? track.config.key} ${track.index + 1}`;
+                }
+            } catch {}
         }
 
         this.trackOutputMap = Object.fromEntries(trackOutputMap.entries());

@@ -1,10 +1,8 @@
 import { Root, createRoot } from "react-dom/client";
 import React from "react";
 import { Task, TaskConfigurator, TaskConfiguratorContext, TaskInput, TaskOutput } from "../../types/task";
-import { z } from "zod";
 import cloneDeep from "clone-deep";
 import objectPath from "object-path";
-import { parseMetadataField } from "./helpers";
 
 export class ReactElementRenderer {
     private roots: WeakMap<Node, Root> = new WeakMap();
@@ -77,6 +75,21 @@ export abstract class TaskCLSConfigurator {
         this._task = task;
         this.context = context;
     }
+
+    public getOutput(topic_id: number, withIndex: true): [TaskOutput, number];
+    public getOutput(topic_id: number, withIndex: false): TaskOutput;
+    public getOutput(topic_id: number, withIndex?: boolean): TaskOutput | [TaskOutput, number] {
+        const outputIndex = this._task.outputs.findIndex(i => i.topic_id === topic_id);
+        if (outputIndex === -1) throw new Error("Output not found");
+        const output = this._task.outputs[outputIndex]; // TS fix
+        if (withIndex) {
+            return [output, outputIndex];
+        }
+        else {
+            return output;
+        }
+    }
+
     public getInput(key: string, withIndex: true): [TaskInput, number];
     public getInput(key: string, withIndex: false): TaskInput;
     public getInput(key: string, withIndex: boolean = false): TaskInput | [TaskInput, number] {

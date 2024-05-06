@@ -8,7 +8,7 @@ from streamtasks.client.topic import SequentialInTopicSynchronizer
 from streamtasks.media.audio import AudioCodecInfo
 from streamtasks.media.container import DEBUG_MEDIA, AVOutputStream, OutputContainer
 from streamtasks.media.video import VideoCodecInfo
-from streamtasks.system.configurators import IOTypes, static_configurator
+from streamtasks.system.configurators import IOTypes, multitrackio_configurator, static_configurator
 from streamtasks.net.message.structures import MediaMessage
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
@@ -46,12 +46,12 @@ class ContainerAudioOutputConfig(ContainerAudioOutputConfigBase):
 
 class OutputContainerConfig(BaseModel):
   destination: str
-  videos: list[ContainerVideoOutputConfig]
-  audios: list[ContainerAudioOutputConfig]
+  video_tracks: list[ContainerVideoOutputConfig]
+  audio_tracks: list[ContainerAudioOutputConfig]
   container_options: dict[str, str]
 
   @staticmethod
-  def default_config(): return OutputContainerConfig(destination="", videos=[], audios=[], container_options={})
+  def default_config(): return OutputContainerConfig(destination="", video_tracks=[], audio_tracks=[], container_options={})
 
 class OutputContainerTask(Task):
   def __init__(self, client: Client, config: OutputContainerConfig):
@@ -88,8 +88,8 @@ class OutputContainerTask(Task):
       container = None
       container = await OutputContainer.open(self.config.destination, **self.config.container_options)
       streams: dict[int, AVOutputStream] = {}
-      streams.update({ cfg.in_topic: container.add_video_stream(cfg.to_codec_info()) for cfg in self.config.videos })
-      streams.update({ cfg.in_topic: container.add_audio_stream(cfg.to_codec_info()) for cfg in self.config.audios })
+      streams.update({ cfg.in_topic: container.add_video_stream(cfg.to_codec_info()) for cfg in self.config.video_tracks })
+      streams.update({ cfg.in_topic: container.add_audio_stream(cfg.to_codec_info()) for cfg in self.config.audio_tracks })
       tasks = [
         asyncio.create_task(self._run_syncer(streams)),
         *(asyncio.create_task(self._run_stream(stream, in_topic_id)) for in_topic_id, stream in streams.items()),
@@ -117,26 +117,32 @@ class OutputContainerTaskHost(TaskHost):
         },
         MediaEditorFields.options("container_options"),
     ]),
-    "js:configurator": "std:container",
-    "cfg:isinput": False,
-    "cfg:videoiomap": json.dumps({ v: v for v in [ "pixel_format", "codec", "width", "height", "rate" ] }),
-    "cfg:videoio": json.dumps({ "type": "ts", "content": "video" }),
-    "cfg:videoconfig": json.dumps(ContainerVideoOutputConfigBase.default_config().model_dump()),
-    "cfg:videoeditorfields": json.dumps([
-      MediaEditorFields.pixel_format(),
-      MediaEditorFields.video_codec_name("w"),
-      MediaEditorFields.pixel_size("width"),
-      MediaEditorFields.pixel_size("height"),
-      MediaEditorFields.frame_rate(),
-    ]),
-    "cfg:audioiomap": json.dumps({ v: v for v in [ "codec", "rate", "channels", "sample_format" ] }),
-    "cfg:audioio": json.dumps({ "type": "ts", "content": "audio" }),
-    "cfg:audioconfig": json.dumps(ContainerAudioOutputConfigBase.default_config().model_dump()),
-    "cfg:audioeditorfields": json.dumps([
-      MediaEditorFields.audio_codec_name("w"),
-      MediaEditorFields.sample_format(),
-      MediaEditorFields.sample_rate(),
-      MediaEditorFields.channel_count(),
+    **multitrackio_configurator(is_input=True, track_configs=[
+      {
+        "key": "video",
+        "defaultConfig": ContainerVideoOutputConfigBase.default_config().model_dump(),
+        "defaultIO": { "type": "ts", "content": "video" },
+        "editorFields": [
+          MediaEditorFields.pixel_format(),
+          MediaEditorFields.video_codec_name("w"),
+          MediaEditorFields.pixel_size("width"),
+          MediaEditorFields.pixel_size("height"),
+          MediaEditorFields.frame_rate(),
+        ],
+        "ioMap": { v: v for v in [ "pixel_format", "codec", "width", "height", "rate" ] },
+      },
+      {
+        "key": "audio",
+        "defaultConfig": ContainerAudioOutputConfigBase.default_config().model_dump(),
+        "defaultIO": { "type": "ts", "content": "audio" },
+        "editorFields": [
+          MediaEditorFields.audio_codec_name("w"),
+          MediaEditorFields.sample_format(),
+          MediaEditorFields.sample_rate(),
+          MediaEditorFields.channel_count()
+        ],
+        "ioMap": { v: v for v in [ "codec", "rate", "channels", "sample_format" ] },
+      }
     ])
   }
   async def create_task(self, config: Any, topic_space_id: int | None):
