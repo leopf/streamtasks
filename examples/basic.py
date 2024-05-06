@@ -1,11 +1,6 @@
 import os
 import logging
 
-from streamtasks.system.tasks.media.inputcontainer import InputContainerTaskHost
-from streamtasks.system.tasks.media.outputcontainer import OutputContainerTaskHost
-from streamtasks.system.tasks.media.videodecoder import VideoDecoderTaskHost
-from streamtasks.system.tasks.media.videoencoder import VideoEncoderTaskHost
-from streamtasks.system.tasks.media.videoinput import VideoInputTaskHost
 logging.basicConfig(level=logging.INFO)
 os.environ["DATA_DIR"] = ".data"
 
@@ -18,8 +13,7 @@ from streamtasks.services.discovery import DiscoveryWorker
 from streamtasks.services.protocols import AddressNames, WorkerTopics
 from streamtasks.system.task import TaskManager
 from streamtasks.system.task_web import TaskWebBackend
-from streamtasks.system.tasks.pulsegenerator import PulseGeneratorTaskHost
-from streamtasks.system.tasks.timestampupdater import TimestampUpdaterTaskHost
+from streamtasks.system.helpers import get_all_task_hosts
 from streamtasks.worker import Worker
 
 async def main():
@@ -35,15 +29,9 @@ async def main():
     TaskManager(await switch.add_local_connection()),
     TaskWebBackend(await switch.add_local_connection(), public_path="web/dist"),
     HTTPServerOverASGI(await switch.add_local_connection(), ("0.0.0.0", 8080), AddressNames.TASK_MANAGER_WEB),
-    PulseGeneratorTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
-    TimestampUpdaterTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
-    VideoInputTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
-    VideoEncoderTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
-    VideoDecoderTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
-    OutputContainerTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
-    InputContainerTaskHost(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]),
   ]
-  done_tasks, _ = await asyncio.wait([discovery_task] + [ asyncio.create_task(worker.run()) for worker in workers ], return_when="FIRST_COMPLETED")
+  for TaskHostCls in get_all_task_hosts(): workers.append(TaskHostCls(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]))
+  done_tasks, _ = await asyncio.wait([discovery_task] + [ asyncio.create_task(worker.run()) for worker in workers ], return_when="FIRST_EXCEPTION")
   for task in done_tasks: await task
 
 asyncio.run(main())
