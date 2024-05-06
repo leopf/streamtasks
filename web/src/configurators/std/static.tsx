@@ -122,7 +122,17 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
             if (input.topic_id !== undefined) {
                 setter.disable(`inputs.${idx}`);
             }
-        })
+        });
+
+        const originalInputs = parseInputs(this.taskHost.metadata);
+        for (const oInput of originalInputs) {
+            const mappedFields = Object.values(config2InputMap[oInput.key] ?? {});
+            const disableFields = Object.keys(oInput).filter(k => !compareIOIgnorePaths.has(k) && !mappedFields.includes(k));
+            const inputIndex = this.inputs.findIndex(input => input.key === oInput.key);
+            if (inputIndex !== -1) {
+                disableFields.forEach(field => setter.disable(`inputs.${inputIndex}.${field}`));
+            }
+        }
         
         const config2OutputMap = parseMetadataField(this.taskHost.metadata, "cfg:config2outputmap", z.array(z.record(z.string(), z.string()).optional())) ?? [];
         config2OutputMap.forEach((map, outputIndex) => {
