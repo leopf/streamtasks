@@ -50,7 +50,7 @@ class VideoEncoderTask(Task):
           try:
             data = await self.in_topic.recv_data()
             message = TimestampChuckMessage.model_validate(data.data)
-            bm = np.frombuffer(message.data, dtype=np.uint8)
+            bm = np.frombuffer(message.data, dtype=np.uint8) # TODO: endianness
             bm = bm.reshape((self.config.height, self.config.width, -1))
             if self.squeeze_frame: bm = bm.squeeze()
             frame = VideoFrame.from_ndarray(bm, self.config.in_pixel_format)

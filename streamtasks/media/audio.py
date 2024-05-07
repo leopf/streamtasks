@@ -69,7 +69,12 @@ class AudioResampler:
   def __init__(self, format: av.AudioFormat, layout: av.AudioLayout, rate: int):
     self.resampler = av.AudioResampler(format, layout, rate)
 
-  async def resample(self, frame: AudioFrame) -> list[AudioFrame]:
+  async def resample_one(self, frame: AudioFrame) -> list[AudioFrame]:
     loop = asyncio.get_running_loop()
     av_frames = await loop.run_in_executor(None, self.resampler.resample, frame.frame)
     return [ AudioFrame(av_frame) for av_frame in av_frames ]
+
+  async def resample(self, frames: list[AudioFrame]):
+    out_frames: list[AudioFrame] = []
+    for frame in frames: out_frames.extend(await self.resample_one(frame))
+    return out_frames

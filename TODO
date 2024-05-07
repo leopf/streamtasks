@@ -4,10 +4,13 @@
 
 TASKS:
 - flow detector
-- calculator
 - user inputs (buttons and switched)
 - buffer (reorder, +config time base)
 - switch
+- audio encoder, decoder
+- audio volume meter
+- video activity meter
+- audio input, audio output
 
 - write more tests for utils
 
