@@ -282,6 +282,7 @@ class CalculatorTaskHost(TaskHost):
     **multitrackio_configurator(is_input=True, track_configs=[
       {
         "key": "variable",
+        "multiLabel": "variables",
         "defaultConfig": CalculatorVariableConfigBase().model_dump(),
         "defaultIO": { "type": "ts", "content": "number" },
         "ioMap": { "name": "label" },

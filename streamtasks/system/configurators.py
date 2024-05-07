@@ -17,6 +17,7 @@ class IOTypes:
 class TrackConfig(TypedDict):
   key: str
   label: NotRequired[str]
+  multiLabel: NotRequired[str]
   defaultConfig: dict[str, Any]
   defaultIO: MetadataDict
   ioMap: dict[str, str]

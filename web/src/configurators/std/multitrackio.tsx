@@ -15,6 +15,7 @@ import { v4 as uuidv4 } from "uuid";
 const TrackConfigModel = z.object({
     key: z.string(),
     label: z.string().optional(),
+    multiLabel: z.string().optional(),
     defaultConfig: z.record(z.any()),
     defaultIO: MetadataModel,
     ioMap: z.record(z.string(), z.string()),
@@ -60,7 +61,7 @@ function TrackList(props: {
     return (
         <Stack spacing={2}>
             <Stack alignItems="center" direction="row">
-                <Typography variant="h5" flex={1}>{props.config.label ?? props.config.key} tracks</Typography>
+                <Typography variant="h5" flex={1}>{props.config.multiLabel ?? `${props.config.label ?? props.config.key} tracks`}</Typography>
                 <IconButton size="small" onClick={onCreate}>
                     <AddIcon fontSize="inherit" />
                 </IconButton>
