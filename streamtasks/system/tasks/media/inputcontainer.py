@@ -8,7 +8,7 @@ from streamtasks.media.audio import AudioCodecInfo
 from streamtasks.media.container import DEBUG_MEDIA, AVInputStream, InputContainer
 from streamtasks.media.video import VideoCodecInfo
 from streamtasks.net.message.data import MessagePackData
-from streamtasks.system.configurators import IOTypes, multitrackio_configurator, static_configurator
+from streamtasks.system.configurators import EditorFields, IOTypes, multitrackio_configurator, static_configurator
 from streamtasks.net.message.structures import MediaMessage
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
@@ -104,12 +104,8 @@ class InputContainerTaskHost(TaskHost):
     label="input container",
     default_config=InputContainerConfig.default_config().model_dump(),
     editor_fields=[
-      {
-        "type": "text",
-        "key": "source",
-        "label": "source path or url",
-      },
-      MediaEditorFields.options("container_options"),
+      EditorFields.text(key="source", label="source path or url"),
+      EditorFields.options("container_options"),
     ]),
     **multitrackio_configurator(is_input=False, track_configs=[
       {
@@ -123,8 +119,8 @@ class InputContainerTaskHost(TaskHost):
           MediaEditorFields.pixel_size("width"),
           MediaEditorFields.pixel_size("height"),
           MediaEditorFields.frame_rate(),
-          MediaEditorFields.boolean("force_transcode"),
-          MediaEditorFields.options("codec_options"),
+          EditorFields.boolean("force_transcode"),
+          EditorFields.options("codec_options"),
         ]
       },
       {
@@ -137,8 +133,8 @@ class InputContainerTaskHost(TaskHost):
           MediaEditorFields.sample_format(),
           MediaEditorFields.sample_rate(),
           MediaEditorFields.channel_count(),
-          MediaEditorFields.boolean("force_transcode"),
-          MediaEditorFields.options("codec_options"),
+          EditorFields.boolean("force_transcode"),
+          EditorFields.options("codec_options"),
         ]
       }
     ])

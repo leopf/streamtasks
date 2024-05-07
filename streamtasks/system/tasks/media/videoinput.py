@@ -4,7 +4,7 @@ from typing import Any
 from pydantic import BaseModel, field_validator
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import TimestampChuckMessage
-from streamtasks.system.configurators import IOTypes, static_configurator
+from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 import cv2
@@ -82,13 +82,7 @@ class VideoInputTaskHost(TaskHost):
     default_config=VideoInputConfigBase.default_config().model_dump(),
     config_to_output_map=[ { v: v for v in [ "rate", "pixel_format", "width", "height" ] } ],
     editor_fields=[
-      {
-        "type": "number",
-        "key": "camera_id",
-        "label": "camera id",
-        "integer": True,
-        "min": 0
-      },
+      EditorFields.number(key="camera_id", is_int=True, min_value=0),
       MediaEditorFields.pixel_format(allowed_values=set(VideoInputTask._COLOR_FORMAT2CV_MAP.keys())),
       MediaEditorFields.pixel_size("width"),
       MediaEditorFields.pixel_size("height"),

@@ -8,7 +8,7 @@ from streamtasks.client.topic import SequentialInTopicSynchronizer
 from streamtasks.media.audio import AudioCodecInfo
 from streamtasks.media.container import DEBUG_MEDIA, AVOutputStream, OutputContainer
 from streamtasks.media.video import VideoCodecInfo
-from streamtasks.system.configurators import IOTypes, multitrackio_configurator, static_configurator
+from streamtasks.system.configurators import EditorFields, IOTypes, multitrackio_configurator, static_configurator
 from streamtasks.net.message.structures import MediaMessage
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
@@ -110,12 +110,8 @@ class OutputContainerTaskHost(TaskHost):
       label="output container",
       default_config=OutputContainerConfig.default_config().model_dump(),
       editor_fields=[
-        {
-          "type": "text",
-          "key": "destination",
-          "label": "destination path or url",
-        },
-        MediaEditorFields.options("container_options"),
+        EditorFields.text(key="destination", label="destination path or url"),
+        EditorFields.options("container_options"),
     ]),
     **multitrackio_configurator(is_input=True, track_configs=[
       {

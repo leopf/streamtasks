@@ -2,7 +2,7 @@
 from typing import Any
 from pydantic import BaseModel, ValidationError, field_serializer
 from streamtasks.client.topic import SequentialInTopicSynchronizer
-from streamtasks.system.configurators import static_configurator
+from streamtasks.system.configurators import EditorFields, static_configurator
 from streamtasks.utils import AsyncObservable
 from streamtasks.net.message.structures import NumberMessage
 from streamtasks.net.message.types import TopicControlData
@@ -110,17 +110,8 @@ class GateTaskHost(TaskHost):
     default_config=GateConfigBase.default_config().model_dump(),
     io_mirror=[("in_topic", 0)],
     editor_fields=[
-      {
-        "type": "select",
-        "key": "fail_mode",
-        "label": "fail mode",
-        "items": [ { "label": "open", "value": GateFailMode.OPEN.value }, { "label": "closed", "value": GateFailMode.CLOSED.value } ]
-      },
-      {
-        "type": "boolean",
-        "label": "synchronized",
-        "key": "synchronized"
-      }
+      EditorFields.select(key="fail_mode", items=[ (m.value, m.value) for m in GateFailMode ]),
+      EditorFields.boolean(key="synchronized")
     ]
   )}
   async def create_task(self, config: Any, topic_space_id: int | None):

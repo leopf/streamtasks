@@ -3,7 +3,7 @@ from typing import Any, Literal
 from uuid import uuid4
 from pydantic import BaseModel
 from streamtasks.net.message.data import MessagePackData
-from streamtasks.system.configurators import static_configurator
+from streamtasks.system.configurators import EditorFields, static_configurator
 from streamtasks.utils import get_timestamp_ms
 from streamtasks.net.message.structures import IdMessage, TimestampMessage
 from streamtasks.system.task import Task, TaskHost
@@ -51,20 +51,8 @@ class PulseGeneratorTaskHost(TaskHost):
     default_config=PulseGeneratorConfigBase.default_config().model_dump(),
     config_to_output_map=[{ "message_type": "type" }],
     editor_fields=[
-      {
-        "type": "select",
-        "key": "message_type",
-        "label": "message type",
-        "items": [ { "label": "Timestamp", "value": "ts" }, { "label": "Id", "value": "id" } ]
-      },
-      {
-        "type": "number",
-        "key": "interval",
-        "label": "interval",
-        "min": 0,
-        "integer": False,
-        "unit": "s"
-      }
+      EditorFields.select(key="message_type", items=[("ts", "Timestamp"), ("id", "Id")]),
+      EditorFields.number(key="interval", min_value=0, unit="s")
     ]
   )}
   async def create_task(self, config: Any, topic_space_id: int | None):

@@ -4,7 +4,7 @@ from streamtasks.media.video import VideoCodecInfo, VideoFrame
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import MediaMessage, TimestampChuckMessage
 from streamtasks.system.tasks.media.utils import MediaEditorFields
-from streamtasks.system.configurators import IOTypes, static_configurator
+from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 import numpy as np
@@ -77,7 +77,7 @@ class VideoEncoderTaskHost(TaskHost):
       MediaEditorFields.pixel_size("width"),
       MediaEditorFields.pixel_size("height"),
       MediaEditorFields.frame_rate(),
-      MediaEditorFields.options("codec_options"),
+      EditorFields.options("codec_options"),
     ]
   )}
   async def create_task(self, config: Any, topic_space_id: int | None):

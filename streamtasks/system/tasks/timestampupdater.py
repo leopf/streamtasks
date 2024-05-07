@@ -2,17 +2,19 @@ from typing import Any, Literal
 from pydantic import BaseModel
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.net.message.utils import get_timestamp_from_message, set_timestamp_on_message
-from streamtasks.system.configurators import static_configurator
+from streamtasks.system.configurators import EditorFields, static_configurator
 from streamtasks.utils import get_timestamp_ms
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 
-class TimestampUpdaterConfig(BaseModel):
-  out_topic: int
-  in_topic: int
+class TimestampUpdaterConfigBase(BaseModel):
   time_reference: Literal["message", "time"] = "time"
   time_offset: int = 0
   fail_closed: bool = True
+  
+class TimestampUpdaterConfig(TimestampUpdaterConfigBase):
+  out_topic: int
+  in_topic: int
 
 class TimestampUpdaterTask(Task):
   def __init__(self, client: Client, config: TimestampUpdaterConfig):
@@ -46,27 +48,12 @@ class TimestampUpdaterTaskHost(TaskHost):
     label="timestamp updater",
     inputs=[{ "label": "input", "type": "ts", "key": "in_topic" }],
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic" }],
-    default_config={ "time_reference": "time", "time_offset": 0, "fail_closed": True },
+    default_config=TimestampUpdaterConfigBase().model_dump(),
     io_mirror=[("in_topic", 0)],
     editor_fields=[
-      {
-        "type": "select",
-        "key": "time_reference",
-        "label": "time reference",
-        "items": [ { "label": "time", "value": "time" }, { "label": "message", "value": "message" } ]
-      },
-      {
-        "type": "number",
-        "key": "time_offset",
-        "label": "time offset from reference",
-        "integer": True,
-        "unit": "ms"
-      },
-      {
-        "type": "boolean",
-        "label": "fail closed",
-        "key": "fail_closed"
-      }
+      EditorFields.select(key="time_reference", items=[("time", "time"), ("message", "message")]),
+      EditorFields.number(key="time_offset", label="time offset from reference", is_int=True, unit="ms"),
+      EditorFields.boolean(key="fail_closed"),
     ]
   )}
   async def create_task(self, config: Any, topic_space_id: int | None):

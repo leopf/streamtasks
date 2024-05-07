@@ -1,4 +1,15 @@
 # MY TODOS
+
+- render display for tasks
+
+TASKS:
+- flow detector
+- calculator
+- user inputs (buttons and switched)
+- buffer (reorder, +config time base)
+- repeater
+- switch
+
 - write more tests for utils
 
 BUGS:
