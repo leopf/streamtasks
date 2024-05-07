@@ -45,8 +45,10 @@ export function TaskEditorWindow(props: { task: ManagedTask, onClose: () => void
             }
         }
         props.task.on("updated", updateHandler);
+        props.task.on("connected", updateHandler);
         return () => {
             props.task.off("updated", updateHandler);
+            props.task.off("connected", updateHandler);
         }
     }, [props.task]);
 

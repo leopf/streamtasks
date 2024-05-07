@@ -116,15 +116,17 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
                 }
             }
         }
-
+        const originalInputs = parseInputs(this.taskHost.metadata);
+        const originalInputKeys = new Set(originalInputs.map(input => input.key));
         this.inputs.forEach((input, idx) => {
-            setter.addEdge(`inputs.${idx}.topic_id`, `config.${input.key}`);
+            if (originalInputKeys.has(input.key)) {
+                setter.addEdge(`inputs.${idx}.topic_id`, `config.${input.key}`);
+            }
             if (input.topic_id !== undefined) {
                 setter.disable(`inputs.${idx}`);
             }
         });
 
-        const originalInputs = parseInputs(this.taskHost.metadata);
         for (const oInput of originalInputs) {
             const mappedFields = Object.values(config2InputMap[oInput.key] ?? {});
             const disableFields = Object.keys(oInput).filter(k => !compareIOIgnorePaths.has(k) && !mappedFields.includes(k));

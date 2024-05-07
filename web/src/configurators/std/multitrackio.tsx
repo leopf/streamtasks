@@ -22,11 +22,8 @@ const TrackConfigModel = z.object({
 });
 const TrackConfigsModel = z.array(TrackConfigModel);
 
-const TrackMetadataModel = z.object({ _key: z.string() }).and(z.record(z.any()))
-const TrackMetadataListModel = TrackMetadataModel.array();
-
 type TrackConfig = z.infer<typeof TrackConfigModel>;
-type TrackMetadata = z.infer<typeof TrackMetadataModel>;
+type TrackMetadata = { "_key": string } & Record<string, any>;
 
 function TrackList(props: {
     disabledTracks: Set<string>,
@@ -34,25 +31,30 @@ function TrackList(props: {
     data: Record<string, any>,
     onUpdated: () => void,
 }) {
-    const [tracks, setTracks] = useState(() => TrackMetadataListModel.safeParse(props.data[`${props.config.key}_tracks`]).data ?? []);
     const allFields = useMemo(() => new Set(props.config.editorFields.map(f => f.key)), [props.config]);
+    const [updateHandle, setUpdate] = useState(0);
+    const tracks: TrackMetadata[]  = props.data[`${props.config.key}_tracks`] ?? [];
+    const setTracks = (tracks: TrackMetadata[]) => {
+        props.data[`${props.config.key}_tracks`] = tracks;
+        setUpdate(pv => pv + 1);
+    };
 
     const onUpdated = () => {
         props.data[`${props.config.key}_tracks`] = tracks;
         props.onUpdated();
     };
 
-    useEffect(onUpdated, [tracks]);
+    useEffect(onUpdated, [updateHandle]);
 
     const onCreate = () => {
-        setTracks(pv => [...pv, {
+        setTracks([...tracks, {
             ...cloneDeep(props.config.defaultConfig),
             "_key": uuidv4()
         }]);
     };
 
     const onDelete = (key: any) => {
-        setTracks(pv => pv.filter(e => e._key !== key));
+        setTracks(tracks.filter(e => e._key !== key));
     };
 
     return (
@@ -163,7 +165,9 @@ class MultiTrackInputConfigurator extends MultiTrackConfigurator {
         for (const track of tracks) {
             try {
                 const input = this.getInput(track.data._key, false);
-                input.label = `${track.config.label ?? track.config.key} ${track.index + 1}`;
+                if (!Object.values(track.config.ioMap).includes("label")) {
+                    input.label = `${track.config.label ?? track.config.key} ${track.index + 1}`;
+                }
             } catch {}
         }
 
@@ -222,7 +226,7 @@ class MultiTrackOutputConfigurator extends MultiTrackConfigurator {
         for (const track of tracks) {
             try {
                 const out_topic = trackOutputMap.get(track.data._key);
-                if (out_topic) {
+                if (out_topic && !Object.values(track.config.ioMap).includes("label")) {
                     const output = this.getOutput(out_topic, false);
                     output.label = `${track.config.label ?? track.config.key} ${track.index + 1}`;
                 }

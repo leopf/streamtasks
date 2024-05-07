@@ -36,7 +36,7 @@ export const taskInstance2GeneralStatusMap: Record<TaskInstanceStatus, GeneralSt
     running: "ok",
 };
 
-export class ManagedTask extends EventEmitter<{"updated": [FullTask] }> {
+export class ManagedTask extends EventEmitter<{"updated": [FullTask], "connected": [FullTask] }> {
     private readonly _task: FullTask;
     private configurator: TaskConfigurator;
     private configuratorContext: TaskConfiguratorContext;
@@ -95,6 +95,7 @@ export class ManagedTask extends EventEmitter<{"updated": [FullTask] }> {
         if (!deepEqual(newInstance, oldInstanceClone)) {
             this.updateData(newInstance);
         }
+        this.emit("connected", this._task);
         return this._task.inputs.find(input => input.key === key)?.topic_id === output?.topic_id;
     }
 

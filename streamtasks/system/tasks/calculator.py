@@ -4,13 +4,14 @@ from dataclasses import dataclass
 import functools
 from streamtasks.client import Client
 from streamtasks.client.topic import InTopic, SequentialInTopicSynchronizer
+from streamtasks.system.configurators import EditorFields, multitrackio_configurator, static_configurator
 from streamtasks.utils import AsyncObservable, AsyncObservableDict, TimeSynchronizer
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import NumberMessage
 from streamtasks.net.message.types import TopicControlData
-from streamtasks.system.task import Task
+from streamtasks.system.task import Task, TaskHost
 from pydantic import BaseModel
-from typing import Optional
+from typing import Any, Optional
 import math
 from lark import Lark, ParseTree, Transformer
 import re
@@ -145,24 +146,16 @@ class CalculatorNameExtractor(Transformer):
   def variable(self, args): self.var_names.add(args[0])
   def func(self, args): self.func_names.add(args[0])
 
+class CalculatorVariableConfigBase(BaseModel):
+  name: str = "a"
+  default_value: float = 0
 
-class CalculatorInputConfig(BaseModel):
-  name: str
-  fallback_value: Optional[float] = None
+class CalculatorVariableConfig(CalculatorVariableConfigBase):
+  in_topic: int
 
-
-@dataclass
-class CalculatorInputVarConfig:
-  topic_id: int
-  name: str
-  default_value: float
-
-
-@dataclass(frozen=True)
-class CalculatorConfig:
-  input_vars: list[CalculatorInputVarConfig]
-  out_topic: int
-  formula: str
+class CalculatorConfigBase(BaseModel):
+  variable_tracks: list[CalculatorVariableConfig] = []
+  formula: str = ""
   synchronized: bool = True
 
   @functools.cached_property
@@ -170,7 +163,7 @@ class CalculatorConfig:
 
   def validate(self):
     ast = self.formula_ast
-    CalculatorConfig.validate_formula(ast, set(input_var.name for input_var in self.input_vars))
+    CalculatorConfig.validate_formula(ast, set(input_var.name for input_var in self.variable_tracks))
 
   @staticmethod
   def validate_formula(ast: ParseTree, input_vars: set[str]):
@@ -194,6 +187,8 @@ class CalculatorConfig:
     if name in CalculatorEvalContext.default_input_map: return False
     return True
 
+class CalculatorConfig(CalculatorConfigBase):
+  out_topic: int
 
 class CalculatorInputState(AsyncObservable):
   def __init__(self, default_value: float) -> None:
@@ -216,18 +211,18 @@ class CalculatorTask(Task):
     self.out_topic = self.client.out_topic(config.out_topic)
     self.var_values = AsyncObservableDict({
       input_var.name: input_var.default_value
-      for input_var in config.input_vars
+      for input_var in config.variable_tracks
     })
     if config.synchronized:
       sync = SequentialInTopicSynchronizer()
       self.in_topics = [
-        (client.sync_in_topic(input_var.topic_id, sync), input_var.name, input_var.default_value)
-        for input_var in config.input_vars
+        (client.sync_in_topic(input_var.in_topic, sync), input_var.name, input_var.default_value)
+        for input_var in config.variable_tracks
       ]
     else:
       self.in_topics = [
-        (client.in_topic(input_var.topic_id), input_var.name, input_var.default_value)
-        for input_var in config.input_vars
+        (client.in_topic(input_var.in_topic), input_var.name, input_var.default_value)
+        for input_var in config.variable_tracks
       ]
   async def run(self):
     tasks: list[asyncio.Task] = []
@@ -241,7 +236,7 @@ class CalculatorTask(Task):
           state = CalculatorInputState(default_value)
           tasks.append(asyncio.create_task(self.run_input_receiver(in_topic, state)))
           tasks.append(asyncio.create_task(self.run_input_updater(state, var_name, default_value)))
-      await asyncio.gather(*tasks)
+        await asyncio.gather(*tasks)
     finally:
       for task in tasks: task.cancel()
   async def run_output_updater(self):
@@ -261,7 +256,7 @@ class CalculatorTask(Task):
 
   async def run_input_receiver(self, in_topic: InTopic, state: CalculatorInputState):
     while True:
-      data = in_topic.recv_data_control()
+      data = await in_topic.recv_data_control()
       if isinstance(data, TopicControlData): state.is_paused = data.paused
       else:
         try:
@@ -271,3 +266,31 @@ class CalculatorTask(Task):
           state.errored = False
         except ValueError:
           state.errored = True
+          
+class CalculatorTaskHost(TaskHost):
+  @property
+  def metadata(self): return {
+    **static_configurator(
+      label="calculator",
+      default_config=CalculatorConfigBase().model_dump(),
+      outputs=[{ "label": "output", "type": "ts", "content": "number", "key": "out_topic" }],
+      config_to_output_map=[{ "formula": "label" }],
+      editor_fields=[
+        EditorFields.text(key="formula", label="formula"),
+        EditorFields.boolean("synchronized"),
+    ]),
+    **multitrackio_configurator(is_input=True, track_configs=[
+      {
+        "key": "variable",
+        "defaultConfig": CalculatorVariableConfigBase().model_dump(),
+        "defaultIO": { "type": "ts", "content": "number" },
+        "ioMap": { "name": "label" },
+        "editorFields": [
+          EditorFields.text(key="name"),
+          EditorFields.number(key="default_value"),
+        ]
+      }
+    ])
+  }
+  async def create_task(self, config: Any, topic_space_id: int | None):
+    return CalculatorTask(await self.create_client(topic_space_id), CalculatorConfig.model_validate(config))

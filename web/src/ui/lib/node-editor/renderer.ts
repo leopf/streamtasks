@@ -146,7 +146,7 @@ export class NodeRenderer {
         containerRect.appendChild(ioContainer);
 
         const ioSpacer = document.createElement("div");
-        ioSpacer.style.minWidth = "0.5rem";
+        ioSpacer.style.minWidth = "1.5rem";
         ioSpacer.style.flex = "1";
 
         const inputsContainer = document.createElement("div");

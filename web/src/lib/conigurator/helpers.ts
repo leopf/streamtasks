@@ -110,7 +110,7 @@ export class GraphSetter {
                 this.setters.set(p, value);
             }
             else if (this.setters.get(p) !== value) {
-                throw new Error("Setter has a value conflict on path " + p);
+                throw new Error(`Setter has a value conflict on path "${p}" between "${value}" and "${this.setters.get(p)}"`);
             }
         }
     }
