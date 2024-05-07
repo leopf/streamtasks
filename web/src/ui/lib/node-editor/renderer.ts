@@ -79,7 +79,6 @@ export class NodeRenderer {
         this.group = document.createElement("div");
         this.group.style.position = "absolute";
         this.group.style.width = "min-content";
-        this.group.style.direction = "ltr";
         this.group.addEventListener('pointerdown', () => this.editor?.onPressNode(this.id));
 
         this.editor?.viewport.host.appendChild(this.group);

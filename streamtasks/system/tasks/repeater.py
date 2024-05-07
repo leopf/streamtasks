@@ -64,7 +64,7 @@ class RepeaterTaskHost(TaskHost):
     default_config=RepeaterConfigBase().model_dump(),
     io_mirror=[("in_topic", 0)],
     editor_fields=[
-      EditorFields.number(key="interval", min_value=1, unit="ms"),
+      EditorFields.number(key="interval", min_value=1, unit="ms", is_int=True),
       EditorFields.boolean(key="fail_closed"),
     ]
   )}
