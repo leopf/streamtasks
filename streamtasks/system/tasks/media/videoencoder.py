@@ -1,6 +1,6 @@
 from typing import Any
 from pydantic import BaseModel, ValidationError
-from streamtasks.media.video import VideoCodecInfo, VideoFrame
+from streamtasks.media.video import VideoCodecInfo, VideoFrame, video_buffer_to_ndarray
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import MediaMessage, TimestampChuckMessage
 from streamtasks.system.tasks.media.utils import MediaEditorFields
@@ -26,8 +26,6 @@ class VideoEncoderConfig(VideoEncoderConfigBase):
   in_topic: int
 
 class VideoEncoderTask(Task):  
-  _squeeze_pixel_formats = {"gray"}
-  
   def __init__(self, client: Client, config: VideoEncoderConfig):
     super().__init__(client)
     self.out_topic = self.client.out_topic(config.out_topic)
@@ -40,7 +38,6 @@ class VideoEncoderTask(Task):
       pixel_format=config.out_pixel_format,
       codec=config.codec, options=config.codec_options)
     self.encoder = codec_info.get_encoder()
-    self.squeeze_frame = config.in_pixel_format in VideoEncoderTask._squeeze_pixel_formats
 
   async def run(self):
     try:
@@ -50,9 +47,7 @@ class VideoEncoderTask(Task):
           try:
             data = await self.in_topic.recv_data()
             message = TimestampChuckMessage.model_validate(data.data)
-            bitmap = np.frombuffer(message.data, dtype=np.uint8) # TODO: endianness
-            bitmap = bitmap.reshape((self.config.height, self.config.width, -1))
-            if self.squeeze_frame: bitmap = bitmap.squeeze()
+            bitmap = video_buffer_to_ndarray(message.data, self.config.width, self.config.height)
             frame = VideoFrame.from_ndarray(bitmap, self.config.in_pixel_format)
             packets = await self.encoder.encode(frame)
             if len(packets) > 0:

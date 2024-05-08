@@ -46,7 +46,7 @@ class AudioVolumeMeterTask(Task):
             message = TimestampChuckMessage.model_validate(data.data)
             timestamp_offset = -(self.sample_buffer.size * 1000 // self.config.rate)
 
-            new_samples = audio_buffer_to_ndarray(message.data, sample_format=self.config.sample_format, channels=1).flatten()
+            new_samples = audio_buffer_to_ndarray(message.data, sample_format=self.config.sample_format, channels=1).flatten()  # TODO: endianness
             self.sample_buffer = np.concatenate((self.sample_buffer, new_samples))
             
             while self.sample_buffer.size > self.chunk_size:
@@ -54,14 +54,15 @@ class AudioVolumeMeterTask(Task):
               self.sample_buffer = self.sample_buffer[self.chunk_size:]
               timestamp_offset += self.config.time_window
           except (ValidationError, ValueError): pass
-    finally: pass
+    finally:
+      self.sample_buffer = None
     
 class AudioVolumeMeterTaskHost(TaskHost):
   @property
   def metadata(self): return {**static_configurator(
     label="audio volume meter",
-    inputs=[{ "label": "input", "type": "ts", "key": "in_topic", "content": "audio", "codec": "raw", "channels": 1 }],
-    outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "content": "number" }],
+    inputs=[{ "label": "audio", "type": "ts", "key": "in_topic", "content": "audio", "codec": "raw", "channels": 1 }],
+    outputs=[{ "label": "volume", "type": "ts", "key": "out_topic", "content": "number" }],
     default_config=AudioVolumeMeterConfigBase().model_dump(),
     config_to_input_map={ "in_topic": { v: v for v in [ "rate", "sample_format" ] } },
     editor_fields=[

@@ -1,10 +1,17 @@
 from typing import Any, Literal
+from typing_extensions import Buffer
 import av
 import av.codec
 import av.video
 import av.video.codeccontext
 import numpy as np
 from streamtasks.media.codec import CodecInfo, Frame
+
+# TODO: endianness
+def video_buffer_to_ndarray(buf: Buffer, width: int, height: int):
+  bitmap = np.frombuffer(buf, dtype=np.uint8).reshape((height, width, -1))
+  if bitmap.shape[-1] == 1: bitmap = bitmap.squeeze()
+  return bitmap
 
 class VideoFrame(Frame[av.VideoFrame]):
   def to_rgb(self):

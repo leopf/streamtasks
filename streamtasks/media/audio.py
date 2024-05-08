@@ -22,7 +22,7 @@ _SAMPLE_FORMAT_NP_2_AV_INFO: dict[str, tuple[bool, type]] = {
   "u8p": (True, np.int8),
 }
 
-def audio_buffer_to_ndarray(buf: Buffer, sample_format: str, channels: int):
+def audio_buffer_to_ndarray(buf: Buffer, sample_format: str, channels: int):  # TODO: endianness
   if sample_format not in _SAMPLE_FORMAT_NP_2_AV_INFO: raise ValueError("Invalid sample format!")
   is_planar, dtype = _SAMPLE_FORMAT_NP_2_AV_INFO[sample_format]
   return np.frombuffer(buf, dtype=dtype).reshape((channels, -1) if is_planar else (-1, channels))
