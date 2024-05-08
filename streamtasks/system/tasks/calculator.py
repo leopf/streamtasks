@@ -55,7 +55,7 @@ start: expr
     | "+" atom -> pos
     | "!" atom -> not
     | "(" expr ")" -> group
-    | NAME "(" expr ")" -> func
+    | NAME "(" [expr ("," expr)*]  ")" -> func
 
 %import common.CNAME -> NAME
 %import common.NUMBER
@@ -117,7 +117,7 @@ class CalculatorEvalTransformer(Transformer):
   def pos(self, args): return args[0]
   def not_(self, args): return 0.0 if args[0] > 0.5 else 1.0
   def group(self, args): return args[0]
-  def func(self, args): return getattr(self.context, args[0])(args[1])
+  def func(self, args): return getattr(self.context, args[0])(*args[1:])
   def add(self, args): return args[0] + args[1]
   def sub(self, args): return args[0] - args[1]
   def mul(self, args): return args[0] * args[1]
@@ -199,8 +199,7 @@ class CalculatorInputState(AsyncObservable):
 
   def get_value(self, default_value: float):
     if self.is_paused: return default_value
-    else: return self._value
-
+    else: return self.value
 
 class CalculatorTask(Task):
   def __init__(self, client: Client, config: CalculatorConfig):
@@ -228,17 +227,20 @@ class CalculatorTask(Task):
     tasks: list[asyncio.Task] = []
     try:
       async with contextlib.AsyncExitStack() as exit_stack:
-        exit_stack.enter_async_context(self.out_topic)
-        exit_stack.enter_async_context(self.out_topic.RegisterContext())
+        await exit_stack.enter_async_context(self.out_topic)
+        await exit_stack.enter_async_context(self.out_topic.RegisterContext())
+        tasks.append(asyncio.create_task(self.run_output_updater()))
         for in_topic, var_name, default_value in self.in_topics:
           await exit_stack.enter_async_context(in_topic)
           await exit_stack.enter_async_context(in_topic.RegisterContext())
           state = CalculatorInputState(default_value)
           tasks.append(asyncio.create_task(self.run_input_receiver(in_topic, state)))
           tasks.append(asyncio.create_task(self.run_input_updater(state, var_name, default_value)))
+        self.client.start()
         await asyncio.gather(*tasks)
     finally:
       for task in tasks: task.cancel()
+
   async def run_output_updater(self):
     while True:
       await self.var_values.wait_change()
@@ -247,7 +249,7 @@ class CalculatorTask(Task):
       await self.out_topic.send(MessagePackData(NumberMessage(
         timestamp=self.time_sync.time,
         value=result
-      )))
+      ).model_dump()))
 
   async def run_input_updater(self, state: CalculatorInputState, var_name: str, default_value: float):
     while True:

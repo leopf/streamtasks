@@ -1,3 +1,4 @@
+import math
 from typing import Any
 import fastavro
 from io import BytesIO
@@ -95,7 +96,10 @@ def deserialize_message(data: bytes) -> Message:
   return SCHEMA_ID_MESSAGE_MAP[id].from_dict(element)
 
 def _value_to_json_serializable(v: Any):
-  if isinstance(v, (str, float, int, bool)) or v is None: return v
+  if isinstance(v, (str, int, bool)) or v is None: return v
+  if isinstance(v, float):
+    if math.isnan(v): return "NaN"
+    else: return v
   if isinstance(v, (bytes, bytearray, memoryview)): return v.hex()
   try: v = dict(v)
   except (TypeError, ValueError): v = list(v)

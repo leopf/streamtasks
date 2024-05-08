@@ -262,7 +262,7 @@ class TaskWebBackend(Worker):
             _, data, _ = await wait_with_dependencies(recv.get(), [receive_disconnect_task])
             data: SerializableData | None
             try:
-              if data is not None: await ctx.send_message(f'{{ "data": {json.dumps(serializable_data_to_json(data))} }}')
+              if data is not None: await ctx.send_message(f'{{ "data": {json.dumps(serializable_data_to_json(data), allow_nan=False)} }}')
             except BaseException as e: logging.warning("Failed to send message ", e)
       except asyncio.CancelledError: pass
       finally:

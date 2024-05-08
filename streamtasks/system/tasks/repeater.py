@@ -51,9 +51,11 @@ class RepeaterTask(Task):
     while True:
       await asyncio.sleep(self.interval / 1000)
       if not self.out_topic.is_paused and self.current_message is not None:
-        msg = self.current_message.copy()
-        set_timestamp_on_message(msg, self.time_sync.time)
-        await self.out_topic.send(msg)
+        try:
+          msg = self.current_message.copy()
+          set_timestamp_on_message(msg, self.time_sync.time)
+          await self.out_topic.send(msg)
+        except ValueError: pass
 
 class RepeaterTaskHost(TaskHost):
   @property
