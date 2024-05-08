@@ -2,7 +2,6 @@ from typing import Literal
 from streamtasks.media.util import list_pixel_formats, list_sample_formats, list_sorted_available_codecs
 from streamtasks.system.configurators import EditorFields
 
-
 class MediaEditorFields:
   def pixel_format(key: str = "pixel_format", label: str | None = None, allowed_values: set[str] | None = None):
     return EditorFields.select(key=key, label=label,
@@ -33,3 +32,4 @@ class MediaEditorFields:
 
   def frame_rate(key: str = "rate", label: str = "frame rate"): return MediaEditorFields.rate("fps", key, label)
   def sample_rate(key: str = "rate", label: str = "sample rate"): return MediaEditorFields.rate("hz", key, label)
+  def audio_buffer_size(key: str = "buffer_size", label: str = "audio buffer size"): return EditorFields.number(key=key, label=label, min_value=1, is_int=True),
