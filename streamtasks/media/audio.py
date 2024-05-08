@@ -1,3 +1,4 @@
+from typing_extensions import Buffer
 import av.audio
 import av.audio.codeccontext
 import av.codec
@@ -7,6 +8,21 @@ import asyncio
 import av
 
 class AudioFrame(Frame[av.AudioFrame]):
+  _sample_format_np_2_av_info: dict[str, tuple[bool, type]] = {
+    "dbl": (False, np.float64),
+    "dblp": (True, np.float64),
+    "flt": (False, np.float32),
+    "fltp": (True, np.float32),
+    "s16": (False, np.int16),
+    "s16p": (True, np.int16),
+    "s32": (False, np.int32),
+    "s32p": (True, np.int32),
+    "s64": (False, np.int64),
+    "s64p": (True, np.int64),
+    "u8": (False, np.int8),
+    "u8p": (True, np.int8),
+  }
+
   def to_ndarray(self):
     return self.frame.to_ndarray()
 
@@ -16,7 +32,14 @@ class AudioFrame(Frame[av.AudioFrame]):
     av_frame.sample_rate = sample_rate
     return AudioFrame(av_frame)
 
-
+  @staticmethod
+  def from_buffer(buf: Buffer, sample_format: str, channels: int, sample_rate: int):
+    if sample_format not in AudioFrame._sample_format_np_2_av_info: raise ValueError("Invalid sample format!")
+    is_planar, dtype = AudioFrame._sample_format_np_2_av_info[sample_format]
+    arr = np.frombuffer(buf, dtype=dtype).reshape((channels, -1) if is_planar else (-1, channels))
+    return AudioFrame.from_ndarray(arr, sample_format, channels, sample_rate)
+    
+  
 class AudioCodecInfo(CodecInfo[AudioFrame]):
 
   def __init__(self, codec: str, channels: int, sample_rate: int, sample_format: str, options: dict[str, str] = {}):

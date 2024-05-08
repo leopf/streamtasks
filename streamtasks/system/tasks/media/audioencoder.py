@@ -10,8 +10,8 @@ from streamtasks.client import Client
 import numpy as np
 
 class AudioEncoderConfigBase(BaseModel):
-  in_sample_format: IOTypes.SampleFormat = "fltp"
-  out_sample_format: IOTypes.SampleFormat = "s16"
+  in_sample_format: IOTypes.SampleFormat = "s16"
+  out_sample_format: IOTypes.SampleFormat = "fltp"
   channels: IOTypes.Channels = 1
   codec: IOTypes.Codec = "aac"
   rate: IOTypes.Rate = 32000
@@ -28,8 +28,6 @@ class AudioEncoderTask(Task):
     self.in_topic = self.client.in_topic(config.in_topic)
     self.config = config
 
-    in_codec_info = AudioCodecInfo(codec=config.codec, sample_rate=config.rate, sample_format=config.in_sample_format, channels=config.channels, options=config.codec_options)
-    self.resampler = in_codec_info.get_resampler()
     out_codec_info = AudioCodecInfo(codec=config.codec, sample_rate=config.rate, sample_format=config.out_sample_format, channels=config.channels, options=config.codec_options)
     self.encoder = out_codec_info.get_encoder()
 
@@ -41,10 +39,8 @@ class AudioEncoderTask(Task):
           try:
             data = await self.in_topic.recv_data()
             message = TimestampChuckMessage.model_validate(data.data)
-            bm = np.frombuffer(message.data, dtype=np.uint8) # TODO: endianness
-            bm = bm.reshape((self.config.channels, -1))
-            frame = AudioFrame.from_ndarray(bm, self.config.in_sample_format, self.config.channels, self.config.rate)
-            packets = [p for p in await self.encoder.encode(frame) if p.dts is not None and p.pts is not None]
+            frame = AudioFrame.from_buffer(message.data, self.config.out_sample_format, self.config.channels, self.config.rate)
+            packets = await self.encoder.encode(frame)
             if len(packets) > 0:
               await self.out_topic.send(MessagePackData(MediaMessage(timestamp=message.timestamp, packets=packets).model_dump()))
           except ValidationError: pass

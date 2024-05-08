@@ -50,11 +50,11 @@ class VideoEncoderTask(Task):
           try:
             data = await self.in_topic.recv_data()
             message = TimestampChuckMessage.model_validate(data.data)
-            bm = np.frombuffer(message.data, dtype=np.uint8) # TODO: endianness
-            bm = bm.reshape((self.config.height, self.config.width, -1))
-            if self.squeeze_frame: bm = bm.squeeze()
-            frame = VideoFrame.from_ndarray(bm, self.config.in_pixel_format)
-            packets = [p for p in await self.encoder.encode(frame) if p.dts is not None and p.pts is not None]
+            bitmap = np.frombuffer(message.data, dtype=np.uint8) # TODO: endianness
+            bitmap = bitmap.reshape((self.config.height, self.config.width, -1))
+            if self.squeeze_frame: bitmap = bitmap.squeeze()
+            frame = VideoFrame.from_ndarray(bitmap, self.config.in_pixel_format)
+            packets = await self.encoder.encode(frame)
             if len(packets) > 0:
               await self.out_topic.send(MessagePackData(MediaMessage(timestamp=message.timestamp, packets=packets).model_dump()))
           except ValidationError: pass
