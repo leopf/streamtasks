@@ -71,6 +71,10 @@ export class NodeRenderer {
         return this.node.position;
     }
 
+    public get host(): string {
+        return this.node.host;
+    }
+
     constructor(node: Node, editor?: NodeEditorRenderer) {
         this.node = node;
         this.editor = editor;
@@ -598,7 +602,7 @@ export class NodeEditorRenderer extends EventEmitter<{
         const inputPos = selectedConnectionIsInput ? this.selectedConnectionPosition : pos;
         const outputPos = selectedConnectionIsInput ? pos : this.selectedConnectionPosition;
         if (!inputPos || !outputPos) return;
-        this.editingLinkLine = this.drawConnectionLine(inputPos, outputPos);
+        this.editingLinkLine = this.drawConnectionLine(inputPos, outputPos, false);
     }
 
     private renderNode(nodeId: string) {
@@ -646,7 +650,7 @@ export class NodeEditorRenderer extends EventEmitter<{
 
         if (!inputPosition || !outputPosition) return;
 
-        link.rendered = this.drawConnectionLine(inputPosition, outputPosition);
+        link.rendered = this.drawConnectionLine(inputPosition, outputPosition, inputNode.host !== outputNode.host);
 
         return;
     }
@@ -658,7 +662,7 @@ export class NodeEditorRenderer extends EventEmitter<{
         }
     }
 
-    private drawConnectionLine(inputPoint: Point, outputPoint: Point) {
+    private drawConnectionLine(inputPoint: Point, outputPoint: Point, dashed: boolean) {
         const svgPadding = 200 + outlineWidth; 
         const size: Point = {
             x: Math.abs(inputPoint.x - outputPoint.x) + svgPadding,
@@ -686,7 +690,7 @@ export class NodeEditorRenderer extends EventEmitter<{
 
         const cp1 = { x: a.x - cpXOffset * cpXOffsetScale, y: a.y + cpYOffset * cpYOffsetScale };
         const cp2 = { x: b.x + cpXOffset * cpXOffsetScale, y: b.y - cpYOffset * cpYOffsetScale };
-        element.innerHTML = `<path d="M ${a.x},${a.y} C ${cp1.x},${cp1.y} ${cp2.x},${cp2.y} ${b.x},${b.y}" style="fill:none; stroke:${outlineColor}; stroke-width:${outlineWidth}px;" />`;
+        element.innerHTML = `<path d="M ${a.x},${a.y} C ${cp1.x},${cp1.y} ${cp2.x},${cp2.y} ${b.x},${b.y}" ${dashed ? `stroke-dasharray="4"` : ""} style="fill:none; stroke:${outlineColor}; stroke-width:${outlineWidth}px;" />`;
 
         const position = subPoints(minPos, hPaddingVec);
         element.style.left = `${position.x}px`;

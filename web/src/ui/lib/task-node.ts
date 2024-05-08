@@ -29,6 +29,10 @@ export class TaskNode extends EventEmitter<{ "updated": [] }> implements Node {
         return this.task.id;
     }
 
+    public get host() {
+        return String(this.task.taskHost.metadata["nodename"]) ?? "";
+    }
+
     public get outlineColor() {
         const status: GeneralStatus = this.task.taskInstance ? taskInstance2GeneralStatusMap[this.task.taskInstance.status] : "ok";
         return taskGeneralStatusColors[status];

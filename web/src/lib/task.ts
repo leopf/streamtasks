@@ -69,6 +69,10 @@ export class ManagedTask extends EventEmitter<{"updated": [FullTask], "connected
         return { ...this._task };
     }
 
+    public get taskHost() {
+        return this.configuratorContext.taskHost;
+    }
+
     public get hasEditor() {
         return this.configurator.renderEditor;
     }
