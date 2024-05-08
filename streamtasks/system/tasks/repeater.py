@@ -43,7 +43,7 @@ class RepeaterTask(Task):
           self.time_sync.update(msg_time)
           self.current_message = data.copy()
           await self.out_topic.send(data)
-        except:
+        except ValueError:
           if not self.fail_closed: await self.out_topic.send(data)
           else: self.current_message = None
 

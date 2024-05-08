@@ -13,7 +13,6 @@ def get_timestamp_from_message(data: SerializableData) -> int:
 
 def set_timestamp_on_message(data: SerializableData, timestamp: int):
   content = data.data
-  timestamp = None
   if isinstance(content, dict) and "timestamp" in content: content["timestamp"] = timestamp
   elif hasattr(content, "timestamp") and isinstance(content.timestamp, int): content.timestamp = timestamp
   else: raise ValueError(f"could not get timestamp from message: {data}")

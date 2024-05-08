@@ -7,7 +7,6 @@ TASKS:
 - user inputs (buttons and switched)
 - buffer (reorder, +config time base)
 - switch
-- audio volume meter
 - video activity meter
 - audio input, audio output
 - casting
