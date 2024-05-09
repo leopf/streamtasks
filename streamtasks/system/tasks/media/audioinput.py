@@ -45,7 +45,6 @@ class AudioInputTask(Task):
           timestamp = max(get_timestamp_ms(), min_next_timestamp)
           frame_duration = len(data) * 1000 // self.bytes_per_second
           min_next_timestamp = timestamp + frame_duration
-          if DEBUG_MEDIA:  ddebug_value("Input SR", 1000 / frame_duration)
           await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=timestamp, data=data)))
     finally:
       stream.close()

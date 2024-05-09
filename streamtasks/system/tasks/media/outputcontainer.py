@@ -44,16 +44,14 @@ class ContainerAudioOutputConfig(ContainerAudioOutputConfigBase):
   in_topic: int
 
 class OutputContainerConfig(BaseModel):
-  destination: str
-  video_tracks: list[ContainerVideoOutputConfig]
-  audio_tracks: list[ContainerAudioOutputConfig]
-  container_options: dict[str, str]
-
-  @staticmethod
-  def default_config(): return OutputContainerConfig(destination="", video_tracks=[], audio_tracks=[], container_options={})
+  destination: str = ""
+  video_tracks: list[ContainerVideoOutputConfig] = []
+  audio_tracks: list[ContainerAudioOutputConfig] = []
+  max_desync: int = 100
+  container_options: dict[str, str] = {}
 
 class OutputContainerSynchronizer(InTopicSynchronizer):
-  def __init__(self, streams: dict[int, AVOutputStream]) -> None:
+  def __init__(self, streams: dict[int, AVOutputStream], max_desync: int) -> None:
     super().__init__()
     self._streams = streams
     self.topic_timestamps: dict[int, int] = {}
@@ -62,12 +60,13 @@ class OutputContainerSynchronizer(InTopicSynchronizer):
     self._t0: None | int = None
     self._startup_barrier = asyncio.Barrier(len(streams))
     self._oc_dropped_packets = 0
+    self._max_desync = max_desync
     
   @property
   def min_timestamp(self): return 0 if len(self.topic_timestamps) == 0 else min(self.topic_timestamps.values())
   
   @property
-  def min_duration(self): return min((stream.duration for stream in self._streams.values()))
+  def min_duration(self): return min((stream.duration for tid, stream in self._streams.items() if tid in self.topic_timestamps))
   
   async def wait_for(self, topic_id: int, timestamp: int) -> bool:
     if timestamp < self.topic_timestamps.get(topic_id, 0) or topic_id not in self._streams: return False
@@ -80,18 +79,34 @@ class OutputContainerSynchronizer(InTopicSynchronizer):
     stream = self._streams[topic_id]
     stream.duration = duration
     if DEBUG_MEDIA: ddebug_value("stream dur.", stream._stream.type, (float(stream.duration), float(duration), (timestamp - self._t0) / 1000))
-    while self.min_timestamp < timestamp: await self._timestamp_trigger.wait()
+    drop = False
+    while True:
+      min_duration = self.min_duration
+      min_timestamp = self.min_timestamp
+      if stream.duration == min_duration and (timestamp - self._max_desync) <= min_timestamp: break # True
+      if timestamp == min_timestamp and stream.duration != min_duration:
+        next_min = self._get_next_min_duration_timestamp()
+        if next_min - self._max_desync > timestamp:
+          drop = True
+          break
+      await self._timestamp_trigger.wait()
+
     for other_topic_id, other_stream in self._streams.items():
       if other_topic_id not in self.topic_timestamps:
         other_stream.duration = duration
-    if DEBUG_MEDIA and stream.duration != self.min_duration:
+
+    if DEBUG_MEDIA and drop:
       self._oc_dropped_packets += 1
       ddebug_value("output container dropped", self._oc_dropped_packets)
-    return stream.duration == self.min_duration
+    return not drop
 
   async def set_paused(self, topic_id: int, paused: bool):
     if paused: self._set_topic_timestamp(topic_id, None)
     else: self._set_topic_timestamp(topic_id, self.min_timestamp)
+    
+  def _get_next_min_duration_timestamp(self):
+    min_duration = self.min_duration
+    return min((self.topic_timestamps[tid] for tid, stream in self._streams.items() if stream.duration == min_duration and tid in self.topic_timestamps))
     
   def _set_topic_timestamp(self, topic_id: int, timestamp: int | None):
     if timestamp is None: self.topic_timestamps.pop(topic_id, None)
@@ -126,7 +141,7 @@ class OutputContainerTask(Task):
       streams: dict[int, AVOutputStream] = {}
       streams.update({ cfg.in_topic: container.add_video_stream(cfg.to_codec_info()) for cfg in self.config.video_tracks })
       streams.update({ cfg.in_topic: container.add_audio_stream(cfg.to_codec_info()) for cfg in self.config.audio_tracks })
-      self.sync = OutputContainerSynchronizer(streams)
+      self.sync = OutputContainerSynchronizer(streams, self.config.max_desync)
       tasks = [ asyncio.create_task(self._run_stream(stream, in_topic_id)) for in_topic_id, stream in streams.items() ]
       # TODO add barrier here
       self.client.start()
@@ -142,9 +157,10 @@ class OutputContainerTaskHost(TaskHost):
   def metadata(self): return {
     **static_configurator(
       label="output container",
-      default_config=OutputContainerConfig.default_config().model_dump(),
+      default_config=OutputContainerConfig().model_dump(),
       editor_fields=[
         EditorFields.text(key="destination", label="destination path or url"),
+        EditorFields.number(key="max_desync", label="maximum desynchronization", is_int=True, min_value=0, unit="ms"),
         EditorFields.options("container_options"),
     ]),
     **multitrackio_configurator(is_input=True, track_configs=[
