@@ -33,6 +33,7 @@ export class HTMLViewport {
     }
 
     public disableDrag: boolean = false;
+    private pointerUpHandler?: (() => void);
 
     constructor() {
         this._host = document.createElement("div");
@@ -76,6 +77,11 @@ export class HTMLViewport {
     }
 
     public unmount() {
+        if (this.pointerUpHandler) {
+            window.removeEventListener("pointerup", this.pointerUpHandler);
+            this.pointerUpHandler = undefined;
+        }
+
         this._container.remove();
     }
 
@@ -95,7 +101,8 @@ export class HTMLViewport {
         let lastGestureTouches: Touch[] | undefined = undefined;
 
         this._container.addEventListener("pointerdown", () => allowMove = true);
-        this._container.addEventListener("pointerup", () => allowMove = false);
+        this.pointerUpHandler = () => allowMove = false;
+        window.addEventListener("pointerup", this.pointerUpHandler);
         this._container.addEventListener("wheel", e => {
             const containerRect = this._container.getBoundingClientRect();
 
