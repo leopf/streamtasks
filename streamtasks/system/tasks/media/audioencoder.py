@@ -1,3 +1,4 @@
+from fractions import Fraction
 from typing import Any
 from pydantic import BaseModel, ValidationError
 from extra.debugging import ddebug_value
@@ -30,6 +31,9 @@ class AudioEncoderTask(Task):
     self.in_topic = self.client.in_topic(config.in_topic)
     self.config = config
 
+    self.time_base = Fraction(1, config.rate)
+    self.t0: int | None = None
+
     out_codec_info = AudioCodecInfo(codec=config.codec, sample_rate=config.rate, sample_format=config.out_sample_format, channels=config.channels, options=config.codec_options)
     self.encoder = out_codec_info.get_encoder()
 
@@ -41,10 +45,14 @@ class AudioEncoderTask(Task):
           try:
             data = await self.in_topic.recv_data()
             message = TimestampChuckMessage.model_validate(data.data)
+            if self.t0 is None: self.t0 = message.timestamp
+            
             frame = AudioFrame.from_buffer(message.data, self.config.out_sample_format, self.config.channels, self.config.rate)
+            frame.set_ts(Fraction(message.timestamp - self.t0, 1000), self.time_base)
+            
             packets = await self.encoder.encode(frame)
             if len(packets) > 0:
-              if DEBUG_MEDIA: ddebug_value("audio encoder dts", packets[0].dts)
+              if DEBUG_MEDIA: ddebug_value("audio encoder time", float(packets[0].dts * self.time_base))
               await self.out_topic.send(MessagePackData(MediaMessage(timestamp=message.timestamp, packets=packets).model_dump()))
           except ValidationError: pass
     finally:

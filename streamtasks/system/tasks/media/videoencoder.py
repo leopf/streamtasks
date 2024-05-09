@@ -1,3 +1,4 @@
+from fractions import Fraction
 from typing import Any
 from pydantic import BaseModel, ValidationError
 from extra.debugging import ddebug_value
@@ -33,6 +34,10 @@ class VideoEncoderTask(Task):
     self.out_topic = self.client.out_topic(config.out_topic)
     self.in_topic = self.client.in_topic(config.in_topic)
     self.config = config
+    
+    self.time_base = Fraction(1, config.rate)
+    self.t0: int | None = None
+    
     codec_info = VideoCodecInfo(
       width=config.width,
       height=config.height,
@@ -49,11 +54,15 @@ class VideoEncoderTask(Task):
           try:
             data = await self.in_topic.recv_data()
             message = TimestampChuckMessage.model_validate(data.data)
+            if self.t0 is None: self.t0 = message.timestamp
+            
             bitmap = video_buffer_to_ndarray(message.data, self.config.width, self.config.height)
             frame = VideoFrame.from_ndarray(bitmap, self.config.in_pixel_format)
+            frame.set_ts(Fraction(message.timestamp - self.t0, 1000), self.time_base)
+            
             packets = await self.encoder.encode(frame)
             if len(packets) > 0:
-              if DEBUG_MEDIA: ddebug_value("video encoder dts", packets[0].dts)
+              if DEBUG_MEDIA: ddebug_value("video encoder time", float(packets[0].dts * self.time_base))
               await self.out_topic.send(MessagePackData(MediaMessage(timestamp=message.timestamp, packets=packets).model_dump()))
           except ValidationError: pass
     finally:

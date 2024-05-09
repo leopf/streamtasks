@@ -14,6 +14,13 @@ class Frame(ABC, Generic[T]):
   def __init__(self, frame: T):
     self.frame: T = frame
 
+  def set_ts(self, time: Fraction, time_base: Fraction):
+    ts = int(time / time_base)
+    self.frame.time_base = time_base
+    self.frame.dts = ts
+    self.frame.pts = ts
+
+  @staticmethod
   def from_av_frame(av_frame: Any) -> 'Frame[T]':
     if isinstance(av_frame, av.VideoFrame):
       from streamtasks.media.video import VideoFrame
