@@ -1,5 +1,7 @@
 from typing import Any
 from pydantic import BaseModel, ValidationError
+from extra.debugging import ddebug_value
+from streamtasks.media.container import DEBUG_MEDIA
 from streamtasks.media.video import VideoCodecInfo, VideoFrame, video_buffer_to_ndarray
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import MediaMessage, TimestampChuckMessage
@@ -51,6 +53,7 @@ class VideoEncoderTask(Task):
             frame = VideoFrame.from_ndarray(bitmap, self.config.in_pixel_format)
             packets = await self.encoder.encode(frame)
             if len(packets) > 0:
+              if DEBUG_MEDIA: ddebug_value("video encoder dts", packets[0].dts)
               await self.out_topic.send(MessagePackData(MediaMessage(timestamp=message.timestamp, packets=packets).model_dump()))
           except ValidationError: pass
     finally:

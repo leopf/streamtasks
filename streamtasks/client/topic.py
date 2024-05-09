@@ -130,7 +130,7 @@ class SequentialInTopicSynchronizer(InTopicSynchronizer):
   def min_timestamp(self): return 0 if len(self._topic_timestamps) == 0 else min(self._topic_timestamps.values())
     
   async def wait_for(self, topic_id: int, timestamp: int) -> bool:
-    if timestamp < self._topic_timestamps.get(timestamp, 0): return False # NOTE: drop the past
+    if timestamp < self._topic_timestamps.get(topic_id, 0): return False # NOTE: drop the past
     self._set_topic_timestamp(topic_id, timestamp)
     while self.min_timestamp < timestamp: await self._timestamp_trigger.wait()
     return True
@@ -159,9 +159,8 @@ class _SynchronizedInTopicReceiver(_InTopicReceiver):
       elif action == _InTopicAction.DATA:
         try:
           timestamp = get_timestamp_from_message(data)
-          if not await self._sync.wait_for(self._topic, timestamp): continue # NOTE drop (the past)
+          if await self._sync.wait_for(self._topic, timestamp): return (action, data)
         except ValueError: pass
-      return (action, data)
 
 class SynchronizedInTopic(InTopic):
   def __init__(self, client: 'Client', topic: int, sync: InTopicSynchronizer) -> None:

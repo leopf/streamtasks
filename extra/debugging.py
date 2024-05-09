@@ -1,11 +1,18 @@
+import sys
+
 _VALUES: dict[str, str] = {}
 _UPDATE_COUNTER = 0
 
 def _print_values():
   pad_key = max(*(len(l) for l in _VALUES.keys()), 0) + 1
-  print("-" * 25)
-  print("update", _UPDATE_COUNTER)
-  for k, v in sorted(_VALUES.items(), key=lambda e: e[0]): print(f"{k}:".rjust(pad_key), v)
+  lines = [
+    "-" * 25,
+    "update " + str(_UPDATE_COUNTER),
+  ]
+  for k, v in sorted(_VALUES.items(), key=lambda e: e[0]): lines.append(f"{k}:".rjust(pad_key) + " " + str(v))
+  sys.stdout.write("\n".join(lines))
+  sys.stdout.write("\n")
+  sys.stdout.flush()
 
 def ddebug_value(*args):
   global _UPDATE_COUNTER

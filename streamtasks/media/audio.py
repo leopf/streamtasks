@@ -7,7 +7,7 @@ import numpy as np
 import asyncio
 import av
 
-_SAMPLE_FORMAT_NP_2_AV_INFO: dict[str, tuple[bool, type]] = {
+_SAMPLE_FORMAT_NP_2_AV_INFO: dict[str, tuple[bool, type[np.dtype]]] = {
   "dbl": (False, np.float64),
   "dblp": (True, np.float64),
   "flt": (False, np.float32),
@@ -22,6 +22,10 @@ _SAMPLE_FORMAT_NP_2_AV_INFO: dict[str, tuple[bool, type]] = {
   "u8p": (True, np.int8),
 }
 
+def get_audio_bytes_per_time_sample(sample_format: str, channels: int): # time sample != sample, time sample has all channels
+  if sample_format not in _SAMPLE_FORMAT_NP_2_AV_INFO: raise ValueError("Invalid sample format!")
+  return _SAMPLE_FORMAT_NP_2_AV_INFO[sample_format][1]().itemsize * channels
+  
 def audio_buffer_to_ndarray(buf: Buffer, sample_format: str, channels: int):  # TODO: endianness
   if sample_format not in _SAMPLE_FORMAT_NP_2_AV_INFO: raise ValueError("Invalid sample format!")
   is_planar, dtype = _SAMPLE_FORMAT_NP_2_AV_INFO[sample_format]

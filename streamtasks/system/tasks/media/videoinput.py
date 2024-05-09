@@ -45,6 +45,7 @@ class VideoInputTask(Task):
     self.message_queue: asyncio.Queue[TimestampChuckMessage] = asyncio.Queue()
     self.config = config
     self.mp_close_event = mp.Event()
+    self.frame_duration = 1000 // self.config.rate
 
   async def run(self):
     try:
@@ -64,9 +65,11 @@ class VideoInputTask(Task):
       vc = cv2.VideoCapture(self.config.camera_id)
       vc.set(cv2.CAP_PROP_FPS, self.config.rate)
       if not vc.isOpened(): raise Exception(f"Failed to open video capture on id {self.config.camera_id}")
+      min_next_timestamp = 0
       while vc.isOpened() and not self.mp_close_event.is_set():
         result, frame = vc.read()
-        timestamp = get_timestamp_ms()
+        timestamp = max(get_timestamp_ms(), min_next_timestamp)
+        min_next_timestamp = timestamp + self.frame_duration
         if not result: raise Exception("Failed to read image!")
         frame = cv2.resize(frame, (self.config.width, self.config.height))
         for clr_coversion in VideoInputTask._COLOR_FORMAT2CV_MAP[self.config.pixel_format]: frame = cv2.cvtColor(frame, clr_coversion)

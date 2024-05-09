@@ -32,4 +32,4 @@ class MediaEditorFields:
 
   def frame_rate(key: str = "rate", label: str = "frame rate"): return MediaEditorFields.rate("fps", key, label)
   def sample_rate(key: str = "rate", label: str = "sample rate"): return MediaEditorFields.rate("hz", key, label)
-  def audio_buffer_size(key: str = "buffer_size", label: str = "audio buffer size"): return EditorFields.number(key=key, label=label, min_value=1, is_int=True),
+  def audio_buffer_size(key: str = "buffer_size", label: str = "audio buffer size"): return EditorFields.number(key=key, label=label, min_value=1, is_int=True)

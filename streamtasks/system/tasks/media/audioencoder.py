@@ -1,6 +1,8 @@
 from typing import Any
 from pydantic import BaseModel, ValidationError
+from extra.debugging import ddebug_value
 from streamtasks.media.audio import AudioCodecInfo, AudioFrame
+from streamtasks.media.container import DEBUG_MEDIA
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import MediaMessage, TimestampChuckMessage
 from streamtasks.system.tasks.media.utils import MediaEditorFields
@@ -42,6 +44,7 @@ class AudioEncoderTask(Task):
             frame = AudioFrame.from_buffer(message.data, self.config.out_sample_format, self.config.channels, self.config.rate)
             packets = await self.encoder.encode(frame)
             if len(packets) > 0:
+              if DEBUG_MEDIA: ddebug_value("audio encoder dts", packets[0].dts)
               await self.out_topic.send(MessagePackData(MediaMessage(timestamp=message.timestamp, packets=packets).model_dump()))
           except ValidationError: pass
     finally:

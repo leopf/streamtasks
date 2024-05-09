@@ -1,10 +1,9 @@
 import asyncio
 from fractions import Fraction
-import json
 from typing import Any
 from extra.debugging import ddebug_value
 from pydantic import BaseModel, ValidationError
-from streamtasks.client.topic import SequentialInTopicSynchronizer
+from streamtasks.client.topic import InTopicSynchronizer
 from streamtasks.media.audio import AudioCodecInfo
 from streamtasks.media.container import DEBUG_MEDIA, AVOutputStream, OutputContainer
 from streamtasks.media.video import VideoCodecInfo
@@ -53,11 +52,55 @@ class OutputContainerConfig(BaseModel):
   @staticmethod
   def default_config(): return OutputContainerConfig(destination="", video_tracks=[], audio_tracks=[], container_options={})
 
+class OutputContainerSynchronizer(InTopicSynchronizer):
+  def __init__(self, streams: dict[int, AVOutputStream]) -> None:
+    super().__init__()
+    self._streams = streams
+    self.topic_timestamps: dict[int, int] = {}
+    self._timestamp_trigger = AsyncTrigger()
+    self._topic_return: bool = True
+    self._t0: None | int = None
+    self._startup_barrier = asyncio.Barrier(len(streams))
+    
+  @property
+  def min_timestamp(self): return 0 if len(self.topic_timestamps) == 0 else min(self.topic_timestamps.values())
+  
+  @property
+  def min_duration(self): return min((stream.duration for stream in self._streams.values()))
+  
+  async def wait_for(self, topic_id: int, timestamp: int) -> bool:
+    if timestamp < self.topic_timestamps.get(topic_id, 0) or topic_id not in self._streams: return False
+    self._set_topic_timestamp(topic_id, timestamp)
+    if self._t0 is None:
+      await self._startup_barrier.wait()
+      if self._t0 is None: self._t0 = self.min_timestamp
+
+    duration = Fraction(timestamp - self._t0, 1000)
+    stream = self._streams[topic_id]
+    stream.duration = duration
+    if DEBUG_MEDIA: ddebug_value("stream dur.", stream._stream.type, (float(stream.duration), float(duration), (timestamp - self._t0) / 1000))
+    while self.min_timestamp < timestamp: await self._timestamp_trigger.wait()
+    for other_topic_id, other_stream in self._streams.items():
+      if other_topic_id not in self.topic_timestamps:
+        other_stream.duration = duration
+        print("set dur")
+    if stream.duration != self.min_duration: print("drop", stream._stream.type)
+    return stream.duration == self.min_duration
+
+  async def set_paused(self, topic_id: int, paused: bool):
+    if paused: self._set_topic_timestamp(topic_id, None)
+    else: self._set_topic_timestamp(topic_id, self.min_timestamp)
+    
+  def _set_topic_timestamp(self, topic_id: int, timestamp: int | None):
+    if timestamp is None: self.topic_timestamps.pop(topic_id, None)
+    else: self.topic_timestamps[topic_id] = timestamp
+    self._timestamp_trigger.trigger()
+
 class OutputContainerTask(Task):
   def __init__(self, client: Client, config: OutputContainerConfig):
     super().__init__(client)
     self.config = config
-    self.sync = SequentialInTopicSynchronizer()
+    self.sync: OutputContainerSynchronizer
     self._packet_processed_trigger = AsyncTrigger()
     self._t0: int | None = None
 
@@ -74,15 +117,6 @@ class OutputContainerTask(Task):
           assert all(p.rel_dts >= 0 for p in message.packets), "rel dts must be greater >= 0"
         except ValidationError: pass
 
-  async def _run_syncer(self, streams: dict[int, AVOutputStream]):
-    while True:
-      await self.sync._timestamp_trigger.wait()
-      if self._t0 is None: continue
-      for tid, stream in streams.items():
-        if tid in self.sync._topic_timestamps: # TODO pausing support
-          stream.duration = Fraction(self.sync._topic_timestamps[tid] - self._t0, 1000)
-          if DEBUG_MEDIA: ddebug_value("out stream dur.", stream._stream.type, (float(stream.duration), self.sync._topic_timestamps[tid]))
-
   async def run(self):
     try:
       container = None
@@ -90,10 +124,8 @@ class OutputContainerTask(Task):
       streams: dict[int, AVOutputStream] = {}
       streams.update({ cfg.in_topic: container.add_video_stream(cfg.to_codec_info()) for cfg in self.config.video_tracks })
       streams.update({ cfg.in_topic: container.add_audio_stream(cfg.to_codec_info()) for cfg in self.config.audio_tracks })
-      tasks = [
-        asyncio.create_task(self._run_syncer(streams)),
-        *(asyncio.create_task(self._run_stream(stream, in_topic_id)) for in_topic_id, stream in streams.items()),
-      ]
+      self.sync = OutputContainerSynchronizer(streams)
+      tasks = [ asyncio.create_task(self._run_stream(stream, in_topic_id)) for in_topic_id, stream in streams.items() ]
       # TODO add barrier here
       self.client.start()
       done, pending = await asyncio.wait(tasks, return_when="FIRST_EXCEPTION")

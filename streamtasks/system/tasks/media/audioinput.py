@@ -1,6 +1,9 @@
 import asyncio
 from typing import Any
 from pydantic import BaseModel
+from extra.debugging import ddebug_value
+from streamtasks.media.audio import get_audio_bytes_per_time_sample
+from streamtasks.media.container import DEBUG_MEDIA
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import TimestampChuckMessage
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
@@ -26,6 +29,7 @@ class AudioInputTask(Task):
     super().__init__(client)
     self.out_topic = self.client.out_topic(config.out_topic)
     self.config = config
+    self.bytes_per_second = get_audio_bytes_per_time_sample(config.sample_format, config.channels) * config.rate
     
   async def run(self):
     audio = pyaudio.PyAudio()
@@ -35,9 +39,14 @@ class AudioInputTask(Task):
       async with self.out_topic, self.out_topic.RegisterContext():
         self.client.start()
         loop = asyncio.get_running_loop()
+        min_next_timestamp = 0
         while True:
           data = await loop.run_in_executor(None, stream.read, self.config.buffer_size)
-          await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=get_timestamp_ms(), data=data)))
+          timestamp = max(get_timestamp_ms(), min_next_timestamp)
+          frame_duration = len(data) * 1000 // self.bytes_per_second
+          min_next_timestamp = timestamp + frame_duration
+          if DEBUG_MEDIA:  ddebug_value("Input SR", 1000 / frame_duration)
+          await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=timestamp, data=data)))
     finally:
       stream.close()
     
@@ -47,7 +56,6 @@ class AudioInputTaskHost(TaskHost):
     label="audio input",
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "content": "audio", "codec": "raw" }],
     default_config=AudioInputConfigBase().model_dump(),
-    config_to_input_map={ "in_topic": { **{ v: v for v in [ "rate", "channels", "sample_format" ] } } },
     config_to_output_map=[ { v: v for v in [ "rate", "channels", "sample_format" ] } ],
     editor_fields=[
       MediaEditorFields.sample_format(allowed_values=set(SAMPLE_FORMAT_2_PA_TYPE.keys())),
