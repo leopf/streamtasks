@@ -113,8 +113,8 @@ class OutputContainerTask(Task):
           message = MediaMessage.model_validate(data.data)
           if DEBUG_MEDIA: ddebug_value("out", stream._stream.type, message.timestamp)
           if self._t0 is None: self._t0 = message.timestamp
-          for packet in message.packets: await stream.mux(packet)
-          assert all(p.rel_dts >= 0 for p in message.packets), "rel dts must be greater >= 0"
+          await stream.mux(message.packet)
+          assert message.packet.rel_dts >= 0, "rel dts must be greater >= 0"
         except ValidationError: pass
 
   async def run(self):

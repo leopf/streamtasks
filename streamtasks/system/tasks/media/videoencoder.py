@@ -61,9 +61,9 @@ class VideoEncoderTask(Task):
             frame.set_ts(Fraction(message.timestamp - self.t0, 1000), self.time_base)
             
             packets = await self.encoder.encode(frame)
-            if len(packets) > 0:
-              if DEBUG_MEDIA: ddebug_value("video encoder time", float(packets[0].dts * self.time_base))
-              await self.out_topic.send(MessagePackData(MediaMessage(timestamp=message.timestamp, packets=packets).model_dump()))
+            for packet in packets:
+              if DEBUG_MEDIA: ddebug_value("video encoder time", float(packet.dts * self.time_base))
+              await self.out_topic.send(MessagePackData(MediaMessage(timestamp=int(self.t0 + packet.dts * self.time_base * 1000), packet=packet).model_dump()))
           except ValidationError: pass
     finally:
       self.encoder.close()

@@ -27,4 +27,4 @@ class StringMessage(TimestampMessage):
   value: str
 
 class MediaMessage(TimestampMessage):
-  packets: list[MediaPacket]
+  packet: MediaPacket

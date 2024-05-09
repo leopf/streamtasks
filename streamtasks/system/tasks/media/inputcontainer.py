@@ -69,12 +69,12 @@ class InputContainerTask(Task):
       async with out_topic, out_topic.RegisterContext():
         while True:
           packets = await stream.demux()
-          if len(packets) > 0:
-            ts = stream.convert_position(packets[0].dts or 0, Fraction(1, 1000))
-            if DEBUG_MEDIA: ddebug_value("in", stream._stream.type, ts)
+          assert all(p.rel_dts >= 0 for p in packets), "rel dts must be greater >= 0"
+          for packet in packets:
+            ts = stream.convert_position(packet.dts or 0, Fraction(1, 1000))
             if self._t0 is None: self._t0 = get_timestamp_ms() - ts
-            assert all(p.rel_dts >= 0 for p in packets), "rel dts must be greater >= 0"
-            await out_topic.send(MessagePackData(MediaMessage(timestamp=self._t0 + ts, packets=packets).model_dump()))
+            if DEBUG_MEDIA: ddebug_value("in", stream._stream.type, ts)
+            await out_topic.send(MessagePackData(MediaMessage(timestamp=self._t0 + ts, packet=packet).model_dump()))
     except EOFError: pass
           
   async def run(self):

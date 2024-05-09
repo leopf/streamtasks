@@ -47,8 +47,7 @@ class VideoDecoderTask(Task):
           try:
             data = await self.in_topic.recv_data()
             message = MediaMessage.model_validate(data.data)
-            frames: list[VideoFrame] = []
-            for packet in message.packets: frames.extend(await self.decoder.decode(packet))
+            frames: list[VideoFrame] = await self.decoder.decode(message.packet)
             for frame in frames: # TODO: endianness
               bm = frame.convert(width=self.config.width, height=self.config.height, pixel_format=self.config.out_pixel_format).to_ndarray()
               await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=message.timestamp, data=bm.tobytes("C")).model_dump()))

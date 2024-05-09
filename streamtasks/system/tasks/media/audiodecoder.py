@@ -41,8 +41,7 @@ class AudioDecoderTask(Task):
           try:
             data = await self.in_topic.recv_data()
             message = MediaMessage.model_validate(data.data)
-            frames: list[AudioFrame] = []
-            for packet in message.packets: frames.extend(await self.decoder.decode(packet))
+            frames: list[AudioFrame] = await self.decoder.decode(message.packet)
             frames = await self.resampler.resample(frames)
             for frame in frames: # TODO: endianness
               await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=message.timestamp, data=frame.to_ndarray().tobytes("C")).model_dump()))
