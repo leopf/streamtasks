@@ -61,6 +61,7 @@ class OutputContainerSynchronizer(InTopicSynchronizer):
     self._topic_return: bool = True
     self._t0: None | int = None
     self._startup_barrier = asyncio.Barrier(len(streams))
+    self._oc_dropped_packets = 0
     
   @property
   def min_timestamp(self): return 0 if len(self.topic_timestamps) == 0 else min(self.topic_timestamps.values())
@@ -83,8 +84,9 @@ class OutputContainerSynchronizer(InTopicSynchronizer):
     for other_topic_id, other_stream in self._streams.items():
       if other_topic_id not in self.topic_timestamps:
         other_stream.duration = duration
-        print("set dur")
-    if stream.duration != self.min_duration: print("drop", stream._stream.type)
+    if DEBUG_MEDIA and stream.duration != self.min_duration:
+      self._oc_dropped_packets += 1
+      ddebug_value("output container dropped", self._oc_dropped_packets)
     return stream.duration == self.min_duration
 
   async def set_paused(self, topic_id: int, paused: bool):

@@ -1,12 +1,14 @@
+from fractions import Fraction
 from typing import Any
 from pydantic import BaseModel, ValidationError
+from extra.debugging import ddebug_value
 from streamtasks.media.audio import AudioCodecInfo, AudioFrame
+from streamtasks.media.container import DEBUG_MEDIA
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import MediaMessage, TimestampChuckMessage
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
-
 from streamtasks.system.tasks.media.utils import MediaEditorFields
 
 class AudioDecoderConfigBase(BaseModel):
@@ -28,6 +30,9 @@ class AudioDecoderTask(Task):
     self.in_topic = self.client.in_topic(config.in_topic)
     self.config = config
     
+    self.time_base = Fraction(1, config.rate)
+    self.t0: int | None = None
+    
     out_codec_info = AudioCodecInfo(codec=config.codec, sample_rate=config.rate, sample_format=config.out_sample_format, channels=config.channels, options=config.codec_options)
     self.resampler = out_codec_info.get_resampler()
     in_codec_info = AudioCodecInfo(codec=config.codec, sample_rate=config.rate, sample_format=config.in_sample_format, channels=config.channels, options=config.codec_options)
@@ -41,10 +46,12 @@ class AudioDecoderTask(Task):
           try:
             data = await self.in_topic.recv_data()
             message = MediaMessage.model_validate(data.data)
+            if self.t0 is None: self.t0 = message.timestamp - int(message.packet.dts * self.time_base * 1000)
             frames: list[AudioFrame] = await self.decoder.decode(message.packet)
             frames = await self.resampler.resample(frames)
             for frame in frames: # TODO: endianness
-              await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=message.timestamp, data=frame.to_ndarray().tobytes("C")).model_dump()))
+              if DEBUG_MEDIA: ddebug_value("decoder dtime", float(frame.dtime))
+              await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=self.t0 + int(frame.dtime * 1000), data=frame.to_ndarray().tobytes("C")).model_dump()))
           except ValidationError: pass
     finally:
       self.decoder.close()

@@ -14,6 +14,11 @@ class Frame(ABC, Generic[T]):
   def __init__(self, frame: T):
     self.frame: T = frame
 
+  @property
+  def dtime(self):
+    if self.frame.time_base is None or self.frame.dts is None: return None
+    else: return self.frame.time_base * self.frame.dts
+
   def set_ts(self, time: Fraction, time_base: Fraction):
     ts = int(time / time_base)
     self.frame.time_base = time_base

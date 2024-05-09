@@ -1,3 +1,4 @@
+from fractions import Fraction
 from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.media.video import VideoCodecInfo, VideoFrame
@@ -6,7 +7,6 @@ from streamtasks.net.message.structures import MediaMessage, TimestampChuckMessa
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
-
 from streamtasks.system.tasks.media.utils import MediaEditorFields
 
 class VideoDecoderConfigBase(BaseModel):
@@ -31,6 +31,10 @@ class VideoDecoderTask(Task):
     self.out_topic = self.client.out_topic(config.out_topic)
     self.in_topic = self.client.in_topic(config.in_topic)
     self.config = config
+    
+    self.time_base = Fraction(1, config.rate)
+    self.t0: int | None = None
+    
     codec_info = VideoCodecInfo(
       width=config.width,
       height=config.height,
@@ -47,10 +51,11 @@ class VideoDecoderTask(Task):
           try:
             data = await self.in_topic.recv_data()
             message = MediaMessage.model_validate(data.data)
+            if self.t0 is None: self.t0 = message.timestamp - int(message.packet.dts * self.time_base * 1000)
             frames: list[VideoFrame] = await self.decoder.decode(message.packet)
             for frame in frames: # TODO: endianness
-              bm = frame.convert(width=self.config.width, height=self.config.height, pixel_format=self.config.out_pixel_format).to_ndarray()
-              await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=message.timestamp, data=bm.tobytes("C")).model_dump()))
+              bitmap = frame.convert(width=self.config.width, height=self.config.height, pixel_format=self.config.out_pixel_format).to_ndarray()
+              await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=self.t0 + int(frame.dtime * 1000), data=bitmap.tobytes("C")).model_dump()))
           except ValidationError: pass
     finally:
       self.decoder.close()
