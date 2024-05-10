@@ -40,7 +40,7 @@ export class TaskNode extends EventEmitter<{ "updated": [] }> implements Node {
 
     public get label(): string {
         const originalLabel = this.task.originalLabel;
-        if (this.task.label.startsWith(originalLabel)) {
+        if (this.task.label.includes(originalLabel)) {
             return this.task.label;
         }
         else {
