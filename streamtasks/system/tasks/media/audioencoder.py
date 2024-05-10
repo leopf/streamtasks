@@ -17,7 +17,7 @@ class AudioEncoderConfigBase(BaseModel):
   out_sample_format: IOTypes.SampleFormat = "fltp"
   channels: IOTypes.Channels = 1
   codec: IOTypes.Codec = "aac"
-  rate: IOTypes.Rate = 32000
+  rate: IOTypes.SampleRate = 32000
   codec_options: dict[str, str] = {}
 
 class AudioEncoderConfig(AudioEncoderConfigBase):

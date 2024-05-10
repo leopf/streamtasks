@@ -15,7 +15,7 @@ class VideoDecoderConfigBase(BaseModel):
   codec: IOTypes.Codec
   width: IOTypes.Width
   height: IOTypes.Height
-  rate: IOTypes.Rate
+  rate: IOTypes.FrameRate
   codec_options: dict[str, str]
   
   @staticmethod
@@ -32,7 +32,7 @@ class VideoDecoderTask(Task):
     self.in_topic = self.client.in_topic(config.in_topic)
     self.config = config
     
-    self.time_base = Fraction(1, config.rate)
+    self.time_base = Fraction(1, config.rate) if int(config.rate) == config.rate else Fraction(1 / config.rate)
     self.t0: int | None = None
     
     codec_info = VideoCodecInfo(

@@ -1,7 +1,7 @@
 from typing import Any
 import numpy as np
 from pydantic import BaseModel, ValidationError
-from streamtasks.media.video import VideoCodecInfo, video_buffer_to_ndarray
+from streamtasks.media.video import video_buffer_to_ndarray
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import NumberMessage, TimestampChuckMessage
 from streamtasks.system.configurators import IOTypes, static_configurator
@@ -14,8 +14,7 @@ class VideoActivityMeterConfigBase(BaseModel):
   pixel_format: IOTypes.PixelFormat = "bgr24"
   width: IOTypes.Width = 1280
   height: IOTypes.Height = 720
-  rate: IOTypes.Rate = 30
-  
+
 class VideoActivityMeterConfig(VideoActivityMeterConfigBase):
   out_topic: int
   in_topic: int
@@ -50,7 +49,7 @@ class VideoActivityMeterTaskHost(TaskHost):
     label="video activity meter",
     inputs=[{ "label": "video", "type": "ts", "key": "in_topic", "content": "video", "codec": "raw" }],
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "content": "number" }],
-    default_config=VideoActivityMeterConfigBase().model_dump(),
+    default_config={**VideoActivityMeterConfigBase().model_dump(), "rate": 30 },
     config_to_input_map={ "in_topic": { **{ v: v for v in [ "rate", "width", "height", "pixel_format" ] } } },
     editor_fields=[
       MediaEditorFields.pixel_format(),

@@ -16,7 +16,7 @@ class AudioDecoderConfigBase(BaseModel):
   out_sample_format: IOTypes.SampleFormat = "s16"
   channels: IOTypes.Channels = 1
   codec: IOTypes.Codec = "aac"
-  rate: IOTypes.Rate = 32000
+  rate: IOTypes.SampleRate = 32000
   codec_options: dict[str, str] = {}
   
 class AudioDecoderConfig(AudioDecoderConfigBase):

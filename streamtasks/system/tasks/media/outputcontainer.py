@@ -19,7 +19,7 @@ class ContainerVideoOutputConfigBase(BaseModel):
   codec: IOTypes.Codec
   width: IOTypes.Width
   height: IOTypes.Height
-  rate: IOTypes.Rate
+  rate: IOTypes.FrameRate
   
   def to_codec_info(self): return VideoCodecInfo(width=self.width, height=self.height, frame_rate=self.rate, pixel_format=self.pixel_format, codec=self.codec)
   
@@ -33,7 +33,7 @@ class ContainerAudioOutputConfigBase(BaseModel):
   sample_format: IOTypes.SampleFormat
   codec: IOTypes.Codec
   channels: IOTypes.Channels
-  rate: IOTypes.Rate
+  rate: IOTypes.SampleRate
   
   def to_codec_info(self): return AudioCodecInfo(codec=self.codec, channels=self.channels, sample_rate=self.rate, sample_format=self.sample_format)
   

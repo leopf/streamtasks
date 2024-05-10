@@ -20,7 +20,7 @@ class ContainerVideoInputConfigBase(BaseModel):
   codec: IOTypes.Codec
   width: IOTypes.Width
   height: IOTypes.Height
-  rate: IOTypes.Rate
+  rate: IOTypes.FrameRate
   force_transcode: bool
   codec_options: dict[str, str]
   
@@ -36,7 +36,7 @@ class ContainerAudioInputConfigBase(BaseModel):
   sample_format: IOTypes.SampleFormat
   codec: IOTypes.Codec
   channels: IOTypes.Channels
-  rate: IOTypes.Rate
+  rate: IOTypes.SampleRate
   force_transcode: bool
   codec_options: dict[str, str]
   

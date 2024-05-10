@@ -2,8 +2,6 @@
 
 - render display for tasks
 - allow edit label
-- rate allow float
-- static editor input accepts values that are not present. fix this!
 
 
 TASKS:

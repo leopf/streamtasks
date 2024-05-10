@@ -9,7 +9,8 @@ class IOTypes:
   Codec = Literal["raw"] | str
   Width = int
   Height = int
-  Rate = int
+  FrameRate = int | float
+  SampleRate = int
   PixelFormat = str
   SampleFormat = str
   Channels = int

@@ -12,7 +12,7 @@ import numpy as np
 
 class AudioVolumeMeterConfigBase(BaseModel):
   sample_format: IOTypes.SampleFormat = "s16"
-  rate: IOTypes.Rate = 32000
+  rate: IOTypes.SampleRate = 32000
   time_window: int = 1000
 
 class AudioVolumeMeterConfig(AudioVolumeMeterConfigBase):

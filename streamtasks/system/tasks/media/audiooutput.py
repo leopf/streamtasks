@@ -12,7 +12,7 @@ import pyaudio
 class AudioOutputConfigBase(BaseModel):
   sample_format: IOTypes.SampleFormat = "s16"
   channels: IOTypes.Channels = 1
-  rate: IOTypes.Rate = 32000
+  rate: IOTypes.SampleRate = 32000
   output_id: int = -1
   buffer_size: int = 1024
   
