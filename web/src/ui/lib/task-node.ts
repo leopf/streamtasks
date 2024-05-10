@@ -39,7 +39,13 @@ export class TaskNode extends EventEmitter<{ "updated": [] }> implements Node {
     }
 
     public get label(): string {
-        return this.task.label;
+        const originalLabel = this.task.originalLabel;
+        if (this.task.label.startsWith(originalLabel)) {
+            return this.task.label;
+        }
+        else {
+            return `${originalLabel}: ${this.task.label}`
+        }
     }
     public get position(): { x: number; y: number; } {
         return this.task.frontend_config.position ?? { x: 0, y: 0 };

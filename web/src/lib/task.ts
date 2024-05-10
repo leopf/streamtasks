@@ -48,6 +48,15 @@ export class ManagedTask extends EventEmitter<{"updated": [FullTask], "connected
     public get label() {
         return this._task.label;
     }
+    public set label(v: string) {
+        this.updateData({
+            label: v
+        });
+    }
+
+    public get originalLabel() {
+        return String(taskHostLabelFields.map(field => this.taskHost.metadata[field]).find(field => field));
+    }
 
     public get inputs() {
         return this._task.inputs;
