@@ -15,6 +15,9 @@ export function getFieldValidator(field: EditorField) {
         if (field.min !== undefined) f = f.min(field.min);
         return f;
     }
+    else if (field.type === "slider") {
+        return z.number().min(field.min).max(field.max);
+    }
     else if (field.type === "kvoptions") {
         return z.record(z.string(), z.string());
     }

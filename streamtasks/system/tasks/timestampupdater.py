@@ -21,7 +21,7 @@ class TimestampUpdaterTask(Task):
     super().__init__(client)
     self.out_topic = self.client.out_topic(config.out_topic)
     self.in_topic = self.client.in_topic(config.in_topic)
-    self.reference: Literal["message", "time"] = config.time_reference
+    self.time_reference: Literal["message", "time"] = config.time_reference
     self.offset = config.time_offset 
     self.fail_closed = config.fail_closed
 
@@ -34,7 +34,7 @@ class TimestampUpdaterTask(Task):
           await self.out_topic.set_paused(data.paused)
         else:
           try:
-            if self.reference == "message": ref_time = get_timestamp_from_message(data)
+            if self.time_reference == "message": ref_time = get_timestamp_from_message(data)
             else: ref_time = get_timestamp_ms()
             data = data.copy()
             set_timestamp_on_message(data, ref_time + self.offset)

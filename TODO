@@ -2,7 +2,8 @@
 
 - render display for tasks
 - allow edit label
-- slider in static editor
+- rate allow float
+- static editor input accepts values that are not present. fix this!
 
 
 TASKS:
@@ -10,7 +11,6 @@ TASKS:
 - user inputs (buttons and switches)
 - buffer (reorder, +config time base)
 - switch
-- rate "fixer"
 - audio resampler
 - video reformatter
 (- casting)

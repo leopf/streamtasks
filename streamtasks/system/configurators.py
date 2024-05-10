@@ -64,17 +64,26 @@ def _key_to_label(key: str): return " ".join(key.split("_"))
 def _strip_nones(data: dict): return { k: v for k, v in data.items() if v is not None }
 
 class EditorFields:
+  @staticmethod
   def select(key: str, items: list[tuple[bool | str | float | int, str]], label: str | None = None):
     return _strip_nones({ "type": "select", "key": key, "label": label or _key_to_label(key), "items": [ { "value": value, "label": label } for value, label in items ] })
   
+  @staticmethod
   def text(key: str, label: str | None = None):
     return _strip_nones({ "type": "text", "key": key, "label": label or _key_to_label(key) })
   
+  @staticmethod
   def number(key: str, label: str | None = None, min_value: float | int | None = None, max_value: float | int | None = None, unit: str | None = None, is_int: bool | None = None):
     return _strip_nones({ "type": "number", "key": key, "label": label or _key_to_label(key), "min": min_value, "max": max_value, "unit": unit, "integer": is_int == True })
 
+  @staticmethod
+  def slider(key: str, min_value: float | int, max_value: float | int, label: str | None = None, pow: float = 1):
+    return _strip_nones({ "type": "slider", "key": key, "label": label or _key_to_label(key), "min": min_value, "max": max_value, "pow": pow })
+
+  @staticmethod
   def boolean(key: str, label: str | None = None):
     return _strip_nones({ "type": "boolean", "key": key, "label": label or _key_to_label(key) })
   
+  @staticmethod
   def options(key: str, label: str | None = None):
     return _strip_nones({ "type": "kvoptions", "key": key, "label": label or _key_to_label(key) })

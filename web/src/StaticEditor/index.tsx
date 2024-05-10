@@ -1,5 +1,5 @@
-import { Box, Checkbox, FormControl, FormControlLabel, Grid, IconButton, InputLabel, MenuItem, Select, Stack, TextField, Typography } from "@mui/material";
-import { BooleanField, EditorField, KVOptionsField, NumberField, SelectField, TextField as STextField } from "./types";
+import { Box, Checkbox, FormControl, FormControlLabel, Grid, IconButton, InputLabel, MenuItem, Select, Slider, SliderValueLabelProps, Stack, TextField, Tooltip, Typography } from "@mui/material";
+import { BooleanField, EditorField, KVOptionsField, NumberField, SelectField, SliderField, TextField as STextField } from "./types";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Add as AddIcon, Close as CloseIcon } from "@mui/icons-material";
 
@@ -68,6 +68,53 @@ function NumberFieldEditor(props: { config: NumberField, data: Record<string, an
             {!!props.config.unit && (
                 <Typography position="absolute" display="block" right="1rem" top="50%" sx={{ transform: "translate(0, -50%)" }}>{props.config.unit}</Typography>
             )}
+        </Box>
+    )
+}
+
+function SliderFieldEditor(props: { config: SliderField, data: Record<string, any>, onUpdated: () => void, disabled?: boolean }) {
+    const [value, setValue] = useState(Number(props.data[props.config.key]) ?? "")
+
+    useEffect(() => {
+        const numValue = Number(value);
+        if (numValue !== props.data[props.config.key]) {
+            props.data[props.config.key] = numValue;
+            props.onUpdated();
+        }
+    }, [value]);
+
+    const sliderMax = Math.pow(props.config.max, props.config.pow);
+    const sliderMin = Math.pow(props.config.min, props.config.pow);
+    const sliderStep = (sliderMax - sliderMin) / 1000;
+
+    const _SliderFieldEditorVLD = (vldprops: SliderValueLabelProps) => {
+        const { children, value } = vldprops;
+
+        const displayValue = Math.round(Math.pow(value, props.config.pow) * 10000) / 10000;
+
+        return (
+          <Tooltip enterTouchDelay={0} placement="top" title={displayValue}>
+            {children}
+          </Tooltip>
+        );
+    }
+
+    return (
+        <Box>
+            <Typography color="GrayText" fontSize="0.8rem">{props.config.label} ({Math.round(value * 10000) / 10000})</Typography>
+            <Slider
+                disabled={props.disabled}
+                valueLabelDisplay="auto"
+                slots={{
+                    valueLabel: _SliderFieldEditorVLD
+                }}
+                size="small"
+                onChange={(_, v) => setValue(Math.pow(Number(v), props.config.pow))}
+                value={Math.pow(value, 1 / props.config.pow)}
+                step={sliderStep}
+                min={sliderMin}
+                max={sliderMax}
+            />
         </Box>
     )
 }
@@ -180,6 +227,9 @@ export function StaticEditor(props: { data: Record<string, any>, fields: EditorF
             {props.fields.map(field => {
                 if (field.type === "number") {
                     return <NumberFieldEditor disabled={disabledFields.has(field.key)} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />
+                }
+                else if (field.type === "slider") {
+                    return <SliderFieldEditor disabled={disabledFields.has(field.key)} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />
                 }
                 else if (field.type === "select") {
                     return <SelectFieldEditor disabled={disabledFields.has(field.key)} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />
