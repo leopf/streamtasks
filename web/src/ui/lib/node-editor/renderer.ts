@@ -36,7 +36,7 @@ const connectionColorSamples = [
 const ignoreFieldsForContentComparison = new Set(["streamId", "label", "key", "id"]);
 
 export function getStreamColor(connection: Record<string, number | string | boolean>, ignoreFields: Set<string> = ignoreFieldsForContentComparison) {
-    const newConnection = { ...Object.fromEntries(Object.entries(connection).filter(([k, _]) => !ignoreFields.has(k))) };
+    const newConnection = { ...Object.fromEntries(Object.entries(connection).filter(([k, _]) => !ignoreFields.has(k)).sort((a, b) => a[0].localeCompare(b[0]))) };
     return connectionColorSamples[parseInt(objectHash([1, newConnection]).slice(0, 6), 16) % connectionColorSamples.length];
 }
 

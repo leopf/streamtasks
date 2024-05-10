@@ -62,7 +62,7 @@ export function matchBasePath(path: string, basePath: string) {
 export class GraphSetter {
     private validatorsConstraints: Record<string, (v: any) => boolean> = {};
     private valueConstraints: Record<string, any> = {};
-    private disabledPaths = new Set<string>();
+    private disableCheckers: [string, (subPath: string, basePath: string) => boolean][] = [];
     
     private edges = new Map<string, string[]>();
     private edgeGenerators: [string, (subPath: string, basePath: string) => string[]][] = [];
@@ -76,19 +76,8 @@ export class GraphSetter {
         this.valueConstraints[path] = value;
     }
 
-    public disable(path: string) {
-        this.disabledPaths.add(path);
-    }
-
-    public enable(path: string, deep: boolean = false) {
-        this.disabledPaths.delete(path);
-        if (deep) {
-            Array.from(this.disabledPaths).forEach(dpath => {
-                if (matchBasePath(dpath, path) !== undefined) {
-                    this.disabledPaths.delete(dpath);
-                }
-            })
-        }
+    public addDisableCheck(basePath: string, gen: (subPath: string, basePath: string) => boolean) {
+        this.disableCheckers.push([basePath, gen]);
     }
 
     public clearSetters() {
@@ -141,10 +130,8 @@ export class GraphSetter {
             if (p in this.valueConstraints) {
                 return true;
             }
-            for (const disabledPath of this.disabledPaths) {
-                if (p.startsWith(disabledPath)) {
-                    return true;
-                }
+            if (this.checkPathDisabled(p)) {
+                return true;
             }
         }
         return false;
@@ -153,11 +140,8 @@ export class GraphSetter {
     public validate(): Record<string, any> {
         const result: Record<string, any> = {};
         for (const [setField, setValue] of this.setters.entries()) {
-            // check if any setters are disabled
-            for (const disabledPath of this.disabledPaths) {
-                if (setField.startsWith(disabledPath)) {
-                    throw new Error(`Trying to set path "${setField}" which is in the disabled path "${disabledPath}"!`);
-                }
+            if (this.checkPathDisabled(setField)) {
+                throw new Error(`Trying to set path "${setField}" which is disabled!`);
             }
             const validatorConstraint = this.validatorsConstraints[setField];
             if (validatorConstraint && !validatorConstraint(setValue)) {
@@ -171,6 +155,16 @@ export class GraphSetter {
             result[setField] = setValue;
         }
         return result;
+    }
+
+    private checkPathDisabled(path: string) {
+        for (const [basePath, checker] of this.disableCheckers) {
+            const subPath = matchBasePath(path, basePath)
+            if (subPath !== undefined && checker(subPath, basePath)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private getEffectedPaths(path: string) {

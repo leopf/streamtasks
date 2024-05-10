@@ -1,4 +1,4 @@
-import { TaskConfiguratorContext, Task, Metadata, TaskPartialInput } from "../../types/task";
+import { TaskConfiguratorContext, Task, Metadata, TaskPartialInput, TaskInput } from "../../types/task";
 import { getMetadataKeyDiffs as getObjectDiffPaths } from "../../lib/task";
 import { TaskCLSConfigurator, TaskCLSReactRendererMixin, createCLSConfigurator } from "../../lib/conigurator";
 import { StaticEditor } from "../../StaticEditor";
@@ -51,14 +51,12 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
     }
     public connect(key: string, output?: (Record<string, string | number | boolean | undefined> & { topic_id: number; }) | undefined): void | Promise<void> {
         const [input, inputIndex] = this.getInput(key, true);
-        const setter = this.getGraph();
-        setter.enable(`inputs.${inputIndex}`);
-        
-        if (!output) {
-            setter.set(`inputs.${inputIndex}.topic_id`, undefined);
-            this.setFields(setter.validate());
-        }
-        else {
+        const dcSetter = this.getGraph();
+        dcSetter.set(`inputs.${inputIndex}.topic_id`, undefined);
+        this.setFields(dcSetter.validate());
+
+        if (output) {
+            const setter = this.getGraph();
             const diffs = getObjectDiffPaths(input, output, compareIOIgnorePaths);
             setter.set(`inputs.${inputIndex}.topic_id`, output.topic_id);
             for (const diff of diffs) {
@@ -123,7 +121,7 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
                 setter.addEdge(`inputs.${idx}.topic_id`, `config.${input.key}`);
             }
             if (input.topic_id !== undefined) {
-                setter.disable(`inputs.${idx}`);
+                setter.addDisableCheck(`inputs.${idx}`, (subPath) => !compareIOIgnorePaths.has(subPath));
             }
         });
 
@@ -132,10 +130,11 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
             const disableFields = Object.keys(oInput).filter(k => !compareIOIgnorePaths.has(k) && !mappedFields.includes(k));
             const inputIndex = this.inputs.findIndex(input => input.key === oInput.key);
             if (inputIndex !== -1) {
-                disableFields.forEach(field => setter.disable(`inputs.${inputIndex}.${field}`));
+                disableFields.forEach(field => setter.addDisableCheck(`inputs.${inputIndex}.${field}`, () => true));
             }
         }
         
+        const originalOutputs = parseOutputs(this.taskHost.metadata);
         const config2OutputMap = parseMetadataField(this.taskHost.metadata, "cfg:config2outputmap", z.array(z.record(z.string(), z.string()).optional())) ?? [];
         config2OutputMap.forEach((map, outputIndex) => {
             if (map) {
@@ -143,6 +142,10 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
                     setter.addEdge(`outputs.${outputIndex}.${outputMetadataKey}`, `config.${configKey}`);
                 }
             }
+            const mappedFields = Object.values(map ?? {});
+            const oOutput = originalOutputs[outputIndex] ?? {};
+            const disableFields = Object.keys(oOutput).filter(k => !compareIOIgnorePaths.has(k) && !mappedFields.includes(k));
+            disableFields.forEach(field => setter.addDisableCheck(`outputs.${outputIndex}.${field}`, () => true));
         });
 
         const outputConfigKeys = parseMetadataField(this.taskHost.metadata, "cfg:outputkeys", z.array(z.string().optional())) ?? [];
@@ -160,18 +163,14 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
     private makeIOMirrorGraph(setter: GraphSetter) {
         // if (String(this.taskHost.metadata["cfg:label"]).startsWith("timestamp")) debugger;
         const data = parseMetadataField(this.taskHost.metadata, "cfg:iomirror", IOMirrorDataModel) ?? [];
-        if (data.length === 0) return;
 
         const effectedInputs = new Set(data.map(e => e[0]));
         const effectedOutputs = new Set(data.map(e => e[1]));
         const baseInputs = parseInputs(this.taskHost.metadata).map(input => [this.getInput(input.key, true)[1], input] as [number, TaskPartialInput]).filter(([_, input]) => effectedInputs.has(input.key));
         const baseOutputs = parseOutputs(this.taskHost.metadata).map((output, idx) => [idx, output] as [number, Metadata]).filter(([idx, _]) => effectedOutputs.has(idx));
 
-        [
-            ...baseInputs.map(([idx, input]) => Object.keys(input).map(key => `inputs.${idx}.${key}`)),
-            ...baseOutputs.map(([idx, input]) => Object.keys(input).map(key => `outputs.${idx}.${key}`)),
-        ].reduce((pv, cv) => [...pv, ...cv], []).forEach(path => setter.disable(path));
-
+        this.inputs.map((input, idx) => [input, idx] as [TaskInput, number]).filter(([input, _]) => !effectedInputs.has(input.key))
+            .forEach(([ input, idx ]) => setter.addDisableCheck(`inputs.${idx}`, subPath => !compareIOIgnorePaths.has(subPath) && !objectPath.has(input, subPath)))
 
         const inputKeyToIndexMap = Object.fromEntries(baseInputs.map(([ idx, input ]) => [input.key, idx]));
         [
