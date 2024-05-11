@@ -247,13 +247,12 @@ class AsyncConsumer(Generic[T1]):
   def test_message(self, message: T1) -> bool: return True
 
 async def wait_with_dependencies(main: Awaitable, deps: Iterable[asyncio.Future]):
-  main_task = asyncio.Task(main)
-  done, _ = await asyncio.wait([main_task, *deps], return_when="FIRST_COMPLETED")
-  if not main_task.done(): main_task.cancel()
-  return main_task.result()
+  main = asyncio.Task(main) if asyncio.iscoroutine(main) else main
+  done, _ = await asyncio.wait([main, *deps], return_when="FIRST_COMPLETED")
+  if not main.done(): main.cancel()
+  return main.result()
   
 def get_timestamp_ms(): return int(time.time() * 1000)
-
 
 class TimeSynchronizer:
   def __init__(self):

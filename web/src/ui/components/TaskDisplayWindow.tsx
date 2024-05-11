@@ -3,13 +3,23 @@ import { ManagedTask, taskInstance2GeneralStatusMap } from "../../lib/task";
 import { NodeOverlayTile } from "./NodeOverlayTile";
 import { Close as CloseIcon } from "@mui/icons-material";
 import { StatusBadge } from "./StatusBadge";
-import { generalStatusColors } from "../../lib/status";
 import { useTaskUpdate } from "../lib/task";
 import { TaskWindow } from "./TaskWindow";
 import { TaskInfoDisplay } from "./TaskInfoDisplay";
+import { useEffect, useRef } from "react";
 
 export function TaskDisplayWindow(props: { task: ManagedTask, onClose: () => void }) {
-    const taskUpdateCounter = useTaskUpdate(props.task, () => 0, true);
+    const customDisplayRef = useRef<HTMLDivElement>(null);
+    const taskUpdateCounter = useTaskUpdate(props.task, () => {
+        if (customDisplayRef.current) {
+            props.task.renderDisplay(customDisplayRef.current);
+        }
+    }, true);
+
+    useEffect(() => {
+        if (!props.task.hasDisplay || !customDisplayRef.current) return;
+        props.task.renderDisplay(customDisplayRef.current);
+    }, [props.task, customDisplayRef.current]);
 
     return (
         <TaskWindow>
@@ -24,12 +34,8 @@ export function TaskDisplayWindow(props: { task: ManagedTask, onClose: () => voi
                 </Stack>
             )}>
                 <>
-                    <Box marginBottom={2}>
-                        <TaskInfoDisplay task={props.task} updateCounter={taskUpdateCounter} />
-                    </Box>
-                    <Box padding={1}>
-                        {!!props.task.taskInstance?.error && <Typography variant="h6" color={generalStatusColors.error}>Error: {props.task.taskInstance?.error}</Typography>}
-                    </Box>
+                    <TaskInfoDisplay task={props.task} updateCounter={taskUpdateCounter} />
+                    {props.task.hasDisplay && <Box flex={1} padding={1} ref={customDisplayRef} />}
                 </>
             </NodeOverlayTile>
         </TaskWindow>

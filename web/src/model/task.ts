@@ -24,6 +24,7 @@ export const TaskFrontendConfigModel = z.object({
     position: z.object({ x: z.number(), y: z.number() }).optional()
 })
 export const TaskInstanceModel = z.object({
+    id: z.string().uuid(),
     host_id: z.string(),
     topic_space_id: z.number().int().optional().nullable(),
     metadata: MetadataModel,

@@ -1,4 +1,4 @@
-import { Metadata, TaskConfigurator, TaskConfiguratorContext, TaskFrontendConfig, TaskIO, TaskInput, Task, TaskOutput, FullTask, TaskInstanceStatus } from "../types/task.ts"
+import { Metadata, TaskConfigurator, TaskConfiguratorContext, TaskFrontendConfig, TaskIO, TaskInput, Task, TaskOutput, FullTask, TaskInstanceStatus, RunningTask } from "../types/task.ts"
 import EventEmitter from "eventemitter3";
 import cloneDeep from "clone-deep";
 import deepEqual from "deep-equal";
@@ -83,7 +83,11 @@ export class ManagedTask extends EventEmitter<{"updated": [FullTask], "connected
     }
 
     public get hasEditor() {
-        return this.configurator.renderEditor;
+        return !!this.configurator.renderEditor;
+    }
+
+    public get hasDisplay() {
+        return !!this.configurator.renderEditor;
     }
 
     constructor(task: Task & Partial<FullTask>, configurator: TaskConfigurator, configuratorContext: TaskConfiguratorContext) {
@@ -117,6 +121,14 @@ export class ManagedTask extends EventEmitter<{"updated": [FullTask], "connected
             return;
         }
         this.configurator.renderEditor(this._task, element, this.configuratorContext);
+    }
+
+    public renderDisplay(element: HTMLElement) {
+        const taskInstance = this.taskInstance;
+        if (!this.configurator.renderDisplay || !taskInstance) {
+            return;
+        }
+        this.configurator.renderDisplay(this._task, element, taskInstance, this.configuratorContext);
     }
 }
 

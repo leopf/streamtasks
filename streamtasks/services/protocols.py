@@ -1,5 +1,7 @@
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+from streamtasks.net.utils import validate_address_name
 
 
 class WorkerAddresses:
@@ -80,6 +82,12 @@ class ResolveAddressResonseBody(BaseModel):
 class RegisterAddressRequestBody(BaseModel):
   address_name: str
   address: Optional[int] = None
+
+  @field_validator("address_name")
+  @classmethod
+  def validate_address_name(cls, value: str):
+    validate_address_name(value)
+    return value
 
 
 class AddressNameAssignmentMessage(BaseModel):

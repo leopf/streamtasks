@@ -93,9 +93,9 @@ function SliderFieldEditor(props: { config: SliderField, data: Record<string, an
         const displayValue = Math.round(Math.pow(value, props.config.pow) * 10000) / 10000;
 
         return (
-          <Tooltip enterTouchDelay={0} placement="top" title={displayValue}>
-            {children}
-          </Tooltip>
+            <Tooltip enterTouchDelay={0} placement="top" title={displayValue}>
+                {children}
+            </Tooltip>
         );
     }
 
@@ -157,7 +157,7 @@ function KVOptionsFieldEditor(props: { config: KVOptionsField, data: Record<stri
     return (
         <Stack spacing={0.25}>
             <Typography color="GrayText">{props.config.label}</Typography>
-            <Grid container rowSpacing={1}>
+            <Grid container rowSpacing={1} columns={props.disabled ? 11 : 12}>
                 {items.map(item => (
                     <React.Fragment key={item[0]}>
                         <Grid item xs={5}>
@@ -171,33 +171,41 @@ function KVOptionsFieldEditor(props: { config: KVOptionsField, data: Record<stri
                         <Grid item xs={5}>
                             <TextField fullWidth size="small" value={item[1]} label="key" disabled />
                         </Grid>
-                        <Grid item xs={1} paddingX={1}>
-                            <IconButton onClick={() => setRecord(pv => Object.fromEntries(Object.entries(pv).filter(e => e[0] !== item[0])))}>
-                                <CloseIcon />
-                            </IconButton>
-                        </Grid>
+                        {!props.disabled && (
+                            <Grid item xs={1} paddingX={1}>
+                                <IconButton onClick={() => setRecord(pv => Object.fromEntries(Object.entries(pv).filter(e => e[0] !== item[0])))}>
+                                    <CloseIcon />
+                                </IconButton>
+                            </Grid>
+                        )}
                     </React.Fragment>
                 ))}
-                <Grid item xs={5}>
-                    <TextField fullWidth size="small" value={newItemKey} label="key" onInput={e => setNewItemKey((e.target as HTMLInputElement).value)} />
-                </Grid>
-                <Grid item xs={1}>
-                    <Stack alignItems="center" justifyContent="center" height="100%">
-                        <Typography fontSize="1.2rem">=</Typography>
-                    </Stack>
-                </Grid>
-                <Grid item xs={5}>
-                    <TextField fullWidth size="small" value={newItemValue} label="key" onInput={e => setNewItemValue((e.target as HTMLInputElement).value)} />
-                </Grid>
-                <Grid item xs={1} paddingX={1}>
-                    <IconButton onClick={() => {
-                        setRecord(pv => ({ ...pv, [newItemKey]: newItemValue }));
-                        setNewItemKey("");
-                        setNewItemValue("");
-                    }}>
-                        <AddIcon />
-                    </IconButton>
-                </Grid>
+                {!props.disabled && (
+                    <>
+                        <Grid item xs={5}>
+                            <TextField fullWidth size="small" value={newItemKey} label="key" onInput={e => setNewItemKey((e.target as HTMLInputElement).value)} />
+                        </Grid>
+                        <Grid item xs={1}>
+                            <Stack alignItems="center" justifyContent="center" height="100%">
+                                <Typography fontSize="1.2rem">=</Typography>
+                            </Stack>
+                        </Grid>
+                        <Grid item xs={5}>
+                            <TextField fullWidth size="small" value={newItemValue} label="key" onInput={e => setNewItemValue((e.target as HTMLInputElement).value)} />
+                        </Grid>
+                        <Grid item xs={1} paddingX={1}>
+                            <IconButton onClick={() => {
+                                if (!props.disabled) {
+                                    setRecord(pv => ({ ...pv, [newItemKey]: newItemValue }));
+                                    setNewItemKey("");
+                                    setNewItemValue("");
+                                }
+                            }}>
+                                <AddIcon />
+                            </IconButton>
+                        </Grid>
+                    </>
+                )}
             </Grid>
         </Stack>
     );
@@ -218,30 +226,30 @@ function BooleanFieldEditor(props: { config: BooleanField, data: Record<string, 
     );
 }
 
-export function StaticEditor(props: { data: Record<string, any>, fields: EditorField[], onUpdated: () => void, disabledFields?: Set<string> }) {
+export function StaticEditor(props: { data: Record<string, any>, fields: EditorField[], onUpdated?: () => void, disabledFields?: Set<string>, disableAll?: boolean }) {
     const disabledFields = props.disabledFields ?? new Set();
-    const onUpdated = useCallback(() => props.onUpdated(), [props.fields, props.onUpdated]);
+    const onUpdated = useCallback(() => props.onUpdated?.call(null), [props.fields, props.onUpdated]);
 
     return (
         <Stack spacing={2} paddingY={2}>
             {props.fields.map(field => {
                 if (field.type === "number") {
-                    return <NumberFieldEditor disabled={disabledFields.has(field.key)} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />
+                    return <NumberFieldEditor disabled={disabledFields.has(field.key) || props.disableAll} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />
                 }
                 else if (field.type === "slider") {
-                    return <SliderFieldEditor disabled={disabledFields.has(field.key)} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />
+                    return <SliderFieldEditor disabled={disabledFields.has(field.key) || props.disableAll} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />
                 }
                 else if (field.type === "select") {
-                    return <SelectFieldEditor disabled={disabledFields.has(field.key)} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />
+                    return <SelectFieldEditor disabled={disabledFields.has(field.key) || props.disableAll} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />
                 }
                 else if (field.type === "boolean") {
-                    return <BooleanFieldEditor disabled={disabledFields.has(field.key)} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />
+                    return <BooleanFieldEditor disabled={disabledFields.has(field.key) || props.disableAll} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />
                 }
                 else if (field.type === "text") {
-                    return <TextFieldEditor disabled={disabledFields.has(field.key)} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />
+                    return <TextFieldEditor disabled={disabledFields.has(field.key) || props.disableAll} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />
                 }
                 else if (field.type === "kvoptions") {
-                    return <KVOptionsFieldEditor disabled={disabledFields.has(field.key)} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />
+                    return <KVOptionsFieldEditor disabled={disabledFields.has(field.key) || props.disableAll} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />
                 }
             })}
         </Stack>

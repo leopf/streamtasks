@@ -1,17 +1,20 @@
-import { TaskConfiguratorContext, Task, Metadata, TaskPartialInput, TaskInput } from "../../types/task";
+import { TaskConfiguratorContext, Task, Metadata, TaskPartialInput, TaskInput, TaskInstance, TaskInstanceStatus } from "../../types/task";
 import { getMetadataKeyDiffs as getObjectDiffPaths } from "../../lib/task";
 import { TaskCLSConfigurator, TaskCLSReactRendererMixin, createCLSConfigurator } from "../../lib/conigurator";
 import { StaticEditor } from "../../StaticEditor";
-import { ReactNode } from "react";
-import { EditorFieldsModel } from "../../StaticEditor/types";
+import { ReactNode, useEffect, useMemo, useState } from "react";
+import { EditorField, EditorFieldsModel } from "../../StaticEditor/types";
 import { GraphSetter, compareIgnoreMetadataKeys as compareIOIgnorePaths, extractObjectPathValues, parseMetadataField } from "../../lib/conigurator/helpers";
 import { getFieldValidator } from "../../StaticEditor/util";
 import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";
 import { MetadataModel, TaskPartialInputModel } from "../../model/task";
 import objectPath from "object-path";
+import { Accordion, AccordionDetails, AccordionSummary, Box, Stack, Typography } from "@mui/material";
+import { ExpandMore as ExpandMoreIcon } from "@mui/icons-material";
+import urlJoin from "url-join";
 
-const IOMirrorDataModel = z.array(z.tuple([ z.string(), z.number().int() ]));
+const IOMirrorDataModel = z.array(z.tuple([z.string(), z.number().int()]));
 type IOMirrorData = z.infer<typeof IOMirrorDataModel>;
 
 function parseInputs(metadata: Metadata) {
@@ -20,6 +23,40 @@ function parseInputs(metadata: Metadata) {
 
 function parseOutputs(metadata: Metadata) {
     return parseMetadataField(metadata, "cfg:outputs", z.array(MetadataModel)) ?? [];
+}
+
+function TaskDisplay(props: { task: Task, taskInstance: TaskInstance, editorFields: EditorField[] }) {
+    const [configExpanded, setConfigExpanded] = useState(false);
+
+    const frontendUrl = useMemo(() => {
+        const subPath = parseMetadataField(props.taskInstance.metadata, "cfg:frontendpath", z.string());
+        if (!subPath) return;
+        return urlJoin(location.href.split("#")[0], `./task/${props.taskInstance.id}/`, subPath ?? "frontend.html")
+    }, [props.taskInstance]);
+
+    useEffect(() => {
+        if (!frontendUrl && props.taskInstance.status === TaskInstanceStatus.running) {
+            setConfigExpanded(true);
+        }
+    }, [frontendUrl]);
+
+    return (
+        <Stack direction="column" spacing={1} height="100%" width="100%">
+            <Accordion expanded={configExpanded} onChange={() => setConfigExpanded(pv => !pv)}>
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Typography>config</Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                    <StaticEditor data={props.task.config} fields={props.editorFields} disableAll />
+                </AccordionDetails>
+            </Accordion>
+            {frontendUrl && (
+                <Box flex={1}>
+                    <iframe src={frontendUrl} width="100%" height="100%" style={{ border: "none" }} />
+                </Box>
+            )}
+        </Stack>
+    )
 }
 
 export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConfigurator) {
@@ -34,7 +71,7 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
             label: parseMetadataField(context.taskHost.metadata, "cfg:label", z.string(), true),
             config: parseMetadataField(context.taskHost.metadata, "cfg:config", z.record(z.any())) ?? {},
             inputs: parseInputs(context.taskHost.metadata),
-            outputs: parseOutputs(context.taskHost.metadata).map(o => ({...o, topic_id: context.idGenerator()})),
+            outputs: parseOutputs(context.taskHost.metadata).map(o => ({ ...o, topic_id: context.idGenerator() })),
         });
         if (!task) {
             this.applyOutputIds();
@@ -42,6 +79,9 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
         }
     }
 
+    public rrenderDisplay(taskInstance: TaskInstance): ReactNode {
+        return <TaskDisplay editorFields={this.editorFields} task={this.task} taskInstance={taskInstance} />
+    }
     public rrenderEditor(onUpdate: () => void): ReactNode {
         const cs = this.getGraph();
         return <StaticEditor data={this.config} fields={this.editorFields} onUpdated={() => {
@@ -80,7 +120,7 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
         this.outputs.forEach((o, idx) => setter.set(`outputs.${idx}.topic_id`, o.topic_id));
         this.setFields(setter.validate())
     }
-    
+
     protected applyConfig(ignoreDisabled: boolean) {
         const setter = this.getGraph();
         const pathValues = extractObjectPathValues(this.config, "config.");
@@ -97,7 +137,7 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
         }
         this.setFields(setter.validate())
     }
-    
+
     protected getGraph() {
         const setter = new GraphSetter();
         for (const field of this.editorFields) {
@@ -133,7 +173,7 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
                 disableFields.forEach(field => setter.addDisableCheck(`inputs.${inputIndex}.${field}`, () => true));
             }
         }
-        
+
         const originalOutputs = parseOutputs(this.taskHost.metadata);
         const config2OutputMap = parseMetadataField(this.taskHost.metadata, "cfg:config2outputmap", z.array(z.record(z.string(), z.string()).optional())) ?? [];
         config2OutputMap.forEach((map, outputIndex) => {
@@ -170,13 +210,13 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
         const baseOutputs = parseOutputs(this.taskHost.metadata).map((output, idx) => [idx, output] as [number, Metadata]).filter(([idx, _]) => effectedOutputs.has(idx));
 
         this.inputs.map((input, idx) => [input, idx] as [TaskInput, number]).filter(([input, _]) => !effectedInputs.has(input.key))
-            .forEach(([ input, idx ]) => setter.addDisableCheck(`inputs.${idx}`, subPath => !compareIOIgnorePaths.has(subPath) && !objectPath.has(input, subPath)))
+            .forEach(([input, idx]) => setter.addDisableCheck(`inputs.${idx}`, subPath => !compareIOIgnorePaths.has(subPath) && !objectPath.has(input, subPath)))
 
-        const inputKeyToIndexMap = Object.fromEntries(baseInputs.map(([ idx, input ]) => [input.key, idx]));
+        const inputKeyToIndexMap = Object.fromEntries(baseInputs.map(([idx, input]) => [input.key, idx]));
         [
-            ...baseInputs.map(([ idx, input ]) => [`inputs.${idx}`, data.filter(([inputKey, _]) => inputKey === input.key).map(([ _, outputIdx ]) => `outputs.${outputIdx}`)] as [string, string[]]),
-            ...baseOutputs.map(([ idx, _ ]) => [`outputs.${idx}`, data.filter(([_, outputIdx]) => outputIdx === idx).map(([ inputKey, _ ]) => `inputs.${inputKeyToIndexMap[inputKey]}`)] as [string, string[]]) ,
-        ].forEach(([ path, connectedPaths ]) => {
+            ...baseInputs.map(([idx, input]) => [`inputs.${idx}`, data.filter(([inputKey, _]) => inputKey === input.key).map(([_, outputIdx]) => `outputs.${outputIdx}`)] as [string, string[]]),
+            ...baseOutputs.map(([idx, _]) => [`outputs.${idx}`, data.filter(([_, outputIdx]) => outputIdx === idx).map(([inputKey, _]) => `inputs.${inputKeyToIndexMap[inputKey]}`)] as [string, string[]]),
+        ].forEach(([path, connectedPaths]) => {
             setter.addEdgeGenerator(path, (subPath) => {
                 if (!subPath || subPath === "topic_id") return [];
                 return connectedPaths.map(p => `${p}.${subPath}`);

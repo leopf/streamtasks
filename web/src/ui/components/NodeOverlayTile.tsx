@@ -1,4 +1,4 @@
-import { Box, Stack, Typography } from "@mui/material";
+import { Box, Stack } from "@mui/material";
 import React from "react";
 
 export function NodeOverlayTile(props: React.PropsWithChildren<{ header?: React.ReactNode }>) {
@@ -12,7 +12,7 @@ export function NodeOverlayTile(props: React.PropsWithChildren<{ header?: React.
             height="100%"
             borderRadius={1}>
             <Box borderBottom="1px solid #cfcfcf" paddingX={1} paddingY={0.75}>{props.header}</Box>
-            <Box flex={1} overflow="auto">{props.children}</Box>
+            <Stack flex={1} overflow="auto" direction={"column"}>{props.children}</Stack>
         </Stack>
     );
 }

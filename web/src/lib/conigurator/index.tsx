@@ -1,6 +1,6 @@
 import { Root, createRoot } from "react-dom/client";
 import React from "react";
-import { Task, TaskConfigurator, TaskConfiguratorContext, TaskInput, TaskOutput } from "../../types/task";
+import { Task, TaskConfigurator, TaskConfiguratorContext, TaskInput, TaskInstance, TaskOutput } from "../../types/task";
 import cloneDeep from "clone-deep";
 import objectPath from "object-path";
 
@@ -18,6 +18,8 @@ export class ReactElementRenderer {
                 container.removeChild(container.firstChild);
             }
             const innerContainer = document.createElement("div");
+            innerContainer.style.width = "100%";
+            innerContainer.style.height = "100%";
             container.appendChild(innerContainer);
             root = createRoot(innerContainer);
             this.roots.set(innerContainer, root);
@@ -69,7 +71,8 @@ export abstract class TaskCLSConfigurator {
     }
 
     public abstract connect(key: string, output?: TaskOutput): void | Promise<void>;
-    public abstract renderEditor(element: HTMLElement): void;
+    public renderEditor(element: HTMLElement): void {}
+    public renderDisplay(element: HTMLElement, taskInstance: TaskInstance): void {}
     public update(task: Task, context: TaskConfiguratorContext) {
         if (this.id != task.id) throw new Error("Task ids do not match!");
         this._task = task;
@@ -116,8 +119,14 @@ type Constructor = abstract new (...args: any[]) => TaskCLSConfigurator;
 export function TaskCLSReactRendererMixin<TBase extends Constructor>(Base: TBase) {
     abstract class _TaskCLSReactRenderer extends Base {
         private _editorRenderer = new ReactElementRenderer();
+        private _displayRenderer = new ReactElementRenderer();
         
-        public abstract rrenderEditor(onUpdate: () => void): React.ReactNode;
+        public rrenderDisplay(taskInstance: TaskInstance): React.ReactNode { return null; }
+        public renderDisplay(element: HTMLElement, taskInstance: TaskInstance): void {
+            this._displayRenderer.render(element, <React.Fragment key={this.id}>{this.rrenderDisplay(taskInstance)}</React.Fragment>);
+        }
+
+        public rrenderEditor(onUpdate: () => void): React.ReactNode { return null; }
         public renderEditor(element: HTMLElement): void {
             this._editorRenderer.render(element, <React.Fragment key={this.id}>{this.rrenderEditor(() => {
                 element.dispatchEvent(new CustomEvent("task-instance-updated", { detail: this.task, bubbles: true }));
@@ -154,6 +163,10 @@ export function createCLSConfigurator(factory: (context: TaskConfiguratorContext
         renderEditor: async (task: Task, element: HTMLElement, context: TaskConfiguratorContext) => {
             const clsTask = getOrCreateTask(context, task);
             clsTask.renderEditor(element);
+        },
+        renderDisplay: async (task: Task, element: HTMLElement, taskInstance: TaskInstance, context: TaskConfiguratorContext) => {
+            const clsTask = getOrCreateTask(context, task);
+            clsTask.renderDisplay(element, taskInstance);
         }
     };
 }

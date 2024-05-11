@@ -34,13 +34,8 @@ class PulseGeneratorTask(Task):
         if self.message_type == "id":
           await self.out_topic.send(MessagePackData(IdMessage(id=str(uuid4())).model_dump()))
         elif self.message_type == "ts":
-          await self.out_topic.send(MessagePackData({
-            **TimestampMessage(timestamp=get_timestamp_ms()).model_dump(),
-            "some_data": random.randbytes(24)
-          }))
+          await self.out_topic.send(MessagePackData(TimestampMessage(timestamp=get_timestamp_ms()).model_dump()))
         await asyncio.sleep(self.interval)
-        if self.interval == 7: raise Exception("For testing :)")
-        if self.interval == 8: return
 
 class PulseGeneratorTaskHost(TaskHost):
   @property
@@ -52,7 +47,7 @@ class PulseGeneratorTaskHost(TaskHost):
     config_to_output_map=[{ "message_type": "type" }],
     editor_fields=[
       EditorFields.select(key="message_type", items=[("ts", "Timestamp"), ("id", "Id")]),
-      EditorFields.number(key="interval", min_value=0, unit="s")
+      EditorFields.number(key="interval", min_value=0.001, unit="s")
     ]
   )}
   async def create_task(self, config: Any, topic_space_id: int | None):
