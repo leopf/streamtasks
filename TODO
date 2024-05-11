@@ -1,11 +1,9 @@
 # MY TODOS
 
-- render display for tasks
 - show task host info
 
 TASKS:
 - flow detector
-- user inputs (buttons)
 - buffer (reorder, +config time base)
 - switch
 - audio resampler

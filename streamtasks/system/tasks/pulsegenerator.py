@@ -1,4 +1,3 @@
-import random
 from typing import Any, Literal
 from uuid import uuid4
 from pydantic import BaseModel
@@ -11,11 +10,8 @@ from streamtasks.client import Client
 import asyncio
 
 class PulseGeneratorConfigBase(BaseModel):
-  interval: float
-  message_type: Literal["id", "ts"]
-  
-  @staticmethod
-  def default_config(): return PulseGeneratorConfigBase(interval=1, message_type="ts")
+  interval: float = 1
+  message_type: Literal["id", "ts"] = "ts"
   
 class PulseGeneratorConfig(PulseGeneratorConfigBase):
   out_topic: int
@@ -43,7 +39,7 @@ class PulseGeneratorTaskHost(TaskHost):
     label="pulse generator",
     description="generates a pulse in a specified interval.",
     outputs=[{ "label": "output", "key": "out_topic" }],
-    default_config=PulseGeneratorConfigBase.default_config().model_dump(),
+    default_config=PulseGeneratorConfigBase().model_dump(),
     config_to_output_map=[{ "message_type": "type" }],
     editor_fields=[
       EditorFields.select(key="message_type", items=[("ts", "Timestamp"), ("id", "Id")]),

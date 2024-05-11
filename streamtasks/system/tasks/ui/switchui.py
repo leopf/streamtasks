@@ -1,104 +1,38 @@
-import importlib.resources
-import os
+from contextlib import AsyncExitStack, asynccontextmanager
 from typing import Any
 from pydantic import BaseModel
-from streamtasks.asgi import ASGIAppRunner
-from streamtasks.asgiserver import ASGIRouter, ASGIServer, HTTPContext, WebsocketContext, http_context_handler, websocket_context_handler
 from streamtasks.net.message.data import MessagePackData
-from streamtasks.net.utils import endpoint_to_str
-from streamtasks.services.protocols import WorkerPorts
 from streamtasks.system.configurators import EditorFields, static_configurator
-from streamtasks.utils import AsyncTrigger, get_timestamp_ms, wait_with_dependencies
+from streamtasks.system.tasks.ui.controlbase import ControlBaseTask, ControlBaseTaskConfig
+from streamtasks.utils import get_timestamp_ms
 from streamtasks.net.message.structures import NumberMessage
-from streamtasks.system.task import MetadataFields, Task, TaskHost
+from streamtasks.system.task import TaskHost
 from streamtasks.client import Client
-import asyncio
-import importlib.resources
 
-class SwitchUIConfigBase(BaseModel):
+class SwitchUIConfigBase(ControlBaseTaskConfig):
   label: str = "switch"
-  repeat_interval: float = 1
   default_value: bool = False
   
 class SwitchUIConfig(SwitchUIConfigBase):
   out_topic: int
 
-class SetValueMessage(BaseModel):
+class SwitchValue(BaseModel):
   value: bool
 
-class SwitchUITask(Task):
+class SwitchUITask(ControlBaseTask[SwitchUIConfig, SwitchValue]):
   def __init__(self, client: Client, config: SwitchUIConfig):
-    super().__init__(client)
+    super().__init__(client, config, SwitchValue(value=config.default_value), "switch.js")
     self.out_topic = self.client.out_topic(config.out_topic)
     self.config = config
-    self.value = config.default_value
-    self.value_changed_trigger = AsyncTrigger()
-
-  async def setup(self) -> dict[str, Any]:
-    self.client.start()
-    await self.client.request_address()
-    return {
-      MetadataFields.ASGISERVER: endpoint_to_str((self.client.address, WorkerPorts.ASGI)),
-      "cfg:frontendpath": "index.html",
-      **(await super().setup())
-    }
-
-  async def run(self):
-    async with self.out_topic, self.out_topic.RegisterContext():
-      await asyncio.gather(self._run_sender(), self._run_updater(), self._run_web_server())
   
-  async def _run_web_server(self):
-    app = ASGIServer()
-    router = ASGIRouter()
-    app.add_handler(router)
-    
-    @router.get("/index.html")
-    @http_context_handler
-    async def _(ctx: HTTPContext):
-      with open(importlib.resources.files(__name__).joinpath("resources/switchui.html")) as fd:
-        await ctx.respond_text(fd.read(), mime_type="text/html")
-      
-    @router.get("/initial")
-    @http_context_handler
-    async def _(ctx: HTTPContext): await ctx.respond_json({ "value": self.value, "label": self.config.label })
-      
-    @router.post("/value")
-    @http_context_handler
-    async def _(ctx: HTTPContext):
-      data = SetValueMessage.model_validate(await ctx.receive_json())
-      self.value = data.value
-      self.value_changed_trigger.trigger()
-      await ctx.respond_status(200)
-
-    @router.websocket_route("/value")
-    @websocket_context_handler
-    async def _(ctx: WebsocketContext): 
-      try:
-        await ctx.accept()
-        receive_disconnect_task = asyncio.create_task(ctx.receive_disconnect())
-        while True:
-          await wait_with_dependencies(self.value_changed_trigger.wait(), [receive_disconnect_task])
-          if ctx.connected:
-            await ctx.send_message(SetValueMessage(value=self.value).model_dump_json())
-      finally:
-        receive_disconnect_task.cancel()
-        await ctx.close()
-
-    runner = ASGIAppRunner(self.client, app)
-    await runner.run()
+  async def context(self):
+    exit_stack = AsyncExitStack()
+    await exit_stack.enter_async_context(self.out_topic)
+    await exit_stack.enter_async_context(self.out_topic.RegisterContext())
+    return exit_stack
   
-  async def _run_updater(self):
-    while True:
-      await self.value_changed_trigger.wait()
-      await self._send_value()
-  
-  async def _run_sender(self):
-    while True:
-      await self._send_value()
-      await asyncio.sleep(self.config.repeat_interval)
-  
-  async def _send_value(self):
-    await self.out_topic.send(MessagePackData(NumberMessage(timestamp=get_timestamp_ms(), value=1 if self.value else 0).model_dump()))
+  async def send_value(self, value: SwitchValue):
+    await self.out_topic.send(MessagePackData(NumberMessage(timestamp=get_timestamp_ms(), value=1 if value.value else 0).model_dump()))
 
 class SwitchUITaskHost(TaskHost):
   @property
