@@ -1,13 +1,9 @@
 # MY TODOS
 
 - show task host info
+- dashboards
+- remote connection (slaves)
 
-TASKS:
-- flow detector
-- buffer (reorder, +config time base)
-- switch
-- audio resampler
-- video reformatter
 (- casting)
 
 
