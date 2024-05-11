@@ -56,7 +56,7 @@ def static_configurator(label: str, description: str | None = None, inputs: list
 def multitrackio_configurator(track_configs: list[TrackConfig], is_input: bool):
   metadata = {
     "js:configurator": "std:multitrackio",
-    "cfg:trackconfigs": json.dumps(track_configs),
+    "cfg:trackconfigs": json.dumps(list({ **tc, "defaultIO": { **tc["defaultIO"], **{ io_key: tc["defaultConfig"][config_key] for config_key, io_key in tc["ioMap"].items() } } } for tc in track_configs)),
     "cfg:isinput": "true" if is_input else "false"
   }
   return metadata
