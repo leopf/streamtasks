@@ -41,7 +41,7 @@ function TaskDisplay(props: { task: Task, taskInstance: TaskInstance, editorFiel
     }, [frontendUrl]);
 
     return (
-        <Stack direction="column" spacing={1} height="100%" width="100%">
+        <Stack direction="column" spacing={3} height="100%" width="100%">
             <Accordion expanded={configExpanded} onChange={() => setConfigExpanded(pv => !pv)}>
                 <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                     <Typography>config</Typography>

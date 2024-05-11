@@ -1,7 +1,6 @@
+import importlib.resources
 import os
-import random
-from typing import Any, Literal
-from uuid import uuid4
+from typing import Any
 from pydantic import BaseModel
 from streamtasks.asgi import ASGIAppRunner
 from streamtasks.asgiserver import ASGIRouter, ASGIServer, HTTPContext, WebsocketContext, http_context_handler, websocket_context_handler
@@ -10,10 +9,11 @@ from streamtasks.net.utils import endpoint_to_str
 from streamtasks.services.protocols import WorkerPorts
 from streamtasks.system.configurators import EditorFields, static_configurator
 from streamtasks.utils import AsyncTrigger, get_timestamp_ms, wait_with_dependencies
-from streamtasks.net.message.structures import IdMessage, NumberMessage, TimestampMessage
+from streamtasks.net.message.structures import NumberMessage
 from streamtasks.system.task import MetadataFields, Task, TaskHost
 from streamtasks.client import Client
 import asyncio
+import importlib.resources
 
 class SwitchUIConfigBase(BaseModel):
   label: str = "switch"
@@ -55,7 +55,7 @@ class SwitchUITask(Task):
     @router.get("/index.html")
     @http_context_handler
     async def _(ctx: HTTPContext):
-      with open(os.path.join(os.path.dirname(__file__), "index.html")) as fd:
+      with open(importlib.resources.files(__name__).joinpath("resources/switchui.html")) as fd:
         await ctx.respond_text(fd.read(), mime_type="text/html")
       
     @router.get("/initial")
@@ -69,10 +69,6 @@ class SwitchUITask(Task):
       self.value = data.value
       self.value_changed_trigger.trigger()
       await ctx.respond_status(200)
-
-    @router.get("/value")
-    @http_context_handler
-    async def _(ctx: HTTPContext): await ctx.respond_json_string(SetValueMessage(value=self.value).model_dump_json())
 
     @router.websocket_route("/value")
     @websocket_context_handler

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <script type="importmap">
+      {
+        "imports": {
+          "@material/web/": "https://esm.run/@material/web/"
+        }
+      }
+    </script>
+    <script type="module">
+        import '@material/web/all.js';
+        import { styles as typescaleStyles } from '@material/web/typography/md-typescale-styles.js';
+        document.adoptedStyleSheets.push(typescaleStyles.styleSheet);
+    </script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            width: 100vw;
+            height: 100vh;
+            margin: 0;
+        }
+        .row {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="row">
+        <md-switch id="switch"></md-switch>
+        <label id="label"></label>
+    </div>
+    <script>
+        const switchEl = document.getElementById("switch");
+        const labelEl = document.getElementById("label");
+        if (!switchEl || !labelEl) throw new Error();
+
+        let wsUrl = location.href;
+        wsUrl = "ws:" + wsUrl.substring(wsUrl.indexOf(":") + 1) // replace http(s): with ws:
+        wsUrl = wsUrl.substring(0, wsUrl.lastIndexOf("/"))
+        wsUrl += "/value"
+
+        function setupEvents() {
+            switchEl.addEventListener("change", () => {
+                fetch("./value", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ value: !!switchEl.selected }) })
+            });
+        }
+
+        function loadInitial() {
+            fetch("./initial").then(res => res.json()).then(data => {
+                switchEl.selected = !!data.value;
+                labelEl.innerHTML = data.label;
+                setupEvents();
+            });
+        }
+
+        const socket = new WebSocket(wsUrl);
+        socket.onopen = loadInitial
+        socket.onmessage = e => {
+            const data = JSON.parse(e.data);
+            switchEl.selected = !!data.value;
+        };
+        socket.onclose = () => {
+            while (document.body.firstChild) document.body.firstChild.remove(); // remove all ui
+        }
+    </script>
+</body>
+
+</html>

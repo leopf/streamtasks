@@ -5,7 +5,7 @@
 
 TASKS:
 - flow detector
-- user inputs (buttons and switches)
+- user inputs (buttons)
 - buffer (reorder, +config time base)
 - switch
 - audio resampler

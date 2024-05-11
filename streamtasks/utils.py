@@ -87,7 +87,8 @@ class AsyncTrigger:
     return fut
 
   def trigger(self):
-    for fut in self._futs: fut.set_result(None)
+    for fut in self._futs: 
+      if not fut.done(): fut.set_result(None)
     self._futs.clear()
 
 
