@@ -326,7 +326,7 @@ class FnTaskConfig:
   
     config_to_input_map = { _input_name_to_input_key(k): v for k, v in options.get("config_to_input_map", {}).items() }
     config_to_output_map = options.get("config_to_output_map", [])
-    if not isinstance(config_to_output_map, Iterable): config_to_output_map = [ config_to_output_map ]
+    if not isinstance(config_to_output_map, (list, tuple)): config_to_output_map = [ config_to_output_map ]
     else: config_to_output_map = list(config_to_output_map)
     
     config = FnTaskConfig(

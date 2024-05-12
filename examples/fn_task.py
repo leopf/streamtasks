@@ -13,7 +13,7 @@ class BGR24RedShifterConfig:
 io_map = { v: v for v in ["rate", "width", "height"] }
 default_io = { "content": "video", "pixel_format": "bgr24", "codec": "raw" }
 
-@fn_task(thread_safe=True, config_to_input_map={ "image": io_map }, config_to_output_map=[io_map])
+@fn_task(thread_safe=True, config_to_input_map={ "image": io_map }, config_to_output_map=io_map)
 def bgr24_red_shifter(image: Annotated[bytes, default_io], config: BGR24RedShifterConfig) -> Annotated[bytes, default_io]:
   arr = np.frombuffer(image, dtype=np.uint8).reshape((-1, 3)).astype(np.float32)
   filter = np.array([ 1, 1, config.scale ], dtype=np.float32)
