@@ -22,7 +22,7 @@ class NumberMessage(TimestampMessage):
   timestamp: int
   value: float
 
-class StringMessage(TimestampMessage):
+class TextMessage(TimestampMessage):
   timestamp: int
   value: str
 
