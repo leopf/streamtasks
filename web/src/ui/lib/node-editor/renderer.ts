@@ -71,7 +71,7 @@ export class NodeRenderer {
         return this.node.position;
     }
 
-    public get host(): string {
+    public get host(): string | undefined {
         return this.node.host;
     }
 
@@ -650,7 +650,7 @@ export class NodeEditorRenderer extends EventEmitter<{
 
         if (!inputPosition || !outputPosition) return;
 
-        link.rendered = this.drawConnectionLine(inputPosition, outputPosition, inputNode.host !== outputNode.host);
+        link.rendered = this.drawConnectionLine(inputPosition, outputPosition, inputNode.host === undefined || inputNode.host !== outputNode.host);
 
         return;
     }

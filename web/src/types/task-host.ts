@@ -6,7 +6,7 @@ export type TaskHostDragData = z.infer<typeof TaskHostDragDataModel>;
 export interface ParsedTaskHost {
     id: string,
     label: string;
-    nodeName: string;
+    nodeName?: string;
     tags: string[];
     description?: string;
     configurator?: string;

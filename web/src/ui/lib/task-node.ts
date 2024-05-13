@@ -30,7 +30,7 @@ export class TaskNode extends EventEmitter<{ "updated": [] }> implements Node {
     }
 
     public get host() {
-        return String(this.task.taskHost.metadata["nodename"]) ?? "";
+        return this.task.parsedTaskHost.nodeName;
     }
 
     public get outlineColor() {

@@ -366,13 +366,13 @@ class FnTaskContext:
   async def run(self, to: Link | str | None = None, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER]):
     if isinstance(to, Link): link = to
     else:
-      logging.info("connecting" + "!" if to is None else " to " + to)
+      logging.info("connecting" + ("!" if to is None else " to " + to))
       link = await connect(to)
       client = Client(link)
       client.start()
       await wait_for_topic_signal(client, WorkerTopics.DISCOVERY_SIGNAL)
       await client.stop_wait()
-      logging.info("connected" + "!" if to is None else " to " + to)
+      logging.info("connected" + ("!" if to is None else " to " + to))
     task_host = self.TaskHost(link=link, register_endpoits=register_endpoits)
     await task_host.run()
     

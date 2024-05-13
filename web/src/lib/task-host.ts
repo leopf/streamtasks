@@ -12,8 +12,8 @@ export function parseTaskHost(taskHost: TaskHost): ParsedTaskHost {
     return {
         id: taskHost.id,
         label: findMetadataFieldString(taskHost, ["label", "cfg:label"]) ?? "-",
-        nodeName: findMetadataFieldString(taskHost, [ "nodename" ]) ?? "-",
         tags: findMetadataFieldString(taskHost, [ "tags", "cfg:tags" ])?.split(",").map(tag => tag.trim()) ?? [],
+        nodeName: findMetadataFieldString(taskHost, [ "nodename" ]),
         description: findMetadataFieldString(taskHost, ["description", "cfg:description"]),
         configurator: findMetadataFieldString(taskHost, [ "js:configurator" ]),
     };
