@@ -126,8 +126,8 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
   @async_timeout(1)
   async def test_close_reverse(self):
     for link in self.switch.link_manager.links: link.close()
-    await self.a._wait_closed()
-    await self.b._wait_closed()
+    self.assertTrue(self.a.closed)
+    self.assertTrue(self.b.closed)
 
 class TestSwitchRemapped(TestSwitch):
   async def asyncSetUp(self):
