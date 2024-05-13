@@ -110,8 +110,8 @@ class RawConnectionLink(Link):
     except: raise ConnectionClosedError()
 
 class ServerBase(Worker):
-  def __init__(self, node_link: Link, cost: int, handshake_data: dict = {}):
-    super().__init__(node_link)
+  def __init__(self, link: Link, cost: int, handshake_data: dict = {}):
+    super().__init__(link)
     self.cost = cost
     self.handshake_data = handshake_data
     self._running_event = asyncio.Event()
@@ -163,8 +163,8 @@ class DEFAULT_COSTS:
   NODE = 25
 
 class TCPSocketServer(StreamServerBase):
-  def __init__(self, node_link: Link, host: str, port: int, cost: int = DEFAULT_COSTS.TCP, handshake_data: dict = {}):
-    super().__init__(node_link, cost, handshake_data)
+  def __init__(self, link: Link, host: str, port: int, cost: int = DEFAULT_COSTS.TCP, handshake_data: dict = {}):
+    super().__init__(link, cost, handshake_data)
     self.host = host
     self.port = port
   
@@ -173,8 +173,8 @@ class TCPSocketServer(StreamServerBase):
     async with server: await server.serve_forever()
 
 class UnixSocketServer(StreamServerBase):
-  def __init__(self, node_link: Link, path: str, cost: int = DEFAULT_COSTS.UNIX, handshake_data: dict = {}):
-    super().__init__(node_link, cost, handshake_data)
+  def __init__(self, link: Link, path: str, cost: int = DEFAULT_COSTS.UNIX, handshake_data: dict = {}):
+    super().__init__(link, cost, handshake_data)
     self.path = path
   
   async def run_server(self):
@@ -251,8 +251,8 @@ def get_server(link: Link, url: str | None = None) -> ServerBase:
   else: return NodeServer(link, url)
 
 class AutoReconnector(Worker):
-  def __init__(self, node_link: Link, connect_fn: Callable[[], Awaitable[Link]], delay: float = 1):
-    super().__init__(node_link)
+  def __init__(self, link: Link, connect_fn: Callable[[], Awaitable[Link]], delay: float = 1):
+    super().__init__(link)
     self.connect_fn = connect_fn
     self.delay = delay
     self.disconnected_event = asyncio.Event()

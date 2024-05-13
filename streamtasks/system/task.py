@@ -113,8 +113,8 @@ class MetadataFields:
 class TaskNotFoundError(BaseException): pass
 
 class TaskHost(Worker):
-  def __init__(self, node_link: Link, register_endpoits: list[EndpointOrAddress] = []):
-    super().__init__(node_link)
+  def __init__(self, link: Link, register_endpoits: list[EndpointOrAddress] = []):
+    super().__init__(link)
     self.client: Client
     self.tasks: dict[str, asyncio.Task] = {}
     self.ready = asyncio.Event()
@@ -211,8 +211,8 @@ class TaskHost(Worker):
 def get_namespace_by_task_id(task_id: UUID4): return f"/task/{task_id}"
 
 class TaskManager(Worker):
-  def __init__(self, node_link: Link, address_name: str = AddressNames.TASK_MANAGER):
-    super().__init__(node_link)
+  def __init__(self, link: Link, address_name: str = AddressNames.TASK_MANAGER):
+    super().__init__(link)
     self.task_hosts: dict[str, TaskHostRegistration] = {}
     self.tasks: dict[UUID4, TaskInstance] = {}
     self.address_name = address_name

@@ -14,8 +14,8 @@ import asyncio
 
 
 class DiscoveryWorker(Worker):
-  def __init__(self, node_link: Link):
-    super().__init__(node_link)
+  def __init__(self, link: Link):
+    super().__init__(link)
     self._address_counter = WorkerAddresses.COUNTER_INIT
     self._topics_counter = WorkerTopics.COUNTER_INIT
     self._topic_space_id_counter = 0
@@ -42,7 +42,6 @@ class DiscoveryWorker(Worker):
       await self.shutdown()
 
   async def _run_lighthouse(self, client: Client):
-    await self.connected.wait()
     await client.send_stream_control(WorkerTopics.DISCOVERY_SIGNAL, TopicControlData(False)) # NOTE: not sure if i want this...
     while True:
       await client.send_stream_data(WorkerTopics.DISCOVERY_SIGNAL, TextData("running"))

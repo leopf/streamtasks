@@ -116,9 +116,9 @@ class TaskWebBackendStore:
 
 
 class TaskWebBackend(Worker):
-  def __init__(self, node_link: Link, address_name: str = AddressNames.TASK_MANAGER_WEB, 
+  def __init__(self, link: Link, address_name: str = AddressNames.TASK_MANAGER_WEB, 
                task_manager_address_name: str = AddressNames.TASK_MANAGER, public_path: str | None = None):
-    super().__init__(node_link)
+    super().__init__(link)
     self.task_manager_address_name = task_manager_address_name
     self.address_name = address_name
     self.task_host_asgi_handlers: dict[str, ASGIHandler] = {}
