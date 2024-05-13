@@ -28,9 +28,6 @@ class Link(ABC):
 
     self._closed = False
     self._receiver: asyncio.Task[Message] | None = None
-    
-    self._recv_lock = asyncio.Lock()
-    self._send_lock = asyncio.Lock()
 
     if cost == 0: raise ValueError("Cost must be greater than 0")
     self._cost = cost
@@ -62,32 +59,30 @@ class Link(ABC):
 
   async def send(self, message: Message):
     if self._closed: raise ConnectionClosedError()
-    async with self._send_lock:
-      if isinstance(message, InTopicsChangedMessage):
-        itc_message: InTopicsChangedMessage = message
-        self.recv_topics = self.recv_topics.union(itc_message.add).difference(itc_message.remove)
-      elif isinstance(message, OutTopicsChangedMessage):
-        otc_message: OutTopicsChangedMessage = message
-        message = OutTopicsChangedMessage(set(PricedId(pt.id, pt.cost + self._cost) for pt in otc_message.add), otc_message.remove)
-      elif isinstance(message, AddressesChangedMessage):
-        ac_message: AddressesChangedMessage = message
-        message = AddressesChangedMessage(set(PricedId(pa.id, pa.cost + self._cost) for pa in ac_message.add), ac_message.remove)
-      await self._send(message)
+    if isinstance(message, InTopicsChangedMessage):
+      itc_message: InTopicsChangedMessage = message
+      self.recv_topics = self.recv_topics.union(itc_message.add).difference(itc_message.remove)
+    elif isinstance(message, OutTopicsChangedMessage):
+      otc_message: OutTopicsChangedMessage = message
+      message = OutTopicsChangedMessage(set(PricedId(pt.id, pt.cost + self._cost) for pt in otc_message.add), otc_message.remove)
+    elif isinstance(message, AddressesChangedMessage):
+      ac_message: AddressesChangedMessage = message
+      message = AddressesChangedMessage(set(PricedId(pa.id, pa.cost + self._cost) for pa in ac_message.add), ac_message.remove)
+    await self._send(message)
 
   async def recv(self) -> Message:
     if self._closed: raise ConnectionClosedError()
-    async with self._recv_lock:
-      message = None
-      while message is None:
-        self._receiver = asyncio.create_task(self._recv())
-        try:
-          message = await self._receiver
-          message = self._process_recv_message(message)
-        except asyncio.CancelledError as e:
-          if len(e.args) > 0 and isinstance(e.args[0], ConnectionClosedError): raise e.args[0]
-          else: raise e
-        finally: self._receiver = None
-      return message
+    message = None
+    while message is None:
+      self._receiver = asyncio.create_task(self._recv())
+      try:
+        message = await self._receiver
+        message = self._process_recv_message(message)
+      except asyncio.CancelledError as e:
+        if len(e.args) > 0 and isinstance(e.args[0], ConnectionClosedError): raise e.args[0]
+        else: raise e
+      finally: self._receiver = None
+    return message
 
   @abstractmethod
   async def _send(self, message: Message): pass
