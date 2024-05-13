@@ -16,7 +16,9 @@ def endpoint_or_address_to_endpoint(ep: EndpointOrAddress, default_port: int):
   return (ep, default_port) if isinstance(ep, (str, int)) else ep 
 
 class ConnectionClosedError(Exception):
-  def __init__(self, message: str = "Connection closed"): super().__init__(message)
+  def __init__(self, message: str = "Connection closed", origin: BaseException | None = None):
+    if origin: super().__init__(message + "\nOrigin: " + str(origin))
+    else: super().__init__(message)
 
 class Link(ABC):
   def __init__(self, cost: int = 1):

@@ -11,7 +11,7 @@ from streamtasks.net.message.serialize import deserialize_message, serialize_mes
 from streamtasks.net.message.types import Message
 from importlib.metadata import version
 import urllib.parse
-from streamtasks.utils import NODE_NAME
+from streamtasks.utils import NODE_NAME, AsyncTrigger
 from streamtasks.worker import Worker
 
 def _get_version_specifier(): return ".".join(version(__name__.split(".", maxsplit=1)[0]).split(".")[:2]) # NOTE: major.minor during alpha
@@ -30,14 +30,14 @@ class RawConnection(ABC):
       if not isinstance(other_data, dict): raise ValueError()
       self.validate_handshake(other_data)
     except BaseException as e:
-      await self.close()
-      raise
+      self.close()
+      raise e
   
   def validate_handshake(self, data: dict):
     if data["version"] != _get_version_specifier(): raise ValueError("Version missmatch!")
   
   @abstractmethod
-  async def close(self): pass
+  def close(self): pass
   async def send(self, data: bytes):
     async with self._send_lock:
       await asyncio.shield(self._send(data))
@@ -58,8 +58,7 @@ class RawStreamConnection(RawConnection):
     self._reader = reader
     self._writer = writer
 
-  async def close(self): 
-    self._writer.close()
+  def close(self): self._writer.close()
     
   async def send(self, data: bytes):
     try:
@@ -83,24 +82,26 @@ class RawStreamConnection(RawConnection):
     sync_index = 0
     while sync_index < len(RawStreamConnection.SYNC_WORD):
       next_byte = await self._reader.read(1)
-      if len(next_byte) == 1 and RawStreamConnection.SYNC_WORD[sync_index] == next_byte[0]: sync_index += 1
+      if len(next_byte) == 0: raise EOFError()
+      if RawStreamConnection.SYNC_WORD[sync_index] == next_byte[0]: sync_index += 1
       else: sync_index = 0
     data_len_raw = await self._reader.read(4)
-    if len(data_len_raw) != 4: raise ValueError("Invalid length for 'data_len'!")
-    data_len = struct.unpack("<L", data_len_raw)
+    if len(data_len_raw) != 4: raise EOFError()
+    data_len, = struct.unpack("<L", data_len_raw)
     data = await self._reader.read(data_len)
-    if len(data) != data_len: raise ValueError("Invalid data length!")
+    if len(data) != data_len: raise EOFError()
     return data
 
 class RawConnectionLink(Link):
   def __init__(self, connection: RawConnection, cost: int):
     super().__init__(cost)
     self._connection = connection
+    self.on_closed.append(connection.close)
     
   async def _send(self, message: Message):
     try: await self._connection.send(serialize_message(message))
     except asyncio.CancelledError: raise
-    except: raise ConnectionClosedError()
+    except BaseException as e: raise ConnectionClosedError(origin=e)
 
   async def _recv(self) -> Message:
     try: return deserialize_message(await self._connection.recv())
@@ -112,11 +113,12 @@ class ServerBase(Worker):
     super().__init__(node_link)
     self.cost = cost
     self.handshake_data = handshake_data
-    self._running = False
+    self._running_event = asyncio.Event()
+    self._connection_count_trigger = AsyncTrigger()
     self._connection_count = 0
 
   @property
-  def running(self): return self._running
+  def running(self): return self._running_event.is_set()
   
   @property
   def connection_count(self): return self._connection_count
@@ -124,22 +126,26 @@ class ServerBase(Worker):
   async def run(self):
     try:
       await self.setup()
-      self._running = True
+      self._running_event.set()
       await self.run_server()
     finally:
-      self._running = False
+      self._running_event.clear()
       await self.shutdown()
       
   @abstractmethod
   async def run_server(self): pass
   
-  def on_connected(self): self._connection_count += 1
-  def on_disconnected(self): self._connection_count -= 1
+  async def wait_running(self): await self._running_event.wait()
+  async def wait_connections_changed(self): await self._connection_count_trigger.wait()
+  
+  def on_connected(self):
+    self._connection_count += 1
+    self._connection_count_trigger.trigger()
+  def on_disconnected(self):
+    self._connection_count -= 1
+    self._connection_count_trigger.trigger()
 
 class StreamServerBase(ServerBase):
-  def __init__(self, node_link: Link, cost: int = 100, handshake_data: dict = {}):
-    super().__init__(node_link, cost=cost, handshake_data=handshake_data)
-
   async def on_connection(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     try:
       connection = RawStreamConnection(reader, writer)
@@ -148,9 +154,7 @@ class StreamServerBase(ServerBase):
       await self.switch.add_link(link)
       self.on_connected()
       link.on_closed.append(self.on_disconnected)
-    except BaseException as e:
-      logging.warning(f"Failed to initialize connection. Error: {e}")
-      raise e
+    except BaseException as e: logging.warning(f"Failed to initialize connection. Error: {e}")
 
 class DEFAULT_COSTS:
   TCP = 100
@@ -184,13 +188,13 @@ class NodeServer(UnixSocketServer):
   def __init__(self, link: Link, node_name: str | None = None):
     super().__init__(link, get_node_socket_path(node_name), DEFAULT_COSTS.NODE)
 
-async def connect_tcp_socket(host: str, port: int, cost: int, handshake_data: dict = {}):
+async def connect_tcp_socket(host: str, port: int, cost: int = DEFAULT_COSTS.TCP, handshake_data: dict = {}):
   rw = await asyncio.open_connection(host, port)
   connection = RawStreamConnection(*rw)
   await connection.handshake(handshake_data)
   return RawConnectionLink(connection, cost) 
 
-async def connect_unix_socket(path: str, cost: int, handshake_data: dict = {}):
+async def connect_unix_socket(path: str, cost: int = DEFAULT_COSTS.UNIX, handshake_data: dict = {}):
   rw = await asyncio.open_unix_connection(path)
   connection = RawStreamConnection(*rw)
   await connection.handshake(handshake_data)
