@@ -7,15 +7,15 @@
 
 (- casting)
 
+Network:
+- link set cost
+- ping pong message for bandwidth tests
 
+Testing:
 - write more tests for utils
 
-BUGS:
-- full crash when stopping deployment (seg fault)
-- make test that has dts order problem with sync
-
----
-
+Media:
+- BUG: full crash when stopping deployment (seg fault)
 - from codec context should transfer some options
 - multi threading in av stuff
 
@@ -25,7 +25,6 @@ Frontend:
 - ws task updates
 
 Backend:
-- editor from type for metadata
 - Better topic control data. We need a way to make it maintainable.
 - get single topic space translation
 - topic id efficient broadcasting server 

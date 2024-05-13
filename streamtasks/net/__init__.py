@@ -27,7 +27,10 @@ class Link(ABC):
     self.dependents: list[Link] = []
 
     self._closed = False
-    self._receivers: set[asyncio.Task] = set()
+    self._receiver: asyncio.Task[Message] | None = None
+    
+    self._recv_lock = asyncio.Lock()
+    self._send_lock = asyncio.Lock()
 
     if cost == 0: raise ValueError("Cost must be greater than 0")
     self._cost = cost
@@ -40,8 +43,8 @@ class Link(ABC):
   def close(self):
     if self._closed: return
     self._closed = True
-    for recv in self._receivers:
-      try: recv.cancel(ConnectionClosedError())
+    if self._receiver is not None:
+      try: self._receiver.cancel(ConnectionClosedError())
       except asyncio.InvalidStateError: pass
     for dependent in self.dependents: dependent.close()
 
@@ -59,31 +62,32 @@ class Link(ABC):
 
   async def send(self, message: Message):
     if self._closed: raise ConnectionClosedError()
-    if isinstance(message, InTopicsChangedMessage):
-      itc_message: InTopicsChangedMessage = message
-      self.recv_topics = self.recv_topics.union(itc_message.add).difference(itc_message.remove)
-    elif isinstance(message, OutTopicsChangedMessage):
-      otc_message: OutTopicsChangedMessage = message
-      message = OutTopicsChangedMessage(set(PricedId(pt.id, pt.cost + self._cost) for pt in otc_message.add), otc_message.remove)
-    elif isinstance(message, AddressesChangedMessage):
-      ac_message: AddressesChangedMessage = message
-      message = AddressesChangedMessage(set(PricedId(pa.id, pa.cost + self._cost) for pa in ac_message.add), ac_message.remove)
-    await self._send(message)
+    async with self._send_lock:
+      if isinstance(message, InTopicsChangedMessage):
+        itc_message: InTopicsChangedMessage = message
+        self.recv_topics = self.recv_topics.union(itc_message.add).difference(itc_message.remove)
+      elif isinstance(message, OutTopicsChangedMessage):
+        otc_message: OutTopicsChangedMessage = message
+        message = OutTopicsChangedMessage(set(PricedId(pt.id, pt.cost + self._cost) for pt in otc_message.add), otc_message.remove)
+      elif isinstance(message, AddressesChangedMessage):
+        ac_message: AddressesChangedMessage = message
+        message = AddressesChangedMessage(set(PricedId(pa.id, pa.cost + self._cost) for pa in ac_message.add), ac_message.remove)
+      await self._send(message)
 
   async def recv(self) -> Message:
     if self._closed: raise ConnectionClosedError()
-    message = None
-    while message is None:
-      recv_c = asyncio.create_task(self._recv())
-      try:
-        self._receivers.add(recv_c)
-        message = await recv_c
-        message = self._process_recv_message(message)
-      except asyncio.CancelledError as e:
-        if len(e.args) > 0 and isinstance(e.args[0], ConnectionClosedError): raise e.args[0]
-        else: raise e
-      finally: self._receivers.remove(recv_c)
-    return message
+    async with self._recv_lock:
+      message = None
+      while message is None:
+        self._receiver = asyncio.create_task(self._recv())
+        try:
+          message = await self._receiver
+          message = self._process_recv_message(message)
+        except asyncio.CancelledError as e:
+          if len(e.args) > 0 and isinstance(e.args[0], ConnectionClosedError): raise e.args[0]
+          else: raise e
+        finally: self._receiver = None
+      return message
 
   @abstractmethod
   async def _send(self, message: Message): pass
@@ -156,13 +160,13 @@ class QueueLink(Link):
   async def _send(self, message: Message): await self.out_messages.put(message)
   async def _recv(self) -> Message: return await self.in_messages.get()
 
-class RawQueuelink(QueueLink):
+class RawQueueLink(QueueLink):
   async def _send(self, message: Message): await self.out_messages.put(serialize_message(message))
   async def _recv(self) -> Message: return deserialize_message(await self.in_messages.get())
 
 def create_queue_connection(raw: bool = False) -> tuple[Link, Link]:
   queue_a, queue_b = asyncio.Queue(), asyncio.Queue()
-  if raw: link_a, link_b = RawQueuelink(queue_a, queue_b), RawQueuelink(queue_b, queue_a)
+  if raw: link_a, link_b = RawQueueLink(queue_a, queue_b), RawQueueLink(queue_b, queue_a)
   else: link_a, link_b = QueueLink(queue_a, queue_b), QueueLink(queue_b, queue_a)
   link_a.dependents.append(link_b)
   link_b.dependents.append(link_a)
