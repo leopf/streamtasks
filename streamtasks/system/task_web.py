@@ -13,9 +13,9 @@ from streamtasks.asgi import ASGIAppRunner, ASGIProxyApp
 from streamtasks.asgiserver import ASGIHandler, ASGIRouter, ASGIServer, HTTPContext, TransportContext, WebsocketContext, decode_data_uri, http_context_handler, path_rewrite_handler, static_content_handler, static_files_handler, transport_context_handler, websocket_context_handler
 from streamtasks.client import Client
 from streamtasks.client.discovery import delete_topic_space, get_topic_space, register_address_name, register_topic_space
-from streamtasks.client.fetch import FetchError
 from streamtasks.client.receiver import TopicsReceiver
-from streamtasks.net import Link, Switch
+from streamtasks.env import DATA_DIR
+from streamtasks.net import Link
 from streamtasks.net.message.data import SerializableData
 from streamtasks.net.message.serialize import serializable_data_to_json
 from streamtasks.net.utils import str_to_endpoint
@@ -64,7 +64,7 @@ class TaskWebBackendStore:
     self.running_deployments: dict[UUID4, RunningDeployment] = {}
     
     self.tmp_dir = tempfile.TemporaryDirectory() # TODO ugly
-    data_dir = os.getenv("DATA_DIR", self.tmp_dir.name)
+    data_dir = DATA_DIR or self.tmp_dir.name
     if not os.path.exists(data_dir): os.mkdir(data_dir)
     
     self.deployments: shelve.Shelf = shelve.open(os.path.join(data_dir, "deployments.db"))

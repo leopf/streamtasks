@@ -84,11 +84,11 @@ async def delete_topic_space(client: 'Client', id: int): await client.fetch(Work
 async def register_topic_space(client: 'Client', topic_ids: set[int]) -> tuple[int, dict[int, int]]:
   result = await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REGISTER_TOPIC_SPACE, RegisterTopicSpaceRequestMessage(topic_ids=topic_ids).model_dump())
   data = TopicSpaceResponseMessage.model_validate(result)
-  return (data.id, data.topic_id_map)
+  return (data.id, { k: v for k, v in data.topic_id_map })
 async def get_topic_space(client: 'Client', id: int): 
   result = await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.GET_TOPIC_SPACE, TopicSpaceRequestMessage(id=id).model_dump())
   data = TopicSpaceResponseMessage.model_validate(result)
-  return data.topic_id_map
+  return { k: v for k, v in data.topic_id_map }
 
 async def _register_address_name(client: 'Client', name: str, address: Optional[int]):
   await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REGISTER_ADDRESS, RegisterAddressRequestBody(address_name=name, address=address).model_dump())

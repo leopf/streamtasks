@@ -7,13 +7,12 @@ import av.stream
 import av
 import asyncio
 from extra.debugging import ddebug_value
+from streamtasks.env import DEBUG_MEDIA
 from streamtasks.media.audio import AudioCodecInfo
 from streamtasks.media.codec import AVTranscoder, CodecInfo, Decoder
 from streamtasks.media.packet import MediaPacket
 from streamtasks.media.video import VideoCodecInfo
 from streamtasks.utils import AsyncConsumer, AsyncMPProducer, AsyncProducer, AsyncTrigger
-
-DEBUG_MEDIA = int(os.getenv("DEBUG_MEDIA", "0"))
 
 class _StreamContext:
   def __init__(self) -> None:

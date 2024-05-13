@@ -10,11 +10,11 @@ from streamtasks.client.broadcast import BroadcastReceiver, BroadcastingServer
 from streamtasks.client.discovery import get_topic_space, register_address_name
 from streamtasks.client.fetch import FetchError, FetchErrorStatusCode, FetchRequest, FetchServer, new_fetch_body_bad_request, new_fetch_body_general_error, new_fetch_body_not_found
 from streamtasks.client.signal import SignalServer, send_signal
-from streamtasks.net import DAddress, EndpointOrAddress, Link, Switch, TopicRemappingLink, create_queue_connection
+from streamtasks.net import DAddress, EndpointOrAddress, Link, TopicRemappingLink, create_queue_connection
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.types import Message, TopicDataMessage
 from streamtasks.services.protocols import AddressNames
-from streamtasks.utils import NODE_NAME
+from streamtasks.env import NODE_NAME
 from streamtasks.worker import Worker
 
 MetadataDict = dict[str, int|float|str|bool]
@@ -60,6 +60,9 @@ class TaskStatus(Enum):
 class TaskReport(ModelWithId):
   error: Optional[str]
   status: TaskStatus
+  
+  @field_serializer("status")
+  def serialize_status(self, status: TaskStatus): return status.value
 
 class TaskHostRegistration(ModelWithStrId):
   address: int
@@ -82,6 +85,9 @@ class TaskInstance(ModelWithId):
   metadata: MetadataDict
   error: Optional[str]
   status: TaskStatus
+  
+  @field_serializer("status")
+  def serialize_status(self, status: TaskStatus): return status.value
 
 class TASK_CONSTANTS:
   # fetch descriptors

@@ -2,8 +2,8 @@ from fractions import Fraction
 from typing import Any
 from pydantic import BaseModel, ValidationError
 from extra.debugging import ddebug_value
+from streamtasks.env import DEBUG_MEDIA
 from streamtasks.media.audio import AudioCodecInfo, AudioFrame
-from streamtasks.media.container import DEBUG_MEDIA
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import MediaMessage, TimestampChuckMessage
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator

@@ -45,11 +45,11 @@ class TopicSpaceRequestMessage(BaseModel):
   id: int
 
 class RegisterTopicSpaceRequestMessage(BaseModel):
-  topic_ids: set[int]
+  topic_ids: list[int]
   
 class TopicSpaceResponseMessage(BaseModel):
   id: int
-  topic_id_map: dict[int, int]
+  topic_id_map: list[tuple[int, int]]
 
 class GenerateAddressesRequestMessageBase(BaseModel):
   count: int

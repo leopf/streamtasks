@@ -91,14 +91,14 @@ class DiscoveryWorker(Worker):
       self._topic_space_id_counter += 1
       topic_id_map = { k: v for k, v in zip(request.topic_ids, new_topic_ids) }
       self._topic_spaces[self._topic_space_id_counter] = topic_id_map
-      await req.respond(TopicSpaceResponseMessage(id=self._topic_space_id_counter, topic_id_map=topic_id_map).model_dump())
+      await req.respond(TopicSpaceResponseMessage(id=self._topic_space_id_counter, topic_id_map=list(topic_id_map.items())).model_dump())
 
     @server.route(WorkerRequestDescriptors.GET_TOPIC_SPACE)
     async def _(req: FetchRequest):
       try:
         request = TopicSpaceRequestMessage.model_validate(req.body)
         topic_id_map = self._topic_spaces[request.id]
-        await req.respond(TopicSpaceResponseMessage(id=request.id, topic_id_map=topic_id_map).model_dump())
+        await req.respond(TopicSpaceResponseMessage(id=request.id, topic_id_map=list(topic_id_map.items())).model_dump())
       except KeyError as e:
         await req.respond_error(new_fetch_body_bad_request(str(e)))
         

@@ -6,12 +6,13 @@ import os
 import struct
 import tempfile
 from typing import Awaitable, Callable
+from streamtasks.env import NODE_NAME
 from streamtasks.net import ConnectionClosedError, Link
 from streamtasks.net.message.serialize import deserialize_message, serialize_message
 from streamtasks.net.message.types import Message
 from importlib.metadata import version
 import urllib.parse
-from streamtasks.utils import NODE_NAME, AsyncTrigger
+from streamtasks.utils import AsyncTrigger
 from streamtasks.worker import Worker
 
 def _get_version_specifier(): return ".".join(version(__name__.split(".", maxsplit=1)[0]).split(".")[:2]) # NOTE: major.minor during alpha

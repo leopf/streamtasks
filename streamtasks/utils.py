@@ -272,5 +272,3 @@ class IdGenerator:
     self._current += 1
     if self._current >= self._end: self._current = self._start
     return res
-
-NODE_NAME: str = os.getenv('NODE_NAME', platform.node())

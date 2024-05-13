@@ -2,7 +2,7 @@ from fractions import Fraction
 from typing import Any
 from pydantic import BaseModel, ValidationError
 from extra.debugging import ddebug_value
-from streamtasks.media.container import DEBUG_MEDIA
+from streamtasks.env import DEBUG_MEDIA
 from streamtasks.media.video import VideoCodecInfo, VideoFrame, video_buffer_to_ndarray
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import MediaMessage, TimestampChuckMessage

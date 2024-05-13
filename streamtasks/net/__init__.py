@@ -1,4 +1,5 @@
-from typing import Any, Callable, Coroutine, Union
+from typing import Any, Callable, Union
+from streamtasks.env import DEBUG_SER
 from streamtasks.net.helpers import PricedIdTracker
 from streamtasks.net.message.serialize import serialize_message, deserialize_message
 from streamtasks.utils import IdTracker
@@ -19,6 +20,13 @@ class ConnectionClosedError(Exception):
   def __init__(self, message: str = "Connection closed", origin: BaseException | None = None):
     if origin: super().__init__(message + "\nOrigin: " + str(origin))
     else: super().__init__(message)
+
+if DEBUG_SER: 
+  def _transform_message(message: Message):
+    try: return deserialize_message(serialize_message(message))
+    except KeyError: return message
+else:
+  def _transform_message(message: Message): return message
 
 class Link(ABC):
   def __init__(self, cost: int = 1):
@@ -61,6 +69,7 @@ class Link(ABC):
 
   async def send(self, message: Message):
     if self._closed: raise ConnectionClosedError()
+    message = _transform_message(message)
     if isinstance(message, InTopicsChangedMessage):
       itc_message: InTopicsChangedMessage = message
       self.recv_topics = self.recv_topics.union(itc_message.add).difference(itc_message.remove)
@@ -79,6 +88,7 @@ class Link(ABC):
       self._receiver = asyncio.create_task(self._recv())
       try:
         message = await self._receiver
+        message = _transform_message(message)
         message = self._process_recv_message(message)
       except asyncio.CancelledError as e:
         if len(e.args) > 0 and isinstance(e.args[0], ConnectionClosedError): raise e.args[0]

@@ -4,8 +4,9 @@ from typing import Any
 from extra.debugging import ddebug_value
 from pydantic import BaseModel, ValidationError
 from streamtasks.client.topic import InTopicSynchronizer
+from streamtasks.env import DEBUG_MEDIA
 from streamtasks.media.audio import AudioCodecInfo
-from streamtasks.media.container import DEBUG_MEDIA, AVOutputStream, OutputContainer
+from streamtasks.media.container import AVOutputStream, OutputContainer
 from streamtasks.media.video import VideoCodecInfo
 from streamtasks.system.configurators import EditorFields, IOTypes, multitrackio_configurator, static_configurator
 from streamtasks.net.message.structures import MediaMessage
