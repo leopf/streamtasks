@@ -7,13 +7,13 @@ from abc import ABC, abstractmethod
 from streamtasks.client import Client
 import asyncio
 from streamtasks.client.broadcast import BroadcastReceiver, BroadcastingServer
-from streamtasks.client.discovery import get_topic_space, register_address_name
+from streamtasks.client.discovery import get_topic_space, register_address_name, wait_for_topic_signal
 from streamtasks.client.fetch import FetchError, FetchErrorStatusCode, FetchRequest, FetchServer, new_fetch_body_bad_request, new_fetch_body_general_error, new_fetch_body_not_found
 from streamtasks.client.signal import SignalServer, send_signal
 from streamtasks.net import DAddress, EndpointOrAddress, Link, TopicRemappingLink, create_queue_connection
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.types import Message, TopicDataMessage
-from streamtasks.services.protocols import AddressNames
+from streamtasks.services.protocols import AddressNames, WorkerTopics
 from streamtasks.env import NODE_NAME
 from streamtasks.worker import Worker
 
@@ -155,6 +155,7 @@ class TaskHost(Worker):
       await self.setup()
       self.client = await self.create_client()
       self.client.start()
+      await wait_for_topic_signal(self.client, WorkerTopics.DISCOVERY_SIGNAL)
       await self.client.request_address()
       self.ready.set()
       for register_ep in self.register_endpoits: await self.register(register_ep)

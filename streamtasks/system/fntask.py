@@ -10,8 +10,8 @@ import inspect
 from streamtasks.client import Client
 from streamtasks.client.discovery import wait_for_topic_signal
 from streamtasks.client.topic import InTopic, OutTopic, SequentialInTopicSynchronizer
-from streamtasks.connection import connect
-from streamtasks.net import EndpointOrAddress, Link
+from streamtasks.connection import AutoReconnector, connect
+from streamtasks.net import EndpointOrAddress, Link, Switch
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import NumberMessage, TextMessage, TimestampChuckMessage
 from streamtasks.services.protocols import AddressNames, WorkerTopics
@@ -364,17 +364,18 @@ class FnTaskContext:
     return _FnTaskHost(self.config, link=link, register_endpoits=register_endpoits)
   
   async def run(self, to: Link | str | None = None, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER]):
-    if isinstance(to, Link): link = to
+    if isinstance(to, Link): await self.TaskHost(link=to, register_endpoits=register_endpoits).run()
     else:
       logging.info("connecting" + ("!" if to is None else " to " + to))
-      link = await connect(to)
-      client = Client(link)
-      client.start()
-      await wait_for_topic_signal(client, WorkerTopics.DISCOVERY_SIGNAL)
-      await client.stop_wait()
+      switch = Switch()
+      reconnector = AutoReconnector(await switch.add_local_connection(), functools.partial(connect, url=to))
+      reconnector_task = asyncio.create_task(reconnector.run())
+      await reconnector.wait_connected()
       logging.info("connected" + ("!" if to is None else " to " + to))
-    task_host = self.TaskHost(link=link, register_endpoits=register_endpoits)
-    await task_host.run()
+      await asyncio.gather(
+        reconnector_task,
+        self.TaskHost(link=await switch.add_local_connection(), register_endpoits=register_endpoits).run()
+      )
     
   def run_sync(self, to: Link | str | None = None, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER]):
     asyncio.run(self.run(to, register_endpoits=register_endpoits))

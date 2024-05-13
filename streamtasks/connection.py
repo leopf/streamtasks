@@ -273,6 +273,7 @@ class AutoReconnector(Worker):
           if link.closed: self._async_connected.set(False) # in case it closed already
           await self._async_connected.wait(False)
           await asyncio.wait(self.delay)
+          logging.info("reconnecting")
         except ConnectionClosedError: pass
     finally: await self.shutdown()
 
