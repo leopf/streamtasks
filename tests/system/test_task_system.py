@@ -25,8 +25,8 @@ class DemoTask(Task):
   async def shoot(self): await self.shoot_topic.send(MessagePackData("BANG"))
 
 class DemoTaskHost(TaskHost):
-  def __init__(self, node_link: Link, switch: Switch | None = None):
-    super().__init__(node_link, switch)
+  def __init__(self, node_link: Link):
+    super().__init__(node_link)
     self.stop_event = asyncio.Event()
     self.demo_tasks: list[DemoTask] = []
   @property

@@ -6,9 +6,9 @@ import asyncio
 
 
 class Worker:
-  def __init__(self, node_link: Link, switch: Optional[Switch] = None):
+  def __init__(self, node_link: Link):
     self.node_link = node_link
-    self.switch = switch if switch is not None else Switch()
+    self.switch = Switch()
     self.connected = asyncio.Event()
 
   async def create_client(self) -> Client: return Client(await self.create_link())

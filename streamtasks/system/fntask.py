@@ -141,8 +141,8 @@ class _FnTask(Task):
         
 
 class _FnTaskHost(TaskHost):
-  def __init__(self, config: 'FnTaskConfig', node_link: Link, switch: Switch | None = None, register_endpoits: list[EndpointOrAddress] = []):
-    super().__init__(node_link=node_link, switch=switch, register_endpoits=register_endpoits)
+  def __init__(self, config: 'FnTaskConfig', node_link: Link, register_endpoits: list[EndpointOrAddress] = []):
+    super().__init__(node_link=node_link, register_endpoits=register_endpoits)
     self.config = config
     
   @property
@@ -351,8 +351,8 @@ class FnTaskContext:
   def __init__(self, config: FnTaskConfig) -> None:
     self.config = config
     
-  def TaskHost(self, node_link: Link, switch: Switch | None = None, register_endpoits: list[EndpointOrAddress] = []):
-    return _FnTaskHost(self.config, node_link=node_link, switch=switch, register_endpoits=register_endpoits)
+  def TaskHost(self, node_link: Link, register_endpoits: list[EndpointOrAddress] = []):
+    return _FnTaskHost(self.config, node_link=node_link, register_endpoits=register_endpoits)
   
   async def run(self, to: Link | str | None = None, register_endpoits: list[EndpointOrAddress] = []):
     if isinstance(to, Link): link = to

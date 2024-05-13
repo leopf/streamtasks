@@ -243,8 +243,8 @@ class ASGIProxyApp:
     send_task.cancel()
 
 class HTTPServerOverASGI(Worker):
-  def __init__(self, node_link: Link, http_endpoint: tuple[str, int], asgi_endpoint: EndpointOrAddress, http_config: dict[str, Any] = {}, switch: Switch | None = None):
-    super().__init__(node_link, switch)
+  def __init__(self, node_link: Link, http_endpoint: tuple[str, int], asgi_endpoint: EndpointOrAddress, http_config: dict[str, Any] = {}):
+    super().__init__(node_link)
     self.asgi_endpoint = endpoint_or_address_to_endpoint(asgi_endpoint, WorkerPorts.ASGI)
     self.http_endpoint = http_endpoint
     self.http_config = http_config
