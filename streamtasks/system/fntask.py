@@ -3,19 +3,23 @@ import contextlib
 from dataclasses import dataclass
 import functools
 import logging
-from typing import Any, Callable, Annotated, Iterable
+from typing import Any, Callable, Annotated
 import typing
 from pydantic import BaseModel, TypeAdapter, ValidationError
 import inspect
 from streamtasks.client import Client
+from streamtasks.client.discovery import wait_for_topic_signal
 from streamtasks.client.topic import InTopic, OutTopic, SequentialInTopicSynchronizer
-from streamtasks.net import EndpointOrAddress, Link, Switch
+from streamtasks.connection import connect
+from streamtasks.net import EndpointOrAddress, Link
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import NumberMessage, TextMessage, TimestampChuckMessage
+from streamtasks.services.protocols import AddressNames, WorkerTopics
 from streamtasks.system.configurators import EditorFields, key_to_label, static_configurator
 from streamtasks.system.task import MetadataDict, Task, TaskHost
 
-_IO_ANNOTATION_ADAPTER = TypeAdapter(tuple[MetadataDict])
+IOAnnotations = tuple[()] | tuple[MetadataDict] | tuple[MetadataDict, dict[str, str] | list[str]]
+_IO_ANNOTATION_ADAPTER = TypeAdapter(IOAnnotations)
 _DEFAULT_METADATA: MetadataDict = { "type": "ts" }
 _TYPE_METADATA: dict[type, MetadataDict] = {
   int: { "content": "number" },
@@ -71,6 +75,12 @@ def _pydantic_schema_to_editor_fields(schema: dict):
     if field_type_name == "bool": fields.append(EditorFields.boolean(field_name))
     if field_type_name == "str": fields.append(EditorFields.text(field_name))
   return fields
+def _parse_param_io_annotations(data_type: type[Annotated], metadata: MetadataDict, io_map: dict[str, str]):
+  io_annotations: IOAnnotations = _IO_ANNOTATION_ADAPTER.validate_python(data_type.__metadata__)
+  if len(io_annotations) >= 1: metadata.update(io_annotations[0])
+  if len(io_annotations) >= 2:
+    io_map.update({ v: v for v in io_annotations[1] } if isinstance(io_annotations[1], list) else io_annotations[1])
+  return data_type.__origin__
 
 @dataclass
 class _FnTaskInput:
@@ -187,6 +197,7 @@ class FnTaskInputConfig:
   name: str
   data_type: type
   metadata: MetadataDict
+  io_map: dict[str, str]
   
   @property
   def input_key(self): return _input_name_to_input_key(self.name)
@@ -198,12 +209,11 @@ class FnTaskInputConfig:
   def from_parameter(param: inspect.Parameter):
     data_type = param.annotation 
     metadata = { **_DEFAULT_METADATA, "label": key_to_label(param.name) }
+    io_map = {}
     if typing.get_origin(data_type) is Annotated:
-      metadata = { **metadata, **_IO_ANNOTATION_ADAPTER.validate_python(data_type.__metadata__)[0] }
-      data_type = data_type.__origin__
+      data_type = _parse_param_io_annotations(data_type, metadata, io_map)
     metadata = { **_TYPE_METADATA.get(data_type, {}), **metadata }
-    
-    config = FnTaskInputConfig(name=param.name, data_type=data_type, metadata=metadata)
+    config = FnTaskInputConfig(name=param.name, data_type=data_type, metadata=metadata, io_map=io_map)
     config.validate()
     return config
   
@@ -214,6 +224,7 @@ class FnTaskOutputConfig:
   index: int
   data_type: type
   metadata: MetadataDict
+  io_map: dict[str, str]
   
   @property
   def output_key(self): return _output_index_to_input_key(self.index)
@@ -225,11 +236,11 @@ class FnTaskOutputConfig:
   def from_type(t: type, index: int):
     data_type = t 
     metadata = { **_DEFAULT_METADATA, "label": f"output {index}" }
+    io_map = {}
     if typing.get_origin(data_type) is Annotated:
-      metadata = { **metadata, **_IO_ANNOTATION_ADAPTER.validate_python(data_type.__metadata__)[0] }
-      data_type = data_type.__origin__
+      data_type = _parse_param_io_annotations(data_type, metadata, io_map)
     metadata = { **_TYPE_METADATA.get(data_type, {}), **metadata }
-    config = FnTaskOutputConfig(index=index, data_type=data_type, metadata=metadata)
+    config = FnTaskOutputConfig(index=index, data_type=data_type, metadata=metadata, io_map=io_map)
     config.validate()
     return config
   
@@ -247,8 +258,13 @@ class FnTaskConfig:
   state_type: type[object] | None
   inputs: list[FnTaskInputConfig]
   outputs: list[FnTaskOutputConfig]
-  config_to_input_map: dict[str, dict[str, str]]
-  config_to_output_map: list[dict[str, str]]
+  
+  @property
+  def config_to_input_map(self) -> dict[str, dict[str, str]]: return { input.input_key: input.io_map for input in self.inputs }
+  
+  @property
+  def config_to_output_map(self) -> list[dict[str, str]]: return [ output.io_map for output in self.outputs ]
+  
   
   @functools.cached_property
   def config_type_adapter(self): return None if self.config_type is None else TypeAdapter(self.config_type)
@@ -324,11 +340,6 @@ class FnTaskConfig:
     elif typing.get_origin(output_type) is tuple: outputs = [ FnTaskOutputConfig.from_type(t, idx) for idx, t in enumerate(output_type.__args__) ]
     else: outputs = [ FnTaskOutputConfig.from_type(output_type, 0) ]  
   
-    config_to_input_map = { _input_name_to_input_key(k): v for k, v in options.get("config_to_input_map", {}).items() }
-    config_to_output_map = options.get("config_to_output_map", [])
-    if not isinstance(config_to_output_map, (list, tuple)): config_to_output_map = [ config_to_output_map ]
-    else: config_to_output_map = list(config_to_output_map)
-    
     config = FnTaskConfig(
       fn=fn,
       name=name, 
@@ -339,9 +350,7 @@ class FnTaskConfig:
       config_type=config_type, 
       state_type=state_type, 
       inputs=inputs,
-      outputs=outputs,
-      config_to_input_map=config_to_input_map, 
-      config_to_output_map=config_to_output_map
+      outputs=outputs
     )
     config.validate()
     config.editor_fields
@@ -354,13 +363,20 @@ class FnTaskContext:
   def TaskHost(self, link: Link, register_endpoits: list[EndpointOrAddress] = []):
     return _FnTaskHost(self.config, link=link, register_endpoits=register_endpoits)
   
-  async def run(self, to: Link | str | None = None, register_endpoits: list[EndpointOrAddress] = []):
+  async def run(self, to: Link | str | None = None, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER]):
     if isinstance(to, Link): link = to
-    else: raise NotImplementedError()
+    else:
+      logging.info("connecting" + "!" if to is None else " to " + to)
+      link = await connect(to)
+      client = Client(link)
+      client.start()
+      await wait_for_topic_signal(client, WorkerTopics.DISCOVERY_SIGNAL)
+      await client.stop_wait()
+      logging.info("connected" + "!" if to is None else " to " + to)
     task_host = self.TaskHost(link=link, register_endpoits=register_endpoits)
     await task_host.run()
     
-  async def run_sync(self, to: Link | str | None = None, register_endpoits: list[EndpointOrAddress] = []):
+  def run_sync(self, to: Link | str | None = None, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER]):
     asyncio.run(self.run(to, register_endpoits=register_endpoits))
     
 def fn_task(**kwargs):

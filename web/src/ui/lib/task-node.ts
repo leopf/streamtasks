@@ -34,12 +34,18 @@ export class TaskNode extends EventEmitter<{ "updated": [] }> implements Node {
     }
 
     public get outlineColor() {
-        const status: GeneralStatus = this.task.taskInstance ? taskInstance2GeneralStatusMap[this.task.taskInstance.status] : "ok";
+        let status: GeneralStatus = "ok";
+        if (this.task.taskHost.metadata["js:configurator"] === "std:notfound") {
+            status = "error";
+        }
+        else if (this.task.taskInstance) {
+            status = taskInstance2GeneralStatusMap[this.task.taskInstance.status];
+        }
         return taskGeneralStatusColors[status];
     }
 
     public get label(): string {
-        const originalLabel = this.task.originalLabel;
+        const originalLabel = this.task.parsedTaskHost.label;
         if (this.task.label.includes(originalLabel)) {
             return this.task.label;
         }

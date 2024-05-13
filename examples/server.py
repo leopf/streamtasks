@@ -15,7 +15,6 @@ from streamtasks.system.task import TaskManager
 from streamtasks.system.task_web import TaskWebBackend
 from streamtasks.system.helpers import get_all_task_hosts
 from streamtasks.worker import Worker
-from examples.fn_task import bgr24_red_shifter
 
 async def main():
   switch = Switch()
@@ -32,7 +31,7 @@ async def main():
     HTTPServerOverASGI(await switch.add_local_connection(), ("0.0.0.0", 8080), AddressNames.TASK_MANAGER_WEB),
     NodeServer(await switch.add_local_connection()),
   ]
-  for TaskHostCls in [*get_all_task_hosts(), bgr24_red_shifter.TaskHost]: workers.append(TaskHostCls(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]))
+  for TaskHostCls in get_all_task_hosts(): workers.append(TaskHostCls(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]))
   done_tasks, _ = await asyncio.wait([discovery_task] + [ asyncio.create_task(worker.run()) for worker in workers ], return_when="FIRST_EXCEPTION")
   for task in done_tasks: await task
 

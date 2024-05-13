@@ -13,6 +13,7 @@ from streamtasks.asgi import ASGIAppRunner, ASGIProxyApp
 from streamtasks.asgiserver import ASGIHandler, ASGIRouter, ASGIServer, HTTPContext, TransportContext, WebsocketContext, decode_data_uri, http_context_handler, path_rewrite_handler, static_content_handler, static_files_handler, transport_context_handler, websocket_context_handler
 from streamtasks.client import Client
 from streamtasks.client.discovery import delete_topic_space, get_topic_space, register_address_name, register_topic_space
+from streamtasks.client.fetch import FetchError, FetchErrorStatusCode
 from streamtasks.client.receiver import TopicsReceiver
 from streamtasks.env import DATA_DIR
 from streamtasks.net import Link
@@ -149,8 +150,13 @@ class TaskWebBackend(Worker):
     async def _error_handler(ctx: HTTPContext):
       try:
         await ctx.next()
-      except (ValidationError, KeyError, ValueError) as e:
+      except (ValidationError, ValueError) as e:
         await ctx.respond_text(str(e), 400)
+      except KeyError as e: await ctx.respond_text(str(e), 404)
+      except FetchError as e:
+        if e.status_code == FetchErrorStatusCode.NOT_FOUND: await ctx.respond_text(str(e), 404)
+        if e.status_code == FetchErrorStatusCode.BAD_REQUEST: await ctx.respond_text(str(e), 400)
+        if e.status_code == FetchErrorStatusCode.GENERAL: await ctx.respond_text(str(e), 500)
       except BaseException as e:
         await ctx.respond_text(str(e), 500)
     

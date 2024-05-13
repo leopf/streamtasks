@@ -118,7 +118,7 @@ class TaskHost(Worker):
     self.client: Client
     self.tasks: dict[str, asyncio.Task] = {}
     self.ready = asyncio.Event()
-    self.register_endpoits = register_endpoits
+    self.register_endpoits = list(register_endpoits)
     
     id_hash = hashlib.sha256()
     id_hash.update(b"TaskHost")

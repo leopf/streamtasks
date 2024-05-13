@@ -2,23 +2,18 @@ import { Box, Stack, TextField } from "@mui/material";
 import { TaskTemplateItem } from "./components/TaskTemplateItem";
 import { observer, useLocalObservable } from "mobx-react-lite";
 import { useRootStore } from "../state/root-store";
-import { TaskHost } from "../types/task";
+import { getTaskHostSearchValues, parseTaskHost } from "../lib/task-host";
 
 export const TaskSelectionMenu = observer(() => {
     const rootStore = useRootStore();
     const localState = useLocalObservable(() => ({
         searchText: "",
         get foundHosts() {
-            let taskHosts = rootStore.taskManager.taskHosts;
+            let taskHosts = Array.from(rootStore.taskManager.taskHosts.values()).map(taskHost => parseTaskHost(taskHost));
             if (this.searchText) {
-                taskHosts = taskHosts.filter(th => Object.values(th.metadata).some(k => String(k).includes(this.searchText)));
+                taskHosts = taskHosts.filter(th => getTaskHostSearchValues(th).includes(this.searchText));
             }
-            taskHosts = Array.from((new Map<string, TaskHost>(taskHosts.map(th => [th.id, th]))).values())
-            taskHosts = taskHosts
-                .map(th => [th, String(th.metadata["cfg:label"] ?? th.metadata["label"] ?? "")] as [TaskHost, string])
-                .sort((a, b) => a[1].localeCompare(b[1]))
-                .map(item => item[0])
-            return taskHosts;
+            return taskHosts.sort((a, b) => a.label.localeCompare(b.label));
         }
     }));
 

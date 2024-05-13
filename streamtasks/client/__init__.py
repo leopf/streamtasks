@@ -37,7 +37,12 @@ class Client:
   def sync_in_topic(self, topic: int, sync: InTopicSynchronizer): return SynchronizedInTopic(self, topic, sync)
 
   def start(self): self._started_event.set()
-  def stop(self): self._started_event.clear()
+  async def stop_wait(self): 
+    self._started_event.clear()
+    if self._receive_task is not None:
+      self._receive_task.cancel("stopped receiving!")
+      try: await self._receive_task
+      except asyncio.CancelledError: pass
 
   def add_serializer(self, serializer: Serializer):
     if serializer.content_id not in self._custom_serializers: self._custom_serializers[serializer.content_id] = serializer

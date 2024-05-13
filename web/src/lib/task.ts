@@ -4,6 +4,7 @@ import cloneDeep from "clone-deep";
 import deepEqual from "deep-equal";
 import { TaskModel } from "../model/task.ts";
 import { GeneralStatus } from "../types/status.ts";
+import { parseTaskHost } from "./task-host.ts";
 
 export function extractTaskIO(taskInstance: Task): TaskIO {
     return {
@@ -22,8 +23,6 @@ export function getMetadataKeyDiffs(a: Metadata, b: Metadata, ignoreFields: Set<
     return diffs;
 }
 
-export const taskHostLabelFields = ["label", "cfg:label"];
-export const taskHostDescriptionFields = ["description", "cfg:description"];
 export const ioMetadataKeyLabels: Record<string, string> = { "topic_id": "topic id" }
 export const ioMetadataValueLabels: Record<string, Record<string, string>> = { "type": { "ts": "timestamp" } }
 export const ioMetadataHideKeys = new Set([ "key" ]);
@@ -54,10 +53,6 @@ export class ManagedTask extends EventEmitter<{"updated": [FullTask], "connected
         });
     }
 
-    public get originalLabel() {
-        return String(taskHostLabelFields.map(field => this.taskHost.metadata[field]).find(field => field));
-    }
-
     public get inputs() {
         return this._task.inputs;
     }
@@ -80,6 +75,10 @@ export class ManagedTask extends EventEmitter<{"updated": [FullTask], "connected
 
     public get taskHost() {
         return this.configuratorContext.taskHost;
+    }
+
+    public get parsedTaskHost() {
+        return parseTaskHost(this.configuratorContext.taskHost); // TODO cache this
     }
 
     public get hasEditor() {

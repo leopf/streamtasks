@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import asyncio
+import functools
 import json
 import logging
 import os
@@ -12,7 +13,7 @@ from streamtasks.net.message.serialize import deserialize_message, serialize_mes
 from streamtasks.net.message.types import Message
 from importlib.metadata import version
 import urllib.parse
-from streamtasks.utils import AsyncTrigger
+from streamtasks.utils import AsyncBool, AsyncTrigger
 from streamtasks.worker import Worker
 
 def _get_version_specifier(): return ".".join(version(__name__.split(".", maxsplit=1)[0]).split(".")[:2]) # NOTE: major.minor during alpha
@@ -255,7 +256,10 @@ class AutoReconnector(Worker):
     super().__init__(link)
     self.connect_fn = connect_fn
     self.delay = delay
-    self.disconnected_event = asyncio.Event()
+    self._async_connected = AsyncBool()
+    
+  @property
+  def connected(self): return self._async_connected.value
     
   async def run(self):
     try:
@@ -264,10 +268,12 @@ class AutoReconnector(Worker):
         try:
           link = await self.connect_fn()
           await self.switch.add_link(link)
-          link.on_closed.append(self.disconnected_event.set)
-          if link.closed: self.disconnected_event.set() # in case it closed already
-          await self.disconnected_event.wait()
+          self._async_connected.set(True)
+          link.on_closed.append(functools.partial(self._async_connected.set, False))
+          if link.closed: self._async_connected.set(False) # in case it closed already
+          await self._async_connected.wait(False)
           await asyncio.wait(self.delay)
         except ConnectionClosedError: pass
-        finally: self.disconnected_event.clear()
     finally: await self.shutdown()
+
+  async def wait_connected(self, connected: bool = True): await self._async_connected.wait(connected)

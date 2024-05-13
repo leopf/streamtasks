@@ -4,22 +4,31 @@ import { z } from "zod";
 import { TaskHostModel } from "../model/task";
 import { ManagedTask, getErrorConfigurator } from "../lib/task";
 
+function getNotFoundTaskHost(id: string): TaskHost {
+    return {
+        id,
+        metadata: {
+            "label": "not found",
+            "description": "The task host for this task was not found. Perhaps you have changed the name of a node, or you may be disconnected from a node.",
+            "js:configurator": "std:notfound"
+        }
+    };
+}
+
 export class TaskManager {
-    public taskHosts: TaskHost[] = [];
+    public taskHosts: Map<string, TaskHost> = observable.map();
     private configurators: Map<string, TaskConfigurator> = new Map();
     private idCounter: number = 1;
 
     constructor() {
         makeObservable(this, {
-            taskHosts: observable,
-            loadTaskHosts: action
+            loadTaskHosts: action,
         })
     }
 
     public async loadTaskHosts() {
         const result = await fetch("/api/task-hosts").then(res => res.json())
-        this.taskHosts = z.array(TaskHostModel).parse(result)
-        return this.taskHosts;
+        z.array(TaskHostModel).parse(result).forEach(th => this.taskHosts.set(th.id, th));
     }
 
     public async toManagedTask(task: FullTask, fail: boolean = true) {
@@ -55,14 +64,19 @@ export class TaskManager {
     }
 
     private async getTaskHost(id: string) {
-        let taskHost = this.taskHosts.find(th => th.id === id);
-        if (taskHost) {
-            return taskHost;
+        if (this.taskHosts.has(id)) {
+            return this.taskHosts.get(id)!;
         }
 
-        taskHost = TaskHostModel.parse(await fetch(`/api/task-host/${id}`, { method: "get" }).then(res => res.json()))
-        this.taskHosts.push(taskHost);
-        return taskHost;
+        const res = await fetch(`/api/task-host/${id}`, { method: "get" });
+        if (res.ok) {
+            const taskHost = TaskHostModel.parse(await res.json())
+            this.taskHosts.set(taskHost.id, taskHost);
+            return taskHost;
+        }
+        else {
+            return getNotFoundTaskHost(id);
+        }
     }
 
     private async getConfigurator(taskHost: TaskHost): Promise<TaskConfigurator> {

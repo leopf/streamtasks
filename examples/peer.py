@@ -11,7 +11,6 @@ from streamtasks.net import Switch
 from streamtasks.services.protocols import AddressNames, WorkerTopics
 from streamtasks.system.helpers import get_all_task_hosts
 from streamtasks.worker import Worker
-from examples.fn_task import bgr24_red_shifter
 from streamtasks.connection import AutoReconnector, connect, connect_node, get_server
 import argparse
 
@@ -28,11 +27,12 @@ async def main():
   connection = AutoReconnector(await switch.add_local_connection(), connect_node if args.connect is None else functools.partial(connect, url=args.connect))
   connection_task = asyncio.create_task(connection.run())
   await wait_for_topic_signal(client, WorkerTopics.DISCOVERY_SIGNAL)
+  logging.info("Connected to main!")
   
   workers: list[Worker] = []
   if args.serve is not None: workers.append(get_server(await switch.add_local_connection(), args.serve))
   
-  for TaskHostCls in [*get_all_task_hosts(), bgr24_red_shifter.TaskHost]: workers.append(TaskHostCls(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]))
+  for TaskHostCls in get_all_task_hosts(): workers.append(TaskHostCls(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]))
   done_tasks, _ = await asyncio.wait([connection_task] + [ asyncio.create_task(worker.run()) for worker in workers ], return_when="FIRST_EXCEPTION")
   for task in done_tasks: await task
 
