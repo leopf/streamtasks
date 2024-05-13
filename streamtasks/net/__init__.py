@@ -1,4 +1,4 @@
-from typing import Coroutine, Union
+from typing import Any, Callable, Coroutine, Union
 from streamtasks.net.helpers import PricedIdTracker
 from streamtasks.net.message.serialize import serialize_message, deserialize_message
 from streamtasks.utils import IdTracker
@@ -24,7 +24,7 @@ class Link(ABC):
     self.recv_topics: set[int] = set()
     self.out_topics: dict[int, int] = dict()
     self.addresses: dict[int, int] = dict()
-    self.dependents: list[Link] = []
+    self.on_closed: list[Callable[[], Any]] = []
 
     self._closed = False
     self._receiver: asyncio.Task[Message] | None = None
@@ -46,7 +46,7 @@ class Link(ABC):
     if self._receiver is not None:
       try: self._receiver.cancel(ConnectionClosedError())
       except asyncio.InvalidStateError: pass
-    for dependent in self.dependents: dependent.close()
+    for handler in self.on_closed: handler()
 
   def get_priced_out_topics(self, topics: set[int] = None) -> set[PricedId]:
     if topics is None:
@@ -125,8 +125,8 @@ class Link(ABC):
 class TopicRemappingLink(Link): # NOTE: maybe this should just inherit a specific link... 
   def __init__(self, link: Link, topic_id_map: dict[int, int]):
     super().__init__()
-    self.dependents.append(link)
-    link.dependents.append(self)
+    self.on_closed.append(link.close)
+    link.on_closed.append(self.close)
     self._link = link
     self._topic_id_map = topic_id_map # internal -> external
     self._rev_topic_id_map = {v:k for k, v in topic_id_map.items() } # external -> internal
@@ -168,8 +168,8 @@ def create_queue_connection(raw: bool = False) -> tuple[Link, Link]:
   queue_a, queue_b = asyncio.Queue(), asyncio.Queue()
   if raw: link_a, link_b = RawQueueLink(queue_a, queue_b), RawQueueLink(queue_b, queue_a)
   else: link_a, link_b = QueueLink(queue_a, queue_b), QueueLink(queue_b, queue_a)
-  link_a.dependents.append(link_b)
-  link_b.dependents.append(link_a)
+  link_a.on_closed.append(link_b.close)
+  link_b.on_closed.append(link_a.close)
   return link_a, link_b
 
 
