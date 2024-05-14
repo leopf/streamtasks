@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Metadata } from "../../types/task";
 
-export const compareIgnoreMetadataKeys = new Set(["key", "topic_id", "label"]);
+export const compareIOIgnorePaths = new Set(["key", "topic_id", "label"]);
 
 export function parseMetadataField<O>(metadata: Metadata, key: string, model: z.ZodType<O>, force: true): O;
 export function parseMetadataField<O>(metadata: Metadata, key: string, model: z.ZodType<O>, force: false): O | undefined;

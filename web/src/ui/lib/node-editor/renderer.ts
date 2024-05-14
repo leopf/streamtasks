@@ -274,6 +274,19 @@ class ConnectionLinkCollection {
     }
 }
 
+export type ConnectFailureInfo = {
+    errorText?: string;
+    isUserEvent: boolean;
+    input: {
+        key: string;
+        nodeId: string;
+    },
+    output?: {
+        id: number;
+        nodeId: string;
+    }
+}
+
 export function renderNodeToElement(node: Node) {
     const renderer = new NodeRenderer(node);
     renderer.render();
@@ -282,7 +295,7 @@ export function renderNodeToElement(node: Node) {
 }
 
 export class NodeEditorRenderer extends EventEmitter<{
-    "connectError": [string],
+    "connect-failure": [ConnectFailureInfo],
     "updated": [string],
     "selected": [string | undefined],
 }> {
@@ -418,7 +431,7 @@ export class NodeEditorRenderer extends EventEmitter<{
 
         const selectedInputConnection = this.selectedInputConnection;
         if (selectedInputConnection) {
-            if (await this.connectConnectionToInput(this.selectedNodeId!, selectedInputConnection.key)) {
+            if (await this.connectConnectionToInput(this.selectedNodeId!, selectedInputConnection.key), undefined, true) {
                 this.removeLinks(this.links.values.filter(c => c.inputNodeId === this.selectedNodeId && c.inputKey === connectionId));
                 this.emit("updated", this.selectedNodeId!);
             }
@@ -432,7 +445,7 @@ export class NodeEditorRenderer extends EventEmitter<{
         if (this.links.has(connection)) return;
         this.keepEditingLinkLine = true;
         try {
-            if (await this.connectLinkToInput(connection)) {
+            if (await this.connectLinkToInput(connection, true)) {
                 this.links.add(connection);
                 this.renderLink(connection);
                 this.renderUpdateInputLinks(connection.inputNodeId, connection.inputKey);
@@ -542,21 +555,36 @@ export class NodeEditorRenderer extends EventEmitter<{
         return newLinks;
     }
 
-    private async connectLinkToInput(link: ConnectionLink) {
+    private async connectLinkToInput(link: ConnectionLink, isUserEvent: boolean = false) {
         const outputNode = this.nodeRenderers.get(link.outputNodeId);
         if (!outputNode) return;
         const outputConnection = outputNode.outputs.find(c => c.streamId === link.outputId);
         if (!outputConnection) return false;
-        return await this.connectConnectionToInput(link.inputNodeId, link.inputKey, outputConnection)
+        return await this.connectConnectionToInput(link.inputNodeId, link.inputKey, { nodeId: link.outputNodeId, connection: outputConnection }, isUserEvent)
     }
 
-    private async connectConnectionToInput(inputNodeId: string, inputKey: string, outputConnection?: OutputConnection) {
+    private async connectConnectionToInput(inputNodeId: string, inputKey: string, outputInfo?: { nodeId: string, connection: OutputConnection }, isUserEvent: boolean = false) {
         const inputNode = this.nodeRenderers.get(inputNodeId);
         if (!inputNode) return false;
 
-        const result = await inputNode.connect(inputKey, outputConnection);
-        if (!this.handleConnectionResult(result)) return false;
-        return true;
+        const result = await inputNode.connect(inputKey, outputInfo?.connection);
+        if (result !== true) {
+            const errorText = typeof result === "string" ? result : undefined;
+            this.emit("connect-failure", {
+                errorText: errorText,
+                isUserEvent: isUserEvent,
+                input: {
+                    key: inputKey,
+                    nodeId: inputNodeId
+                },
+                output: outputInfo && {
+                    id: outputInfo.connection.streamId,
+                    nodeId: outputInfo.nodeId
+                }
+            })
+        }
+
+        return result === true;
     }
 
     private createConnectionLink(aNodeId: string | undefined, aConnectionId: string | number | undefined, bNodeId: string | undefined, bConnectionId: string | number | undefined): ConnectionLink | undefined {
@@ -577,20 +605,6 @@ export class NodeEditorRenderer extends EventEmitter<{
             inputNodeId: aInputConnection ? aNodeId : bNodeId,
             outputId: aOutputConnection ? aOutputConnection.streamId : bOutputConnection!.streamId,
             outputNodeId: aOutputConnection ? aNodeId : bNodeId,
-        }
-    }
-
-    private handleConnectionResult(result: ConnectResult): boolean {
-        if (result === false) {
-            this.emit("connectError", "Connection failed");
-            return false;
-        }
-        else if (result === true) {
-            return true;
-        }
-        else {
-            this.emit("connectError", result);
-            return false;
         }
     }
 

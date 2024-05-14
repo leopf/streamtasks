@@ -1,8 +1,6 @@
 # MY TODOS
 
-- dashboards
-- connection manager
-- free io keys in static config
+- DATA_DIR sub directories
 - fix input container (transcoder)
 - task host metadata unnecessary **
 
@@ -14,6 +12,11 @@ Media:
 Backend:
 - get single topic space translation
 - topic id efficient broadcasting server 
+
+Frontend:
+- connection manager
+- dashboards
+- free io keys in static config
 
 
 -----TASKS-----
@@ -61,6 +64,7 @@ Frontend:
 - list raw task instances
 - allow pruge tasks
 - ws task updates
+- suggest fixes for io mismatch
 
 Network:
 - Better topic control data (more maintainable).

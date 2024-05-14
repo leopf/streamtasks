@@ -1,10 +1,10 @@
 import { TaskConfiguratorContext, Task, Metadata, TaskPartialInput, TaskInput, TaskInstance, TaskInstanceStatus } from "../../types/task";
-import { getMetadataKeyDiffs as getObjectDiffPaths } from "../../lib/task";
+import { getObjectDiffPaths } from "../../lib/task";
 import { TaskCLSConfigurator, TaskCLSReactRendererMixin, createCLSConfigurator } from "../../lib/conigurator";
 import { StaticEditor } from "../../StaticEditor";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { EditorField, EditorFieldsModel } from "../../StaticEditor/types";
-import { GraphSetter, compareIgnoreMetadataKeys as compareIOIgnorePaths, extractObjectPathValues, parseMetadataField } from "../../lib/conigurator/helpers";
+import { GraphSetter, compareIOIgnorePaths, extractObjectPathValues, parseMetadataField } from "../../lib/conigurator/helpers";
 import { getFieldValidator } from "../../StaticEditor/util";
 import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";

@@ -1,7 +1,7 @@
 import { Box, IconButton, Stack, Tooltip, Typography } from "@mui/material";
 import { Metadata } from "../../types/task";
 import { useMemo } from "react";
-import { ioMetadataHideKeys, ioMetadataKeyLabels, ioMetadataValueLabels } from "../../lib/task";
+import { ioFieldNameToLabel, ioFieldValueToText, ioMetadataHideKeys } from "../../lib/task";
 import { Launch as LaunchIcon } from "@mui/icons-material";
 import { getStreamColor } from "../lib/node-editor";
 
@@ -13,7 +13,7 @@ export function TaskIOLabel(props: { io: Metadata, alignRight?: true, allowOpen?
         [...Object.entries(props.io)]
             .filter(([k, v]) => !ioMetadataHideKeys.has(k) && v !== undefined)
             .map(([k, v]) => [k, String(v)])
-            .map(([k, v]) => [ioMetadataKeyLabels[k] ?? k, ioMetadataValueLabels[k]?.[v] ?? v]), [props.io])
+            .map(([k, v]) => [ioFieldNameToLabel(k), ioFieldValueToText(k, v)]), [props.io])
     const label = props.io["label"] ?? " - ";
     const color = useMemo(() => getStreamColor(props.io as Record<string, string | number | boolean>, ignoreFieldsForIOColor), [props.io]);
 

@@ -13,7 +13,7 @@ export function extractTaskIO(taskInstance: Task): TaskIO {
     }
 }
 
-export function getMetadataKeyDiffs(a: Metadata, b: Metadata, ignoreFields: Set<keyof TaskInput>) {
+export function getObjectDiffPaths(a: Metadata, b: Metadata, ignoreFields: Set<keyof TaskInput>) {
     const diffs: string[] = [];
     for (const metadataKey of new Set([...Object.keys(a), ...Object.keys(b)].filter(k => !ignoreFields.has(k)))) {
         if (a[metadataKey] !== b[metadataKey]) {
@@ -23,8 +23,16 @@ export function getMetadataKeyDiffs(a: Metadata, b: Metadata, ignoreFields: Set<
     return diffs;
 }
 
-export const ioMetadataKeyLabels: Record<string, string> = { "topic_id": "topic id" }
-export const ioMetadataValueLabels: Record<string, Record<string, string>> = { "type": { "ts": "timestamp" } }
+export function ioFieldNameToLabel(fieldName: string) {
+    return fieldName.replaceAll("_", " ")
+}
+export function ioFieldValueToText(key: string, value: any) {
+    if (key === "type" && value === "ts") {
+        return "timestamp"
+    }
+    return String(value)
+}
+
 export const ioMetadataHideKeys = new Set([ "key" ]);
 
 export const taskInstance2GeneralStatusMap: Record<TaskInstanceStatus, GeneralStatus> = {

@@ -1,19 +1,35 @@
 import Box from '@mui/material/Box';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { TaskNode } from './lib/task-node';
 import { observer, useLocalObservable } from "mobx-react-lite";
 import { TaskHostDragDataModel } from '../model/task-host';
 import { observe, reaction } from 'mobx';
 import { TaskEditorWindow } from './components/TaskEditorWindow';
 import { useDeployment } from '../state/deployment-manager';
-import { Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button, Snackbar } from '@mui/material';
 import { TaskDisplayWindow } from './components/TaskDisplayWindow';
 import { useRootStore } from '../state/root-store';
-import { NodeEditorRenderer } from './lib/node-editor';
+import { ConnectFailureInfo, NodeEditorRenderer } from './lib/node-editor';
+import { ManagedTask, getObjectDiffPaths, ioFieldNameToLabel } from '../lib/task';
+import { TaskInput, TaskOutput } from '../types/task';
+import { compareIOIgnorePaths } from '../lib/conigurator/helpers';
+
+type TaskConnectFailureInfo = {
+    errorText?: string
+    input: {
+        task: ManagedTask,
+        input: TaskInput
+    },
+    output?: {
+        task: ManagedTask,
+        output: TaskOutput
+    },
+};
 
 export const NodeEditor = observer(() => {
     const [nodeRenderer, _] = useState(() => new NodeEditorRenderer());
     const [isDeleting, setDeleting] = useState(false);
+    const [connectFailureInfo, setConnectFailureInfo] = useState<TaskConnectFailureInfo | undefined>(undefined);
     const deployment = useDeployment();
     const rootStore = useRootStore();
 
@@ -25,6 +41,13 @@ export const NodeEditor = observer(() => {
     }));
     const containerRef = useRef<HTMLDivElement>(null);
 
+    const connectFailureMismatchedFields = useMemo(() => {
+        if (connectFailureInfo) {
+            return getObjectDiffPaths(connectFailureInfo.input.input, connectFailureInfo.output?.output ?? {}, compareIOIgnorePaths);
+        }
+        return [];
+    }, [connectFailureInfo]);
+
     useEffect(() => {
         nodeRenderer.mount(containerRef.current!);
         const keypressHandler = (e: KeyboardEvent) => {
@@ -35,13 +58,33 @@ export const NodeEditor = observer(() => {
                 nodeRenderer.unselectNode();
             }
         };
-        const selectTaskHandler = (id: string | undefined) => state.selectedTaskId = id;
+        const onSelectedTask = (id: string | undefined) => state.selectedTaskId = id;
+        const onConnectFailure = (data: ConnectFailureInfo) => {
+            const inputTask = deployment.tasks.get(data.input.nodeId);
+            const outputTask = data.output?.nodeId ? deployment.tasks.get(data.output.nodeId) : undefined;
+            if (inputTask) {
+                setConnectFailureInfo({
+                    errorText: data.errorText,
+                    input: {
+                        task: inputTask,
+                        input: inputTask.inputs.find(input => input.key === data.input.key)!
+                    },
+                    output: outputTask && data.output && {
+                        task: outputTask,
+                        output: outputTask.outputs.find(output => output.topic_id === data.output!.id)!
+                    }
+                });
+            }
+        }
+
         window.addEventListener("keydown", keypressHandler)
-        nodeRenderer.on("selected", selectTaskHandler)
+        nodeRenderer.on("selected", onSelectedTask)
+        nodeRenderer.on("connect-failure", onConnectFailure)
 
         return () => {
             window.removeEventListener("keydown", keypressHandler);
-            nodeRenderer.off("selected", selectTaskHandler);
+            nodeRenderer.off("selected", onSelectedTask);
+            nodeRenderer.off("connect-failure", onConnectFailure);
             nodeRenderer.destroy();
         }
     }, [])
@@ -95,6 +138,13 @@ export const NodeEditor = observer(() => {
                     (<TaskEditorWindow task={state.selectedTask} onClose={() => nodeRenderer.unselectNode()} onDelete={() => setDeleting(true)} />)
                 )}
             </Box>
+            <Snackbar
+                open={!!connectFailureInfo}
+                autoHideDuration={6000}
+                onClose={() => setConnectFailureInfo(undefined)}
+                message={`Failed to connect! Mismatch on the fields ${connectFailureMismatchedFields.map(k => `"${ioFieldNameToLabel(k)}"`).join(", ")}.${connectFailureInfo?.errorText ? ` Error: ${connectFailureInfo.errorText}` : ""}`}
+                action={(<Button color="secondary" size="small" onClick={() => setConnectFailureInfo(undefined)}>close</Button>)}
+                />
             <Dialog open={isDeleting && !deployment.running} onClose={() => setDeleting(false)}>
                 <DialogTitle>delete task</DialogTitle>
                 <DialogContent>
