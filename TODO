@@ -1,39 +1,74 @@
 # MY TODOS
 
-- show task host info
 - dashboards
-- remote connection (slaves)
+- connection manager
 - free io keys in static config
-
-(- casting)
-
-Network:
-- link set cost
-- ping pong message for bandwidth tests
-
-Testing:
-- write more tests for utils
+- fix input container (transcoder)
+- task host metadata unnecessary **
 
 Media:
 - BUG: full crash when stopping deployment (seg fault)
 - from codec context should transfer some options
 - multi threading in av stuff
 
+Backend:
+- get single topic space translation
+- topic id efficient broadcasting server 
+
+
+-----TASKS-----
+General:
+- switch
+- string matcher
+- string concatinator
+- flow detector
+
+IO:
+- number (volume) display
+- text display
+
+- video viewer
+- keyboard input
+
+MEDIA:
+- audio volume scaler
+- audio resampler
+- video reformatter
+- screen capture
+- audio mixer
+
+- system audio recorder
+- virtual video input
+- virtual audio input
+- sip input
+
+ML:
+- speech enhancement
+- ASR
+- llama.cpp
+- TTS
+- VAD
+
+-----SOON-----
+Testing:
+- write more tests for utils
+- testing web task backend
+
+Infra:
+- secret manager
+
 Frontend:
 - list raw task instances
 - allow pruge tasks
 - ws task updates
 
-Backend:
-- Better topic control data. We need a way to make it maintainable.
-- get single topic space translation
-- topic id efficient broadcasting server 
-- testing web task backend
+Network:
+- Better topic control data (more maintainable).
 
-----------
+-----Later-----
+- casting
 
-Add task with:
-https://github.com/cloudflare/stpyv8
-
-IDEAS:
+Network:
+- link set cost
+- ping pong message for bandwidth tests
 - topic relabeling on the switch level to allow for traffic to be rerouted
