@@ -36,7 +36,7 @@ class SwitchUITask(ControlBaseTask[SwitchUIConfig, SwitchValue]):
 
 class SwitchUITaskHost(TaskHost):
   @property
-  def metadata(self): return {**static_configurator(
+  def metadata(self): return static_configurator(
     label="Switch UI",
     outputs=[{ "label": "output", "key": "out_topic", "type": "ts", "content": "number" }],
     default_config=SwitchUIConfigBase().model_dump(),
@@ -45,6 +45,6 @@ class SwitchUITaskHost(TaskHost):
       EditorFields.boolean(key="default_value", label="default on/off"),
       EditorFields.number(key="repeat_interval", min_value=0.001, unit="s")
     ]
-  )}
+  )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return SwitchUITask(await self.create_client(topic_space_id), SwitchUIConfig.model_validate(config))

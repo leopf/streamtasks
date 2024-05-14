@@ -103,7 +103,7 @@ class GateTask(Task):
 
 class GateTaskHost(TaskHost):
   @property
-  def metadata(self): return {**static_configurator(
+  def metadata(self): return static_configurator(
     label="gate",
     inputs=[{ "label": "input", "type": "ts", "key": "in_topic" }, { "label": "control", "type": "ts", "content": "number", "key": "control_topic" }],
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic" }],
@@ -113,7 +113,7 @@ class GateTaskHost(TaskHost):
       EditorFields.select(key="fail_mode", items=[ (m.value, m.value) for m in GateFailMode ]),
       EditorFields.boolean(key="synchronized")
     ]
-  )}
+  )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return GateTask(await self.create_client(topic_space_id), GateConfig.model_validate(config))
   

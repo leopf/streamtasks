@@ -45,7 +45,7 @@ class VideoActivityMeterTask(Task):
     
 class VideoActivityMeterTaskHost(TaskHost):
   @property
-  def metadata(self): return {**static_configurator(
+  def metadata(self): return static_configurator(
     label="video activity meter",
     inputs=[{ "label": "video", "type": "ts", "key": "in_topic", "content": "video", "codec": "raw" }],
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "content": "number" }],
@@ -57,7 +57,7 @@ class VideoActivityMeterTaskHost(TaskHost):
       MediaEditorFields.pixel_size("height"),
       MediaEditorFields.frame_rate(),
     ]
-  )}
+  )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return VideoActivityMeterTask(await self.create_client(topic_space_id), VideoActivityMeterConfig.model_validate(config))
   

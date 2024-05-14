@@ -1,8 +1,6 @@
 # MY TODOS
 
-- DATA_DIR sub directories
 - fix input container (transcoder)
-- task host metadata unnecessary **
 
 Media:
 - BUG: full crash when stopping deployment (seg fault)

@@ -79,7 +79,7 @@ class VideoInputTask(Task):
     
 class VideoInputTaskHost(TaskHost):
   @property
-  def metadata(self): return {**static_configurator(
+  def metadata(self): return static_configurator(
     label="video input",
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "content": "video", "codec": "raw" }],
     default_config=VideoInputConfigBase.default_config().model_dump(),
@@ -91,7 +91,7 @@ class VideoInputTaskHost(TaskHost):
       MediaEditorFields.pixel_size("height"),
       MediaEditorFields.frame_rate(),
     ]
-  )}
+  )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return VideoInputTask(await self.create_client(topic_space_id), VideoInputConfig.model_validate(config))
   

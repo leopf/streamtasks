@@ -15,7 +15,7 @@ from streamtasks.client import Client
 from streamtasks.client.discovery import delete_topic_space, get_topic_space, register_address_name, register_topic_space
 from streamtasks.client.fetch import FetchError, FetchErrorStatusCode
 from streamtasks.client.receiver import TopicsReceiver
-from streamtasks.env import DATA_DIR
+from streamtasks.env import get_data_sub_dir
 from streamtasks.net import Link
 from streamtasks.net.message.data import SerializableData
 from streamtasks.net.message.serialize import serializable_data_to_json
@@ -64,15 +64,15 @@ class TaskWebBackendStore:
   def __init__(self) -> None:
     self.running_deployments: dict[UUID4, RunningDeployment] = {}
     
-    self.tmp_dir = tempfile.TemporaryDirectory() # TODO ugly
-    data_dir = DATA_DIR or self.tmp_dir.name
-    if not os.path.exists(data_dir): os.mkdir(data_dir)
+    self.temp_dir: str | None = None
+    try: data_dir = get_data_sub_dir("tm-web")
+    except ValueError: data_dir = self.temp_dir = tempfile.mkdtemp()
     
     self.deployments: shelve.Shelf = shelve.open(os.path.join(data_dir, "deployments.db"))
     self.tasks: shelve.Shelf = shelve.open(os.path.join(data_dir, "tasks.db"))
   
   def __del__(self):
-    self.tmp_dir.cleanup()
+    if self.temp_dir: os.rmdir(self.temp_dir)
     self.deployments.close()
     self.tasks.close()
 

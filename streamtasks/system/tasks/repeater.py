@@ -59,7 +59,7 @@ class RepeaterTask(Task):
 
 class RepeaterTaskHost(TaskHost):
   @property
-  def metadata(self): return {**static_configurator(
+  def metadata(self): return static_configurator(
     label="repeater",
     inputs=[{ "label": "input", "type": "ts", "key": "in_topic" }],
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic" }],
@@ -69,7 +69,7 @@ class RepeaterTaskHost(TaskHost):
       EditorFields.number(key="interval", min_value=1, unit="ms", is_int=True),
       EditorFields.boolean(key="fail_closed"),
     ]
-  )}
+  )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return RepeaterTask(await self.create_client(topic_space_id), RepeaterConfig.model_validate(config))
   

@@ -62,7 +62,7 @@ class VideoDecoderTask(Task):
     
 class VideoDecoderTaskHost(TaskHost):
   @property
-  def metadata(self): return {**static_configurator(
+  def metadata(self): return static_configurator(
     label="video decoder",
     inputs=[{ "label": "input", "type": "ts", "key": "in_topic", "content": "video" }],
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "content": "video", "codec": "raw" }],
@@ -78,7 +78,7 @@ class VideoDecoderTaskHost(TaskHost):
       MediaEditorFields.frame_rate(),
       EditorFields.options("codec_options"),
     ]
-  )}
+  )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return VideoDecoderTask(await self.create_client(topic_space_id), VideoDecoderConfig.model_validate(config))
   

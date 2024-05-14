@@ -60,7 +60,7 @@ class RateFixerTask(Task):
 
 class RateFixerTaskHost(TaskHost):
   @property
-  def metadata(self): return {**static_configurator(
+  def metadata(self): return static_configurator(
     label="rate fixer",
     inputs=[{ "label": "input", "type": "ts", "key": "in_topic" }],
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic" }],
@@ -73,7 +73,7 @@ class RateFixerTaskHost(TaskHost):
       EditorFields.select(key="time_reference", items=[("time", "time"), ("message", "message")]),
       EditorFields.boolean(key="fail_closed"),
     ]
-  )}
+  )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return RateFixerTask(await self.create_client(topic_space_id), RateFixerConfig.model_validate(config))
   

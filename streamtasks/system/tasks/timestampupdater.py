@@ -44,7 +44,7 @@ class TimestampUpdaterTask(Task):
 
 class TimestampUpdaterTaskHost(TaskHost):
   @property
-  def metadata(self): return {**static_configurator(
+  def metadata(self): return static_configurator(
     label="timestamp updater",
     inputs=[{ "label": "input", "type": "ts", "key": "in_topic" }],
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic" }],
@@ -55,7 +55,7 @@ class TimestampUpdaterTaskHost(TaskHost):
       EditorFields.number(key="time_offset", label="time offset from reference", is_int=True, unit="ms"),
       EditorFields.boolean(key="fail_closed"),
     ]
-  )}
+  )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return TimestampUpdaterTask(await self.create_client(topic_space_id), TimestampUpdaterConfig.model_validate(config))
   

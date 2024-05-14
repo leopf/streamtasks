@@ -49,7 +49,7 @@ class AudioInputTask(Task):
     
 class AudioInputTaskHost(TaskHost):
   @property
-  def metadata(self): return {**static_configurator(
+  def metadata(self): return static_configurator(
     label="audio input",
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "content": "audio", "codec": "raw" }],
     default_config=AudioInputConfigBase().model_dump(),
@@ -61,7 +61,7 @@ class AudioInputTaskHost(TaskHost):
       EditorFields.number(key="input_id", label="id/index of the input device (-1 to automatically select)", min_value=-1, is_int=True),
       MediaEditorFields.audio_buffer_size()
     ]
-  )}
+  )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return AudioInputTask(await self.create_client(topic_space_id), AudioInputConfig.model_validate(config))
   

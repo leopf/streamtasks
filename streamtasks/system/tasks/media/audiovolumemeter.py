@@ -59,7 +59,7 @@ class AudioVolumeMeterTask(Task):
     
 class AudioVolumeMeterTaskHost(TaskHost):
   @property
-  def metadata(self): return {**static_configurator(
+  def metadata(self): return static_configurator(
     label="audio volume meter",
     inputs=[{ "label": "audio", "type": "ts", "key": "in_topic", "content": "audio", "codec": "raw", "channels": 1 }],
     outputs=[{ "label": "volume", "type": "ts", "key": "out_topic", "content": "number" }],
@@ -70,7 +70,7 @@ class AudioVolumeMeterTaskHost(TaskHost):
       MediaEditorFields.sample_rate(),
       EditorFields.number("time_window", is_int=True, min_value=1),
     ]
-  )}
+  )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return AudioVolumeMeterTask(await self.create_client(topic_space_id), AudioVolumeMeterConfig.model_validate(config))
   

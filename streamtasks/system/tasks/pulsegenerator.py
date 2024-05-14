@@ -35,7 +35,7 @@ class PulseGeneratorTask(Task):
 
 class PulseGeneratorTaskHost(TaskHost):
   @property
-  def metadata(self): return {**static_configurator(
+  def metadata(self): return static_configurator(
     label="pulse generator",
     description="generates a pulse in a specified interval.",
     outputs=[{ "label": "output", "key": "out_topic" }],
@@ -45,6 +45,6 @@ class PulseGeneratorTaskHost(TaskHost):
       EditorFields.select(key="message_type", items=[("ts", "Timestamp"), ("id", "Id")]),
       EditorFields.number(key="interval", min_value=0.001, unit="s")
     ]
-  )}
+  )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return PulseGeneratorTask(await self.create_client(topic_space_id), PulseGeneratorConfig.model_validate(config))

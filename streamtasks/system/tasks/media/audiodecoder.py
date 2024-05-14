@@ -58,7 +58,7 @@ class AudioDecoderTask(Task):
     
 class AudioDecoderTaskHost(TaskHost):
   @property
-  def metadata(self): return {**static_configurator(
+  def metadata(self): return static_configurator(
     label="audio decoder",
     inputs=[{ "label": "input", "type": "ts", "key": "in_topic", "content": "audio" }],
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "content": "audio", "codec": "raw" }],
@@ -73,7 +73,7 @@ class AudioDecoderTaskHost(TaskHost):
       MediaEditorFields.sample_rate(),
       EditorFields.options("codec_options"),
     ]
-  )}
+  )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return AudioDecoderTask(await self.create_client(topic_space_id), AudioDecoderConfig.model_validate(config))
   
