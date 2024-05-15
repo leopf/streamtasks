@@ -100,10 +100,13 @@ class TASK_CONSTANTS:
   FD_TM_TASK_START = "start_task"
   FD_TM_TASK_CANCEL = "cancel_task"
   
+  FD_TMW_REGISTER_PATH = "register_path"
+  
   FD_TASK_START = "start"
   FD_TASK_CANCEL = "cancel"
   
   # signal descriptors
+  SD_TMW_UNREGISTER_PATH = "unregister_path"
   SD_TM_TASK_REPORT = "report_task_status"
   SD_UNREGISTER_TASK_HOST = "unregister_task_host"
 
@@ -112,19 +115,21 @@ class MetadataFields:
 
 class TaskNotFoundError(BaseException): pass
 
+def task_host_id_from_name(name: str):
+  id_hash = hashlib.sha256()
+  id_hash.update(b"TaskHost")
+  id_hash.update(name.encode("utf-8"))
+  id_hash.update(NODE_NAME().encode("utf-8"))
+  return id_hash.hexdigest()[:16]
+
 class TaskHost(Worker):
   def __init__(self, link: Link, register_endpoits: list[EndpointOrAddress] = []):
     super().__init__(link)
     self.client: Client
     self.tasks: dict[str, asyncio.Task] = {}
     self.ready = asyncio.Event()
-    self.register_endpoits = list(register_endpoits)
-    
-    id_hash = hashlib.sha256()
-    id_hash.update(b"TaskHost")
-    id_hash.update(self.__class__.__name__.encode("utf-8"))
-    id_hash.update(NODE_NAME.encode("utf-8"))
-    self.id = id_hash.hexdigest()[:16]
+    self.register_endpoits = list(register_endpoits)  
+    self.id = task_host_id_from_name(self.__class__.__name__)
   
   @property
   def metadata(self) -> MetadataDict: return {}
@@ -141,7 +146,7 @@ class TaskHost(Worker):
   async def register(self, endpoint: EndpointOrAddress) -> TaskHostRegistration:
     if not hasattr(self, "client"): raise ValueError("Client not created yet!")
     if self.client.address is None: raise ValueError("Client had no address!")
-    registration = TaskHostRegistration(id=self.id, address=self.client.address, metadata={ **self.metadata, "nodename": NODE_NAME })
+    registration = TaskHostRegistration(id=self.id, address=self.client.address, metadata={ **self.metadata, "nodename": NODE_NAME() })
     await self.client.fetch(endpoint, TASK_CONSTANTS.FD_REGISTER_TASK_HOST, registration.model_dump())
     # TODO store info for unregister
     return registration

@@ -1,15 +1,17 @@
 # MY TODOS
 
-- fix input container (transcoder)
+- setup script
+- linter / formatter
+- ci
+- merge master
 
 Media:
-- BUG: full crash when stopping deployment (seg fault)
+- fix input container (transcoder)
 - from codec context should transfer some options
-- multi threading in av stuff
+- BUG: full crash when stopping deployment (seg fault)
 
 Backend:
 - get single topic space translation
-- topic id efficient broadcasting server 
 
 Frontend:
 - connection manager
@@ -57,6 +59,7 @@ Testing:
 
 Infra:
 - secret manager
+- topic id efficient broadcasting server (optimization)
 
 Frontend:
 - list raw task instances
@@ -66,6 +69,9 @@ Frontend:
 
 Network:
 - Better topic control data (more maintainable).
+
+Media:
+- performance optimization!
 
 -----Later-----
 - casting

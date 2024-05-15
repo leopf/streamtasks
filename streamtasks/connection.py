@@ -183,7 +183,7 @@ class UnixSocketServer(StreamServerBase):
     async with server: await server.serve_forever()
 
 def get_node_socket_path(node_name: str | None):
-  if node_name is None: node_name = NODE_NAME
+  if node_name is None: node_name = NODE_NAME()
   return os.path.join(tempfile.gettempdir(), f"{__name__.split(".")[0]}-{node_name}.sock")
 
 class NodeServer(UnixSocketServer):

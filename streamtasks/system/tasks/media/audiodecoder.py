@@ -50,7 +50,7 @@ class AudioDecoderTask(Task):
             frames: list[AudioFrame] = await self.decoder.decode(message.packet)
             frames = await self.resampler.resample(frames)
             for frame in frames: # TODO: endianness
-              if DEBUG_MEDIA: ddebug_value("decoder dtime", float(frame.dtime))
+              if DEBUG_MEDIA(): ddebug_value("decoder dtime", float(frame.dtime))
               await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=self.t0 + int(frame.dtime * 1000), data=frame.to_ndarray().tobytes("C")).model_dump()))
           except ValidationError: pass
     finally:

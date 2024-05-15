@@ -52,7 +52,7 @@ class AudioEncoderTask(Task):
             
             packets = await self.encoder.encode(frame)
             for packet in packets:
-              if DEBUG_MEDIA: ddebug_value("audio encoder time", float(packet.dts * self.time_base))
+              if DEBUG_MEDIA(): ddebug_value("audio encoder time", float(packet.dts * self.time_base))
               await self.out_topic.send(MessagePackData(MediaMessage(timestamp=int(self.t0 + packet.dts * self.time_base * 1000), packet=packet).model_dump()))
           except ValidationError: pass
     finally:

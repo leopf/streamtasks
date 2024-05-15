@@ -127,7 +127,7 @@ class AVOutputStream:
   
   @duration.setter
   def duration(self, duration: Fraction):
-    if DEBUG_MEDIA: ddebug_value("out stream tb dur.", self._stream.type, float(duration / self._time_base))
+    if DEBUG_MEDIA(): ddebug_value("out stream tb dur.", self._stream.type, float(duration / self._time_base))
     self._dts_counter = max(self._dts_counter, int(duration / self._time_base))
     self._ctx.set_sync_channel_time(self._sync_channel, duration)
   
@@ -140,7 +140,7 @@ class AVOutputStream:
     av_packet = packet.to_av_packet(self._time_base)
     av_packet.stream = self._stream
     
-    if DEBUG_MEDIA: ddebug_value("mux", self._stream.type, self._ctx._sync_channels)
+    if DEBUG_MEDIA(): ddebug_value("mux", self._stream.type, self._ctx._sync_channels)
     await self._ctx.sync_wait_channel_min(self._sync_channel)
     
     loop = asyncio.get_running_loop()

@@ -37,7 +37,10 @@ class DemoTaskHost(TaskHost):
     return task
 
 class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
+  lock = asyncio.Lock()
+  
   async def asyncSetUp(self):
+    await TestTaskSystem.lock.acquire()
     self.tasks: list[asyncio.Task] = []
     self.switch = Switch()
     self.discovery_worker = DiscoveryWorker(await self.switch.add_local_connection())
@@ -59,13 +62,17 @@ class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
     await self.demo_task_host.ready.wait()
 
   async def asyncTearDown(self):
-    await self.web_client.aclose()
-    for task in self.tasks: task.cancel()
-    for task in self.tasks: 
-      try: await task
-      except (asyncio.CancelledError, ConnectionClosedError): pass
-      except: raise
-    self.switch.stop_receiving()
+    try:
+      del self.task_manager_web.store
+      await self.web_client.aclose()
+      for task in self.tasks: task.cancel()
+      for task in self.tasks: 
+        try: await task
+        except (asyncio.CancelledError, ConnectionClosedError): pass
+        except: raise
+      self.switch.stop_receiving()
+    finally:
+      TestTaskSystem.lock.release()
 
   async def create_client(self):
     client = Client(await self.switch.add_local_connection())

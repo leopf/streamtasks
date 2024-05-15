@@ -1,27 +1,30 @@
+from abc import abstractmethod
 import asyncio
 import itertools
 import json
 import logging
 import mimetypes
 import os
+import re
 import shelve
 import tempfile
 from typing import Any, Literal, TypedDict
 from uuid import UUID, uuid4
-from pydantic import UUID4, Field, TypeAdapter, ValidationError
+from pydantic import UUID4, BaseModel, Field, TypeAdapter, ValidationError, field_validator
 from streamtasks.asgi import ASGIAppRunner, ASGIProxyApp
 from streamtasks.asgiserver import ASGIHandler, ASGIRouter, ASGIServer, HTTPContext, TransportContext, WebsocketContext, decode_data_uri, http_context_handler, path_rewrite_handler, static_content_handler, static_files_handler, transport_context_handler, websocket_context_handler
 from streamtasks.client import Client
-from streamtasks.client.discovery import delete_topic_space, get_topic_space, register_address_name, register_topic_space
-from streamtasks.client.fetch import FetchError, FetchErrorStatusCode
+from streamtasks.client.discovery import delete_topic_space, get_topic_space, register_address_name, register_topic_space, wait_for_address_name
+from streamtasks.client.fetch import FetchError, FetchErrorStatusCode, FetchRequest, FetchServer
 from streamtasks.client.receiver import TopicsReceiver
+from streamtasks.client.signal import SignalServer
 from streamtasks.env import get_data_sub_dir
-from streamtasks.net import Link
+from streamtasks.net import EndpointOrAddress, Link
 from streamtasks.net.message.data import SerializableData
 from streamtasks.net.message.serialize import serializable_data_to_json
 from streamtasks.net.utils import str_to_endpoint
 from streamtasks.services.protocols import AddressNames
-from streamtasks.system.task import MetadataDict, MetadataFields, ModelWithId, TaskHostRegistration, TaskHostRegistrationList, TaskInstance, TaskManagerClient, TaskNotFoundError
+from streamtasks.system.task import TASK_CONSTANTS, MetadataDict, MetadataFields, ModelWithId, TaskHostRegistration, TaskHostRegistrationList, TaskInstance, TaskManagerClient, TaskNotFoundError
 from streamtasks.utils import wait_with_dependencies
 from streamtasks.worker import Worker
 
@@ -57,22 +60,68 @@ class FullTask(StoredTask):
 class UpdateTaskInstanceMessage(ModelWithId):
   task_instance: TaskInstance
 
+class PathRegistrationFrontend(BaseModel):
+  path: str
+  label: str
+
+  @field_validator("path")
+  @classmethod
+  def validate_path(cls, value: str):
+    if value.startswith("std:"): return value # allow for std frontends
+    if value.startswith("/"): raise ValueError("path must not start with /")
+    if value != os.path.normpath(value): raise ValueError("path must be normalized!")
+    if not re.match(r'^[a-zA-Z0-9\-_./]*$', value): raise ValueError("Invalid path!")
+    return value
+
+class PathRegistration(ModelWithId):
+  path: str
+  endpoint: EndpointOrAddress
+  frontend: PathRegistrationFrontend | None = None
+  
+  @field_validator("path")
+  @classmethod
+  def validate_path(cls, value: str):
+    if not value.endswith("/"): raise ValueError("path must end with /")
+    if not re.match(r'^[a-zA-Z0-9\-_/]*$', value): raise ValueError("Invalid path!")
+    return value
+
 FullDeploymentList = TypeAdapter(list[FullDeployment])
 FullTaskList = TypeAdapter(list[FullTask])
+
+class TaskWebPathHandler(Worker):
+  def __init__(self, link: Link, path: str, frontend: PathRegistrationFrontend | None = None, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER_WEB]):
+    super().__init__(link)
+    self.register_endpoits = list(register_endpoits)
+    self.path = path
+    self.frontend = frontend
+    self.id = uuid4()
+    self.client: Client
+    
+  async def run(self):
+    try:
+      await self.setup()
+      self.client = await self.create_client()
+      self.client.start()
+      await self.client.request_address()
+      for reg_ep in self.register_endpoits:
+        address = reg_ep[0] if isinstance(reg_ep, tuple) else reg_ep
+        if isinstance(address, str): await wait_for_address_name(self.client, address)
+        await self.client.fetch(reg_ep, TASK_CONSTANTS.FD_TMW_REGISTER_PATH, PathRegistration(id=self.id, endpoint=self.client.address, frontend=self.frontend, path=self.path).model_dump())
+      await self.run_inner()
+    finally: await self.shutdown()
+  
+  @abstractmethod
+  async def run_inner(self): pass
 
 class TaskWebBackendStore:
   def __init__(self) -> None:
     self.running_deployments: dict[UUID4, RunningDeployment] = {}
     
-    self.temp_dir: str | None = None
-    try: data_dir = get_data_sub_dir("tm-web")
-    except ValueError: data_dir = self.temp_dir = tempfile.mkdtemp()
-    
+    data_dir = get_data_sub_dir("user-data")
     self.deployments: shelve.Shelf = shelve.open(os.path.join(data_dir, "deployments.db"))
     self.tasks: shelve.Shelf = shelve.open(os.path.join(data_dir, "tasks.db"))
   
   def __del__(self):
-    if self.temp_dir: os.rmdir(self.temp_dir)
     self.deployments.close()
     self.tasks.close()
 
@@ -115,7 +164,6 @@ class TaskWebBackendStore:
     if task.deployment_id in self.running_deployments: task.task_instance = self.running_deployments[task.deployment_id].task_instances.get(task.id, None)
     return task
 
-
 class TaskWebBackend(Worker):
   def __init__(self, link: Link, address_name: str = AddressNames.TASK_MANAGER_WEB, 
                task_manager_address_name: str = AddressNames.TASK_MANAGER, public_path: str | None = None):
@@ -126,6 +174,7 @@ class TaskWebBackend(Worker):
     self.task_asgi_handlers: dict[UUID4, ASGIHandler] = {}
     self.public_path = public_path
     self.deployment_task_listeners: dict[UUID4, asyncio.Task] = {}
+    self.path_registrations: list[PathRegistration] = []
     self.store = TaskWebBackendStore()
     self.client: Client
     self.tm_client: TaskManagerClient
@@ -138,10 +187,31 @@ class TaskWebBackend(Worker):
       await self.client.request_address()
       await register_address_name(self.client, self.address_name)
       self.tm_client = TaskManagerClient(self.client, self.task_manager_address_name)
-      await asyncio.gather(self.run_asgi_server())
+      await asyncio.gather(self.run_asgi_server(), self.run_fetch_api(), self.run_signal_api())
     finally:
       await self.shutdown()
       
+  async def run_fetch_api(self):
+    server = FetchServer(self.client)
+    
+    @server.route(TASK_CONSTANTS.FD_TMW_REGISTER_PATH)
+    async def _(req: FetchRequest):
+      body = PathRegistration.model_validate(req.body)
+      self.path_registrations.append(body)
+      await req.respond(None)
+    
+    await server.run()  
+    
+  async def run_signal_api(self):
+    server = SignalServer(self.client)
+    
+    @server.route(TASK_CONSTANTS.SD_TMW_UNREGISTER_PATH)
+    async def _(message_data: Any):
+      data = ModelWithId.model_validate(message_data)
+      self.path_registrations = [ reg for reg in self.path_registrations if reg.id != data.id]
+
+    await server.run()
+    
   async def run_asgi_server(self):
     app = ASGIServer()
     
@@ -275,6 +345,11 @@ class TaskWebBackend(Worker):
         receive_disconnect_task.cancel()
         await ctx.close()
     
+    @router.get("/api/paths")
+    @http_context_handler
+    async def _(ctx: HTTPContext):
+      await ctx.respond_json([ { "path": reg.path, "frontend": None if reg.frontend is None else { "label": reg.frontend.label, "path": reg.frontend.path } } for reg in self.path_registrations ]) 
+    
     @router.websocket_route("/deployment/{deployment_id}/task-instances")
     @websocket_context_handler
     async def _(ctx: WebsocketContext): 
@@ -303,7 +378,7 @@ class TaskWebBackend(Worker):
       topic_space_id = int(ctx.params.get("topic_space_id"))
       topic_map = await get_topic_space(self.client, topic_space_id)
       await ws_topic_handler(ctx, topic_map[topic_id])
-      
+    
     # TODO: lifecycle api support
     @router.transport_route("/task/{id}/{path*}")
     @path_rewrite_handler("/{path*}")
@@ -319,11 +394,18 @@ class TaskWebBackend(Worker):
     async def _(ctx: TransportContext):
       id = ctx.params.get("id", "")
       await ctx.delegate(await self.get_task_host_asgi_handler(id))
+    
+    @router.handler
+    @transport_context_handler
+    async def _(ctx: TransportContext):
+      for reg in self.path_registrations:
+        if ctx.path.startswith(reg.path):
+          return await ctx.delegate(ASGIProxyApp(self.client, reg.endpoint), { **ctx.scope, "path": ctx.path[len(reg.path) - 1:] })
+      await ctx.next()
         
     if self.public_path is not None: router.add_handler(static_files_handler(self.public_path, ["index.html"]))
     
-    runner = ASGIAppRunner(self.client, app)
-    await runner.run()
+    await ASGIAppRunner(self.client, app).run()
   
   async def run_deployment_task_listener(self, deployment: RunningDeployment):
     async for task_id, task_instance in self.receive_deployment_task_instance_updates(deployment):

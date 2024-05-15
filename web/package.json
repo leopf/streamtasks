@@ -24,7 +24,6 @@
     "clone-deep": "^4.0.1",
     "deep-equal": "^2.2.3",
     "eventemitter3": "^5.0.1",
-    "http-server": "^14.1.1",
     "mobx": "^6.12.3",
     "mobx-react-lite": "^4.0.7",
     "mobx-utils": "^6.0.8",

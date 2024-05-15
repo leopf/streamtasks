@@ -16,7 +16,7 @@ from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import NumberMessage, TextMessage, TimestampChuckMessage
 from streamtasks.services.protocols import AddressNames, WorkerTopics
 from streamtasks.system.configurators import EditorFields, key_to_label, static_configurator
-from streamtasks.system.task import MetadataDict, Task, TaskHost
+from streamtasks.system.task import MetadataDict, Task, TaskHost, task_host_id_from_name
 
 IOAnnotations = tuple[()] | tuple[MetadataDict] | tuple[MetadataDict, dict[str, str] | list[str]]
 _IO_ANNOTATION_ADAPTER = TypeAdapter(IOAnnotations)
@@ -154,6 +154,7 @@ class _FnTaskHost(TaskHost):
   def __init__(self, config: 'FnTaskConfig', link: Link, register_endpoits: list[EndpointOrAddress] = []):
     super().__init__(link=link, register_endpoits=register_endpoits)
     self.config = config
+    self.id = task_host_id_from_name(f"fn_task_{config.name}")
     
   @property
   def metadata(self): return static_configurator(

@@ -1,5 +1,6 @@
 import logging
 import os
+
 logging.basicConfig(level=logging.INFO)
 os.environ["DATA_DIR"] = ".data"
 
@@ -9,6 +10,7 @@ from streamtasks.asgi import HTTPServerOverASGI
 from streamtasks.client import Client
 from streamtasks.client.discovery import wait_for_topic_signal
 from streamtasks.net import Switch
+from streamtasks.system.connection_manager import ConnectionManager
 from streamtasks.services.discovery import DiscoveryWorker
 from streamtasks.services.protocols import AddressNames, WorkerTopics
 from streamtasks.system.task import TaskManager
@@ -29,6 +31,7 @@ async def main():
     TaskManager(await switch.add_local_connection()),
     TaskWebBackend(await switch.add_local_connection(), public_path="web/dist"),
     HTTPServerOverASGI(await switch.add_local_connection(), ("0.0.0.0", 8080), AddressNames.TASK_MANAGER_WEB),
+    ConnectionManager(await switch.add_local_connection()),
     NodeServer(await switch.add_local_connection()),
   ]
   for TaskHostCls in get_all_task_hosts(): workers.append(TaskHostCls(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]))

@@ -73,7 +73,7 @@ class InputContainerTask(Task):
           for packet in packets:
             ts = stream.convert_position(packet.dts or 0, Fraction(1, 1000))
             if self._t0 is None: self._t0 = get_timestamp_ms() - ts
-            if DEBUG_MEDIA: ddebug_value("in", stream._stream.type, ts)
+            if DEBUG_MEDIA(): ddebug_value("in", stream._stream.type, ts)
             await out_topic.send(MessagePackData(MediaMessage(timestamp=self._t0 + ts, packet=packet).model_dump()))
     except EOFError: pass
           

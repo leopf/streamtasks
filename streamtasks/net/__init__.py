@@ -21,7 +21,7 @@ class ConnectionClosedError(Exception):
     if origin: super().__init__(message + "\nOrigin: " + str(origin))
     else: super().__init__(message)
 
-if DEBUG_SER: 
+if DEBUG_SER(): 
   def _transform_message(message: Message):
     try: return deserialize_message(serialize_message(message))
     except KeyError: return message

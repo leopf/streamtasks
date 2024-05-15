@@ -79,7 +79,7 @@ class OutputContainerSynchronizer(InTopicSynchronizer):
     duration = Fraction(timestamp - self._t0, 1000)
     stream = self._streams[topic_id]
     stream.duration = duration
-    if DEBUG_MEDIA: ddebug_value("stream dur.", stream._stream.type, (float(stream.duration), float(duration), (timestamp - self._t0) / 1000))
+    if DEBUG_MEDIA(): ddebug_value("stream dur.", stream._stream.type, (float(stream.duration), float(duration), (timestamp - self._t0) / 1000))
     drop = False
     while True:
       min_duration = self.min_duration
@@ -96,7 +96,7 @@ class OutputContainerSynchronizer(InTopicSynchronizer):
       if other_topic_id not in self.topic_timestamps:
         other_stream.duration = duration
 
-    if DEBUG_MEDIA and drop:
+    if DEBUG_MEDIA() and drop:
       self._oc_dropped_packets += 1
       ddebug_value("output container dropped", self._oc_dropped_packets)
     return not drop
@@ -129,7 +129,7 @@ class OutputContainerTask(Task):
         try:
           data = await in_topic.recv_data()
           message = MediaMessage.model_validate(data.data)
-          if DEBUG_MEDIA: ddebug_value("out", stream._stream.type, message.timestamp)
+          if DEBUG_MEDIA(): ddebug_value("out", stream._stream.type, message.timestamp)
           if self._t0 is None: self._t0 = message.timestamp
           await stream.mux(message.packet)
           assert message.packet.rel_dts >= 0, "rel dts must be greater >= 0"
