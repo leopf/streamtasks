@@ -76,7 +76,7 @@ class UrlCreateModel(BaseModel):
 
 class ConnectionManager(TaskWebPathHandler):
   def __init__(self, link: Link, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER_WEB]):
-    super().__init__(link, f"/connections/{get_url_node_name()}/", PathRegistrationFrontend(path="std:connections", label=f"Connections ({NODE_NAME()})"), register_endpoits)
+    super().__init__(link, f"/connections/{get_url_node_name()}/", PathRegistrationFrontend(path="std:connectionmanager", label=f"Connections ({NODE_NAME()})"), register_endpoits)
     self.db = dbm.open(os.path.join(get_data_sub_dir("user-data"), "connections.db"), flag="c")
     self._connect_url_data: list[ConnectUrlData] = []
     self._serve_url_data: list[ServeUrlData] = []
@@ -97,10 +97,6 @@ class ConnectionManager(TaskWebPathHandler):
   def update_serve_urls(self):
     self.db["serve"] = json.dumps([ data.url for data in self._serve_url_data ]).encode("utf-8")
   
-  async def start_serve(self, url: str):
-    server = get_server(await self.switch.add_local_connection(), url)
-    self._serve_tasks[url] = server
-    
   async def run_inner(self):
     try: 
       for url in self.get_connect_urls(): self._connect_url_data.append(await self.create_connect_url_data(url))

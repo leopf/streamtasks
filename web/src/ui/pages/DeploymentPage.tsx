@@ -1,7 +1,7 @@
 import { Box, Button, CircularProgress, Divider, IconButton, Stack, Typography } from "@mui/material";
 import { observer, useLocalObservable } from "mobx-react-lite";
-import { TaskSelectionMenu } from "../TaskSelectionMenu";
-import { NodeEditor } from "../NodeEditor";
+import { TaskSelectionMenu } from "../components/TaskSelectionMenu";
+import { NodeEditor } from "../components/NodeEditor";
 import { useParams } from "react-router-dom";
 import { useEffect } from "react";
 import { DeploymentContext, DeploymentManager } from "../../state/deployment-manager";

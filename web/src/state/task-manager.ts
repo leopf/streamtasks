@@ -27,7 +27,7 @@ export class TaskManager {
     }
 
     public async loadTaskHosts() {
-        const result = await fetch("/api/task-hosts").then(res => res.json())
+        const result = await fetch("./api/task-hosts").then(res => res.json())
         z.array(TaskHostModel).parse(result).forEach(th => this.taskHosts.set(th.id, th));
     }
 
@@ -68,7 +68,7 @@ export class TaskManager {
             return this.taskHosts.get(id)!;
         }
 
-        const res = await fetch(`/api/task-host/${id}`, { method: "get" });
+        const res = await fetch(`./api/task-host/${id}`, { method: "get" });
         if (res.ok) {
             const taskHost = TaskHostModel.parse(await res.json())
             this.taskHosts.set(taskHost.id, taskHost);

@@ -1,8 +1,8 @@
 import { Box, Stack, TextField } from "@mui/material";
-import { TaskTemplateItem } from "./components/TaskTemplateItem";
+import { TaskTemplateItem } from "./TaskTemplateItem";
 import { observer, useLocalObservable } from "mobx-react-lite";
-import { useRootStore } from "../state/root-store";
-import { getTaskHostSearchValues, parseTaskHost } from "../lib/task-host";
+import { useRootStore } from "../../state/root-store";
+import { getTaskHostSearchValues, parseTaskHost } from "../../lib/task-host";
 
 export const TaskSelectionMenu = observer(() => {
     const rootStore = useRootStore();

@@ -52,7 +52,7 @@ function TaskDisplay(props: { task: Task, taskInstance: TaskInstance, editorFiel
             </Accordion>
             {frontendUrl && (
                 <Box flex={1}>
-                    <iframe src={frontendUrl} width="100%" height="100%" style={{ border: "none" }} />
+                    <iframe src={frontendUrl} width="100%" height="100%" style={{ display:"block", border: "none" }} />
                 </Box>
             )}
         </Stack>

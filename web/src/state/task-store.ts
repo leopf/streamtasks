@@ -7,7 +7,7 @@ export class TaskStore {
     private _storedTasks = new Map<string, StoredTask>();
 
     public async loadTasksInDeployment(deploymentId: string) {
-        const result = await fetch(`/api/deployment/${deploymentId}/tasks`).then(res => res.json());
+        const result = await fetch(`./api/deployment/${deploymentId}/tasks`).then(res => res.json());
         const tasks = z.array(FullTaskModel).parse(result);
         this.putStoredTasks(...tasks);
         return tasks;
@@ -16,7 +16,7 @@ export class TaskStore {
     public async putTask(task: StoredTask, deploymentId: string, force: boolean = false) {
         const storedTask = StoredTaskModel.parse(task);
         if (!force && deepEqual(storedTask, this._storedTasks.get(task.id))) return;
-        const result = await fetch(`/api/task`, {
+        const result = await fetch(`./api/task`, {
             method: "put",
             headers: {
                 "Content-Type": "application/json"
@@ -37,7 +37,7 @@ export class TaskStore {
     }
 
     public async deleteTask(taskId: string) {
-        const result = await fetch(`/api/task/${taskId}`, { method: "delete" });
+        const result = await fetch(`./api/task/${taskId}`, { method: "delete" });
         if (!result.ok) {
             throw new Error("Failed to delete!")
         }

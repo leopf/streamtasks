@@ -7,7 +7,6 @@ import mimetypes
 import os
 import re
 import shelve
-import tempfile
 from typing import Any, Literal, TypedDict
 from uuid import UUID, uuid4
 from pydantic import UUID4, BaseModel, Field, TypeAdapter, ValidationError, field_validator
@@ -25,7 +24,7 @@ from streamtasks.net.message.serialize import serializable_data_to_json
 from streamtasks.net.utils import str_to_endpoint
 from streamtasks.services.protocols import AddressNames
 from streamtasks.system.task import TASK_CONSTANTS, MetadataDict, MetadataFields, ModelWithId, TaskHostRegistration, TaskHostRegistrationList, TaskInstance, TaskManagerClient, TaskNotFoundError
-from streamtasks.utils import wait_with_dependencies
+from streamtasks.utils import get_node_name_id, wait_with_dependencies
 from streamtasks.worker import Worker
 
 
@@ -73,7 +72,8 @@ class PathRegistrationFrontend(BaseModel):
     if not re.match(r'^[a-zA-Z0-9\-_./]*$', value): raise ValueError("Invalid path!")
     return value
 
-class PathRegistration(ModelWithId):
+class PathRegistration(BaseModel):
+  id: str
   path: str
   endpoint: EndpointOrAddress
   frontend: PathRegistrationFrontend | None = None
@@ -82,6 +82,7 @@ class PathRegistration(ModelWithId):
   @classmethod
   def validate_path(cls, value: str):
     if not value.endswith("/"): raise ValueError("path must end with /")
+    if not value.startswith("/"): raise ValueError("path must start with /")
     if not re.match(r'^[a-zA-Z0-9\-_/]*$', value): raise ValueError("Invalid path!")
     return value
 
@@ -94,7 +95,7 @@ class TaskWebPathHandler(Worker):
     self.register_endpoits = list(register_endpoits)
     self.path = path
     self.frontend = frontend
-    self.id = uuid4()
+    self.id = get_node_name_id("TaskWebPathHandler" + self.__class__.__name__)
     self.client: Client
     
   async def run(self):
@@ -345,10 +346,10 @@ class TaskWebBackend(Worker):
         receive_disconnect_task.cancel()
         await ctx.close()
     
-    @router.get("/api/paths")
+    @router.get("/api/path-registrations")
     @http_context_handler
     async def _(ctx: HTTPContext):
-      await ctx.respond_json([ { "path": reg.path, "frontend": None if reg.frontend is None else { "label": reg.frontend.label, "path": reg.frontend.path } } for reg in self.path_registrations ]) 
+      await ctx.respond_json([ { "id": reg.id, "path": reg.path, "frontend": None if reg.frontend is None else { "label": reg.frontend.label, "path": reg.frontend.path } } for reg in self.path_registrations ]) 
     
     @router.websocket_route("/deployment/{deployment_id}/task-instances")
     @websocket_context_handler

@@ -1,18 +1,18 @@
 import Box from '@mui/material/Box';
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { TaskNode } from './lib/task-node';
+import { TaskNode } from '../lib/task-node';
 import { observer, useLocalObservable } from "mobx-react-lite";
-import { TaskHostDragDataModel } from '../model/task-host';
+import { TaskHostDragDataModel } from '../../model/task-host';
 import { observe, reaction } from 'mobx';
-import { TaskEditorWindow } from './components/TaskEditorWindow';
-import { useDeployment } from '../state/deployment-manager';
+import { TaskEditorWindow } from './TaskEditorWindow';
+import { useDeployment } from '../../state/deployment-manager';
 import { Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button, Snackbar } from '@mui/material';
-import { TaskDisplayWindow } from './components/TaskDisplayWindow';
-import { useRootStore } from '../state/root-store';
-import { ConnectFailureInfo, NodeEditorRenderer } from './lib/node-editor';
-import { ManagedTask, getObjectDiffPaths, ioFieldNameToLabel } from '../lib/task';
-import { TaskInput, TaskOutput } from '../types/task';
-import { compareIOIgnorePaths } from '../lib/conigurator/helpers';
+import { TaskDisplayWindow } from './TaskDisplayWindow';
+import { useRootStore } from '../../state/root-store';
+import { ConnectFailureInfo, NodeEditorRenderer } from '../lib/node-editor';
+import { ManagedTask, getObjectDiffPaths, ioFieldNameToLabel } from '../../lib/task';
+import { TaskInput, TaskOutput } from '../../types/task';
+import { compareIOIgnorePaths } from '../../lib/conigurator/helpers';
 
 type TaskConnectFailureInfo = {
     errorText?: string

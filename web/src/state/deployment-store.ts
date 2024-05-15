@@ -34,15 +34,15 @@ export class DeploymentStore {
     }
 
     public async schedule(id: string) {
-        const deployment = FullDeploymentModel.parse(await fetch(`/api/deployment/${id}/schedule`, { method: "post" }).then(res => res.json()));
+        const deployment = FullDeploymentModel.parse(await fetch(`./api/deployment/${id}/schedule`, { method: "post" }).then(res => res.json()));
         this._deployments.set(deployment.id, deployment);
     }
     public async start(id: string) {
-        const deployment = FullDeploymentModel.parse(await fetch(`/api/deployment/${id}/start`, { method: "post" }).then(res => res.json()));
+        const deployment = FullDeploymentModel.parse(await fetch(`./api/deployment/${id}/start`, { method: "post" }).then(res => res.json()));
         this._deployments.set(deployment.id, deployment);
     }
     public async stop(id: string) {
-        const deployment = FullDeploymentModel.parse(await fetch(`/api/deployment/${id}/stop`, { method: "post" }).then(res => res.json()));
+        const deployment = FullDeploymentModel.parse(await fetch(`./api/deployment/${id}/stop`, { method: "post" }).then(res => res.json()));
         this._deployments.set(deployment.id, deployment);
     }
     public async createManager(id: string) {
@@ -52,7 +52,7 @@ export class DeploymentStore {
         }
     }
     public async loadAll() {
-        const deployments = z.array(FullDeploymentModel).parse(await fetch("/api/deployments").then(res => res.json()));
+        const deployments = z.array(FullDeploymentModel).parse(await fetch("./api/deployments").then(res => res.json()));
         for (const deployment of deployments) {
             this._deployments.set(deployment.id, deployment);
         }
@@ -61,7 +61,7 @@ export class DeploymentStore {
         if (this._deployments.has(id)) {
             return this._deployments.get(id);
         }
-        const res = await fetch(`/api/deployment/${id}`);
+        const res = await fetch(`./api/deployment/${id}`);
         if (!res.ok) {
             return undefined;
         }
@@ -73,13 +73,13 @@ export class DeploymentStore {
         return deployment;
     }
     public async delete(id: string) {
-        const res = await fetch(`/api/deployment/${id}`, { method: "delete" });
+        const res = await fetch(`./api/deployment/${id}`, { method: "delete" });
         if (res.ok) {
             this._deployments.delete(id);
         }
     }
     public async update(deployment: Deployment) {
-        const res = await fetch("/api/deployment", {
+        const res = await fetch("./api/deployment", {
             method: "put",
             headers: {
                 "Content-Type": "application/json",
@@ -92,7 +92,7 @@ export class DeploymentStore {
         }
     }
     public async create(deployment: PartialDeployment) {
-        const res = await fetch("/api/deployment", {
+        const res = await fetch("./api/deployment", {
             method: "post",
             headers: {
                 "Content-Type": "application/json",

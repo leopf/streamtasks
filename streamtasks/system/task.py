@@ -15,6 +15,7 @@ from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.types import Message, TopicDataMessage
 from streamtasks.services.protocols import AddressNames, WorkerTopics
 from streamtasks.env import NODE_NAME
+from streamtasks.utils import get_node_name_id
 from streamtasks.worker import Worker
 
 MetadataDict = dict[str, int|float|str|bool]
@@ -115,12 +116,7 @@ class MetadataFields:
 
 class TaskNotFoundError(BaseException): pass
 
-def task_host_id_from_name(name: str):
-  id_hash = hashlib.sha256()
-  id_hash.update(b"TaskHost")
-  id_hash.update(name.encode("utf-8"))
-  id_hash.update(NODE_NAME().encode("utf-8"))
-  return id_hash.hexdigest()[:16]
+def task_host_id_from_name(name: str): return get_node_name_id("TaskHost" + name)
 
 class TaskHost(Worker):
   def __init__(self, link: Link, register_endpoits: list[EndpointOrAddress] = []):

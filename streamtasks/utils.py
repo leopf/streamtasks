@@ -1,5 +1,6 @@
 from abc import abstractmethod
 from collections import deque
+import hashlib
 import platform
 import threading
 from types import CoroutineType
@@ -7,6 +8,8 @@ from typing import Any, Awaitable, Generic, Iterable, Optional, TypeVar
 import asyncio
 import time
 import os
+
+from streamtasks.env import NODE_NAME
 
 class AsyncTaskManager:
   def __init__(self) -> None: self._tasks: set[asyncio.Task] = set()
@@ -254,6 +257,12 @@ async def wait_with_dependencies(main: Awaitable, deps: Iterable[asyncio.Future]
   return main.result()
   
 def get_timestamp_ms(): return int(time.time() * 1000)
+
+def get_node_name_id(name: str):
+  id_hash = hashlib.sha256()
+  id_hash.update(name.encode("utf-8"))
+  id_hash.update(NODE_NAME().encode("utf-8"))
+  return id_hash.hexdigest()[:16]
 
 class TimeSynchronizer:
   def __init__(self):
