@@ -59,6 +59,8 @@ export class WindowRenderer extends EventEmitter<{
         headerEl.style.left = resizeElementSize + "px";
         headerEl.style.right = resizeElementSize + "px";
         headerEl.style.height = windowHeaderHeight + "px";
+        headerEl.style.paddingBottom = resizeElementSize + "px";
+        headerEl.style.boxSizing = "border-box";
         headerEl.style.cursor = "move";
         headerEl.style.display = "flex";
         headerEl.style.flexDirection = "row";

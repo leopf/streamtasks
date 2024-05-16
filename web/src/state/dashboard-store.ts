@@ -5,12 +5,7 @@ import { computed, makeObservable, observable } from "mobx";
 import _ from "underscore";
 
 export class DashboardStore {
-    private _dashboards: Map<string, Dashboard> = observable.map();
-    public putThrottled = _.throttle(async (dashboard: Dashboard) => await this.put(dashboard), 1000);
-
-    public get dashboards() {
-        return Array.from(this._dashboards.values())
-    }
+    public dashboards: Map<string, Dashboard> = observable.map();
 
     constructor() {
         makeObservable({
@@ -30,7 +25,7 @@ export class DashboardStore {
     }
 
     public async get(id: string) {
-        const found = this.dashboards.find(d => d.id === id);
+        const found = this.dashboards.get(id);
         if (found) {
             return found;
         }
@@ -64,13 +59,13 @@ export class DashboardStore {
         if (!result.ok) {
             throw new Error("Failed to delete!")
         }
-        this._dashboards.delete(id);
+        this.dashboards.delete(id);
     }
 
     private putDashboards(...dashboards: Dashboard[]) {
         for (const task of dashboards) {
             try {
-                this._dashboards.set(task.id, DashboardModel.parse(task))
+                this.dashboards.set(task.id, DashboardModel.parse(task))
             }
             catch {}
         }

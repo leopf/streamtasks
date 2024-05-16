@@ -12,7 +12,6 @@ Media:
 - BUG: audio output(?) crashes sometimes (prolly mt)
 
 Frontend:
-- dashboards
 - free io keys in static config
 
 
@@ -22,6 +21,7 @@ General:
 - string matcher
 - string concatinator
 - flow detector
+- buffer
 
 IO:
 - number (volume) display

@@ -58,7 +58,7 @@ export class DeploymentManager extends EventEmitter<{ "taskUpdated": [ManagedTas
     }
 
     public get dashboards() {
-        return this.rootStore.dashboard.dashboards.filter(db => db.deployment_id === this.id);
+        return Array.from(this.rootStore.dashboard.dashboards.values()).filter(db => db.deployment_id === this.id);
     }
 
     private deploymentId: string;
