@@ -1,10 +1,10 @@
 from typing import Any
 from streamtasks.client.signal import SignalRequestReceiver
 # NOTE: move this in here?
-from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, GenerateTopicsRequestBody, GenerateTopicsResponseBody, RegisterAddressRequestBody, RegisterTopicSpaceRequestMessage, ResolveAddressRequestBody, ResolveAddressResonseBody, TopicSpaceRequestMessage, TopicSpaceResponseMessage, WorkerAddresses, WorkerRequestDescriptors, WorkerTopics
+from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, GenerateTopicsRequestBody, GenerateTopicsResponseBody, RegisterAddressRequestBody, RegisterTopicSpaceRequestMessage, ResolveAddressRequestBody, ResolveAddressResonseBody, TopicSpaceRequestMessage, TopicSpaceResponseMessage, TopicSpaceTranslationRequestMessage, TopicSpaceTranslationResponseMessage, WorkerAddresses, WorkerRequestDescriptors, WorkerTopics
 from streamtasks.worker import Worker
 from streamtasks.client import Client
-from streamtasks.client.fetch import FetchRequest, FetchServer, new_fetch_body_bad_request
+from streamtasks.client.fetch import FetchRequest, FetchServer, new_fetch_body_bad_request, new_fetch_body_not_found
 from streamtasks.net.message.data import TextData, MessagePackData
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.net import Link
@@ -77,29 +77,38 @@ class DiscoveryWorker(Worker):
       
     @server.route(WorkerRequestDescriptors.REQUEST_ADDRESSES)
     async def _(req: FetchRequest):
-      request = GenerateAddressesRequestMessageBase.model_validate(req.body)
-      logging.info(f"generating {request.count} addresses")
-      addresses = self.generate_addresses(request.count)
+      message = GenerateAddressesRequestMessageBase.model_validate(req.body)
+      logging.info(f"generating {message.count} addresses")
+      addresses = self.generate_addresses(message.count)
       await req.respond(GenerateAddressesResponseMessageBase(addresses=addresses).model_dump())
 
     @server.route(WorkerRequestDescriptors.REGISTER_TOPIC_SPACE)
     async def _(req: FetchRequest):
-      request = RegisterTopicSpaceRequestMessage.model_validate(req.body)
-      logging.info(f"generating topic space for {len(request.topic_ids)} topic ids")
-      new_topic_ids = self.generate_topic_ids(len(request.topic_ids))
+      message = RegisterTopicSpaceRequestMessage.model_validate(req.body)
+      logging.info(f"generating topic space for {len(message.topic_ids)} topic ids")
+      new_topic_ids = self.generate_topic_ids(len(message.topic_ids))
       self._topic_space_id_counter += 1
-      topic_id_map = { k: v for k, v in zip(request.topic_ids, new_topic_ids) }
+      topic_id_map = { k: v for k, v in zip(message.topic_ids, new_topic_ids) }
       self._topic_spaces[self._topic_space_id_counter] = topic_id_map
       await req.respond(TopicSpaceResponseMessage(id=self._topic_space_id_counter, topic_id_map=list(topic_id_map.items())).model_dump())
 
+    @server.route(WorkerRequestDescriptors.GET_TOPIC_SPACE_TRANSLATION)
+    async def _(req: FetchRequest):
+      try:
+        message = TopicSpaceTranslationRequestMessage.model_validate(req.body)
+        topic_id_map = self._topic_spaces[message.topic_space_id]
+        await req.respond(TopicSpaceTranslationResponseMessage(topic_id=topic_id_map[message.topic_id]).model_dump())
+      except KeyError as e:
+        await req.respond_error(new_fetch_body_not_found(str(e)))
+    
     @server.route(WorkerRequestDescriptors.GET_TOPIC_SPACE)
     async def _(req: FetchRequest):
       try:
-        request = TopicSpaceRequestMessage.model_validate(req.body)
-        topic_id_map = self._topic_spaces[request.id]
-        await req.respond(TopicSpaceResponseMessage(id=request.id, topic_id_map=list(topic_id_map.items())).model_dump())
+        message = TopicSpaceRequestMessage.model_validate(req.body)
+        topic_id_map = self._topic_spaces[message.id]
+        await req.respond(TopicSpaceResponseMessage(id=message.id, topic_id_map=list(topic_id_map.items())).model_dump())
       except KeyError as e:
-        await req.respond_error(new_fetch_body_bad_request(str(e)))
+        await req.respond_error(new_fetch_body_not_found(str(e)))
         
     @server.route(WorkerRequestDescriptors.DELETE_TOPIC_SPACE)
     async def _(req: FetchRequest):

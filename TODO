@@ -10,9 +10,6 @@ Media:
 - from codec context should transfer some options
 - BUG: full crash when stopping deployment (seg fault)
 
-Backend:
-- get single topic space translation
-
 Frontend:
 - dashboards
 - free io keys in static config

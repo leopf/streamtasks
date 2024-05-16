@@ -6,7 +6,7 @@ from streamtasks.client.receiver import Receiver
 from streamtasks.client.signal import send_signal
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.types import Message, TopicDataMessage, TopicMessage
-from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, RegisterAddressRequestBody, RegisterTopicSpaceRequestMessage, TopicSpaceRequestMessage, TopicSpaceResponseMessage, WorkerAddresses, WorkerRequestDescriptors, WorkerPorts, WorkerTopics
+from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, RegisterAddressRequestBody, RegisterTopicSpaceRequestMessage, TopicSpaceRequestMessage, TopicSpaceResponseMessage, TopicSpaceTranslationRequestMessage, TopicSpaceTranslationResponseMessage, WorkerAddresses, WorkerRequestDescriptors, WorkerPorts, WorkerTopics
 import asyncio
 if TYPE_CHECKING:
   from streamtasks.client import Client
@@ -89,6 +89,10 @@ async def get_topic_space(client: 'Client', id: int):
   result = await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.GET_TOPIC_SPACE, TopicSpaceRequestMessage(id=id).model_dump())
   data = TopicSpaceResponseMessage.model_validate(result)
   return { k: v for k, v in data.topic_id_map }
+async def get_topic_space_translation(client: 'Client', topic_space_id: int, topic_id: int):
+  message = TopicSpaceTranslationRequestMessage(topic_space_id=topic_space_id, topic_id=topic_id)
+  result = await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.GET_TOPIC_SPACE_TRANSLATION, message.model_dump())
+  return TopicSpaceTranslationResponseMessage.model_validate(result).topic_id
 
 async def _register_address_name(client: 'Client', name: str, address: Optional[int]):
   await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REGISTER_ADDRESS, RegisterAddressRequestBody(address_name=name, address=address).model_dump())

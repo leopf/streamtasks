@@ -35,6 +35,7 @@ class WorkerRequestDescriptors:
 
   REGISTER_TOPIC_SPACE = "register_topic_space"
   GET_TOPIC_SPACE = "get_topic_space"
+  GET_TOPIC_SPACE_TRANSLATION = "get_topic_space_translation"
   DELETE_TOPIC_SPACE = "delete_topic_space"
 
 class AddressNames:
@@ -43,10 +44,17 @@ class AddressNames:
 
 class TopicSpaceRequestMessage(BaseModel):
   id: int
+  
+class TopicSpaceTranslationRequestMessage(BaseModel):
+  topic_space_id: int
+  topic_id: int
 
 class RegisterTopicSpaceRequestMessage(BaseModel):
   topic_ids: list[int]
   
+class TopicSpaceTranslationResponseMessage(BaseModel):
+  topic_id: int
+
 class TopicSpaceResponseMessage(BaseModel):
   id: int
   topic_id_map: list[tuple[int, int]]
