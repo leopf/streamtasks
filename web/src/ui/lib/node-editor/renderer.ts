@@ -494,7 +494,7 @@ export class NodeEditorRenderer extends EventEmitter<{
         }
         this.emit("selected", id);
         this.nodePressActive = true;
-        this.viewport.disableDrag = true;
+        this.viewport.disableDrag();
 
         this.renderNode(id);
         this.selectedNode?.render();
@@ -508,7 +508,6 @@ export class NodeEditorRenderer extends EventEmitter<{
                 this.editingLinkLine?.remove();
             }
         }
-        this.viewport.disableDrag = false;
     }
 
     private createLinksFromOutputConnections(nodeId: string, outputConnections: OutputConnection[]) {

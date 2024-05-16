@@ -32,7 +32,7 @@ export class HTMLViewport {
         return this._container;
     }
 
-    public disableDrag: boolean = false;
+    private _disableDrag: boolean = false;
     private pointerUpHandler?: (() => void);
 
     constructor() {
@@ -52,6 +52,10 @@ export class HTMLViewport {
         this._container.appendChild(this._host);
 
         this.setupEvents();
+    }
+
+    public disableDrag() {
+        this._disableDrag = true;
     }
 
     public toLocal(p: Point) {
@@ -101,7 +105,10 @@ export class HTMLViewport {
         let lastGestureTouches: Touch[] | undefined = undefined;
 
         this._container.addEventListener("pointerdown", () => allowMove = true);
-        this.pointerUpHandler = () => allowMove = false;
+        this.pointerUpHandler = () => {
+            allowMove = false;
+            this._disableDrag = false;
+        };
         window.addEventListener("pointerup", this.pointerUpHandler);
         this._container.addEventListener("wheel", e => {
             const containerRect = this._container.getBoundingClientRect();
@@ -143,7 +150,7 @@ export class HTMLViewport {
             lastGestureTouches = Array.from(e.touches);
         });
         this._container.addEventListener("pointermove", (e) => {
-            if (!allowMove || this.disableDrag) return;
+            if (!allowMove || this._disableDrag) return;
             e.preventDefault();
             this._translate.x += e.movementX;
             this._translate.y += e.movementY;

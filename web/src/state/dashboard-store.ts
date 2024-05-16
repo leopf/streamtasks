@@ -2,9 +2,11 @@ import { z } from "zod";
 import { DashboardModel } from "../model/dashboard";
 import { Dashboard } from "../types/dashboard";
 import { computed, makeObservable, observable } from "mobx";
+import _ from "underscore";
 
 export class DashboardStore {
     private _dashboards: Map<string, Dashboard> = observable.map();
+    public putThrottled = _.throttle(async (dashboard: Dashboard) => await this.put(dashboard), 1000);
 
     public get dashboards() {
         return Array.from(this._dashboards.values())
