@@ -3,9 +3,9 @@ import { useParams } from "react-router-dom";
 import { useRootStore } from "../../state/root-store";
 import { PageLayout } from "../Layout";
 import urlJoin from "url-join";
-import { ConnectionManagerDashboard } from "../components/dashboards/ConnectionManager";
+import { ConnectionManager } from "../components/path-regisrations/ConnectionManager";
 
-export const DashboardPage = observer(() => {
+export const PathRegistrationPage = observer(() => {
     const params = useParams();
     const rootStore = useRootStore();
     const state = useLocalObservable(() => ({
@@ -21,7 +21,7 @@ export const DashboardPage = observer(() => {
     let innerContent: React.ReactNode = null;
     if (state.dashboard.frontend.path.startsWith("std:")) {
         if (state.dashboard.frontend.path === "std:connectionmanager") {
-            innerContent = <ConnectionManagerDashboard pathRegistration={state.dashboard}/>;
+            innerContent = <ConnectionManager pathRegistration={state.dashboard}/>;
         }
     }
     else {

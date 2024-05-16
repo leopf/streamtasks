@@ -83,7 +83,7 @@ class ControlBaseTask(Task, Generic[C, V]):
       try:
         await ctx.accept()
         receive_disconnect_task = asyncio.create_task(ctx.receive_disconnect())
-        while True:
+        while ctx.connected:
           await wait_with_dependencies(self.value_changed_trigger.wait(), [receive_disconnect_task])
           if ctx.connected:
             await ctx.send_message(self.value.model_dump_json())

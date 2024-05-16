@@ -7,7 +7,7 @@ import { ErrorPage } from './pages/ErrorPage';
 import { DeploymentEditorDialog } from './components/DeploymentEditorDialog';
 import { TopicViewerModal } from './components/TopicViewerModal';
 import { LoadingPage } from './Layout';
-import { DashboardPage } from './pages/DashboardPage';
+import { PathRegistrationPage } from './pages/PathRegistrationPage';
 
 const router = createHashRouter([
     {
@@ -16,8 +16,8 @@ const router = createHashRouter([
         errorElement: <ErrorPage />
     },
     {
-        path: "/dashboard/:id",
-        element: <DashboardPage />,
+        path: "/path-reg/:id",
+        element: <PathRegistrationPage />,
         errorElement: <ErrorPage />
     },
     {

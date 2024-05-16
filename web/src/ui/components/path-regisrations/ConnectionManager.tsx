@@ -3,17 +3,18 @@ import { PathRegistrationFrontend } from "../../../types/path";
 import urlJoin from "url-join";
 import { Box, Button, Card, CardActions, CardContent, Chip, Container, Dialog, DialogActions, DialogContent, DialogTitle, Fab, Grid, Stack, TextField, Typography } from "@mui/material";
 import { Add, Delete as DeleteIcon } from "@mui/icons-material";
-import { Deployment } from "../../../types/deployment";
 
-type ServeData = {
+type UrlData = {
     id: string;
     url: string;
+    running: boolean;
+};
+
+type ServeData = UrlData & {
     connection_count: number;
 };
 
-type ConnectData = {
-    id: string;
-    url: string;
+type ConnectData = UrlData & {
     connected: boolean;
 };
 
@@ -39,7 +40,15 @@ function UrlEditorDialog(props: { title: string, isOpen: boolean, label: string,
     )
 }
 
-export function ConnectionManagerDashboard(props: { pathRegistration: PathRegistrationFrontend }) {
+function RunningChip(props: { running: boolean }) {
+    return props.running ? (
+        <Chip label="running" color="success" />
+    ) : (
+        <Chip label="not running" color="default" />
+    )
+}
+
+export function ConnectionManager(props: { pathRegistration: PathRegistrationFrontend }) {
     const [newServeUrl, setNewServeUrl] = useState("");
     const [creatingServe, setCreatingServe] = useState(false);
 
@@ -47,22 +56,14 @@ export function ConnectionManagerDashboard(props: { pathRegistration: PathRegist
     const [creatingConnect, setCreatingConnect] = useState(false);
     const [serves, setServes] = useState<ServeData[]>([]);
     const [connects, setConnects] = useState<ConnectData[]>([]);
-    // const [serves, setServes] = useState<ServeData[]>(Array.from(Array(5)).map((_, id) => ({
-    //     connection_count: Math.floor(Math.random() * 20),
-    //     id: "d32cb0ac4af8ed20319c0d8e50d3755c" + String(id),
-    //     url: "https://mui.com/material-ui/react-button/"
-    // })));
-    // const [connects, setConnects] = useState<ConnectData[]>(Array.from(Array(5)).map((_, id) => ({
-    //     connected: Math.random() > 0.5,
-    //     id: "d32cb0ac4af8ed20319c0d8e50d3755c" + String(id),
-    //     url: "https://mui.com/material-ui/react-button/"
-    // })));
 
     const baseUrl = useMemo(() => String(new URL("." + props.pathRegistration.path, location.href)), [props.pathRegistration])
 
+    const loadConnects = (controller?: AbortController) => fetch(urlJoin(baseUrl, "./api/connects"), { signal: controller?.signal }).then(res => res.json()).then(data => setConnects(data))
+    const loadServes = (controller?: AbortController) => fetch(urlJoin(baseUrl, "./api/serves"), { signal: controller?.signal }).then(res => res.json()).then(data => setServes(data));
+
     const deleteConnect = (id: string) => fetch(urlJoin(baseUrl, `./api/connect/${id}`), { method: "delete" }).then(() => setConnects(pv => pv.filter(c => c.id !== id)))
     const deleteServe = (id: string) => fetch(urlJoin(baseUrl, `./api/serve/${id}`), { method: "delete" }).then(() => setServes(pv => pv.filter(c => c.id !== id)))
-
 
     const createConnect = (url: string) => fetch(urlJoin(baseUrl, `./api/connect`), { method: "post", body: JSON.stringify({ url }), headers: { "content-type": "application/json" } })
         .then(res => res.json()).then(data => setConnects(pv => [...pv, data]));
@@ -74,11 +75,25 @@ export function ConnectionManagerDashboard(props: { pathRegistration: PathRegist
         setServes([]);
         const controller = new AbortController()
 
-        const baseUrl = String(new URL("." + props.pathRegistration.path, location.href));
-        fetch(urlJoin(baseUrl, "./api/connects"), { signal: controller.signal }).then(res => res.json()).then(data => setConnects(data));
-        fetch(urlJoin(baseUrl, "./api/serves"), { signal: controller.signal }).then(res => res.json()).then(data => setServes(data));
+        loadConnects(controller);
+        loadServes(controller);
 
-        return () => controller.abort()
+        const wsUrl = new URL(baseUrl);
+        wsUrl.protocol = "ws";
+        const updateConnection = new WebSocket(urlJoin(String(wsUrl), "on-change"));
+        updateConnection.addEventListener("message", e => {
+            if (e.data == "server") {
+                loadServes();
+            }
+            if (e.data == "connection") {
+                loadConnects();
+            }
+        });
+
+        return () => {
+            controller.abort();
+            updateConnection.close();
+        }
     }, [props.pathRegistration])
 
     return (
@@ -99,11 +114,14 @@ export function ConnectionManagerDashboard(props: { pathRegistration: PathRegist
                                             <Typography variant="h5" gutterBottom>
                                                 {connect.url}
                                             </Typography>
-                                            {connect.connected ? (
-                                                <Chip label="connected" color="success" />
-                                            ) : (
-                                                <Chip label="disconnected" color="default" />
-                                            )}
+                                            <Stack direction="row" spacing={2}>
+                                                {connect.connected ? (
+                                                    <Chip label="connected" color="success" />
+                                                ) : (
+                                                    <Chip label="disconnected" color="default" />
+                                                )}
+                                                <RunningChip running={connect.running} />
+                                            </Stack>
                                         </CardContent>
                                         <CardActions>
                                             <Button size="small" startIcon={<DeleteIcon />} onClick={() => deleteConnect(connect.id)}>remove</Button>
@@ -124,7 +142,10 @@ export function ConnectionManagerDashboard(props: { pathRegistration: PathRegist
                                             <Typography variant="h5" gutterBottom>
                                                 {serve.url}
                                             </Typography>
-                                            <Chip label={serve.connection_count + " connected"} color="default" />
+                                            <Stack direction="row" spacing={2}>
+                                                <Chip label={serve.connection_count + " connected"} color="default" />
+                                                <RunningChip running={serve.running} />
+                                            </Stack>
                                         </CardContent>
                                         <CardActions>
                                             <Button size="small" startIcon={<DeleteIcon />} onClick={() => deleteServe(serve.id)}>remove</Button>

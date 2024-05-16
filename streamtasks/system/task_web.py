@@ -359,7 +359,7 @@ class TaskWebBackend(Worker):
         receive_disconnect_task = asyncio.create_task(ctx.receive_disconnect())
         deployment = self.store.get_running_deployment(UUID(ctx.params.get("deployment_id", "")))
         update_generator = self.receive_deployment_task_instance_updates(deployment)
-        while True:
+        while ctx.connected:
           task_id, task_instance = await wait_with_dependencies(anext(update_generator), [receive_disconnect_task])
           await ctx.send_message(UpdateTaskInstanceMessage(id=task_id, task_instance=task_instance).model_dump_json())
       finally:

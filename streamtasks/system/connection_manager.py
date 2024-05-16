@@ -9,7 +9,7 @@ import re
 from typing import Generic, TypeVar
 from pydantic import BaseModel, TypeAdapter, ValidationError
 from streamtasks.asgi import ASGIAppRunner
-from streamtasks.asgiserver import ASGIRouter, ASGIServer, HTTPContext, http_context_handler
+from streamtasks.asgiserver import ASGIRouter, ASGIServer, HTTPContext, WebsocketContext, http_context_handler, websocket_context_handler
 from streamtasks.connection import AutoReconnector, ServerBase, connect, get_server
 from streamtasks.env import NODE_NAME, get_data_sub_dir
 from streamtasks.net import EndpointOrAddress, Link
@@ -17,6 +17,7 @@ from streamtasks.services.protocols import AddressNames
 from streamtasks.system.task_web import PathRegistrationFrontend, TaskWebPathHandler
 import dbm
 import urllib.parse
+from streamtasks.utils import AsyncTrigger, wait_with_dependencies
 from streamtasks.worker import Worker
 
 URLListAdapter = TypeAdapter(list[str])
@@ -26,10 +27,11 @@ T = TypeVar("T", bound=Worker)
 def get_url_node_name(): return re.sub("[^a-zA-Z0-9-_]", "", NODE_NAME().lower())
 
 class UrlData(Generic[T]):
-  def __init__(self, url: str, worker: T) -> None:
+  def __init__(self, url: str, worker: T, change_trigger: AsyncTrigger) -> None:
     self.url = url
     self.worker: T = worker
     self.task: asyncio.Task | None = None
+    self.change_trigger = change_trigger
   
   @functools.cached_property
   def id(self):
@@ -44,17 +46,21 @@ class UrlData(Generic[T]):
     if len(purl.scheme) == 0: return self.url
     return urllib.parse.urlunparse(urllib.parse.ParseResult(
       scheme=purl.scheme, 
-      netloc=purl.hostname + (":" + str(purl.port) if purl.port else ""),
+      netloc=(purl.hostname or "") + (":" + str(purl.port) if purl.port else ""),
       path=purl.path,
       params="",
       query="",
       fragment=""
     ))
+    
+  @property
+  def running(self): return self.task is not None and not self.task.done()
 
   def start(self):
     if self.task is not None: return
-    self.task = asyncio.create_task(self.worker.run())
+    self.task = asyncio.create_task(self.run())
 
+  async def run(self): await asyncio.gather(self.worker.run(), self.change_handler())
   async def stop(self):
     if self.task is None: return None
     self.task.cancel()
@@ -64,12 +70,25 @@ class UrlData(Generic[T]):
     
   @abstractmethod
   def to_json_data(self) -> dict: pass
+  
+  @abstractmethod
+  async def change_handler(self): pass
 
 class ServeUrlData(UrlData[ServerBase]):
-  def to_json_data(self): return { "id": self.id, "url": self.sanitized_url, "connection_count": self.worker.connection_count }
+  def to_json_data(self): return { "id": self.id, "url": self.sanitized_url, "running": self.running, "connection_count": self.worker.connection_count }
+  async def change_handler(self):
+    while True:
+      await self.worker.wait_connections_changed()
+      self.change_trigger.trigger()
 
 class ConnectUrlData(UrlData[AutoReconnector]):
-  def to_json_data(self): return { "id": self.id, "url": self.sanitized_url, "connected": self.worker.connected }
+  def to_json_data(self): return { "id": self.id, "url": self.sanitized_url, "running": self.running, "connected": self.worker.connected }
+  async def change_handler(self):
+    while True:
+      await self.worker.wait_connected(True)
+      self.change_trigger.trigger()
+      await self.worker.wait_connected(False)
+      self.change_trigger.trigger()
 
 class UrlCreateModel(BaseModel):
   url: str
@@ -80,6 +99,8 @@ class ConnectionManager(TaskWebPathHandler):
     self.db = dbm.open(os.path.join(get_data_sub_dir("user-data"), "connections.db"), flag="c")
     self._connect_url_data: list[ConnectUrlData] = []
     self._serve_url_data: list[ServeUrlData] = []
+    self._change_trigger_serves = AsyncTrigger()
+    self._change_trigger_connects = AsyncTrigger()
     
   def __del__(self): self.db.close()
   
@@ -103,6 +124,8 @@ class ConnectionManager(TaskWebPathHandler):
       for url in self.get_serve_urls(): self._serve_url_data.append(await self.create_serve_url_data(url))
       for url_data in itertools.chain(self._connect_url_data, self._serve_url_data): url_data.start()
       await self.run_web_server()
+    except BaseException as e:
+      print(e)
     finally:
       for data in itertools.chain(self._connect_url_data, self._connect_url_data): await data.stop()
   
@@ -136,6 +159,7 @@ class ConnectionManager(TaskWebPathHandler):
     async def _(ctx: HTTPContext):
       req = UrlCreateModel.model_validate_json(await ctx.receive_json_raw())
       data = await self.create_connect_url_data(req.url)
+      if any(True for connect in self._connect_url_data if connect.id == data.id): return await ctx.respond_status(400)
       data.start()
       self._connect_url_data.append(data)
       self.update_connect_urls()
@@ -152,7 +176,7 @@ class ConnectionManager(TaskWebPathHandler):
       data = next((data for data in self._serve_url_data if data.id == id), None)
       if data is None: return await ctx.respond_status(404)
       await data.stop()
-      self._serve_url_data = [data for data in self._connect_url_data if data.id != id]
+      self._serve_url_data = [data for data in self._serve_url_data if data.id != id]
       self.update_serve_urls()
       await ctx.respond_status(200)
     
@@ -161,15 +185,37 @@ class ConnectionManager(TaskWebPathHandler):
     async def _(ctx: HTTPContext):
       req = UrlCreateModel.model_validate_json(await ctx.receive_json_raw())
       data = await self.create_serve_url_data(req.url)
+      if any(True for server in self._serve_url_data if server.id == data.id): return await ctx.respond_status(400)
       data.start()
       self._serve_url_data.append(data)
       self.update_serve_urls()
       await ctx.respond_json(data.to_json_data())
+      
+    async def _ws_serve_change_handler(ctx: WebsocketContext, receive_disconnect_task: asyncio.Task):
+      while ctx.connected:
+        await wait_with_dependencies(self._change_trigger_serves.wait(), [receive_disconnect_task])
+        if ctx.connected: await ctx.send_message("server")
+      
+    async def _ws_connect_change_handler(ctx: WebsocketContext, receive_disconnect_task: asyncio.Task):
+      while ctx.connected:
+        await wait_with_dependencies(self._change_trigger_connects.wait(), [receive_disconnect_task])
+        if ctx.connected: await ctx.send_message("connection")
+      
+    @router.websocket_route("/on-change")
+    @websocket_context_handler
+    async def _(ctx: WebsocketContext):
+      try:
+        await ctx.accept()
+        receive_disconnect_task = asyncio.create_task(ctx.receive_disconnect())
+        await asyncio.gather(_ws_connect_change_handler(ctx, receive_disconnect_task), _ws_serve_change_handler(ctx, receive_disconnect_task))
+      finally:
+        receive_disconnect_task.cancel()
+        await ctx.close()
     
     await ASGIAppRunner(self.client, app).run()
   
   async def create_connect_url_data(self, url: str):
-    return ConnectUrlData(url=url, worker=AutoReconnector(link=await self.create_link(), connect_fn=functools.partial(connect, url=url)))
+    return ConnectUrlData(url=url, worker=AutoReconnector(link=await self.create_link(), connect_fn=functools.partial(connect, url=url)), change_trigger=self._change_trigger_connects)
 
   async def create_serve_url_data(self, url: str):
-    return ServeUrlData(url=url, worker=get_server(link=await self.create_link(), url=url))
+    return ServeUrlData(url=url, worker=get_server(link=await self.create_link(), url=url), change_trigger=self._change_trigger_serves)

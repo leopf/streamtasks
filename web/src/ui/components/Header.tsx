@@ -54,9 +54,9 @@ export const Header = observer((props: React.PropsWithChildren<{}>) => {
                             <ListItemText primary={"New Deployment"} />
                         </ListItemButton>
                     </List>
-                    <List subheader={<ListSubheader>Dashboards</ListSubheader>}>
+                    <List subheader={<ListSubheader>Paths</ListSubheader>}>
                         {rootStore.pathRegistration.frontendPathRegistrations.map(d => (
-                            <ListItemButton key={d.id} component={Link} to={`/dashboard/${d.id}`}>
+                            <ListItemButton key={d.id} component={Link} to={`/path-reg/${d.id}`}>
                                 <ListItemText primary={d.frontend.label} />
                             </ListItemButton>
                         ))}

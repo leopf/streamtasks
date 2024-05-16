@@ -14,7 +14,6 @@ Backend:
 - get single topic space translation
 
 Frontend:
-- connection manager
 - dashboards
 - free io keys in static config
 

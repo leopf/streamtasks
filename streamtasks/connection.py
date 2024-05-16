@@ -65,13 +65,13 @@ class RawStreamConnection(RawConnection):
   async def send(self, data: bytes):
     try:
       return await super().send(data)
-    except (EOFError, ConnectionResetError, ConnectionRefusedError, ConnectionAbortedError, BrokenPipeError) as e:
+    except (EOFError, ConnectionError, BrokenPipeError) as e:
       raise ConnectionClosedError(str(e))
     
   async def recv(self):
     try:
       return await super().recv()
-    except (EOFError, ConnectionResetError, ConnectionRefusedError, ConnectionAbortedError, BrokenPipeError) as e:
+    except (EOFError, ConnectionError, BrokenPipeError) as e:
       raise ConnectionClosedError(str(e))
 
   async def _send(self, data: bytes):
@@ -274,7 +274,7 @@ class AutoReconnector(Worker):
           await self._async_connected.wait(False)
           await asyncio.wait(self.delay)
           logging.info("reconnecting")
-        except ConnectionClosedError: pass
+        except (ConnectionClosedError, ConnectionError): pass
     finally: await self.shutdown()
 
   async def wait_connected(self, connected: bool = True): await self._async_connected.wait(connected)
