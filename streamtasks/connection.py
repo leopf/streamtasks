@@ -71,7 +71,7 @@ class RawStreamConnection(RawConnection):
   async def recv(self):
     try:
       return await super().recv()
-    except (EOFError, ConnectionError, BrokenPipeError) as e:
+    except (EOFError, ConnectionError, BrokenPipeError, asyncio.IncompleteReadError) as e:
       raise ConnectionClosedError(str(e))
 
   async def _send(self, data: bytes):
@@ -83,16 +83,11 @@ class RawStreamConnection(RawConnection):
   async def _recv(self) -> bytes:
     sync_index = 0
     while sync_index < len(RawStreamConnection.SYNC_WORD):
-      next_byte = await self._reader.read(1)
-      if len(next_byte) == 0: raise EOFError()
+      next_byte = await self._reader.readexactly(1)
       if RawStreamConnection.SYNC_WORD[sync_index] == next_byte[0]: sync_index += 1
       else: sync_index = 0
-    data_len_raw = await self._reader.read(4)
-    if len(data_len_raw) != 4: raise EOFError()
-    data_len, = struct.unpack("<L", data_len_raw)
-    data = await self._reader.read(data_len)
-    if len(data) != data_len: raise EOFError()
-    return data
+    data_len, = struct.unpack("<L", await self._reader.readexactly(4))
+    return await self._reader.readexactly(data_len)
 
 class RawConnectionLink(Link):
   def __init__(self, connection: RawConnection, cost: int):
