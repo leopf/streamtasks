@@ -1,4 +1,4 @@
-import { TaskConfiguratorContext, Task, Metadata, TaskPartialInput, TaskInput, TaskInstance, TaskInstanceStatus } from "../../types/task";
+import { TaskConfiguratorContext, Task, Metadata, TaskPartialInput, TaskInput, TaskInstance, TaskInstanceStatus, TaskDisplayOptions } from "../../types/task";
 import { getObjectDiffPaths } from "../../lib/task";
 import { TaskCLSConfigurator, TaskCLSReactRendererMixin, createCLSConfigurator } from "../../lib/conigurator";
 import { StaticEditor } from "../../StaticEditor";
@@ -25,7 +25,7 @@ function parseOutputs(metadata: Metadata) {
     return parseMetadataField(metadata, "cfg:outputs", z.array(MetadataModel)) ?? [];
 }
 
-function TaskDisplay(props: { task: Task, taskInstance: TaskInstance, editorFields: EditorField[] }) {
+function TaskDisplay(props: { task: Task, taskInstance: TaskInstance, editorFields: EditorField[], options: TaskDisplayOptions }) {
     const [configExpanded, setConfigExpanded] = useState(false);
 
     const frontendUrl = useMemo(() => {
@@ -42,17 +42,19 @@ function TaskDisplay(props: { task: Task, taskInstance: TaskInstance, editorFiel
 
     return (
         <Stack direction="column" spacing={3} height="100%" width="100%">
-            <Accordion expanded={configExpanded} onChange={() => setConfigExpanded(pv => !pv)}>
-                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                    <Typography>config</Typography>
-                </AccordionSummary>
-                <AccordionDetails>
-                    <StaticEditor data={props.task.config} fields={props.editorFields} disableAll />
-                </AccordionDetails>
-            </Accordion>
+            {props.options.context !== "dashboard" && (
+                <Accordion expanded={configExpanded} onChange={() => setConfigExpanded(pv => !pv)}>
+                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                        <Typography>config</Typography>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                        <StaticEditor data={props.task.config} fields={props.editorFields} disableAll />
+                    </AccordionDetails>
+                </Accordion>
+            )}
             {frontendUrl && (
                 <Box flex={1}>
-                    <iframe src={frontendUrl} width="100%" height="100%" style={{ display:"block", border: "none" }} />
+                    <iframe src={frontendUrl} width="100%" height="100%" style={{ display: "block", border: "none" }} />
                 </Box>
             )}
         </Stack>
@@ -79,8 +81,11 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
         }
     }
 
-    public rrenderDisplay(taskInstance: TaskInstance): ReactNode {
-        return <TaskDisplay editorFields={this.editorFields} task={this.task} taskInstance={taskInstance} />
+    public rrenderDisplay(options: TaskDisplayOptions): ReactNode {
+        if (!this.taskInstance) {
+            return;
+        }
+        return <TaskDisplay editorFields={this.editorFields} task={this.task} taskInstance={this.taskInstance} options={options} />
     }
     public rrenderEditor(onUpdate: () => void): ReactNode {
         const cs = this.getGraph();

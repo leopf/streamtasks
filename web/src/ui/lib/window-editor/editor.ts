@@ -10,7 +10,8 @@ const windowHeaderHeight = 20;
 const headerFontSize = windowHeaderHeight - 8;
 const headerHSpacing = windowHeaderHeight / 4;
 
-type PointerMoveAction = { type: "resize", x: number, y: number, w: number, h: number } | { type: "move" }
+type PointerMoveActionResize = { type: "resize", x: number, y: number, w: number, h: number }
+type PointerMoveAction = PointerMoveActionResize | { type: "move" }
 
 export class WindowRenderer extends EventEmitter<{
     "updated": [DashboardWindow],
@@ -94,44 +95,17 @@ export class WindowRenderer extends EventEmitter<{
 
         headerEl.appendChild(closeElement);
 
-
-        const topResizeEl = document.createElement("div");
-        topResizeEl.style.position = "absolute";
-        topResizeEl.style.top = "0px";
-        topResizeEl.style.left = resizeElementSize + "px";
-        topResizeEl.style.right = resizeElementSize + "px";
-        topResizeEl.style.height = resizeElementSize + "px";
-        topResizeEl.style.cursor = "ns-resize";
-        topResizeEl.addEventListener("pointerdown", () => this.startPointerMoveAction({ type: "resize", y: 1, h: -1, w: 0, x: 0 }));
-
-        const bottomResizeEl = document.createElement("div");
-        bottomResizeEl.style.position = "absolute";
-        bottomResizeEl.style.bottom = "0px";
-        bottomResizeEl.style.left = resizeElementSize + "px";
-        bottomResizeEl.style.right = resizeElementSize + "px";
-        bottomResizeEl.style.height = resizeElementSize + "px";
-        bottomResizeEl.style.cursor = "ns-resize";
-        bottomResizeEl.addEventListener("pointerdown", () => this.startPointerMoveAction({ type: "resize", h: 1, x: 0, y: 0, w: 0 }));
-
-        const leftResizeEl = document.createElement("div");
-        leftResizeEl.style.position = "absolute";
-        leftResizeEl.style.left = "0px";
-        leftResizeEl.style.bottom = resizeElementSize + "px";
-        leftResizeEl.style.top = resizeElementSize + "px";
-        leftResizeEl.style.width = resizeElementSize + "px";
-        leftResizeEl.style.cursor = "ew-resize";
-        leftResizeEl.addEventListener("pointerdown", () => this.startPointerMoveAction({ type: "resize", x: 1, w: -1, h: 0, y: 0 }));
-
-        const rightResizeEl = document.createElement("div");
-        rightResizeEl.style.position = "absolute";
-        rightResizeEl.style.right = "0px";
-        rightResizeEl.style.bottom = resizeElementSize + "px";
-        rightResizeEl.style.top = resizeElementSize + "px";
-        rightResizeEl.style.width = resizeElementSize + "px";
-        rightResizeEl.style.cursor = "ew-resize";
-        rightResizeEl.addEventListener("pointerdown", () => this.startPointerMoveAction({ type: "resize", w: 1, h: 0, x: 0, y: 0 }));
-
-        [topResizeEl, bottomResizeEl, leftResizeEl, rightResizeEl, headerEl, this.contentEl].forEach(el => this.element.appendChild(el));
+        [
+            headerEl, this.contentEl,
+            this.createSideResizeElement({ type: "resize", w: 1, h: 0, x: 0, y: 0 }), // right
+            this.createSideResizeElement({ type: "resize", x: 1, w: -1, h: 0, y: 0 }), // left
+            this.createSideResizeElement({ type: "resize", h: 1, x: 0, y: 0, w: 0 }), // bottom
+            this.createSideResizeElement({ type: "resize", y: 1, h: -1, w: 0, x: 0 }), // top
+            this.createCornerResizeElement({ type: "resize", h: 1, w: 1, x: 0, y: 0 }), // bottom right
+            this.createCornerResizeElement({ type: "resize", h: -1, w: -1, x: 1, y: 1 }), // top left
+            this.createCornerResizeElement({ type: "resize", h: -1, w: 1, x: 0, y: 1 }), // top right
+            this.createCornerResizeElement({ type: "resize", h: 1, w: -1, x: 1, y: 0 }), // bottom left
+        ].forEach(el => this.element.appendChild(el));
         this.reposition();
         this.rerenderTaskData();
         this.task?.addListener("updated", this.rerenderTaskDataHandler);
@@ -143,10 +117,67 @@ export class WindowRenderer extends EventEmitter<{
         this.element.remove();
         this.removeAllListeners();
         this.task?.removeListener("updated", this.rerenderTaskDataHandler);
-        window.removeEventListener("pointermove", this.windowPointerMoveHandler, false);
+        window.removeEventListener("pointermove", this.windowPointerMoveHandler);
         window.removeEventListener("pointerup", this.windowPointerUpHandler);
     }
 
+    private createCornerResizeElement(action: PointerMoveActionResize) {
+        const el = document.createElement("div");
+        el.style.position = "absolute";
+        
+        if (action.x !== 0) {
+            el.style.left = "0";    
+        }
+        else {
+            el.style.right = "0";    
+        }
+
+        if (action.y !== 0) {
+            el.style.top = "0";    
+        }
+        else {
+            el.style.bottom = "0";    
+        }
+
+        el.style.height = resizeElementSize + "px";
+        el.style.width = resizeElementSize + "px";
+        el.style.cursor = ((action.x !== 0) == (action.y !== 0)) ?  "nw-resize" : "ne-resize";
+        el.addEventListener("pointerdown", () => this.startPointerMoveAction(action));
+        return el
+    }
+    private createSideResizeElement(action: PointerMoveActionResize) {
+        const el = document.createElement("div");
+        el.style.position = "absolute";
+
+        if (action.w !== 0) {
+            el.style.bottom = resizeElementSize + "px";
+            el.style.top = resizeElementSize + "px";
+            el.style.width = resizeElementSize + "px";
+
+            if (action.x !== 0) {
+                el.style.left = "0";
+            }
+            else {
+                el.style.right = "0";
+            }
+        }
+        if (action.h !== 0) {
+            el.style.left = resizeElementSize + "px";
+            el.style.right = resizeElementSize + "px";
+            el.style.height = resizeElementSize + "px";
+
+            if (action.y !== 0) {
+                el.style.top = "0";
+            }
+            else {
+                el.style.bottom = "0";
+            }
+        }
+
+        el.style.cursor = action.w !== 0 ?  "ew-resize" : "ns-resize";
+        el.addEventListener("pointerdown", () => this.startPointerMoveAction(action));
+        return el
+    }
     private startPointerMoveAction(action: PointerMoveAction) {
         this.pointerMoveAction = action;
         this.viewport.disableDrag();
@@ -172,13 +203,12 @@ export class WindowRenderer extends EventEmitter<{
                 height: this._data.height + my * this.pointerMoveAction.h,
             });
         }
-        e.stopPropagation();
     }
     private rerenderTaskData() {
         if (this.task) {
             this.labelEl.innerText = this.task.label;
             if (this.task.taskInstance) {
-                this.task.renderDisplay(this.contentEl);
+                this.task.renderDisplay(this.contentEl, { context: "dashboard" });
             }
             else {
                 this.contentEl.innerHTML = `<div style="display: flex; align-items: center; justify-content: center;width: 100%; height: 100%;">

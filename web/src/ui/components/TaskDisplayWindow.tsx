@@ -12,13 +12,13 @@ export function TaskDisplayWindow(props: { task: ManagedTask, onClose: () => voi
     const customDisplayRef = useRef<HTMLDivElement>(null);
     const taskUpdateCounter = useTaskUpdate(props.task, () => {
         if (customDisplayRef.current) {
-            props.task.renderDisplay(customDisplayRef.current);
+            props.task.renderDisplay(customDisplayRef.current, { context: "task" });
         }
     }, true);
 
     useEffect(() => {
         if (!props.task.hasDisplay || !customDisplayRef.current) return;
-        props.task.renderDisplay(customDisplayRef.current);
+        props.task.renderDisplay(customDisplayRef.current, { context: "task" });
     }, [props.task, customDisplayRef.current]);
 
     return (

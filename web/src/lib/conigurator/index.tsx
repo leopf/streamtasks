@@ -1,6 +1,6 @@
 import { Root, createRoot } from "react-dom/client";
 import React from "react";
-import { Task, TaskConfigurator, TaskConfiguratorContext, TaskInput, TaskInstance, TaskOutput } from "../../types/task";
+import { RunningTask, Task, TaskConfigurator, TaskConfiguratorContext, TaskDisplayOptions, TaskInput, TaskInstance, TaskOutput } from "../../types/task";
 import cloneDeep from "clone-deep";
 import objectPath from "object-path";
 
@@ -29,26 +29,22 @@ export class ReactElementRenderer {
 }
 
 export abstract class TaskCLSConfigurator {
-    private context: TaskConfiguratorContext;
     
-    constructor(context: TaskConfiguratorContext, task: Task) {
-        this._task = task;
-        this.context = context; 
-    }
+    public taskInstance?: TaskInstance;
 
     private _task: Task;
     public get task() {
         return cloneDeep(this._task);
     }
-
+    
     public get id() {
         return this._task.id;
     }
-
+    
     public get config() {
         return this._task.config;
     }
-
+    
     public get inputs() {
         return this._task.inputs;
     }
@@ -61,18 +57,25 @@ export abstract class TaskCLSConfigurator {
     public set outputs(v: TaskOutput[]) {
         this._task.outputs = v;
     }
-
+    
     public get taskHost() {
         return this.context.taskHost;
     }
-
+    
     public get newId() {
         return this.context.idGenerator
     }
 
+    private context: TaskConfiguratorContext;
+    
+    constructor(context: TaskConfiguratorContext, task: Task) {
+        this._task = task;
+        this.context = context; 
+    }
+
     public abstract connect(key: string, output?: TaskOutput): void | Promise<void>;
     public renderEditor(element: HTMLElement): void {}
-    public renderDisplay(element: HTMLElement, taskInstance: TaskInstance): void {}
+    public renderDisplay(element: HTMLElement, options: TaskDisplayOptions): void {}
     public update(task: Task, context: TaskConfiguratorContext) {
         if (this.id != task.id) throw new Error("Task ids do not match!");
         this._task = task;
@@ -121,9 +124,9 @@ export function TaskCLSReactRendererMixin<TBase extends Constructor>(Base: TBase
         private _editorRenderer = new ReactElementRenderer();
         private _displayRenderer = new ReactElementRenderer();
         
-        public rrenderDisplay(taskInstance: TaskInstance): React.ReactNode { return null; }
-        public renderDisplay(element: HTMLElement, taskInstance: TaskInstance): void {
-            this._displayRenderer.render(element, <React.Fragment key={this.id}>{this.rrenderDisplay(taskInstance)}</React.Fragment>);
+        public rrenderDisplay(options: TaskDisplayOptions): React.ReactNode { return null; }
+        public renderDisplay(element: HTMLElement, options: TaskDisplayOptions): void {
+            this._displayRenderer.render(element, <React.Fragment key={this.id}>{this.rrenderDisplay(options)}</React.Fragment>);
         }
 
         public rrenderEditor(onUpdate: () => void): React.ReactNode { return null; }
@@ -153,20 +156,23 @@ export function createCLSConfigurator(factory: (context: TaskConfiguratorContext
     return {
         create: (context: TaskConfiguratorContext) => {
             const clsTask = getOrCreateTask(context);
-            return clsTask.task; // trick ts
+            return clsTask.task;
         },
         connect: async (task: Task, key: string, output: TaskOutput | undefined, context: TaskConfiguratorContext) => {
             const clsTask = getOrCreateTask(context, task);
+            clsTask.taskInstance = undefined;
             await clsTask.connect(key, output);
             return clsTask.task;
         },
         renderEditor: async (task: Task, element: HTMLElement, context: TaskConfiguratorContext) => {
             const clsTask = getOrCreateTask(context, task);
+            clsTask.taskInstance = undefined;
             clsTask.renderEditor(element);
         },
-        renderDisplay: async (task: Task, element: HTMLElement, taskInstance: TaskInstance, context: TaskConfiguratorContext) => {
+        renderDisplay: async (task: RunningTask, element: HTMLElement, options: TaskDisplayOptions, context: TaskConfiguratorContext) => {
             const clsTask = getOrCreateTask(context, task);
-            clsTask.renderDisplay(element, taskInstance);
+            clsTask.taskInstance = task.taskInstance;
+            clsTask.renderDisplay(element, options);
         }
     };
 }
