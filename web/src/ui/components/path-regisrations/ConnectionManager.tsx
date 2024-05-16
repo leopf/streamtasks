@@ -10,11 +10,11 @@ type UrlData = {
     running: boolean;
 };
 
-type ServeData = UrlData & {
+type ServerData = UrlData & {
     connection_count: number;
 };
 
-type ConnectData = UrlData & {
+type ConnectionData = UrlData & {
     connected: boolean;
 };
 
@@ -49,44 +49,44 @@ function RunningChip(props: { running: boolean }) {
 }
 
 export function ConnectionManager(props: { pathRegistration: PathRegistrationFrontend }) {
-    const [newServeUrl, setNewServeUrl] = useState("");
-    const [creatingServe, setCreatingServe] = useState(false);
+    const [newServerUrl, setNewServerUrl] = useState("");
+    const [creatingServer, setCreatingServer] = useState(false);
 
-    const [newConnectUrl, setNewConnectUrl] = useState("");
-    const [creatingConnect, setCreatingConnect] = useState(false);
-    const [serves, setServes] = useState<ServeData[]>([]);
-    const [connects, setConnects] = useState<ConnectData[]>([]);
+    const [newConnectionUrl, setNewConnectionUrl] = useState("");
+    const [creatingConnection, setCreatingConnection] = useState(false);
+    const [servers, setServers] = useState<ServerData[]>([]);
+    const [connections, setConnections] = useState<ConnectionData[]>([]);
 
     const baseUrl = useMemo(() => String(new URL("." + props.pathRegistration.path, location.href)), [props.pathRegistration])
 
-    const loadConnects = (controller?: AbortController) => fetch(urlJoin(baseUrl, "./api/connects"), { signal: controller?.signal }).then(res => res.json()).then(data => setConnects(data))
-    const loadServes = (controller?: AbortController) => fetch(urlJoin(baseUrl, "./api/serves"), { signal: controller?.signal }).then(res => res.json()).then(data => setServes(data));
+    const loadConnections = (controller?: AbortController) => fetch(urlJoin(baseUrl, "./api/connections"), { signal: controller?.signal }).then(res => res.json()).then(data => setConnections(data))
+    const loadServers = (controller?: AbortController) => fetch(urlJoin(baseUrl, "./api/servers"), { signal: controller?.signal }).then(res => res.json()).then(data => setServers(data));
 
-    const deleteConnect = (id: string) => fetch(urlJoin(baseUrl, `./api/connect/${id}`), { method: "delete" }).then(() => setConnects(pv => pv.filter(c => c.id !== id)))
-    const deleteServe = (id: string) => fetch(urlJoin(baseUrl, `./api/serve/${id}`), { method: "delete" }).then(() => setServes(pv => pv.filter(c => c.id !== id)))
+    const deleteConnection = (id: string) => fetch(urlJoin(baseUrl, `./api/connection/${id}`), { method: "delete" }).then(() => setConnections(pv => pv.filter(c => c.id !== id)))
+    const deleteServer = (id: string) => fetch(urlJoin(baseUrl, `./api/server/${id}`), { method: "delete" }).then(() => setServers(pv => pv.filter(c => c.id !== id)))
 
-    const createConnect = (url: string) => fetch(urlJoin(baseUrl, `./api/connect`), { method: "post", body: JSON.stringify({ url }), headers: { "content-type": "application/json" } })
-        .then(res => res.json()).then(data => setConnects(pv => [...pv, data]));
-    const createServe = (url: string) => fetch(urlJoin(baseUrl, `./api/serve`), { method: "post", body: JSON.stringify({ url }), headers: { "content-type": "application/json" } })
-        .then(res => res.json()).then(data => setServes(pv => [...pv, data]));
+    const createConnection = (url: string) => fetch(urlJoin(baseUrl, `./api/connection`), { method: "post", body: JSON.stringify({ url }), headers: { "content-type": "application/json" } })
+        .then(res => res.json()).then(data => setConnections(pv => [...pv, data]));
+    const createServer = (url: string) => fetch(urlJoin(baseUrl, `./api/server`), { method: "post", body: JSON.stringify({ url }), headers: { "content-type": "application/json" } })
+        .then(res => res.json()).then(data => setServers(pv => [...pv, data]));
 
     useEffect(() => {
-        setConnects([]);
-        setServes([]);
+        setConnections([]);
+        setServers([]);
         const controller = new AbortController()
 
-        loadConnects(controller);
-        loadServes(controller);
+        loadConnections(controller);
+        loadServers(controller);
 
         const wsUrl = new URL(baseUrl);
         wsUrl.protocol = "ws";
         const updateConnection = new WebSocket(urlJoin(String(wsUrl), "on-change"));
         updateConnection.addEventListener("message", e => {
             if (e.data == "server") {
-                loadServes();
+                loadServers();
             }
             if (e.data == "connection") {
-                loadConnects();
+                loadConnections();
             }
         });
 
@@ -104,27 +104,27 @@ export function ConnectionManager(props: { pathRegistration: PathRegistrationFro
                         <Typography variant="h2" gutterBottom>{props.pathRegistration.frontend.label}</Typography>
                         <Typography variant="h3" gutterBottom marginTop={5}>connections</Typography>
                         <Grid container spacing={2} columns={{ sm: 4, md: 8 }}>
-                            {connects.map(connect => (
+                            {connections.map(connection => (
                                 <Grid item xs={4}>
-                                    <Card sx={{ minWidth: 275 }} key={connect.id}>
+                                    <Card sx={{ minWidth: 275 }} key={connection.id}>
                                         <CardContent>
                                             <Typography sx={{ fontSize: 14 }} color="text.secondary" gutterBottom>
-                                                {connect.id.substring(0, 8)}
+                                                {connection.id.substring(0, 8)}
                                             </Typography>
                                             <Typography variant="h5" gutterBottom>
-                                                {connect.url}
+                                                {connection.url}
                                             </Typography>
                                             <Stack direction="row" spacing={2}>
-                                                {connect.connected ? (
+                                                {connection.connected ? (
                                                     <Chip label="connected" color="success" />
                                                 ) : (
                                                     <Chip label="disconnected" color="default" />
                                                 )}
-                                                <RunningChip running={connect.running} />
+                                                <RunningChip running={connection.running} />
                                             </Stack>
                                         </CardContent>
                                         <CardActions>
-                                            <Button size="small" startIcon={<DeleteIcon />} onClick={() => deleteConnect(connect.id)}>remove</Button>
+                                            <Button size="small" startIcon={<DeleteIcon />} onClick={() => deleteConnection(connection.id)}>remove</Button>
                                         </CardActions>
                                     </Card>
                                 </Grid>
@@ -132,23 +132,23 @@ export function ConnectionManager(props: { pathRegistration: PathRegistrationFro
                         </Grid>
                         <Typography variant="h3" gutterBottom marginTop={5}>servers</Typography>
                         <Grid container spacing={2} columns={{ sm: 4, md: 8 }}>
-                            {serves.map(serve => (
+                            {servers.map(server => (
                                 <Grid item xs={4}>
-                                    <Card sx={{ minWidth: 275 }} key={serve.id}>
+                                    <Card sx={{ minWidth: 275 }} key={server.id}>
                                         <CardContent>
                                             <Typography sx={{ fontSize: 14 }} color="text.secondary" gutterBottom>
-                                                {serve.id.substring(0, 8)}
+                                                {server.id.substring(0, 8)}
                                             </Typography>
                                             <Typography variant="h5" gutterBottom>
-                                                {serve.url}
+                                                {server.url}
                                             </Typography>
                                             <Stack direction="row" spacing={2}>
-                                                <Chip label={serve.connection_count + " connected"} color="default" />
-                                                <RunningChip running={serve.running} />
+                                                <Chip label={server.connection_count + " connected"} color="default" />
+                                                <RunningChip running={server.running} />
                                             </Stack>
                                         </CardContent>
                                         <CardActions>
-                                            <Button size="small" startIcon={<DeleteIcon />} onClick={() => deleteServe(serve.id)}>remove</Button>
+                                            <Button size="small" startIcon={<DeleteIcon />} onClick={() => deleteServer(server.id)}>remove</Button>
                                         </CardActions>
                                     </Card>
                                 </Grid>
@@ -158,29 +158,29 @@ export function ConnectionManager(props: { pathRegistration: PathRegistrationFro
                 </Container>
             </Box>
             <Stack position="fixed" bottom="2rem" right="2rem" direction="column" spacing={3}>
-                <Fab variant="extended" color="primary" onClick={() => setCreatingConnect(true)}>
+                <Fab variant="extended" color="primary" onClick={() => setCreatingConnection(true)}>
                     <Add sx={{ mr: 1 }} />
                     create connection
                 </Fab>
-                <Fab variant="extended" color="primary" onClick={() => setCreatingServe(true)}>
+                <Fab variant="extended" color="primary" onClick={() => setCreatingServer(true)}>
                     <Add sx={{ mr: 1 }} />
                     create server
                 </Fab>
             </Stack>
-            <UrlEditorDialog isOpen={creatingConnect} label="connection url" title="create connection" onClose={(create) => {
+            <UrlEditorDialog isOpen={creatingConnection} label="connection url" title="create connection" onClose={(create) => {
                 if (create) {
-                    createConnect(newConnectUrl);
+                    createConnection(newConnectionUrl);
                 }
-                setCreatingConnect(false);
-                setNewConnectUrl("");
-            }} onUpdate={setNewConnectUrl} value={newConnectUrl} />
-            <UrlEditorDialog isOpen={creatingServe} label="server url" title="create server" onClose={(create) => {
+                setCreatingConnection(false);
+                setNewConnectionUrl("");
+            }} onUpdate={setNewConnectionUrl} value={newConnectionUrl} />
+            <UrlEditorDialog isOpen={creatingServer} label="server url" title="create server" onClose={(create) => {
                 if (create) {
-                    createServe(newServeUrl);
+                    createServer(newServerUrl);
                 }
-                setCreatingServe(false);
-                setNewServeUrl("");
-            }} onUpdate={setNewServeUrl} value={newServeUrl} />
+                setCreatingServer(false);
+                setNewServerUrl("");
+            }} onUpdate={setNewServerUrl} value={newServerUrl} />
         </>
     );
 }

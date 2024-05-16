@@ -74,14 +74,14 @@ class UrlData(Generic[T]):
   @abstractmethod
   async def change_handler(self): pass
 
-class ServeUrlData(UrlData[ServerBase]):
+class ServerUrlData(UrlData[ServerBase]):
   def to_json_data(self): return { "id": self.id, "url": self.sanitized_url, "running": self.running, "connection_count": self.worker.connection_count }
   async def change_handler(self):
     while True:
       await self.worker.wait_connections_changed()
       self.change_trigger.trigger()
 
-class ConnectUrlData(UrlData[AutoReconnector]):
+class ConnectionUrlData(UrlData[AutoReconnector]):
   def to_json_data(self): return { "id": self.id, "url": self.sanitized_url, "running": self.running, "connected": self.worker.connected }
   async def change_handler(self):
     while True:
@@ -97,37 +97,37 @@ class ConnectionManager(TaskWebPathHandler):
   def __init__(self, link: Link, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER_WEB]):
     super().__init__(link, f"/connections/{get_url_node_name()}/", PathRegistrationFrontend(path="std:connectionmanager", label=f"Connections ({NODE_NAME()})"), register_endpoits)
     self.db = dbm.open(os.path.join(get_data_sub_dir("user-data"), "connections.db"), flag="c")
-    self._connect_url_data: list[ConnectUrlData] = []
-    self._serve_url_data: list[ServeUrlData] = []
-    self._change_trigger_serves = AsyncTrigger()
-    self._change_trigger_connects = AsyncTrigger()
+    self._connection_url_data: list[ConnectionUrlData] = []
+    self._server_url_data: list[ServerUrlData] = []
+    self._change_trigger_servers = AsyncTrigger()
+    self._change_trigger_connections = AsyncTrigger()
     
   def __del__(self): self.db.close()
   
-  def get_connect_urls(self) -> list[str]:
-    try: return URLListAdapter.validate_json(self.db.get("connect", b"[]"))
+  def get_connection_urls(self) -> list[str]:
+    try: return URLListAdapter.validate_json(self.db.get("connection", b"[]"))
     except ValidationError: return []
   
-  def update_connect_urls(self):
-    self.db["connect"] = json.dumps([ data.url for data in self._connect_url_data ]).encode("utf-8")
+  def update_connection_urls(self):
+    self.db["connection"] = json.dumps([ data.url for data in self._connection_url_data ]).encode("utf-8")
   
-  def get_serve_urls(self) -> list[str]:
-    try: return URLListAdapter.validate_json(self.db.get("serve", b"[]"))
+  def get_server_urls(self) -> list[str]:
+    try: return URLListAdapter.validate_json(self.db.get("server", b"[]"))
     except ValidationError: return []
   
-  def update_serve_urls(self):
-    self.db["serve"] = json.dumps([ data.url for data in self._serve_url_data ]).encode("utf-8")
+  def update_server_urls(self):
+    self.db["server"] = json.dumps([ data.url for data in self._server_url_data ]).encode("utf-8")
   
   async def run_inner(self):
     try: 
-      for url in self.get_connect_urls(): self._connect_url_data.append(await self.create_connect_url_data(url))
-      for url in self.get_serve_urls(): self._serve_url_data.append(await self.create_serve_url_data(url))
-      for url_data in itertools.chain(self._connect_url_data, self._serve_url_data): url_data.start()
+      for url in self.get_connection_urls(): self._connection_url_data.append(await self.create_connection_url_data(url))
+      for url in self.get_server_urls(): self._server_url_data.append(await self.create_server_url_data(url))
+      for url_data in itertools.chain(self._connection_url_data, self._server_url_data): url_data.start()
       await self.run_web_server()
     except BaseException as e:
       print(e)
     finally:
-      for data in itertools.chain(self._connect_url_data, self._connect_url_data): await data.stop()
+      for data in itertools.chain(self._connection_url_data, self._connection_url_data): await data.stop()
   
   async def run_web_server(self):
     app = ASGIServer()
@@ -139,66 +139,66 @@ class ConnectionManager(TaskWebPathHandler):
     async def _(ctx: HTTPContext): 
       await ctx.respond_status(404)
     
-    @router.get("/api/connects")
+    @router.get("/api/connections")
     @http_context_handler
-    async def _(ctx: HTTPContext): await ctx.respond_json([ url_data.to_json_data() for url_data in self._connect_url_data ])
+    async def _(ctx: HTTPContext): await ctx.respond_json([ url_data.to_json_data() for url_data in self._connection_url_data ])
     
-    @router.delete("/api/connect/{id}")
+    @router.delete("/api/connection/{id}")
     @http_context_handler
     async def _(ctx: HTTPContext):
       id = ctx.params.get("id", None)
-      data = next((data for data in self._connect_url_data if data.id == id), None)
+      data = next((data for data in self._connection_url_data if data.id == id), None)
       if data is None: return await ctx.respond_status(404)
       await data.stop()
-      self._connect_url_data = [data for data in self._connect_url_data if data.id != id]
-      self.update_connect_urls()
+      self._connection_url_data = [data for data in self._connection_url_data if data.id != id]
+      self.update_connection_urls()
       await ctx.respond_status(200)
     
-    @router.post("/api/connect")
+    @router.post("/api/connection")
     @http_context_handler
     async def _(ctx: HTTPContext):
       req = UrlCreateModel.model_validate_json(await ctx.receive_json_raw())
-      data = await self.create_connect_url_data(req.url)
-      if any(True for connect in self._connect_url_data if connect.id == data.id): return await ctx.respond_status(400)
+      data = await self.create_connection_url_data(req.url)
+      if any(True for connection in self._connection_url_data if connection.id == data.id): return await ctx.respond_status(400)
       data.start()
-      self._connect_url_data.append(data)
-      self.update_connect_urls()
+      self._connection_url_data.append(data)
+      self.update_connection_urls()
       await ctx.respond_json(data.to_json_data())
     
-    @router.get("/api/serves")
+    @router.get("/api/servers")
     @http_context_handler
-    async def _(ctx: HTTPContext): await ctx.respond_json([ url_data.to_json_data() for url_data in self._serve_url_data ])
+    async def _(ctx: HTTPContext): await ctx.respond_json([ url_data.to_json_data() for url_data in self._server_url_data ])
     
-    @router.delete("/api/serve/{id}")
+    @router.delete("/api/server/{id}")
     @http_context_handler
     async def _(ctx: HTTPContext):
       id = ctx.params.get("id", None)
-      data = next((data for data in self._serve_url_data if data.id == id), None)
+      data = next((data for data in self._server_url_data if data.id == id), None)
       if data is None: return await ctx.respond_status(404)
       await data.stop()
-      self._serve_url_data = [data for data in self._serve_url_data if data.id != id]
-      self.update_serve_urls()
+      self._server_url_data = [data for data in self._server_url_data if data.id != id]
+      self.update_server_urls()
       await ctx.respond_status(200)
     
-    @router.post("/api/serve")
+    @router.post("/api/server")
     @http_context_handler
     async def _(ctx: HTTPContext):
       req = UrlCreateModel.model_validate_json(await ctx.receive_json_raw())
-      data = await self.create_serve_url_data(req.url)
-      if any(True for server in self._serve_url_data if server.id == data.id): return await ctx.respond_status(400)
+      data = await self.create_server_url_data(req.url)
+      if any(True for server in self._server_url_data if server.id == data.id): return await ctx.respond_status(400)
       data.start()
-      self._serve_url_data.append(data)
-      self.update_serve_urls()
+      self._server_url_data.append(data)
+      self.update_server_urls()
       await ctx.respond_json(data.to_json_data())
       
-    async def _ws_serve_change_handler(ctx: WebsocketContext, receive_disconnect_task: asyncio.Task):
+    async def _ws_server_change_handler(ctx: WebsocketContext, receive_disconnect_task: asyncio.Task):
       while ctx.connected:
-        await wait_with_dependencies(self._change_trigger_serves.wait(), [receive_disconnect_task])
+        await wait_with_dependencies(self._change_trigger_servers.wait(), [receive_disconnect_task])
         if ctx.connected: await ctx.send_message("server")
       
-    async def _ws_connect_change_handler(ctx: WebsocketContext, receive_disconnect_task: asyncio.Task):
+    async def _ws_connection_change_handler(ctx: WebsocketContext, receive_disconnect_task: asyncio.Task):
       while ctx.connected:
-        await wait_with_dependencies(self._change_trigger_connects.wait(), [receive_disconnect_task])
+        await wait_with_dependencies(self._change_trigger_connections.wait(), [receive_disconnect_task])
         if ctx.connected: await ctx.send_message("connection")
       
     @router.websocket_route("/on-change")
@@ -207,15 +207,15 @@ class ConnectionManager(TaskWebPathHandler):
       try:
         await ctx.accept()
         receive_disconnect_task = asyncio.create_task(ctx.receive_disconnect())
-        await asyncio.gather(_ws_connect_change_handler(ctx, receive_disconnect_task), _ws_serve_change_handler(ctx, receive_disconnect_task))
+        await asyncio.gather(_ws_connection_change_handler(ctx, receive_disconnect_task), _ws_server_change_handler(ctx, receive_disconnect_task))
       finally:
         receive_disconnect_task.cancel()
         await ctx.close()
     
     await ASGIAppRunner(self.client, app).run()
   
-  async def create_connect_url_data(self, url: str):
-    return ConnectUrlData(url=url, worker=AutoReconnector(link=await self.create_link(), connect_fn=functools.partial(connect, url=url)), change_trigger=self._change_trigger_connects)
+  async def create_connection_url_data(self, url: str):
+    return ConnectionUrlData(url=url, worker=AutoReconnector(link=await self.create_link(), connect_fn=functools.partial(connect, url=url)), change_trigger=self._change_trigger_connections)
 
-  async def create_serve_url_data(self, url: str):
-    return ServeUrlData(url=url, worker=get_server(link=await self.create_link(), url=url), change_trigger=self._change_trigger_serves)
+  async def create_server_url_data(self, url: str):
+    return ServerUrlData(url=url, worker=get_server(link=await self.create_link(), url=url), change_trigger=self._change_trigger_servers)
