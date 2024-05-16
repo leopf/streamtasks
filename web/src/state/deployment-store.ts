@@ -15,6 +15,7 @@ export class DeploymentStore {
     public get = createTransformer((id: string) => this._deployments.get(id))
 
     private rootStore: RootStore;
+    private deploymentManagers = new Map<string, DeploymentManager>();
 
     constructor(rootStore: RootStore) {
         this.rootStore = rootStore;
@@ -45,10 +46,17 @@ export class DeploymentStore {
         const deployment = FullDeploymentModel.parse(await fetch(`./api/deployment/${id}/stop`, { method: "post" }).then(res => res.json()));
         this._deployments.set(deployment.id, deployment);
     }
-    public async createManager(id: string) {
-        const deployment = await this.loadOne(id);
-        if (deployment) {
-            return new DeploymentManager(deployment.id, this.rootStore);
+
+    public createManager(deployment: Deployment): DeploymentManager;
+    public createManager(id: string): Promise<DeploymentManager | undefined>;
+    public createManager(data: string | Deployment): Promise<DeploymentManager | undefined> | DeploymentManager {
+        if (typeof data === "string") {
+            return this.loadOne(data).then(d => d && this.createManager(d))
+        }
+        else {
+            const manager = new DeploymentManager(data.id, this.rootStore);
+            this.deploymentManagers.set(data.id, manager);
+            return manager;
         }
     }
     public async loadAll() {

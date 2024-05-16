@@ -8,11 +8,18 @@ import { DeploymentEditorDialog } from './components/DeploymentEditorDialog';
 import { TopicViewerModal } from './components/TopicViewerModal';
 import { LoadingPage } from './Layout';
 import { PathRegistrationPage } from './pages/PathRegistrationPage';
+import { DashboardEditorDialog } from './components/DashboardEditorDialog';
+import { DashboardPage } from './pages/DashboardPage';
 
 const router = createHashRouter([
     {
         path: "/deployment/:id",
         element: <DeploymentPage />,
+        errorElement: <ErrorPage />
+    },
+    {
+        path: "/dashboard/:id",
+        element: <DashboardPage />,
         errorElement: <ErrorPage />
     },
     {
@@ -45,6 +52,7 @@ export function App() {
             <RouterProvider router={router} />
             <TopicViewerModal/>
             <DeploymentEditorDialog/>
+            <DashboardEditorDialog/>
         </>
     );
 }

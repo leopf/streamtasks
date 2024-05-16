@@ -57,6 +57,10 @@ export class DeploymentManager extends EventEmitter<{ "taskUpdated": [ManagedTas
         return this.rootStore.deployment.get(this.deploymentId) ?? (() => { throw new Error("Deployment not found!") })();
     }
 
+    public get dashboards() {
+        return this.rootStore.dashboard.dashboards.filter(db => db.deployment_id === this.id);
+    }
+
     private deploymentId: string;
     private rootStore: RootStore;
 
@@ -71,6 +75,7 @@ export class DeploymentManager extends EventEmitter<{ "taskUpdated": [ManagedTas
             loadTasks: action,
             addTask: action,
             deleteTask: action,
+            dashboards: computed,
             deployment: computed
         });
         this.disposers.push(reaction(() => this.running, () => {
@@ -104,6 +109,10 @@ export class DeploymentManager extends EventEmitter<{ "taskUpdated": [ManagedTas
         if (!this.running) {
             await this.loadTasks();
         }
+    }
+
+    public async loadDashboards() {
+        await this.rootStore.dashboard.loadInDeployment(this.id);
     }
 
     public async loadTasks() {

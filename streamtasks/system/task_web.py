@@ -9,7 +9,7 @@ import re
 import shelve
 from typing import Any, Literal, TypedDict
 from uuid import UUID, uuid4
-from pydantic import UUID4, BaseModel, Field, TypeAdapter, ValidationError, field_validator
+from pydantic import UUID4, BaseModel, Field, TypeAdapter, ValidationError, field_serializer, field_validator
 from streamtasks.asgi import ASGIAppRunner, ASGIProxyApp
 from streamtasks.asgiserver import ASGIHandler, ASGIRouter, ASGIServer, HTTPContext, TransportContext, WebsocketContext, decode_data_uri, http_context_handler, path_rewrite_handler, static_content_handler, static_files_handler, transport_context_handler, websocket_context_handler
 from streamtasks.client import Client
@@ -59,6 +59,21 @@ class FullTask(StoredTask):
 class UpdateTaskInstanceMessage(ModelWithId):
   task_instance: TaskInstance
 
+class DeploymentDashboardWindow(BaseModel):
+  task_id: UUID4
+  x: float
+  y: float
+  width: float
+  height: float
+
+class DeploymentDashboard(ModelWithId):
+  deployment_id: UUID4
+  label: str
+  windows: list[DeploymentDashboardWindow]
+  
+  @field_serializer("deployment_id")
+  def serialize_deployment_id(self, id: UUID4): return str(id)
+
 class PathRegistrationFrontend(BaseModel):
   path: str
   label: str
@@ -88,6 +103,7 @@ class PathRegistration(BaseModel):
 
 FullDeploymentList = TypeAdapter(list[FullDeployment])
 FullTaskList = TypeAdapter(list[FullTask])
+DeploymentDashboardList = TypeAdapter(list[DeploymentDashboard])
 
 class TaskWebPathHandler(Worker):
   def __init__(self, link: Link, path: str, frontend: PathRegistrationFrontend | None = None, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER_WEB]):
@@ -121,15 +137,23 @@ class TaskWebBackendStore:
     data_dir = get_data_sub_dir("user-data")
     self.deployments: shelve.Shelf = shelve.open(os.path.join(data_dir, "deployments.db"))
     self.tasks: shelve.Shelf = shelve.open(os.path.join(data_dir, "tasks.db"))
+    self.dashboards: shelve.Shelf = shelve.open(os.path.join(data_dir, "dashboards.db"))
   
   def __del__(self):
     self.deployments.close()
+    self.dashboards.close()
     self.tasks.close()
 
   def set_running_deployment(self, deployment: RunningDeployment): self.running_deployments[deployment.id] = deployment
   def get_running_deployment(self, deployment_id: UUID4): return self.running_deployments[deployment_id]
   def delete_running_deployment(self, deployment_id: UUID4): return self.running_deployments.pop(deployment_id)
   
+  async def all_dashboards(self) -> list[DeploymentDashboard]: return [DeploymentDashboard.model_validate_json(v) for v in self.dashboards.values()]
+  async def all_dashboards_in_deployment(self, deployment_id: UUID4) -> list[DeploymentDashboard]: return [ db for db in await self.all_dashboards() if db.deployment_id == deployment_id ]
+  async def get_dashboard(self, id: UUID4) -> DeploymentDashboard:  return DeploymentDashboard.model_validate_json(self.dashboards[str(id)])
+  async def create_or_update_dashboard(self, db: DeploymentDashboard) -> DeploymentDashboard: self.dashboards[str(db.id)] = db.model_dump_json()
+  async def delete_dashboard(self, id: UUID4): return self.dashboards.pop(str(id), None)
+    
   async def all_deployments(self) -> list[DeploymentBase]: return [ self.deployment_apply_running(FullDeployment.model_validate_json(d)) for d in self.deployments.values() ]
   async def get_deployment(self, id: UUID4) -> DeploymentBase: return self.deployment_apply_running(FullDeployment.model_validate_json(self.deployments[str(id)]))
   async def create_deployment(self, deployment: DeploymentBase) -> DeploymentBase: 
@@ -312,6 +336,29 @@ class TaskWebBackend(Worker):
     async def _(ctx: HTTPContext):
       await self.store.delete_deployment(UUID(ctx.params.get("id", "")))
       await ctx.respond_status(200)
+      
+    @router.get("/api/deployment/{id}/dashboards")
+    @http_context_handler
+    async def _(ctx: HTTPContext): await ctx.respond_json_raw(DeploymentDashboardList.dump_json(await self.store.all_dashboards_in_deployment(UUID(ctx.params.get("id", "")))))
+      
+    @router.get("/api/dashboard/{id}")
+    @http_context_handler
+    async def _(ctx: HTTPContext):
+      db = await self.store.get_dashboard(UUID(ctx.params.get("id", "")))
+      await ctx.respond_json_string(db.model_dump_json())
+      
+    @router.delete("/api/dashboard/{id}")
+    @http_context_handler
+    async def _(ctx: HTTPContext):
+      await self.store.delete_dashboard(UUID(ctx.params.get("id", "")))
+      await ctx.respond_status(200)
+      
+    @router.put("/api/dashboard")
+    @http_context_handler
+    async def _(ctx: HTTPContext):
+      db = DeploymentDashboard.model_validate_json(await ctx.receive_json_raw())
+      await self.store.create_or_update_dashboard(db)
+      await ctx.respond_json_string(db.model_dump_json())
       
     @router.get("/api/deployment/{id}/tasks")
     @http_context_handler

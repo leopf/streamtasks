@@ -9,7 +9,7 @@ export const DeploymentEditorDialog = observer(() => {
     const rootStore = useRootStore();
 
     const state = useLocalObservable(() => ({
-        get isNewDeployment() {
+        get isNew() {
             return !(this.editingDeployment as any)?.id
         },
         isOpen: false,
@@ -25,7 +25,7 @@ export const DeploymentEditorDialog = observer(() => {
 
     return (
         <Dialog fullWidth open={state.isOpen} onClose={() => rootStore.uiControl.closeDeploymentEditor()}>
-            <DialogTitle>{state.isNewDeployment ? "Create" : "Edit"} Deployment</DialogTitle>
+            <DialogTitle>{state.isNew ? "Create" : "Edit"} Deployment</DialogTitle>
             <DialogContent>
                 <TextField
                     value={state.editingDeployment?.label || ""}
@@ -42,7 +42,7 @@ export const DeploymentEditorDialog = observer(() => {
                 />
             </DialogContent>
             <DialogActions>
-                {!state.isNewDeployment && (
+                {!state.isNew && (
                     <Button onClick={async () => {
                         const id = (state.editingDeployment as any)?.id;
                         if (!id) return;
@@ -52,7 +52,7 @@ export const DeploymentEditorDialog = observer(() => {
                 )}
                 <Button onClick={async () => {
                     if (!state.editingDeployment) return;
-                    if (state.isNewDeployment) {
+                    if (state.isNew) {
                         await rootStore.deployment.create(state.editingDeployment);
                     }
                     else {
