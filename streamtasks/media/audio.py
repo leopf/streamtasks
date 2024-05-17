@@ -6,6 +6,7 @@ from streamtasks.media.codec import CodecInfo, Frame
 import numpy as np
 import asyncio
 import av
+from streamtasks.media.util import options_from_codec_context
 
 _SAMPLE_FORMAT_NP_2_AV_INFO: dict[str, tuple[bool, type[np.dtype]]] = {
   "dbl": (False, np.float64),
@@ -96,7 +97,7 @@ class AudioCodecInfo(CodecInfo[AudioFrame]):
 
   @staticmethod
   def from_codec_context(ctx: av.audio.codeccontext.AudioCodecContext):
-    return AudioCodecInfo(ctx.name, ctx.channels, ctx.sample_rate, ctx.format.name)
+    return AudioCodecInfo(ctx.name, ctx.channels, ctx.sample_rate, ctx.format.name, options_from_codec_context(ctx))
 
 class AudioResampler:
   def __init__(self, format: av.AudioFormat, layout: av.AudioLayout, rate: int):

@@ -281,3 +281,5 @@ class IdGenerator:
     self._current += 1
     if self._current >= self._end: self._current = self._start
     return res
+
+def strip_nones_from_dict(data: dict): return { k: v for k, v in data.items() if v is not None }

@@ -7,7 +7,6 @@
 
 Media:
 - fix input container (transcoder)
-- from codec context should transfer some options
 - BUG: full crash when stopping deployment (seg fault)
 - BUG: audio output(?) crashes sometimes (prolly mt)
 

@@ -6,6 +6,7 @@ import av.video
 import av.video.codeccontext
 import numpy as np
 from streamtasks.media.codec import CodecInfo, Frame
+from streamtasks.media.util import options_from_codec_context
 
 # TODO: endianness
 def video_buffer_to_ndarray(buf: Buffer, width: int, height: int):
@@ -67,4 +68,4 @@ class VideoCodecInfo(CodecInfo[VideoFrame]):
   def from_codec_context(ctx: av.video.codeccontext.VideoCodecContext):
     format = ctx.format
     framerate = float(ctx.rate)
-    return VideoCodecInfo(ctx.width, ctx.height, framerate, format.name, ctx.name)
+    return VideoCodecInfo(ctx.width, ctx.height, framerate, format.name, ctx.name, options_from_codec_context(ctx))
