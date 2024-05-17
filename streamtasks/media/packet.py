@@ -30,6 +30,12 @@ class MediaPacket:
     return packet
 
   @staticmethod
-  def from_av_packet(packet: av.Packet):
-    rel_dts = 0 if packet.dts is None or packet.pts is None else packet.pts - packet.dts
-    return MediaPacket(bytes(packet), packet.pts, packet.is_keyframe, rel_dts)
+  def from_av_packet(packet: av.Packet, time_base: Fraction):
+    if packet.time_base is None or packet.pts is None:
+      rel_dts = None
+      pts = None
+    else:
+      time_base_factor = float(packet.time_base / time_base)
+      rel_dts = int((packet.pts - packet.dts) * time_base_factor)
+      pts = int(packet.pts * time_base_factor)
+    return MediaPacket(bytes(packet), pts, packet.is_keyframe, rel_dts)

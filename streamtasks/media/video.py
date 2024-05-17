@@ -1,11 +1,15 @@
+import ctypes
+from dataclasses import dataclass
+from fractions import Fraction
 from typing import Any, Literal
+import av.video.reformatter
 from typing_extensions import Buffer
 import av
 import av.codec
 import av.video
 import av.video.codeccontext
 import numpy as np
-from streamtasks.media.codec import CodecInfo, Frame
+from streamtasks.media.codec import CodecInfo, Frame, Reformatter
 from streamtasks.media.util import options_from_codec_context
 
 # TODO: endianness
@@ -30,6 +34,16 @@ class VideoFrame(Frame[av.VideoFrame]):
   @staticmethod
   def from_ndarray(array: np.ndarray, format: str): return VideoFrame(av.VideoFrame.from_ndarray(array, format))
 
+@dataclass
+class VideoReformatterInfo:
+  frame_rate: float | int
+  pixel_format: str
+  width: int
+  height: int
+  
+  def to_av_format(self) -> av.VideoFormat:
+    return av.VideoFormat(self.pixel_format, self.width, self.height)
+
 class VideoCodecInfo(CodecInfo[VideoFrame]):
   def __init__(self, width: int, height: int, frame_rate: float | int, pixel_format: str, codec: str, options: dict[str, Any] = {}):
     super().__init__(codec)
@@ -47,6 +61,11 @@ class VideoCodecInfo(CodecInfo[VideoFrame]):
 
   @property
   def rate(self): return self.frame_rate
+
+  @property
+  def reformatter_info(self): return VideoReformatterInfo(self.frame_rate, self.pixel_format, self.width, self.height)
+
+  def get_reformatter(self, from_codec: 'VideoCodecInfo') -> Reformatter: return VideoReformatter(self.reformatter_info, from_codec.reformatter_info)
 
   def compatible_with(self, other: 'CodecInfo') -> bool:
     if not isinstance(other, VideoCodecInfo): return False
@@ -69,3 +88,56 @@ class VideoCodecInfo(CodecInfo[VideoFrame]):
     format = ctx.format
     framerate = float(ctx.rate)
     return VideoCodecInfo(ctx.width, ctx.height, framerate, format.name, ctx.name, options_from_codec_context(ctx))
+
+def copy_av_video_frame(frame: av.VideoFrame) -> av.VideoFrame:
+  new_frame = av.VideoFrame(frame.width, frame.height, frame.format.name)
+  new_frame.time_base = frame.time_base
+  new_frame.pts = frame.pts
+  new_frame.dts = frame.dts
+  new_frame.pict_type = frame.pict_type
+  new_frame.colorspace = frame.colorspace
+  new_frame.color_range = frame.color_range
+  assert len(frame.planes) == len(new_frame.planes)
+  assert all(a.buffer_size == b.buffer_size and a.line_size == b.line_size for a, b in zip(new_frame.planes, frame.planes))
+  for a, b in zip(new_frame.planes, frame.planes):
+    ctypes.memmove(a.buffer_ptr, b.buffer_ptr, a.buffer_size)
+  return new_frame
+  
+
+class VideoReformatter(Reformatter[VideoFrame]):
+  def __init__(self, to_codec: VideoReformatterInfo, from_codec: VideoReformatterInfo) -> None:
+    super().__init__()
+    self.to_codec = to_codec
+    self.from_codec = from_codec
+    self.reformatter = av.video.reformatter.VideoReformatter()
+    self.frame_duation = Fraction(to_codec.frame_rate / from_codec.frame_rate)
+    self.rel_frame_counter = Fraction(0)
+    self.min_pts = -2**31
+    
+  async def reformat(self, frame: VideoFrame) -> list[VideoFrame]:
+    self.rel_frame_counter += self.frame_duation
+    frame_count = int(self.rel_frame_counter)
+    self.rel_frame_counter -= frame_count
+    if frame_count == 0: return []
+    
+    frame.frame.width = self.from_codec.width
+    frame.frame.height = self.from_codec.height
+    frame.frame.format = self.from_codec.to_av_format()
+    
+    out_frame = self.reformatter.reformat(frame.frame, width=self.to_codec.width, height=self.to_codec.height, format=self.to_codec.pixel_format)
+    
+    pts = max(int((frame.frame.time_base * frame.frame.pts) * self.to_codec.frame_rate), self.min_pts)
+    self.min_pts = pts + frame_count
+    
+    frames: list[VideoFrame] = []
+    for i in range(frame_count):
+      new_frame = out_frame if i == frame_count - 1 else copy_av_video_frame(out_frame)
+      new_frame.pts = pts + i
+      new_frame.dts = None
+      frames.append(VideoFrame(new_frame))
+    
+    return frames
+  
+  def _copy_frame_set_ts(frame: av.VideoFrame):
+    frame.to_image()
+    

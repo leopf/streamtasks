@@ -21,6 +21,7 @@ General:
 - string concatinator
 - flow detector
 - buffer
+- pauser (after time)
 
 IO:
 - number (volume) display

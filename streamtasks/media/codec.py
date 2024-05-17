@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from fractions import Fraction
-from typing import Any, Iterable, Literal, TypeVar, Generic
+from typing import Any, Iterable, Literal, Self, TypeVar, Generic
 import av.codec
 import av.frame
 import av.video
@@ -47,12 +47,12 @@ class Encoder(Generic[F]):
   async def encode(self, data: F) -> list[MediaPacket]:
     loop = asyncio.get_running_loop()
     packets = await loop.run_in_executor(None, self._encode, data.frame)
-    return [ MediaPacket.from_av_packet(packet) for packet in packets ]
+    return [ MediaPacket.from_av_packet(packet, self.time_base) for packet in packets ]
 
   async def flush(self) -> list[MediaPacket]:
     loop = asyncio.get_running_loop()
     packets = await loop.run_in_executor(None, self._encode, None)
-    return [ MediaPacket.from_av_packet(packet) for packet in packets ]
+    return [ MediaPacket.from_av_packet(packet, self.time_base) for packet in packets ]
 
   def close(self): self.codec_context.close(strict=False)
   def _encode(self, frame: F) -> list[av.Packet]: return self.codec_context.encode(frame)
@@ -76,7 +76,13 @@ class Decoder(Generic[F]):
   def close(self): self.codec_context.close()
   def _decode(self, packet: av.packet.Packet) -> list[F]: return self.codec_context.decode(packet)
 
-
+class Reformatter(Generic[F]):
+  async def reformat(self, frame: F) -> list[F]: pass
+  async def reformat_all(self, frames: list[F]):
+    out_frames: list[F] = []
+    for frame in frames: out_frames.extend(await self.reformat(frame))
+    return out_frames
+  
 class Transcoder(ABC):
   @abstractmethod
   async def transcode(self, packet: MediaPacket) -> list[MediaPacket]: pass
@@ -87,9 +93,10 @@ class AVTranscoder(Transcoder):
   def __init__(self, decoder: Decoder, encoder: Encoder, frame_duration: Fraction = Fraction(1)):
     self.decoder = decoder
     self.encoder = encoder
+    self._in_start_pts_duration: Fraction | None = None
+    self._out_shift: int | None = None
+    
     self._flushed = False
-    self._in_start_pts_abs: Fraction | None = None
-    self._out_offset_pts: Fraction | None = None
     self._frame_duration = frame_duration
     self._frame_lo: Fraction = Fraction()
 
@@ -97,15 +104,13 @@ class AVTranscoder(Transcoder):
   def flushed(self): return self._flushed
   
   async def transcode(self, packet: MediaPacket) -> list[MediaPacket]:
-    if self._in_start_pts_abs is None: self._in_start_pts_abs = self.encoder.time_base * (packet.pts or 0)
+    if self._in_start_pts_duration is None and packet.pts is not None: self._in_start_pts_duration = packet.pts * self.encoder.time_base
     self._flushed = False
     packets = await self._encode_frames(await self.decoder.decode(packet))
-    self._rebase_packets(packets)
     return packets
   async def flush(self):
     packets = await self._encode_frames(await self.decoder.flush())
-    for packet in await self.encoder.flush(): packets.append(packet)
-    self._rebase_packets(packets)
+    for packet in await self.encoder.flush(): packets.append(self._rebase_packet(packet))
     self._flushed = True
     return packets
 
@@ -116,15 +121,14 @@ class AVTranscoder(Transcoder):
       for _ in range(int(self._frame_lo)):
         packets.extend(await self.encoder.encode(frame))
         self._frame_lo -= 1
-    return packets
+    return [ self._rebase_packet(p) for p in packets]
 
-  def _rebase_packets(self, packets: list[MediaPacket]): # TODO: improve this
-    for packet in packets:
-      if packet.pts is None: continue
-      if self._out_offset_pts is None:
-        packet_abs_pts = self.decoder.time_base * packet.pts
-        self._out_offset_pts = int((packet_abs_pts - self._in_start_pts_abs) / self.decoder.time_base)
-      packet.pts -= self._out_offset_pts
+  def _rebase_packet(self, packet: MediaPacket):
+    assert self._in_start_pts_duration is not None
+    if packet.pts is None: return packet
+    if self._out_shift is None: self._out_shift = int((self._in_start_pts_duration - packet.pts * self.decoder.time_base) / self.decoder.time_base)
+    packet.pts += self._out_shift
+    return packet
 
 class CodecInfo(ABC, Generic[F]):
   def __init__(self, codec: str):
@@ -143,6 +147,9 @@ class CodecInfo(ABC, Generic[F]):
 
   @abstractmethod
   def compatible_with(self, other: 'CodecInfo') -> bool: pass
+
+  @abstractmethod
+  def get_reformatter(self, from_codec: Self) -> Reformatter: pass
 
   @abstractmethod
   def _get_av_codec_context(self, mode: str) -> av.codec.CodecContext: pass

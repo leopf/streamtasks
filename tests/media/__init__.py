@@ -40,7 +40,7 @@ async def audio_frames_to_s16_samples(frames: list[AudioFrame], codec: AudioCode
   validation_codec = AudioCodecInfo("pcm_s16le", codec.channels, codec.sample_rate, "s16")
   validation_resampler = validation_codec.get_resampler()
   out_frames: list[AudioFrame] = []
-  for frame in frames: out_frames.extend(await validation_resampler.resample_one(frame))
+  for frame in frames: out_frames.extend(await validation_resampler.reformat(frame))
   return audio_frames_to_samples(out_frames)
 
 async def decode_audio_packets(codec: AudioCodecInfo, packets: list[MediaPacket]) -> np.ndarray:
@@ -64,7 +64,7 @@ async def generate_audio_media_track(codec: AudioCodecInfo, duration: float):
   audio_samples = generate_audio_track(duration, codec.sample_rate * codec.channels)
   audio_resampler = codec.get_resampler()
   audio_frame = AudioFrame.from_ndarray(audio_samples[np.newaxis,:], "s16", codec.channels, codec.sample_rate)
-  return await audio_resampler.resample_one(audio_frame), audio_samples
+  return await audio_resampler.reformat(audio_frame), audio_samples
 
 frame_box_size = (40, 40)
 frame_box_size_value = frame_box_size[0] * frame_box_size[1] * 255

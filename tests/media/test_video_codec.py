@@ -1,13 +1,26 @@
 import unittest
+
+import av
 from streamtasks.media.packet import MediaPacket
-from streamtasks.media.video import VideoCodecInfo
+from streamtasks.media.video import VideoCodecInfo, copy_av_video_frame
 import numpy as np
-from tests.media import decode_video_packets, encode_all_frames, generate_media_frames
+from tests.media import decode_video_packets, encode_all_frames, generate_frames, generate_media_frames
 
 class TestVideoCodec(unittest.IsolatedAsyncioTestCase):
   w = 480
   h = 360
   frame_count = 100
+
+  def test_copy_frame(self):
+    arr = next(generate_frames(1280, 720, 1))
+    frame = av.VideoFrame.from_ndarray(arr)
+    c_frame = copy_av_video_frame(frame)
+    
+    self.assertEqual(len(frame.planes), len(c_frame.planes))
+    for a, b in zip(frame.planes, c_frame.planes):
+      self.assertNotEqual(a.buffer_ptr, b.buffer_ptr)
+
+    self.assertTrue(np.array_equal(frame.to_ndarray(), c_frame.to_ndarray()))
 
   async def test_inverse_transcoder(self):
     codec = VideoCodecInfo(self.w, self.h, 1, codec="h264", pixel_format="yuv420p")
