@@ -124,8 +124,5 @@ class AudioResampler(Reformatter):
     loop = asyncio.get_running_loop()
     if self.from_codec is not None:
       frame.frame.rate = self.from_codec.rate
-      frame.frame.format = self.from_codec.format
-      frame.frame.layout = self.from_codec.layout
-    
     av_frames = await loop.run_in_executor(None, self.resampler.resample, frame.frame)
     return [ AudioFrame(av_frame) for av_frame in av_frames ]

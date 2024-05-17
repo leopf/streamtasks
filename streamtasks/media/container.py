@@ -62,9 +62,8 @@ class AVInputStream:
     self._consumer.register()
     self._time_base = target_codec.time_base
     try:
-      codec_info = CodecInfo.from_codec_context(self._stream.codec_context)
+      codec_info = CodecInfo.from_codec_context(stream.codec_context)
       if force_transcode or not target_codec.compatible_with(codec_info):
-        # TODO format conversion and resampling!!
         self._transcoder = AVTranscoder(Decoder(codec_info, codec_context=stream.codec_context), target_codec.get_encoder())
     except TypeError: pass # NOTE: some contexts dont have all the codec info
     
@@ -97,13 +96,11 @@ class InputContainer:
     
   def get_audio_stream(self, idx: int, target_codec: AudioCodecInfo, force_transcode: bool = False):
     av_stream = self._container.streams.audio[idx]
-    stream = AVInputStream(self._demuxer, av_stream, target_codec, force_transcode)
-    return stream
+    return AVInputStream(self._demuxer, av_stream, target_codec, force_transcode)
   
   async def close(self):
     await self._demuxer.close()
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, self._container.close)
+    self._container.close()
 
   @staticmethod
   async def open(url_or_path: str, **kwargs):

@@ -41,6 +41,9 @@ class VideoReformatterInfo:
   width: int
   height: int
   
+  @property
+  def time_base(self): return Fraction(1, int(self.frame_rate)) if int(self.frame_rate) == self.frame_rate else Fraction(1 / self.frame_rate)
+  
   def to_av_format(self) -> av.VideoFormat:
     return av.VideoFormat(self.pixel_format, self.width, self.height)
 
@@ -98,9 +101,8 @@ def copy_av_video_frame(frame: av.VideoFrame) -> av.VideoFrame:
   new_frame.colorspace = frame.colorspace
   new_frame.color_range = frame.color_range
   assert len(frame.planes) == len(new_frame.planes)
-  assert all(a.buffer_size == b.buffer_size and a.line_size == b.line_size for a, b in zip(new_frame.planes, frame.planes))
   for a, b in zip(new_frame.planes, frame.planes):
-    ctypes.memmove(a.buffer_ptr, b.buffer_ptr, a.buffer_size)
+    ctypes.memmove(a.buffer_ptr, b.buffer_ptr, min(a.buffer_size, b.buffer_size))
   return new_frame
   
 
@@ -120,24 +122,24 @@ class VideoReformatter(Reformatter[VideoFrame]):
     self.rel_frame_counter -= frame_count
     if frame_count == 0: return []
     
-    frame.frame.width = self.from_codec.width
-    frame.frame.height = self.from_codec.height
-    frame.frame.format = self.from_codec.to_av_format()
+    assert frame.frame.width == self.from_codec.width
+    assert frame.frame.height == self.from_codec.height
+    assert frame.frame.format.name == self.from_codec.pixel_format
     
     out_frame = self.reformatter.reformat(frame.frame, width=self.to_codec.width, height=self.to_codec.height, format=self.to_codec.pixel_format)
+    time_base = frame.frame.time_base if frame.frame.time_base is not None else self.from_codec.time_base
     
-    pts = max(int((frame.frame.time_base * frame.frame.pts) * self.to_codec.frame_rate), self.min_pts)
+    pts = max(int((time_base * frame.frame.pts) * self.to_codec.frame_rate), self.min_pts)
     self.min_pts = pts + frame_count
     
     frames: list[VideoFrame] = []
     for i in range(frame_count):
       new_frame = out_frame if i == frame_count - 1 else copy_av_video_frame(out_frame)
       new_frame.pts = pts + i
-      new_frame.dts = None
+      new_frame.dts = pts + i
+      new_frame.time_base = self.to_codec.time_base
       frames.append(VideoFrame(new_frame))
     
     return frames
   
-  def _copy_frame_set_ts(frame: av.VideoFrame):
-    frame.to_image()
     

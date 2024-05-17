@@ -71,6 +71,7 @@ class InputContainerTask(Task):
           packets = await stream.demux()
           assert all(p.rel_dts >= 0 for p in packets), "rel dts must be greater >= 0"
           for packet in packets:
+            assert packet.dts is not None
             ts = stream.convert_position(packet.dts or 0, Fraction(1, 1000))
             if self._t0 is None: self._t0 = get_timestamp_ms() - ts
             if DEBUG_MEDIA(): ddebug_value("in", stream._stream.type, ts)

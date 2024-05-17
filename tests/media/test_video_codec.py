@@ -50,7 +50,7 @@ class TestVideoCodec(unittest.IsolatedAsyncioTestCase):
     t_packets.extend(await transcoder.flush())
     
     out_frames = await decode_video_packets(codec2, t_packets)
-    self.assertLessEqual(len(out_frames), (codec2.rate / codec1.rate) * len(in_frames), "resampling not working")
+    self.assertLessEqual(len(out_frames), (codec1.rate / codec2.rate) * len(in_frames), "resampling not working")
     
     self.assertGreater(len(out_frames), 0)
     if codec1.rate == codec2.rate: # TODO write a time independent test

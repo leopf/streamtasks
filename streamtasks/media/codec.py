@@ -39,6 +39,7 @@ F = TypeVar('F', bound=Frame)
 
 class Encoder(Generic[F]):
   def __init__(self, codec_info: 'CodecInfo[F]'):
+    self.codec_info = codec_info
     self.codec_context = codec_info._get_av_codec_context("w")
     self.time_base = codec_info.time_base
 
@@ -59,6 +60,7 @@ class Encoder(Generic[F]):
 
 class Decoder(Generic[F]):
   def __init__(self, codec_info: 'CodecInfo[F]', codec_context: av.codec.context.CodecContext | None = None):
+    self.codec_info = codec_info
     self.codec_context = codec_context or codec_info._get_av_codec_context("r")
     self.time_base = codec_info.time_base
 
@@ -90,45 +92,33 @@ class Transcoder(ABC):
   async def flush(self) -> list[MediaPacket]: pass
 
 class AVTranscoder(Transcoder):
-  def __init__(self, decoder: Decoder, encoder: Encoder, frame_duration: Fraction = Fraction(1)):
+  def __init__(self, decoder: Decoder, encoder: Encoder):
     self.decoder = decoder
     self.encoder = encoder
-    self._in_start_pts_duration: Fraction | None = None
-    self._out_shift: int | None = None
+    self.reformatter = encoder.codec_info.get_reformatter(decoder.codec_info)
     
     self._flushed = False
-    self._frame_duration = frame_duration
     self._frame_lo: Fraction = Fraction()
 
   @property
   def flushed(self): return self._flushed
   
   async def transcode(self, packet: MediaPacket) -> list[MediaPacket]:
-    if self._in_start_pts_duration is None and packet.pts is not None: self._in_start_pts_duration = packet.pts * self.encoder.time_base
     self._flushed = False
     packets = await self._encode_frames(await self.decoder.decode(packet))
     return packets
+
   async def flush(self):
     packets = await self._encode_frames(await self.decoder.flush())
-    for packet in await self.encoder.flush(): packets.append(self._rebase_packet(packet))
+    for packet in await self.encoder.flush(): packets.append(packet)
     self._flushed = True
     return packets
 
   async def _encode_frames(self, frames: Iterable[Frame]):
     packets: list[MediaPacket] = []
-    for frame in frames:
-      self._frame_lo += self._frame_duration
-      for _ in range(int(self._frame_lo)):
-        packets.extend(await self.encoder.encode(frame))
-        self._frame_lo -= 1
-    return [ self._rebase_packet(p) for p in packets]
-
-  def _rebase_packet(self, packet: MediaPacket):
-    assert self._in_start_pts_duration is not None
-    if packet.pts is None: return packet
-    if self._out_shift is None: self._out_shift = int((self._in_start_pts_duration - packet.pts * self.decoder.time_base) / self.decoder.time_base)
-    packet.pts += self._out_shift
-    return packet
+    for frame in await self.reformatter.reformat_all(frames):
+      packets.extend(await self.encoder.encode(frame))
+    return packets
 
 class CodecInfo(ABC, Generic[F]):
   def __init__(self, codec: str):
@@ -157,7 +147,7 @@ class CodecInfo(ABC, Generic[F]):
   def get_encoder(self) -> Encoder: return Encoder[F](self)
   def get_decoder(self) -> Decoder: return Decoder[F](self)
   def get_transcoder(self, to: 'CodecInfo') -> Transcoder:
-    return AVTranscoder(self.get_decoder(), to.get_encoder(), Fraction(to.rate / self.rate) if self.type == "video" else Fraction(1))
+    return AVTranscoder(self.get_decoder(), to.get_encoder())
 
   @staticmethod
   def from_codec_context(ctx: av.codec.CodecContext) -> 'CodecInfo':
