@@ -1,0 +1,35 @@
+{
+  "name": "@streamtasks/std-configurators",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "The standard configurators for streamtasks.",
+  "scripts": {
+    "build": "NODE_OPTIONS=\"--loader ts-node/esm\" pnpm ts-node build.ts",
+    "build:dev": "pnpm build",
+    "build:prod": "pnpm build",
+    "watch": "pnpm build --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "esbuild": "^0.21.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5",
+    "@types/node": "^20.12.12"
+  },
+  "dependencies": {
+    "@streamtasks/core": "workspace:*",
+    "@mui/icons-material": "^5.15.18",
+    "@mui/material": "^5.15.18",
+    "@types/clone-deep": "^4.0.4",
+    "@types/deep-equal": "^1.0.4",
+    "@types/object-path": "^0.11.4",
+    "@types/react": "^18.3.2",
+    "clone-deep": "^4.0.1",
+    "object-path": "^0.11.8",
+    "react": "^18.3.1",
+    "zod": "^3.23.8"
+  }
+}

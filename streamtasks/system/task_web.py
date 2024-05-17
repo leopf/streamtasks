@@ -13,7 +13,7 @@ from pydantic import UUID4, BaseModel, Field, TypeAdapter, ValidationError, fiel
 from streamtasks.asgi import ASGIAppRunner, ASGIProxyApp
 from streamtasks.asgiserver import ASGIHandler, ASGIRouter, ASGIServer, HTTPContext, TransportContext, WebsocketContext, decode_data_uri, http_context_handler, path_rewrite_handler, static_content_handler, static_files_handler, transport_context_handler, websocket_context_handler
 from streamtasks.client import Client
-from streamtasks.client.discovery import delete_topic_space, get_topic_space, get_topic_space_translation, register_address_name, register_topic_space, wait_for_address_name
+from streamtasks.client.discovery import delete_topic_space, get_topic_space_translation, register_address_name, register_topic_space, wait_for_address_name
 from streamtasks.client.fetch import FetchError, FetchErrorStatusCode, FetchRequest, FetchServer
 from streamtasks.client.receiver import TopicsReceiver
 from streamtasks.client.signal import SignalServer
@@ -26,7 +26,7 @@ from streamtasks.services.protocols import AddressNames
 from streamtasks.system.task import TASK_CONSTANTS, MetadataDict, MetadataFields, ModelWithId, TaskHostRegistration, TaskHostRegistrationList, TaskInstance, TaskManagerClient, TaskNotFoundError
 from streamtasks.utils import get_node_name_id, wait_with_dependencies
 from streamtasks.worker import Worker
-
+import importlib.resources
 
 class DeploymentBase(ModelWithId):
   id: UUID4 = Field(default_factory=uuid4)
@@ -191,13 +191,12 @@ class TaskWebBackendStore:
 
 class TaskWebBackend(Worker):
   def __init__(self, link: Link, address_name: str = AddressNames.TASK_MANAGER_WEB, 
-               task_manager_address_name: str = AddressNames.TASK_MANAGER, public_path: str | None = None):
+               task_manager_address_name: str = AddressNames.TASK_MANAGER):
     super().__init__(link)
     self.task_manager_address_name = task_manager_address_name
     self.address_name = address_name
     self.task_host_asgi_handlers: dict[str, ASGIHandler] = {}
     self.task_asgi_handlers: dict[UUID4, ASGIHandler] = {}
-    self.public_path = public_path
     self.deployment_task_listeners: dict[UUID4, asyncio.Task] = {}
     self.path_registrations: list[PathRegistration] = []
     self.store = TaskWebBackendStore()
@@ -451,7 +450,7 @@ class TaskWebBackend(Worker):
           return await ctx.delegate(ASGIProxyApp(self.client, reg.endpoint), { **ctx.scope, "path": ctx.path[len(reg.path) - 1:] })
       await ctx.next()
         
-    if self.public_path is not None: router.add_handler(static_files_handler(self.public_path, ["index.html"]))
+    router.add_handler(static_files_handler(importlib.resources.files(__name__).joinpath("assets/public/"), ["index.html"]))
     
     await ASGIAppRunner(self.client, app).run()
   
