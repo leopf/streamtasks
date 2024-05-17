@@ -6,7 +6,6 @@
 - merge master
 
 Media:
-- fix input container (transcoder)
 - BUG: full crash when stopping deployment (seg fault)
 - BUG: audio output(?) crashes sometimes (prolly mt)
 

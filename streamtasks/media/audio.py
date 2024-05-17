@@ -131,7 +131,7 @@ class AudioResampler(Reformatter):
     frames: list[AudioFrame] = []
     
     for av_frame in av_frames:
-      ts = av_frame.pts if av_frame.dts is None else av_frame.dts
+      ts = av_frame.dts if av_frame.pts is None else av_frame.pts
       av_frame.pts = ts 
       av_frame.dts = ts
       

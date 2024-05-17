@@ -60,22 +60,24 @@ class AVInputStream:
     self._transcoder: None | AVTranscoder = None
     self._consumer = StreamConsumer(demuxer, stream.index)
     self._consumer.register()
-    self._time_base = target_codec.time_base
+    self.out_time_base = target_codec.time_base
+    self.stream_time_base = self.out_time_base
     try:
       codec_info = CodecInfo.from_codec_context(stream.codec_context)
       if force_transcode or not target_codec.compatible_with(codec_info):
         self._transcoder = AVTranscoder(Decoder(codec_info, codec_context=stream.codec_context), target_codec.get_encoder())
+        self.stream_time_base = self._transcoder.decoder.time_base
     except TypeError: pass # NOTE: some contexts dont have all the codec info
     
   @property
   def codec_info(self) -> CodecInfo: return CodecInfo.from_codec_context(self._stream.codec_context)
 
-  def convert_position(self, position: int, target_time: Fraction): return int((self._time_base * position) / target_time)
+  def convert_position(self, position: int, target_time: Fraction): return int((self.out_time_base * position) / target_time)
 
   async def demux(self) -> list[MediaPacket]:
     try:
       av_packet = await self._consumer.get()
-      packet = MediaPacket.from_av_packet(av_packet, self._time_base)
+      packet = MediaPacket.from_av_packet(av_packet, self.stream_time_base)
       if self._transcoder is not None: return await self._transcoder.transcode(packet)
       else: return [ packet ]
     except EOFError:
