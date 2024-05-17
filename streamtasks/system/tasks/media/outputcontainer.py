@@ -84,7 +84,8 @@ class OutputContainerSynchronizer(InTopicSynchronizer):
     while True:
       min_duration = self.min_duration
       min_timestamp = self.min_timestamp
-      if stream.duration == min_duration and (timestamp - self._max_desync) <= min_timestamp: break # True
+      if stream.duration == min_duration and (timestamp - self._max_desync) <= min_timestamp:
+        break # True
       if timestamp == min_timestamp and stream.duration != min_duration:
         next_min = self._get_next_min_duration_timestamp()
         if next_min - self._max_desync > timestamp:

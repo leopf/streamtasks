@@ -3,6 +3,8 @@ from typing_extensions import Buffer
 import av.audio
 import av.audio.codeccontext
 import av.codec
+from extra.debugging import ddebug_value
+from streamtasks.env import DEBUG_MEDIA
 from streamtasks.media.codec import CodecInfo, Frame, Reformatter
 import numpy as np
 import asyncio
@@ -119,10 +121,22 @@ class AudioResampler(Reformatter):
     super().__init__()
     self.resampler = av.AudioResampler(to_codec.format, to_codec.layout, to_codec.rate)
     self.from_codec = from_codec
+    self.min_pts = -2**31
   
   async def reformat(self, frame: AudioFrame) -> list[AudioFrame]:
     loop = asyncio.get_running_loop()
     if self.from_codec is not None:
       frame.frame.rate = self.from_codec.rate
     av_frames = await loop.run_in_executor(None, self.resampler.resample, frame.frame)
-    return [ AudioFrame(av_frame) for av_frame in av_frames ]
+    frames: list[AudioFrame] = []
+    
+    for av_frame in av_frames:
+      ts = av_frame.pts if av_frame.dts is None else av_frame.dts
+      av_frame.pts = ts 
+      av_frame.dts = ts
+      
+      frames.append(AudioFrame(av_frame))
+    if DEBUG_MEDIA():
+      for f in frames: 
+        ddebug_value("audio frame at duration", float(f.dtime or 0))
+    return frames
