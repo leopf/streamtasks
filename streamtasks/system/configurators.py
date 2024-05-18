@@ -64,6 +64,30 @@ def multitrackio_configurator(track_configs: list[TrackConfig], is_input: bool):
 
 def key_to_label(key: str): return key.replace("_", " ")
 
+DEFAULT_COLORS = [
+    ("#6528f7","akihabara arcade"),
+    ("#a076f9","purple illusionist"),
+    ("#ffe300","star"),
+    ("#ff7800","lucky orange"),
+    ("#0cca98","caribbean green"),
+    ("#00ffcc","plunge pool"),
+    ("#f9a828","carona"),
+    ("#eeb76b","olden amber"),
+    ("#ade498","sage sensation"),
+    ("#ede682","crab-apple"),
+    ("#91ca62","bright lettuce"),
+    ("#f1ebbb","sandy shore"),
+    ("#f8b500","waxy corn"),
+    ("#aa14f0","zǐ lúo lán sè violet"),
+    ("#bc8cf2","lilac geode"),
+    ("#6d67e4","if i could fly"),
+    ("#ffc5a1","tomorrow’s coral"),
+    ("#ef3f61","eugenia red"),
+    ("#df8931","kanafeh"),
+    ("#85ef47","lush greenery"),
+    ("#f9fd50","biohazard suit"),
+]
+
 class EditorFields:
   @staticmethod
   def select(key: str, items: list[tuple[bool | str | float | int, str]], label: str | None = None):
@@ -88,3 +112,7 @@ class EditorFields:
   @staticmethod
   def options(key: str, label: str | None = None):
     return strip_nones_from_dict({ "type": "kvoptions", "key": key, "label": label or key_to_label(key) })
+
+  @staticmethod
+  def color_select(key: str, label: str | None = None):
+    return EditorFields.select(key=key, label=label, items=DEFAULT_COLORS)

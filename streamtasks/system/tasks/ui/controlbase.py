@@ -17,16 +17,26 @@ V = TypeVar("V", bound=BaseModel)
 class UIBaseTask(Task, Generic[C, V]):
   def __init__(self, client: Client, config: C, default_value: V, script_name: str):
     super().__init__(client)
-    self.config: C = config
-    self.value: V = default_value
-    self.script_name = script_name
-    self.value_changed_trigger = AsyncTrigger()
+    self._config: C = config
+    self._value: V = default_value
+    self._script_name = script_name
+    self._value_changed_trigger = AsyncTrigger()
+
+  @property
+  def value(self): return self._value
+
+  @value.setter
+  def value(self, value: V):
+    self._value = value
+    self._value_changed_trigger.trigger()
 
   @abstractmethod
   async def context(self) -> AsyncContextManager: pass
 
   @abstractmethod
-  async def run_other(self) -> AsyncContextManager: pass
+  async def run_other(self): pass
+
+  def wait_value_changed(self): return self._value_changed_trigger.wait()
 
   async def setup(self) -> dict[str, Any]:
     self.client.start()
@@ -55,22 +65,21 @@ class UIBaseTask(Task, Generic[C, V]):
     @router.get("/main.js")
     @http_context_handler
     async def _(ctx: HTTPContext):
-      with open(importlib.resources.files(__name__).joinpath("resources/" + self.script_name)) as fd:
+      with open(importlib.resources.files(__name__).joinpath("resources/" + self._script_name)) as fd:
         await ctx.respond_text(fd.read(), mime_type="application/javascript")
 
     @router.get("/value")
     @http_context_handler
-    async def _(ctx: HTTPContext): await ctx.respond_json(self.value.model_dump())
+    async def _(ctx: HTTPContext): await ctx.respond_json(self._value.model_dump())
 
     @router.get("/config")
     @http_context_handler
-    async def _(ctx: HTTPContext): await ctx.respond_json(self.config.model_dump())
+    async def _(ctx: HTTPContext): await ctx.respond_json(self._config.model_dump())
 
     @router.post("/value")
     @http_context_handler
     async def _(ctx: HTTPContext):
-      self.value = self.value.__class__.model_validate(await ctx.receive_json())
-      self.value_changed_trigger.trigger()
+      self.value = self._value.__class__.model_validate(await ctx.receive_json())
       await ctx.respond_status(200)
 
     @router.websocket_route("/value")
@@ -80,9 +89,9 @@ class UIBaseTask(Task, Generic[C, V]):
         await ctx.accept()
         receive_disconnect_task = asyncio.create_task(ctx.receive_disconnect())
         while ctx.connected:
-          await wait_with_dependencies(self.value_changed_trigger.wait(), [receive_disconnect_task])
+          await wait_with_dependencies(self.wait_value_changed(), [receive_disconnect_task])
           if ctx.connected:
-            await ctx.send_message(self.value.model_dump_json())
+            await ctx.send_message(self._value.model_dump_json())
       finally:
         receive_disconnect_task.cancel()
         await ctx.close()
@@ -103,6 +112,6 @@ class UIControlBaseTask(UIBaseTask[C2, V]):
 
   async def run_other(self) -> AsyncContextManager:
     while True:
-      await self.send_value(self.value)
-      try: await asyncio.wait_for(self.value_changed_trigger.wait(), self.config.repeat_interval)
+      await self.send_value(self._value)
+      try: await asyncio.wait_for(self.wait_value_changed(), self._config.repeat_interval)
       except asyncio.TimeoutError: pass
