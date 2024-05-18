@@ -1,3 +1,4 @@
+import argparse
 import logging
 import os
 
@@ -18,6 +19,10 @@ from streamtasks.system.task_web import TaskWebBackend
 from streamtasks.system.helpers import get_all_task_hosts
 from streamtasks.worker import Worker
 
+parser = argparse.ArgumentParser(description="Argument parser for connect and serve URLs")
+parser.add_argument("--web-port", help="The port to serve the web dashboard on", default=8080, type=int)
+args = parser.parse_args()
+
 async def main():
   switch = Switch()
   client = Client(await switch.add_local_connection())
@@ -30,7 +35,7 @@ async def main():
   workers: list[Worker] = [
     TaskManager(await switch.add_local_connection()),
     TaskWebBackend(await switch.add_local_connection()),
-    HTTPServerOverASGI(await switch.add_local_connection(), ("0.0.0.0", 8080), AddressNames.TASK_MANAGER_WEB),
+    HTTPServerOverASGI(await switch.add_local_connection(), ("localhost", args.web_port), AddressNames.TASK_MANAGER_WEB),
     ConnectionManager(await switch.add_local_connection()),
     NodeServer(await switch.add_local_connection()),
   ]

@@ -1,5 +1,8 @@
 import logging
 import os
+
+from streamtasks.asgi import HTTPServerOverASGI
+from streamtasks.system.connection_manager import ConnectionManager
 logging.basicConfig(level=logging.INFO)
 os.environ["DATA_DIR"] = ".data"
 
@@ -11,12 +14,13 @@ from streamtasks.net import Switch
 from streamtasks.services.protocols import AddressNames, WorkerTopics
 from streamtasks.system.helpers import get_all_task_hosts
 from streamtasks.worker import Worker
-from streamtasks.connection import AutoReconnector, connect, connect_node, get_server
+from streamtasks.connection import AutoReconnector, NodeServer, connect, connect_node, get_server
 import argparse
 
 parser = argparse.ArgumentParser(description="Argument parser for connect and serve URLs")
 parser.add_argument("--connect", help="Specify URL to connect to", default=None)
 parser.add_argument("--serve", help="Specify URL to serve on", default=None)
+parser.add_argument("--web-port", help="The port to serve the web dashboard on", default=8080, type=int)
 args = parser.parse_args()
 
 async def main():
@@ -29,7 +33,11 @@ async def main():
   await wait_for_topic_signal(client, WorkerTopics.DISCOVERY_SIGNAL)
   logging.info("Connected to main!")
 
-  workers: list[Worker] = []
+  workers: list[Worker] = [
+    HTTPServerOverASGI(await switch.add_local_connection(), ("localhost", args.web_port), AddressNames.TASK_MANAGER_WEB),
+    ConnectionManager(await switch.add_local_connection()),
+    NodeServer(await switch.add_local_connection()),
+  ]
   if args.serve is not None: workers.append(get_server(await switch.add_local_connection(), args.serve))
 
   for TaskHostCls in get_all_task_hosts(): workers.append(TaskHostCls(await switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]))

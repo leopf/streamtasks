@@ -371,7 +371,7 @@ class PathPattern:
       param_search_start = param_end
       param_ranges.append((param_start, param_end))
 
-    param_name_regex = re.compile("^[a-zA-Z0-9_]*\*?$")
+    param_name_regex = re.compile("^[a-zA-Z0-9_]*\\*?$")
 
     self.parts: list[str] = []
     self.params: list[tuple[str|None,bool]] = []

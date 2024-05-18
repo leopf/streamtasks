@@ -39,4 +39,5 @@ web = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["streamtasks"]
+where = ["."]
+include = ["streamtasks*"]
