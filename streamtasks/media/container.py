@@ -40,12 +40,16 @@ class _Demuxer(AsyncMPProducer[av.Packet]):
     self.container = container
 
   def run_sync(self):
-    for av_packet in self.container.demux():
-      if av_packet.size == 0 and av_packet.dts is None and av_packet.pts is None: break # HACK: for some reason dummy packets are emittied forever after some streams
-      assert av_packet.dts <= av_packet.pts, "dts must be lower than pts while demuxing"
-      self.send_message(av_packet)
+    demux_iter = self.container.demux()
+    while True:
+      try:
+        av_packet = next(demux_iter)
+        if av_packet.size == 0 and av_packet.dts is None and av_packet.pts is None: raise EOFError()
+        assert av_packet.dts <= av_packet.pts, "dts must be lower than pts while demuxing"
+        self.send_message(av_packet)
+      except StopIteration: raise EOFError()
+      except TimeoutError: pass
       if self.stop_event.is_set(): return
-    raise EOFError()
 
 class StreamConsumer(AsyncConsumer[av.Packet]):
   def __init__(self, producer: AsyncProducer, stream_index: int) -> None:
@@ -106,7 +110,7 @@ class InputContainer:
   @staticmethod
   async def open(url_or_path: str, **kwargs):
     loop = asyncio.get_running_loop()
-    container: av.container.InputContainer = await loop.run_in_executor(None, functools.partial(av.open, url_or_path, "r", **kwargs))
+    container: av.container.InputContainer = await loop.run_in_executor(None, functools.partial(av.open, url_or_path, "r", **kwargs, timeout=(None, 0.1)))
     container.flags |= av.container.Flags.NOBUFFER
     return InputContainer(container)
 

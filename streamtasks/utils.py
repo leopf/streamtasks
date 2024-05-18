@@ -146,7 +146,6 @@ class AsyncProducer(Generic[T0]):
     self._task: asyncio.Task | None = None
     self._entered_count: int = 0
     self._consumers: set['AsyncConsumer[T0]'] = set()
-    self._exit_lock = asyncio.Lock()
     self._enter_lock = asyncio.Lock()
     self._ended: bool = False
 
@@ -163,26 +162,25 @@ class AsyncProducer(Generic[T0]):
     self._on_ended()
     self._stop()
     if self._task is not None:
-      try: await self._task
-      except (asyncio.CancelledError, EOFError): pass
+      try: await self.wait_done()
+      except EOFError: pass
 
   async def __aenter__(self):
     if self._ended: raise EOFError()
-    self._entered_count += 1
-    if self._entered_count == 1:
-      async with self._enter_lock:
-        if self._task is not None: await self._task
+    async with self._enter_lock:
+      self._entered_count += 1
+      if self._entered_count == 1:
+        if self._task is not None: await self.wait_done()
         self._task = asyncio.create_task(self._run())
 
   async def __aexit__(self, *_):
-    self._entered_count = max(self._entered_count - 1, 0)
-    if self._entered_count == 0:
-      async with self._exit_lock:
+    async with self._enter_lock:
+      self._entered_count = max(self._entered_count - 1, 0)
+      if self._entered_count == 0:
         if self._task is not None:
           self._stop()
-          try: await self._task
-          except asyncio.CancelledError: pass
-          finally: self._task = None
+          try: await self.wait_done()
+          finally:  self._task = None
 
   def _stop(self): self._task.cancel()
   async def _run(self):
@@ -196,23 +194,37 @@ class AsyncProducer(Generic[T0]):
     self._ended = True
     self.close_consumers()
 
+  async def wait_done(self):
+    try: await self._task
+    except asyncio.CancelledError: pass
+
 class AsyncMPProducer(AsyncProducer[T0]):
   def __init__(self) -> None:
     super().__init__()
     self.stop_event = threading.Event()
     self._loop: asyncio.BaseEventLoop
+    self._lock = asyncio.Lock()
 
   async def run(self):
-    try:
-      self._loop = asyncio.get_running_loop()
-      await self._loop.run_in_executor(None, self.run_sync)
-    finally: self.stop_event.clear()
+    try: await asyncio.shield(self._shielded_run())
+    except asyncio.CancelledError: self.stop_event.set()
 
   @abstractmethod
   def run_sync(self): pass
   def send_message(self, message: Any): self._loop.call_soon_threadsafe(super().send_message, message)
   def close_consumers(self): self._loop.call_soon_threadsafe(super().close_consumers)
+  async def wait_done(self):
+    try: await super().wait_done()
+    finally:
+      await self._lock.acquire() # make sure the inner has actually ended
+      self._lock.release()
   def _stop(self): self.stop_event.set()
+  async def _shielded_run(self):
+    async with self._lock:
+      try:
+        self._loop = asyncio.get_running_loop()
+        await self._loop.run_in_executor(None, self.run_sync)
+      finally: self.stop_event.clear()
 
 T1 = TypeVar("T1")
 class AsyncConsumer(Generic[T1]):

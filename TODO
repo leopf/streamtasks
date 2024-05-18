@@ -2,8 +2,6 @@
 
 - merge master
 
-Media:
-- BUG: full crash when stopping deployment (seg fault)
 
 Frontend:
 - free io keys in static config
