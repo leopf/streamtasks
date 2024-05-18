@@ -4,11 +4,13 @@ from pydantic import BaseModel, ValidationError
 from streamtasks.media.video import video_buffer_to_ndarray
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import NumberMessage, TimestampChuckMessage
+from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.configurators import IOTypes, static_configurator
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 
 from streamtasks.system.tasks.media.utils import MediaEditorFields
+from streamtasks.utils import TimeSynchronizer
 
 class VideoActivityMeterConfigBase(BaseModel):
   pixel_format: IOTypes.PixelFormat = "bgr24"
@@ -26,6 +28,7 @@ class VideoActivityMeterTask(Task):
     self.in_topic = self.client.in_topic(config.in_topic)
     self.config = config
     self._last_bitmap: np.ndarray | None = None
+    self.sync = TimeSynchronizer()
 
   async def run(self):
     try:
@@ -33,12 +36,17 @@ class VideoActivityMeterTask(Task):
         self.client.start()
         while True:
           try:
-            data = await self.in_topic.recv_data()
-            message = TimestampChuckMessage.model_validate(data.data)
-            bitmap = video_buffer_to_ndarray(message.data, self.config.width, self.config.height)
-            if self._last_bitmap is not None:
-              await self.out_topic.send(MessagePackData(NumberMessage(timestamp=message.timestamp, value=np.abs(self._last_bitmap - bitmap).flatten().mean()).model_dump()))
-            self._last_bitmap = bitmap
+            data = await self.in_topic.recv_data_control()
+            if isinstance(data, TopicControlData):
+              if data.paused:
+                await self.out_topic.send(MessagePackData(NumberMessage(timestamp=self.sync.time, value=0).model_dump()))
+            else:
+              message = TimestampChuckMessage.model_validate(data.data)
+              self.sync.update(message.timestamp)
+              bitmap = video_buffer_to_ndarray(message.data, self.config.width, self.config.height)
+              if self._last_bitmap is not None:
+                await self.out_topic.send(MessagePackData(NumberMessage(timestamp=message.timestamp, value=np.abs(self._last_bitmap - bitmap).flatten().mean()).model_dump()))
+              self._last_bitmap = bitmap
           except ValidationError: pass
     finally:
       self._last_bitmap = None

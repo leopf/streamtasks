@@ -1,10 +1,10 @@
 import { html } from "lit-html";
 
 export function renderUI(value, config) {
-    const range = config.max_value - config.min_value;
+    const range = Math.max(0, config.max_value - config.min_value);
     const p = Math.min((value.value - config.min_value) / range, 1);
 
-    const containerStyle = "border: 1px solid gray;box-sizing:border-box;";
+    const containerStyle = "border-radius: 3px;background-color: #d6d6d6;overflow: hidden;";
     const baseSize = "2rem";
 
     return html`

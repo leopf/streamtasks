@@ -1,5 +1,6 @@
 import asyncio
 from typing import Any
+from typing_extensions import Buffer
 from pydantic import BaseModel, ValidationError
 from streamtasks.net.message.structures import TimestampChuckMessage
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
@@ -26,21 +27,29 @@ class AudioOutputTask(Task):
     self.config = config
 
   async def run(self):
+    loop = asyncio.get_running_loop()
+    write_lock = asyncio.Lock()
     audio = pyaudio.PyAudio()
     stream = audio.open(self.config.rate, self.config.channels, SAMPLE_FORMAT_2_PA_TYPE[self.config.sample_format], output=True,
                         frames_per_buffer=self.config.buffer_size, output_device_index=None if self.config.output_id == -1 else self.config.output_id)
+
+    async def write(buf: Buffer):
+      async with write_lock:
+        await loop.run_in_executor(None, stream.write, buf)
+
     try:
       async with self.in_topic, self.in_topic.RegisterContext():
         self.client.start()
-        loop = asyncio.get_running_loop()
         while True:
           try:
             data = await self.in_topic.recv_data()
             message = TimestampChuckMessage.model_validate(data.data)
-            await loop.run_in_executor(None, stream.write, message.data)
+            await asyncio.shield(write(message.data))
           except ValidationError: pass
     finally:
+      await write_lock.acquire()
       stream.close()
+
 
 class AudioOutputTaskHost(TaskHost):
   @property
