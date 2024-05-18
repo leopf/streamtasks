@@ -40,6 +40,7 @@ class SwitchUITaskHost(TaskHost):
     label="Switch UI",
     outputs=[{ "label": "output", "key": "out_topic", "type": "ts", "content": "number" }],
     default_config=SwitchUIConfigBase().model_dump(),
+    config_to_output_map=[{ "label": "label" }],
     editor_fields=[
       EditorFields.text(key="label"),
       EditorFields.boolean(key="default_value", label="default on/off"),
