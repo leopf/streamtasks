@@ -2,7 +2,6 @@ import { observer } from "mobx-react-lite";
 import { Box, Stack, Typography } from "@mui/material";
 import { useEffect, useRef } from "react";
 import { TaskNode } from "../lib/task-node";
-import { NodeOverlayTile } from "./NodeOverlayTile";
 import { renderNodeToElement } from "../lib/node-editor";
 import { ParsedTaskHost, TaskHostDragData } from "@streamtasks/core";
 import { useRootStore } from "../state/root-store";
@@ -26,16 +25,12 @@ export const TaskTemplateItem = observer((props: { taskHost: ParsedTaskHost }) =
             e.dataTransfer.setData("task_host", JSON.stringify(dragData));
             e.dataTransfer.setDragImage(containerRef.current, dragData.ox, dragData.oy);
         }}>
-            <NodeOverlayTile header={<Typography lineHeight={1} fontSize="0.7rem">node: {props.taskHost.nodeName ?? "-"}</Typography>}>
-                <Stack padding={3} direction="column" alignItems="center">
+            <Stack direction="column" alignItems="center" spacing={2}>
+                <Stack paddingX={3} direction="column" alignItems="center">
                     <Box ref={containerRef} />
                 </Stack>
-                {props.taskHost.description && (
-                    <Box padding={1}>
-                        <Typography variant="caption">{props.taskHost.description}</Typography>
-                    </Box>
-                )}
-            </NodeOverlayTile>
+                <Typography lineHeight={1} fontSize="0.9rem" fontWeight={400}>node: {props.taskHost.nodeName ?? "-"}</Typography>
+            </Stack>
         </Box>
     );
 });

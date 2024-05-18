@@ -81,6 +81,7 @@ export class NodeRenderer {
         this.node.on?.call(this.node, "updated", async () => await this.editor?.updateNode(this.id));
 
         this.group = document.createElement("div");
+        this.group.style.letterSpacing = "1px";
         this.group.style.position = "absolute";
         this.group.style.width = "min-content";
         this.group.addEventListener('pointerdown', () => this.editor?.onPressNode(this.id));

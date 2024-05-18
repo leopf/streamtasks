@@ -41,8 +41,9 @@ export class WindowRenderer extends EventEmitter<{
         this.task = task;
         this.element = document.createElement("div");
         this.element.style.position = "absolute";
-        this.element.style.backgroundColor = task ? "#1976d2" : "red";
+        this.element.style.backgroundColor = task ? "#9DA8FF" : "red";
         this.element.style.zIndex = String(viewport.host.childElementCount + 10);
+        this.element.style.borderRadius = "5px";
 
         this.contentEl = document.createElement("div");
         this.contentEl.style.position = "absolute";
@@ -66,12 +67,15 @@ export class WindowRenderer extends EventEmitter<{
         headerEl.style.display = "flex";
         headerEl.style.flexDirection = "row";
         headerEl.style.alignItems = "center";
+        headerEl.style.overflow = "hidden";
         headerEl.addEventListener("pointerdown", () => this.startPointerMoveAction({ type: "move" }));
 
         this.labelEl = document.createElement("div");
         this.labelEl.style.marginLeft = headerHSpacing + "px";
         this.labelEl.style.fontSize = headerFontSize + "px";
         this.labelEl.style.lineHeight = headerFontSize + "px";
+        this.labelEl.style.fontWeight = "400";
+        this.labelEl.style.letterSpacing = "1px";
         this.labelEl.style.fontWeight = "bold";
         this.labelEl.style.color = "white";
         headerEl.appendChild(this.labelEl);

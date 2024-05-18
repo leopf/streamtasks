@@ -20,8 +20,8 @@ export const TaskSelectionMenu = observer(() => {
 
     return (
         <Box sx={{ height: "100%", maxHeight: "100%", overflowY: "auto", direction: "rtl" }}>
-            <Stack boxSizing="border-box" spacing={2.5} padding={1} minHeight="100%" sx={{ direction: "ltr" }}>
-                <TextField sx={{ backgroundColor: "#eee" }} onInput={e => localState.searchText = (e.target as HTMLInputElement).value} variant="outlined" label="search"/>
+            <Stack boxSizing="border-box" spacing={7.5} padding={1} minHeight="100%" sx={{ direction: "ltr" }} bgcolor="rgba(255, 255, 255, 0.95)" borderRight="1px solid #cfcfcf">
+                <TextField sx={{ backgroundColor: "#fff" }} onInput={e => localState.searchText = (e.target as HTMLInputElement).value} variant="filled" label="search"/>
                 {localState.foundHosts.map(th => <TaskTemplateItem key={th.id} taskHost={th} />)}
             </Stack>
         </Box>
