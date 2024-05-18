@@ -7,8 +7,8 @@
   "main": "dist/index.js",
   "scripts": {
     "build:prod": "esbuild src/index.tsx --outfile=../../streamtasks/system/assets/public/main.js --minify --tree-shaking --bundle",
-    "build:dev": "esbuild src/index.tsx --outfile=../../streamtasks/system/assets/public/main.js --sourcemap --bundle",
-    "watch": "esbuild src/index.tsx --outfile=../../streamtasks/system/assets/public/main.js --sourcemap --bundle --watch"
+    "build:dev": "esbuild src/index.tsx --outfile=../../streamtasks/system/assets/public/main.js --sourcemap=inline --bundle",
+    "watch": "pnpm run build:dev --watch"
   },
   "keywords": [],
   "author": "",

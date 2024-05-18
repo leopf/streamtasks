@@ -12,7 +12,7 @@ export const TaskSelectionMenu = observer(() => {
         get foundHosts() {
             let taskHosts = Array.from(rootStore.taskManager.taskHosts.values()).map(taskHost => parseTaskHost(taskHost));
             if (this.searchText) {
-                taskHosts = taskHosts.filter(th => getTaskHostSearchValues(th).includes(this.searchText));
+                taskHosts = taskHosts.filter(th => getTaskHostSearchValues(th).some(t => t?.includes(this.searchText)));
             }
             return taskHosts.sort((a, b) => a.label.localeCompare(b.label));
         }

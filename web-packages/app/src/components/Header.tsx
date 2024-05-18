@@ -57,11 +57,14 @@ const DeploymentListItem = observer((props: { deployment: Deployment }) => {
 });
 
 export const Header = observer((props: React.PropsWithChildren<{}>) => {
+    const rootStore = useRootStore();
     const state = useLocalObservable(() => ({
-        menuOpen: false
+        menuOpen: false,
+        get sortedDeployments() {
+            return rootStore.deployment.deployments.sort((a, b) => a.label.localeCompare(b.label))
+        }
     }));
     const params = useParams();
-    const rootStore = useRootStore();
 
     return (
         <>
@@ -94,7 +97,7 @@ export const Header = observer((props: React.PropsWithChildren<{}>) => {
                         </ListItemButton>
                     </List>
                     <List subheader={<ListSubheader>Deployments</ListSubheader>}>
-                        {rootStore.deployment.deployments.map(d => <DeploymentListItem deployment={d} key={d.id} />)}
+                        {state.sortedDeployments.map(d => <DeploymentListItem deployment={d} key={d.id} />)}
                         <ListItemButton onClick={() => rootStore.uiControl.createNewDeployment()}>
                             <ListItemIcon>
                                 <AddIcon />

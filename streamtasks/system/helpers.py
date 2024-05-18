@@ -16,6 +16,6 @@ def get_all_task_hosts():
       task_host_name = next(name for name in module.__dict__.keys() if name.lower() == task_host_name_lc)
       task_host = getattr(module, task_host_name)
       if issubclass(task_host, TaskHost): task_hosts.append(task_host)
-    except ImportError: logging.debug(f"failed to import module {"streamtasks.system.tasks." + module_sub_name}")
+    except ImportError as e: logging.debug(f"failed to import module {"streamtasks.system.tasks." + module_sub_name}. Error: {e}")
     except StopIteration: pass
   return task_hosts
