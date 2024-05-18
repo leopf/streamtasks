@@ -9,7 +9,6 @@ from abc import ABC
 from dataclasses import dataclass
 import asyncio
 import logging
-import uvicorn
 from typing import TYPE_CHECKING, Any, Awaitable, Optional, Callable, ClassVar
 
 from streamtasks.services.protocols import WorkerPorts
@@ -255,6 +254,7 @@ class HTTPServerOverASGI(Worker):
       client.start()
       await client.request_address()
       app = ASGIProxyApp(client, self.asgi_endpoint)
+      import uvicorn
       server_config = uvicorn.Config(app, host=self.http_endpoint[0], port=self.http_endpoint[1], **self.http_config)
       server = uvicorn.Server(server_config)
       logging.info(f"Serving [{self.asgi_endpoint[0]}, {self.asgi_endpoint[1]}] on http://{self.http_endpoint[0]}:{self.http_endpoint[1]}/")
