@@ -77,23 +77,26 @@ class InputContainerTask(Task):
             if DEBUG_MEDIA(): ddebug_value("in", stream._stream.type, ts)
             await out_topic.send(MessagePackData(MediaMessage(timestamp=self._t0 + ts, packet=packet).model_dump()))
     except EOFError: pass
-
   async def run(self):
     try:
-      container = None
+      container: InputContainer | None = None
+      tasks: list[asyncio.Task] = []
       container = await InputContainer.open(self.config.source, **self.config.container_options)
       tasks = [
         *(asyncio.create_task(self._run_stream(container.get_video_stream(idx, cfg.to_codec_info(), cfg.force_transcode), cfg.out_topic)) for idx, cfg in enumerate(self.config.video_tracks)),
         *(asyncio.create_task(self._run_stream(container.get_audio_stream(idx, cfg.to_codec_info(), cfg.force_transcode), cfg.out_topic)) for idx, cfg in enumerate(self.config.audio_tracks)),
       ]
       self.client.start()
-
-      done, pending = await asyncio.wait(tasks, return_when="FIRST_EXCEPTION")
-      for t in pending: t.cancel()
+      done, _ = await asyncio.wait(tasks, return_when="FIRST_EXCEPTION")
       for t in done: await t
     except asyncio.CancelledError: pass
     finally:
       if container is not None: await container.close()
+      for t in tasks:
+        try:
+          t.cancel()
+          await t
+        except asyncio.CancelledError: pass
 
 class InputContainerTaskHost(TaskHost):
   @property

@@ -184,7 +184,9 @@ class AsyncProducer(Generic[T0]):
 
   def _stop(self): self._task.cancel()
   async def _run(self):
-    try: await self.run()
+    try:
+      if self._ended: raise EOFError()
+      await self.run()
     except EOFError:
       self._on_ended()
       raise
