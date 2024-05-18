@@ -1,13 +1,11 @@
 from abc import abstractmethod
 from collections import deque
 import hashlib
-import platform
 import threading
 from types import CoroutineType
 from typing import Any, Awaitable, Generic, Iterable, Optional, TypeVar
 import asyncio
 import time
-import os
 
 from streamtasks.env import NODE_NAME
 
@@ -90,7 +88,7 @@ class AsyncTrigger:
     return fut
 
   def trigger(self):
-    for fut in self._futs: 
+    for fut in self._futs:
       if not fut.done(): fut.set_result(None)
     self._futs.clear()
 
@@ -151,23 +149,23 @@ class AsyncProducer(Generic[T0]):
     self._exit_lock = asyncio.Lock()
     self._enter_lock = asyncio.Lock()
     self._ended: bool = False
-  
+
   @abstractmethod
   async def run(self): pass
-  
+
   def close_consumers(self):
     for consumer in self._consumers: consumer.close()
-  
+
   def send_message(self, message: T0):
     for consumer in self._consumers: consumer.put(message)
 
   async def close(self):
     self._on_ended()
     self._stop()
-    if self._task is not None: 
+    if self._task is not None:
       try: await self._task
       except (asyncio.CancelledError, EOFError): pass
-  
+
   async def __aenter__(self):
     if self._ended: raise EOFError()
     self._entered_count += 1
@@ -175,7 +173,7 @@ class AsyncProducer(Generic[T0]):
       async with self._enter_lock:
         if self._task is not None: await self._task
         self._task = asyncio.create_task(self._run())
-  
+
   async def __aexit__(self, *_):
     self._entered_count = max(self._entered_count - 1, 0)
     if self._entered_count == 0:
@@ -189,27 +187,27 @@ class AsyncProducer(Generic[T0]):
   def _stop(self): self._task.cancel()
   async def _run(self):
     try: await self.run()
-    except EOFError: 
+    except EOFError:
       self._on_ended()
       raise
     except asyncio.CancelledError: pass
-  
+
   def _on_ended(self):
     self._ended = True
     self.close_consumers()
-  
+
 class AsyncMPProducer(AsyncProducer[T0]):
   def __init__(self) -> None:
     super().__init__()
     self.stop_event = threading.Event()
-    self._loop: asyncio.BaseEventLoop 
-  
+    self._loop: asyncio.BaseEventLoop
+
   async def run(self):
     try:
       self._loop = asyncio.get_running_loop()
       await self._loop.run_in_executor(None, self.run_sync)
     finally: self.stop_event.clear()
-  
+
   @abstractmethod
   def run_sync(self): pass
   def send_message(self, message: Any): self._loop.call_soon_threadsafe(super().send_message, message)
@@ -220,42 +218,42 @@ T1 = TypeVar("T1")
 class AsyncConsumer(Generic[T1]):
   def __init__(self, producer: AsyncProducer) -> None:
     self._producer = producer
-    self._queue: deque[T1] = deque() 
+    self._queue: deque[T1] = deque()
     self._trigger = AsyncTrigger()
     self._closed = False
-    
+
   def register(self): self._producer._consumers.add(self)
   def unregister(self): self._producer._consumers.remove(self)
-    
+
   async def get(self):
     if len(self._queue) != 0: return self._queue.popleft()
     if self._closed: raise EOFError()
     _fut = self._trigger.wait()
     async with self._producer:
-      while len(self._queue) == 0 and not self._closed: 
-        await _fut 
+      while len(self._queue) == 0 and not self._closed:
+        await _fut
         _fut = self._trigger.wait()
       # TODO we need to do this in here to prevent double deques
       if self._closed: raise EOFError()
       return self._queue.popleft()
-  
+
   def put(self, e: T1):
     if self.test_message(e):
       self._queue.append(e)
       self._trigger.trigger()
-    
+
   def close(self):
     self._closed = True
     self._trigger.trigger()
-    
+
   def test_message(self, message: T1) -> bool: return True
 
 async def wait_with_dependencies(main: Awaitable, deps: Iterable[asyncio.Future]):
   main = asyncio.Task(main) if asyncio.iscoroutine(main) else main
-  done, _ = await asyncio.wait([main, *deps], return_when="FIRST_COMPLETED")
+  await asyncio.wait([main, *deps], return_when="FIRST_COMPLETED")
   if not main.done(): main.cancel()
   return main.result()
-  
+
 def get_timestamp_ms(): return int(time.time() * 1000)
 
 def get_node_name_id(name: str):

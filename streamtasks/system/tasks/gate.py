@@ -19,10 +19,10 @@ class GateFailMode(Enum):
 class GateConfigBase(BaseModel):
   fail_mode: GateFailMode
   synchronized: bool = True
-  
+
   @field_serializer("fail_mode")
   def ser_fail_mode(self, value: GateFailMode): return value.value
-  
+
   @staticmethod
   def default_config(): return GateConfigBase(fail_mode=GateFailMode.OPEN)
 
@@ -116,4 +116,3 @@ class GateTaskHost(TaskHost):
   )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return GateTask(await self.create_client(topic_space_id), GateConfig.model_validate(config))
-  

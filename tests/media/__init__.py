@@ -13,7 +13,7 @@ async def encode_all_frames(encoder: Encoder, frames: list):
   packets: list[MediaPacket] = []
   for frame in frames: packets.extend(await encoder.encode(frame))
   packets.extend(await encoder.flush())
-  return packets 
+  return packets
 
 async def decode_all_packets(decoder: Decoder, packets: Iterable[MediaPacket]):
   frames = []
@@ -24,7 +24,7 @@ async def decode_all_packets(decoder: Decoder, packets: Iterable[MediaPacket]):
 async def demux_all_packets(stream: AVInputStream):
   packets: list[MediaPacket] = []
   try:
-    while True: 
+    while True:
       for packet in await stream.demux():
         packets.append(packet)
   except EOFError: pass
@@ -77,14 +77,14 @@ def generate_frames(w, h, frame_count):
     x = (i * speed) % (w - frame_box_size[0])
     arr[y:y + frame_box_size[1], x:x + frame_box_size[0]] = 255
     yield arr
-  
+
 def generate_media_frames(codec: VideoCodecInfo, frame_count: int):
   raw_frames = list(generate_frames(codec.width, codec.height, frame_count))
   frames: list[VideoFrame] = []
   for frame in raw_frames:
     frames.append(VideoFrame.from_ndarray(frame, "rgb24").convert(pixel_format=codec.pixel_format))
   return frames, raw_frames
-  
+
 def normalize_video_frame(frame: VideoFrame):
   np_frame = frame.to_rgb().to_ndarray()
   # remove alpha channel from argb
@@ -127,5 +127,5 @@ def get_freq_similarity(a: np.ndarray, b: np.ndarray):
   assert size > 0, "no frequency peeks found"
   a_freqs = a_freqs[:size]
   b_freqs = b_freqs[:size]
-  
+
   return np.abs(a_freqs - b_freqs).sum()

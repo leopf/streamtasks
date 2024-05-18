@@ -18,21 +18,21 @@ class AudioDecoderConfigBase(BaseModel):
   codec: IOTypes.Codec = "aac"
   rate: IOTypes.SampleRate = 32000
   codec_options: dict[str, str] = {}
-  
+
 class AudioDecoderConfig(AudioDecoderConfigBase):
   out_topic: int
   in_topic: int
 
-class AudioDecoderTask(Task):  
+class AudioDecoderTask(Task):
   def __init__(self, client: Client, config: AudioDecoderConfig):
     super().__init__(client)
     self.out_topic = self.client.out_topic(config.out_topic)
     self.in_topic = self.client.in_topic(config.in_topic)
     self.config = config
-    
+
     self.time_base = Fraction(1, config.rate)
     self.t0: int | None = None
-    
+
     out_codec_info = AudioCodecInfo(codec=config.codec, sample_rate=config.rate, sample_format=config.out_sample_format, channels=config.channels, options=config.codec_options)
     self.resampler = out_codec_info.get_resampler()
     in_codec_info = AudioCodecInfo(codec=config.codec, sample_rate=config.rate, sample_format=config.in_sample_format, channels=config.channels, options=config.codec_options)
@@ -55,7 +55,7 @@ class AudioDecoderTask(Task):
           except ValidationError: pass
     finally:
       self.decoder.close()
-    
+
 class AudioDecoderTaskHost(TaskHost):
   @property
   def metadata(self): return static_configurator(
@@ -76,4 +76,3 @@ class AudioDecoderTaskHost(TaskHost):
   )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return AudioDecoderTask(await self.create_client(topic_space_id), AudioDecoderConfig.model_validate(config))
-  

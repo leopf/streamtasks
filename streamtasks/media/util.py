@@ -52,7 +52,6 @@ def list_codec_formats(name: str, mode: Literal["r", "w"]):
   c = av.codec.Codec(name, mode)
   if c.type == "audio": return [ f.name for f in c.audio_formats ]
   if c.type == "video": return [ f.name for f in c.video_formats ]
-  
+
 def options_from_codec_context(ctx: av.codec.context.CodecContext) -> dict[str, str]:
     return strip_nones_from_dict({ "bit_rate": None if ctx.bit_rate is None else str(ctx.bit_rate), "bit_rate_tolerance": None if ctx.bit_rate_tolerance is None else str(ctx.bit_rate_tolerance)  })
-  

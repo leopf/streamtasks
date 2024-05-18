@@ -1,7 +1,6 @@
 import dataclasses
 from fractions import Fraction
 import functools
-import os
 import av.container
 import av.stream
 import av
@@ -19,14 +18,14 @@ class _StreamContext:
     self.lock = asyncio.Lock()
     self._sync_update_trigger = AsyncTrigger()
     self._sync_channels: dict[int, Fraction] = {}
-  
+
   def create_sync_channel(self):
     channel_id = len(self._sync_channels)
     self._sync_channels[channel_id] = 0
     return channel_id
-  
+
   def is_min(self, channel: int): return self._sync_channels[channel] == min(self._sync_channels.values())
-  
+
   async def sync_wait_channel_min(self, channel: int):
     while not self.is_min(channel):
       await self._sync_update_trigger.wait()
@@ -39,11 +38,11 @@ class _Demuxer(AsyncMPProducer[av.Packet]):
   def __init__(self, container: av.container.InputContainer) -> None:
     super().__init__()
     self.container = container
-  
+
   def run_sync(self):
     for av_packet in self.container.demux():
       if av_packet.size == 0 and av_packet.dts is None and av_packet.pts is None: break # HACK: for some reason dummy packets are emittied forever after some streams
-      assert av_packet.dts <= av_packet.pts, "dts must be lower than pts while demuxing"    
+      assert av_packet.dts <= av_packet.pts, "dts must be lower than pts while demuxing"
       self.send_message(av_packet)
       if self.stop_event.is_set(): return
     raise EOFError()
@@ -51,7 +50,7 @@ class _Demuxer(AsyncMPProducer[av.Packet]):
 class StreamConsumer(AsyncConsumer[av.Packet]):
   def __init__(self, producer: AsyncProducer, stream_index: int) -> None:
     super().__init__(producer)
-    self._stream_index = stream_index  
+    self._stream_index = stream_index
   def test_message(self, message: av.Packet) -> bool: return self._stream_index == message.stream_index
 
 class AVInputStream:
@@ -68,7 +67,7 @@ class AVInputStream:
         self._transcoder = AVTranscoder(Decoder(codec_info, codec_context=stream.codec_context), target_codec.get_encoder())
         self.stream_time_base = self._transcoder.decoder.time_base
     except TypeError: pass # NOTE: some contexts dont have all the codec info
-    
+
   @property
   def codec_info(self) -> CodecInfo: return CodecInfo.from_codec_context(self._stream.codec_context)
 
@@ -88,18 +87,18 @@ class InputContainer:
   def __init__(self, container: av.container.InputContainer):
     self._container = container
     self._demuxer = _Demuxer(container)
-  
+
   def __del__(self): self._container.close()
-  
+
   def get_video_stream(self, idx: int, target_codec: VideoCodecInfo, force_transcode: bool = False):
     av_stream = self._container.streams.video[idx]
     stream = AVInputStream(self._demuxer, av_stream, target_codec, force_transcode)
     return stream
-    
+
   def get_audio_stream(self, idx: int, target_codec: AudioCodecInfo, force_transcode: bool = False):
     av_stream = self._container.streams.audio[idx]
     return AVInputStream(self._demuxer, av_stream, target_codec, force_transcode)
-  
+
   async def close(self):
     await self._demuxer.close()
     self._container.close()
@@ -120,30 +119,30 @@ class AVOutputStream:
     self._sync_channel = ctx.create_sync_channel()
   @property
   def duration(self): return self._time_base * self._dts_counter
-  
+
   @duration.setter
   def duration(self, duration: Fraction):
     if DEBUG_MEDIA(): ddebug_value("out stream tb dur.", self._stream.type, float(duration / self._time_base))
     self._dts_counter = max(self._dts_counter, int(duration / self._time_base))
     self._ctx.set_sync_channel_time(self._sync_channel, self.duration)
-  
+
   @property
   def ready_for_packet(self): return self._ctx.is_min(self._sync_channel)
-  
+
   async def mux(self, packet: MediaPacket):
     packet = dataclasses.replace(packet)
-    packet.dts = self._dts_counter    
+    packet.dts = self._dts_counter
     av_packet = packet.to_av_packet(self._time_base)
     av_packet.stream = self._stream
-    
-    if DEBUG_MEDIA(): 
+
+    if DEBUG_MEDIA():
       ddebug_value("mux", self._stream.type, (self._sync_channel, { k: float(v) for k, v in  self._ctx._sync_channels.items() }))
       ddebug_value("mux wait", self._stream.type, True)
     await self._ctx.sync_wait_channel_min(self._sync_channel)
     if DEBUG_MEDIA():
       ddebug_value("mux wait", self._stream.type, False)
-      
-    
+
+
     loop = asyncio.get_running_loop()
     async with self._ctx.lock:
       assert av_packet.dts <= av_packet.pts, "dts must be lower than pts before muxing"
@@ -159,28 +158,28 @@ class OutputContainer:
   def __init__(self, container: av.container.OutputContainer):
     self._container: av.OutputContainer = container
     self._ctx = _StreamContext()
-    
+
   def __del__(self): self._container.close()
-  
+
   async def close(self):
     await self._ctx.lock.acquire()
     self._container.close()
-  
+
   def add_video_stream(self, codec_info: VideoCodecInfo):
     time_base = codec_info.time_base
     if time_base is None: raise ValueError("time_base must not be None")
-    stream = self._container.add_stream(codec_name=codec_info.codec, rate=codec_info.frame_rate, width=codec_info.width, height=codec_info.height, format=codec_info.to_av_format(), options=codec_info.options) 
+    stream = self._container.add_stream(codec_name=codec_info.codec, rate=codec_info.frame_rate, width=codec_info.width, height=codec_info.height, format=codec_info.to_av_format(), options=codec_info.options)
     return AVOutputStream(self._ctx, time_base, stream)
-  
+
   def add_audio_stream(self, codec_info: AudioCodecInfo):
     time_base = codec_info.time_base
     if time_base is None: raise ValueError("time_base must not be None")
-    stream = self._container.add_stream(codec_name=codec_info.codec, rate=codec_info.sample_rate, channels=codec_info.channels, format=codec_info.to_av_format(), options=codec_info.options) 
+    stream = self._container.add_stream(codec_name=codec_info.codec, rate=codec_info.sample_rate, channels=codec_info.channels, format=codec_info.to_av_format(), options=codec_info.options)
     return AVOutputStream(self._ctx, time_base, stream)
-  
+
   @staticmethod
   async def open(url_or_path: str, **kwargs):
     loop = asyncio.get_running_loop()
-    container: av.OutputContainer = await loop.run_in_executor(None, functools.partial(av.open, url_or_path, "w", **kwargs)) 
+    container: av.OutputContainer = await loop.run_in_executor(None, functools.partial(av.open, url_or_path, "w", **kwargs))
     container.flags |= av.container.Flags.NOBUFFER
     return OutputContainer(container)

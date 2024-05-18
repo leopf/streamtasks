@@ -16,10 +16,10 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     self.discovery_worker = DiscoveryWorker(await self.create_link())
     self.tasks.append(asyncio.create_task(self.discovery_worker.run()))
     await asyncio.sleep(0.001)
-  
+
   async def asyncTearDown(self):
     for task in self.tasks: task.cancel()
-    for task in self.tasks: 
+    for task in self.tasks:
       try: await task
       except (asyncio.CancelledError, ConnectionClosedError): pass
       except: raise
@@ -29,7 +29,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     conn = create_queue_connection()
     await self.switch.add_link(conn[0])
     return conn[1]
-  
+
   async def create_client(self):
     client = Client(await self.create_link())
     client.start()
@@ -55,17 +55,17 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     client = await self.create_client()
     await client.request_address()
     await wait_for_topic_signal(client, WorkerTopics.DISCOVERY_SIGNAL)
-    
+
     topic_ids = { 1, 2, 3 }
     topic_space_id, topic_id_map = await register_topic_space(client, topic_ids)
-    
+
     for topic_id in topic_ids:
       self.assertIn(topic_id, topic_id_map)
       self.assertGreaterEqual(topic_id_map[topic_id], WorkerTopics.COUNTER_INIT)
-      
+
     self.assertDictEqual(topic_id_map, await get_topic_space(client, topic_space_id))
     self.assertEqual(topic_id_map[2], await get_topic_space_translation(client, topic_space_id, 2))
-    
+
     await delete_topic_space(client, topic_space_id)
     with self.assertRaises(FetchError): await get_topic_space(client, topic_space_id)
     with self.assertRaises(FetchError): await delete_topic_space(client, topic_space_id)

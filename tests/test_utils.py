@@ -44,7 +44,7 @@ class DemoProducer(AsyncProducer):
   def __init__(self) -> None:
     super().__init__()
     self.running = AsyncBool(False)
-  
+
   async def run(self):
     try:
       self.running.set(True)
@@ -55,7 +55,7 @@ class DemoProducerMP(AsyncMPProducer):
   def __init__(self) -> None:
     super().__init__()
     self.running = AsyncBool(False)
-  
+
   async def run(self):
     try:
       self.running.set(True)
@@ -90,7 +90,7 @@ class TestProducer(unittest.IsolatedAsyncioTestCase):
     await self.producer.running.wait(False)
     await self.producer.__aexit__()
     await self.producer.running.wait(False)
-    
+
   @async_timeout(1)
   async def test_flow_double_exit_sim(self):
     await self.producer.running.wait(False)
@@ -101,17 +101,17 @@ class TestProducer(unittest.IsolatedAsyncioTestCase):
       asyncio.create_task(self.producer.__aexit__()),
     ])
     await self.producer.running.wait(False)
-    
+
   @async_timeout(1)
   async def test_await_after(self):
     futs = [
       self.producer.__aenter__(),
       self.producer.__aexit__()
     ]
-    
+
     for f in futs: await f
     self.assertFalse(self.producer.running)
-    
+
   # @async_timeout(1)
   # async def test_consumer(self):
   #   self.consumer.get()

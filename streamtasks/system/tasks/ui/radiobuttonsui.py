@@ -25,14 +25,14 @@ class RadioButtonsUITask(ControlBaseTask[RadioButtonsUIConfig, RadioButtonsValue
   def __init__(self, client: Client, config: RadioButtonsUIConfig):
     super().__init__(client, config, RadioButtonsValue(selected_topic=-1), "radiobuttons.js")
     self.out_topics = [ self.client.out_topic(t.out_topic) for t in config.button_tracks ]
-  
+
   async def context(self):
     exit_stack = contextlib.AsyncExitStack()
     for out_topic in self.out_topics:
       await exit_stack.enter_async_context(out_topic)
       await exit_stack.enter_async_context(out_topic.RegisterContext())
     return exit_stack
-  
+
   async def send_value(self, data: RadioButtonsValue):
     timestamp = get_timestamp_ms()
     for out_topic in self.out_topics:
@@ -57,6 +57,6 @@ class RadioButtonsUITaskHost(TaskHost):
           EditorFields.text(key="label")
         ]
     }])}
-  
+
   async def create_task(self, config: Any, topic_space_id: int | None):
     return RadioButtonsUITask(await self.create_client(topic_space_id), RadioButtonsUIConfig.model_validate(config))

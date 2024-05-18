@@ -44,14 +44,14 @@ class AddressNames:
 
 class TopicSpaceRequestMessage(BaseModel):
   id: int
-  
+
 class TopicSpaceTranslationRequestMessage(BaseModel):
   topic_space_id: int
   topic_id: int
 
 class RegisterTopicSpaceRequestMessage(BaseModel):
   topic_ids: list[int]
-  
+
 class TopicSpaceTranslationResponseMessage(BaseModel):
   topic_id: int
 

@@ -37,7 +37,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
   async def asyncTearDown(self):
     for task in self.tasks: task.cancel()
-    for task in self.tasks: 
+    for task in self.tasks:
       try: await task
       except (asyncio.CancelledError, ConnectionClosedError): pass
       except: raise
@@ -74,7 +74,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
       recv_data = await b_recv.get()
       self.assertEqual((recv_data[0], recv_data[1].data, recv_data[2]), (2, "Hello 2", None))
-  
+
   @async_timeout(1)
   async def test_address(self):
     await self.a.set_address(1)
@@ -136,13 +136,13 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
       nonlocal received
       received = data
       event_test1.set()
-      
+
     @signal_server.route("test2")
     def _(data: str):
       nonlocal received
       received = data
       event_test2.set()
-      
+
     self.tasks.append(asyncio.create_task(signal_server.run()))
     await send_signal(self.b, self.a.address, "test1", "hello1")
     await event_test1.wait()
@@ -150,27 +150,27 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     await send_signal(self.b, self.a.address, "test2", "hello2")
     await event_test2.wait()
     self.assertEqual(received, "hello2")
-    
-    
+
+
   @async_timeout(1)
   async def test_broadcast(self):
     discovery_conn = create_queue_connection()
     discovery_worker = DiscoveryWorker(discovery_conn[0])
     await self.switch.add_link(discovery_conn[1])
     self.tasks.append(asyncio.create_task(discovery_worker.run()))
-    
+
     await self.a.set_address(100)
     await self.b.set_address(101)
-    
+
     await wait_for_topic_signal(self.a, WorkerTopics.DISCOVERY_SIGNAL)
     await self.a.request_topic_ids(1)
-    
+
     server = BroadcastingServer(self.a)
-    
+
     self.tasks.append(asyncio.create_task(server.run()))
-                      
+
     receiver = BroadcastReceiver(self.b, [ "test/1" ], self.a.address)
-    
+
     await server.broadcast("test/1", TextData("Hello1"))
     await server.broadcast("test/2", TextData("Hello2"))
     await receiver.start_recv()

@@ -84,7 +84,7 @@ class Reformatter(Generic[F]):
     out_frames: list[F] = []
     for frame in frames: out_frames.extend(await self.reformat(frame))
     return out_frames
-  
+
 class Transcoder(ABC):
   @abstractmethod
   async def transcode(self, packet: MediaPacket) -> list[MediaPacket]: pass
@@ -96,13 +96,13 @@ class AVTranscoder(Transcoder):
     self.decoder = decoder
     self.encoder = encoder
     self.reformatter = encoder.codec_info.get_reformatter(decoder.codec_info)
-    
+
     self._flushed = False
     self._frame_lo: Fraction = Fraction()
 
   @property
   def flushed(self): return self._flushed
-  
+
   async def transcode(self, packet: MediaPacket) -> list[MediaPacket]:
     self._flushed = False
     packets = await self._encode_frames(await self.decoder.decode(packet))

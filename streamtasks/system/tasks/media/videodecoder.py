@@ -17,24 +17,24 @@ class VideoDecoderConfigBase(BaseModel):
   height: IOTypes.Height
   rate: IOTypes.FrameRate
   codec_options: dict[str, str]
-  
+
   @staticmethod
   def default_config(): return VideoDecoderConfigBase(in_pixel_format="yuv420p", out_pixel_format="rgb24", codec="h264", width=1280, height=720, rate=30, codec_options={})
-  
+
 class VideoDecoderConfig(VideoDecoderConfigBase):
   out_topic: int
   in_topic: int
 
-class VideoDecoderTask(Task):  
+class VideoDecoderTask(Task):
   def __init__(self, client: Client, config: VideoDecoderConfig):
     super().__init__(client)
     self.out_topic = self.client.out_topic(config.out_topic)
     self.in_topic = self.client.in_topic(config.in_topic)
     self.config = config
-    
+
     self.time_base = Fraction(1, config.rate) if int(config.rate) == config.rate else Fraction(1 / config.rate)
     self.t0: int | None = None
-    
+
     codec_info = VideoCodecInfo(
       width=config.width,
       height=config.height,
@@ -59,7 +59,7 @@ class VideoDecoderTask(Task):
           except ValidationError: pass
     finally:
       self.decoder.close()
-    
+
 class VideoDecoderTaskHost(TaskHost):
   @property
   def metadata(self): return static_configurator(
@@ -81,4 +81,3 @@ class VideoDecoderTaskHost(TaskHost):
   )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return VideoDecoderTask(await self.create_client(topic_space_id), VideoDecoderConfig.model_validate(config))
-  

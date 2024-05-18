@@ -14,14 +14,14 @@ Endpoint = tuple[DAddress, int]
 EndpointOrAddress = DAddress | Endpoint
 
 def endpoint_or_address_to_endpoint(ep: EndpointOrAddress, default_port: int):
-  return (ep, default_port) if isinstance(ep, (str, int)) else ep 
+  return (ep, default_port) if isinstance(ep, (str, int)) else ep
 
 class ConnectionClosedError(Exception):
   def __init__(self, message: str = "Connection closed", origin: BaseException | None = None):
     if origin: super().__init__(message + "\nOrigin: " + str(origin))
     else: super().__init__(message)
 
-if DEBUG_SER(): 
+if DEBUG_SER():
   def _transform_message(message: Message):
     try: return deserialize_message(serialize_message(message))
     except KeyError: return message
@@ -129,7 +129,7 @@ class Link(ABC):
 
     return message
 
-class TopicRemappingLink(Link): # NOTE: maybe this should just inherit a specific link... 
+class TopicRemappingLink(Link): # NOTE: maybe this should just inherit a specific link...
   def __init__(self, link: Link, topic_id_map: dict[int, int]):
     super().__init__()
     self.on_closed.append(link.close)
@@ -137,10 +137,10 @@ class TopicRemappingLink(Link): # NOTE: maybe this should just inherit a specifi
     self._link = link
     self._topic_id_map = topic_id_map # internal -> external
     self._rev_topic_id_map = {v:k for k, v in topic_id_map.items() } # external -> internal
-  
+
   async def _recv(self) -> Message: return self._remap_message(await self._link.recv(), self._rev_topic_id_map)
   async def _send(self, message: Message): await self._link.send(self._remap_message(message, self._topic_id_map))
-  
+
   def _remap_message(self, message: Message, topic_id_map: dict[int, int]):
     if isinstance(message, TopicDataMessage):
       message = TopicDataMessage(topic_id_map.get(message.topic, message.topic), message.data)
@@ -156,8 +156,8 @@ class TopicRemappingLink(Link): # NOTE: maybe this should just inherit a specifi
 
   def _remap_id_set(self, ids: set[int], topic_id_map: dict[int, int]): return set(topic_id_map.get(t, t) for t in ids)
   def _remap_priced_id_set(self, ids: set[PricedId], topic_id_map: dict[int, int]): return set(PricedId(topic_id_map.get(t.id, t.id), t.cost) for t in ids)
-    
-  
+
+
 class QueueLink(Link):
   def __init__(self, out_messages: asyncio.Queue[Message], in_messages: asyncio.Queue[Message]):
     super().__init__()

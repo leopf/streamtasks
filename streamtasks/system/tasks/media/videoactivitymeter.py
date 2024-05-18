@@ -19,7 +19,7 @@ class VideoActivityMeterConfig(VideoActivityMeterConfigBase):
   out_topic: int
   in_topic: int
 
-class VideoActivityMeterTask(Task):  
+class VideoActivityMeterTask(Task):
   def __init__(self, client: Client, config: VideoActivityMeterConfig):
     super().__init__(client)
     self.out_topic = self.client.out_topic(config.out_topic)
@@ -42,7 +42,7 @@ class VideoActivityMeterTask(Task):
           except ValidationError: pass
     finally:
       self._last_bitmap = None
-    
+
 class VideoActivityMeterTaskHost(TaskHost):
   @property
   def metadata(self): return static_configurator(
@@ -60,4 +60,3 @@ class VideoActivityMeterTaskHost(TaskHost):
   )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return VideoActivityMeterTask(await self.create_client(topic_space_id), VideoActivityMeterConfig.model_validate(config))
-  

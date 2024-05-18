@@ -29,7 +29,7 @@ _SAMPLE_FORMAT_NP_2_AV_INFO: dict[str, tuple[bool, type[np.dtype]]] = {
 def get_audio_bytes_per_time_sample(sample_format: str, channels: int): # time sample != sample, time sample has all channels
   if sample_format not in _SAMPLE_FORMAT_NP_2_AV_INFO: raise ValueError("Invalid sample format!")
   return _SAMPLE_FORMAT_NP_2_AV_INFO[sample_format][1]().itemsize * channels
-  
+
 def audio_buffer_to_ndarray(buf: Buffer, sample_format: str, channels: int):  # TODO: endianness
   if sample_format not in _SAMPLE_FORMAT_NP_2_AV_INFO: raise ValueError("Invalid sample format!")
   is_planar, dtype = _SAMPLE_FORMAT_NP_2_AV_INFO[sample_format]
@@ -52,19 +52,19 @@ class AudioFrame(Frame[av.AudioFrame]):
   @staticmethod
   def from_buffer(buf: Buffer, sample_format: str, channels: int, sample_rate: int):
     return AudioFrame.from_ndarray(audio_buffer_to_ndarray(buf, sample_format, channels), sample_format, channels, sample_rate)
-    
+
 @dataclass
 class AudioResamplerInfo:
   sample_format: str
   channels: int
   rate: int
-  
+
   @property
   def layout(self): return av.AudioLayout(self.channels)
-  
+
   @property
   def format(self): return av.AudioFormat(self.sample_format)
-  
+
 class AudioCodecInfo(CodecInfo[AudioFrame]):
 
   def __init__(self, codec: str, channels: int, sample_rate: int, sample_format: str, options: dict[str, str] = {}):
@@ -85,7 +85,7 @@ class AudioCodecInfo(CodecInfo[AudioFrame]):
 
   @property
   def rate(self) -> int: return self.sample_rate
-  
+
   @property
   def resampler_info(self): return AudioResamplerInfo(sample_format=self.sample_format, channels=self.channels, rate=self.rate)
 
@@ -106,7 +106,7 @@ class AudioCodecInfo(CodecInfo[AudioFrame]):
 
     if "bit_rate" in self.options: ctx.bit_rate = int(self.options["bit_rate"])
     if "bit_rate_tolerance" in self.options: ctx.bit_rate_tolerance = int(self.options["bit_rate_tolerance"])
-    
+
     if mode == 'w':
       ctx.time_base = self.time_base
 
@@ -122,21 +122,21 @@ class AudioResampler(Reformatter):
     self.resampler = av.AudioResampler(to_codec.format, to_codec.layout, to_codec.rate)
     self.from_codec = from_codec
     self.min_pts = -2**31
-  
+
   async def reformat(self, frame: AudioFrame) -> list[AudioFrame]:
     loop = asyncio.get_running_loop()
     if self.from_codec is not None:
       frame.frame.rate = self.from_codec.rate
     av_frames = await loop.run_in_executor(None, self.resampler.resample, frame.frame)
     frames: list[AudioFrame] = []
-    
+
     for av_frame in av_frames:
       ts = av_frame.dts if av_frame.pts is None else av_frame.pts
-      av_frame.pts = ts 
+      av_frame.pts = ts
       av_frame.dts = ts
-      
+
       frames.append(AudioFrame(av_frame))
     if DEBUG_MEDIA():
-      for f in frames: 
+      for f in frames:
         ddebug_value("audio frame at duration", float(f.dtime or 0))
     return frames

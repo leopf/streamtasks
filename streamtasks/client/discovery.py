@@ -6,7 +6,7 @@ from streamtasks.client.receiver import Receiver
 from streamtasks.client.signal import send_signal
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.types import Message, TopicDataMessage, TopicMessage
-from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, RegisterAddressRequestBody, RegisterTopicSpaceRequestMessage, TopicSpaceRequestMessage, TopicSpaceResponseMessage, TopicSpaceTranslationRequestMessage, TopicSpaceTranslationResponseMessage, WorkerAddresses, WorkerRequestDescriptors, WorkerPorts, WorkerTopics
+from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, RegisterAddressRequestBody, RegisterTopicSpaceRequestMessage, TopicSpaceRequestMessage, TopicSpaceResponseMessage, TopicSpaceTranslationRequestMessage, TopicSpaceTranslationResponseMessage, WorkerAddresses, WorkerRequestDescriptors, WorkerTopics
 import asyncio
 if TYPE_CHECKING:
   from streamtasks.client import Client
@@ -73,7 +73,7 @@ async def request_addresses(client: 'Client', count: int) -> set[int]:
         GenerateAddressesRequestMessage(request_id=request_id, count=count).model_dump()
       )
       data: GenerateAddressesResponseMessage = await receiver.get()
-  else: 
+  else:
     res = await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REQUEST_ADDRESSES, GenerateAddressesRequestMessageBase(count=count).model_dump())
     data = GenerateAddressesResponseMessageBase.model_validate(res)
   addresses = set(data.addresses)
@@ -85,7 +85,7 @@ async def register_topic_space(client: 'Client', topic_ids: set[int]) -> tuple[i
   result = await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REGISTER_TOPIC_SPACE, RegisterTopicSpaceRequestMessage(topic_ids=topic_ids).model_dump())
   data = TopicSpaceResponseMessage.model_validate(result)
   return (data.id, { k: v for k, v in data.topic_id_map })
-async def get_topic_space(client: 'Client', id: int): 
+async def get_topic_space(client: 'Client', id: int):
   result = await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.GET_TOPIC_SPACE, TopicSpaceRequestMessage(id=id).model_dump())
   data = TopicSpaceResponseMessage.model_validate(result)
   return { k: v for k, v in data.topic_id_map }
@@ -98,7 +98,7 @@ async def _register_address_name(client: 'Client', name: str, address: Optional[
   await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REGISTER_ADDRESS, RegisterAddressRequestBody(address_name=name, address=address).model_dump())
   client.set_address_name(name, address)
 
-async def register_address_name(client: 'Client', name: str, address: int | None = None): 
+async def register_address_name(client: 'Client', name: str, address: int | None = None):
   if address is None and client.address is None: raise ValueError("Missing address! You must either provide and address or the client must have one assigned!")
   return await _register_address_name(client, name, address or client.address)
 

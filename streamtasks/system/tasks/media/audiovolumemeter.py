@@ -1,4 +1,3 @@
-from fractions import Fraction
 from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.media.audio import audio_buffer_to_ndarray, sample_format_to_dtype
@@ -24,13 +23,13 @@ def max_dtype_value(dtype):
   elif np.issubdtype(dtype, np.floating): return np.finfo(dtype).max
   else: raise ValueError("Unsupported dtype")
 
-class AudioVolumeMeterTask(Task):  
+class AudioVolumeMeterTask(Task):
   def __init__(self, client: Client, config: AudioVolumeMeterConfig):
     super().__init__(client)
     self.out_topic = self.client.out_topic(config.out_topic)
     self.in_topic = self.client.in_topic(config.in_topic)
     self.config = config
-    
+
     sample_dtype = sample_format_to_dtype(self.config.sample_format)
     self.max_value = float(max_dtype_value(sample_dtype))
     self.sample_buffer = np.array([], dtype=sample_dtype)
@@ -48,7 +47,7 @@ class AudioVolumeMeterTask(Task):
 
             new_samples = audio_buffer_to_ndarray(message.data, sample_format=self.config.sample_format, channels=1).flatten()  # TODO: endianness
             self.sample_buffer = np.concatenate((self.sample_buffer, new_samples))
-            
+
             while self.sample_buffer.size > self.chunk_size:
               await self.out_topic.send(MessagePackData(NumberMessage(timestamp=message.timestamp + timestamp_offset, value=np.sqrt(np.mean(np.abs(self.sample_buffer[:self.chunk_size]) / self.max_value))).model_dump()))
               self.sample_buffer = self.sample_buffer[self.chunk_size:]
@@ -56,7 +55,7 @@ class AudioVolumeMeterTask(Task):
           except (ValidationError, ValueError): pass
     finally:
       self.sample_buffer = None
-    
+
 class AudioVolumeMeterTaskHost(TaskHost):
   @property
   def metadata(self): return static_configurator(
@@ -73,4 +72,3 @@ class AudioVolumeMeterTaskHost(TaskHost):
   )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return AudioVolumeMeterTask(await self.create_client(topic_space_id), AudioVolumeMeterConfig.model_validate(config))
-  

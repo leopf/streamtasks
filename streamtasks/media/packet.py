@@ -9,10 +9,10 @@ class MediaPacket:
   pts: Optional[int]
   is_keyframe: bool
   rel_dts: Optional[int]
-  
+
   @property
   def dts(self): return self.pts - self.rel_dts if self.rel_dts is not None and self.pts is not None else None
-  
+
   @dts.setter
   def dts(self, v: int):
     if self.pts is None:
@@ -20,7 +20,7 @@ class MediaPacket:
       self.rel_dts = 0
     if self.rel_dts is None: self.rel_dts = 0
     self.pts = v + self.rel_dts
-  
+
   def to_av_packet(self, time_base: Fraction | None):
     packet = av.Packet(self.data)
     packet.pts = self.pts

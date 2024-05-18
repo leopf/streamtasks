@@ -10,7 +10,6 @@ from streamtasks.system.tasks.media.utils import MediaEditorFields
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
-import numpy as np
 
 class VideoEncoderConfigBase(BaseModel):
   in_pixel_format: IOTypes.PixelFormat
@@ -20,7 +19,7 @@ class VideoEncoderConfigBase(BaseModel):
   height: IOTypes.Height
   rate: IOTypes.FrameRate
   codec_options: dict[str, str]
-  
+
   @staticmethod
   def default_config(): return VideoEncoderConfigBase(in_pixel_format="bgr24", out_pixel_format="yuv420p", codec="h264", width=1280, height=720, rate=30, codec_options={})
 
@@ -28,16 +27,16 @@ class VideoEncoderConfig(VideoEncoderConfigBase):
   out_topic: int
   in_topic: int
 
-class VideoEncoderTask(Task):  
+class VideoEncoderTask(Task):
   def __init__(self, client: Client, config: VideoEncoderConfig):
     super().__init__(client)
     self.out_topic = self.client.out_topic(config.out_topic)
     self.in_topic = self.client.in_topic(config.in_topic)
     self.config = config
-    
+
     self.time_base = Fraction(1, config.rate) if int(config.rate) == config.rate else Fraction(1 / config.rate)
     self.t0: int | None = None
-    
+
     codec_info = VideoCodecInfo(
       width=config.width,
       height=config.height,
@@ -55,11 +54,11 @@ class VideoEncoderTask(Task):
             data = await self.in_topic.recv_data()
             message = TimestampChuckMessage.model_validate(data.data)
             if self.t0 is None: self.t0 = message.timestamp
-            
+
             bitmap = video_buffer_to_ndarray(message.data, self.config.width, self.config.height)
             frame = VideoFrame.from_ndarray(bitmap, self.config.in_pixel_format)
             frame.set_ts(Fraction(message.timestamp - self.t0, 1000), self.time_base)
-            
+
             packets = await self.encoder.encode(frame)
             for packet in packets:
               if DEBUG_MEDIA(): ddebug_value("video encoder time", float(packet.dts * self.time_base))
@@ -67,7 +66,7 @@ class VideoEncoderTask(Task):
           except ValidationError: pass
     finally:
       self.encoder.close()
-    
+
 class VideoEncoderTaskHost(TaskHost):
   @property
   def metadata(self): return static_configurator(
@@ -89,4 +88,3 @@ class VideoEncoderTaskHost(TaskHost):
   )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return VideoEncoderTask(await self.create_client(topic_space_id), VideoEncoderConfig.model_validate(config))
-  

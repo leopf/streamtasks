@@ -24,7 +24,7 @@ class VideoFrame(Frame[av.VideoFrame]):
 
   def to_ndarray(self):
     return self.frame.to_ndarray()
-  
+
   def convert(self, width: int | None = None, height: int | None = None, pixel_format: str | None = None):
     return VideoFrame(self.frame.reformat(width=width, height=height, format=pixel_format))
 
@@ -40,10 +40,10 @@ class VideoReformatterInfo:
   pixel_format: str
   width: int
   height: int
-  
+
   @property
   def time_base(self): return Fraction(1, int(self.frame_rate)) if int(self.frame_rate) == self.frame_rate else Fraction(1 / self.frame_rate)
-  
+
   def to_av_format(self) -> av.VideoFormat:
     return av.VideoFormat(self.pixel_format, self.width, self.height)
 
@@ -80,7 +80,7 @@ class VideoCodecInfo(CodecInfo[VideoFrame]):
     ctx.format = self.to_av_format()
     ctx.framerate = self.frame_rate
     ctx.options.update(self.options)
-    
+
     if "bit_rate" in self.options: ctx.bit_rate = int(self.options["bit_rate"])
     if "bit_rate_tolerance" in self.options: ctx.bit_rate_tolerance = int(self.options["bit_rate_tolerance"])
     if mode == "w": ctx.time_base = self.time_base
@@ -104,7 +104,7 @@ def copy_av_video_frame(frame: av.VideoFrame) -> av.VideoFrame:
   for a, b in zip(new_frame.planes, frame.planes):
     ctypes.memmove(a.buffer_ptr, b.buffer_ptr, min(a.buffer_size, b.buffer_size))
   return new_frame
-  
+
 
 class VideoReformatter(Reformatter[VideoFrame]):
   def __init__(self, to_codec: VideoReformatterInfo, from_codec: VideoReformatterInfo) -> None:
@@ -115,23 +115,23 @@ class VideoReformatter(Reformatter[VideoFrame]):
     self.frame_duation = Fraction(to_codec.frame_rate / from_codec.frame_rate)
     self.rel_frame_counter = Fraction(0)
     self.min_pts = -2**31
-    
+
   async def reformat(self, frame: VideoFrame) -> list[VideoFrame]:
     self.rel_frame_counter += self.frame_duation
     frame_count = int(self.rel_frame_counter)
     self.rel_frame_counter -= frame_count
     if frame_count == 0: return []
-    
+
     assert frame.frame.width == self.from_codec.width
     assert frame.frame.height == self.from_codec.height
     assert frame.frame.format.name == self.from_codec.pixel_format
-    
+
     out_frame = self.reformatter.reformat(frame.frame, width=self.to_codec.width, height=self.to_codec.height, format=self.to_codec.pixel_format)
     time_base = frame.frame.time_base if frame.frame.time_base is not None else self.from_codec.time_base
-    
+
     pts = max(int((time_base * frame.frame.pts) * self.to_codec.frame_rate), self.min_pts)
     self.min_pts = pts + frame_count
-    
+
     frames: list[VideoFrame] = []
     for i in range(frame_count):
       new_frame = out_frame if i == frame_count - 1 else copy_av_video_frame(out_frame)
@@ -139,7 +139,5 @@ class VideoReformatter(Reformatter[VideoFrame]):
       new_frame.dts = pts + i
       new_frame.time_base = self.to_codec.time_base
       frames.append(VideoFrame(new_frame))
-    
+
     return frames
-  
-    

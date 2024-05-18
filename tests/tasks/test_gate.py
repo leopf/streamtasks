@@ -1,6 +1,5 @@
 from enum import Enum
 import itertools
-import os
 from typing import Any
 import unittest
 from streamtasks.net.message.data import MessagePackData

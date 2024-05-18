@@ -23,7 +23,7 @@ class RawConnection(ABC):
     super().__init__()
     self._send_lock = asyncio.Lock()
     self._recv_lock = asyncio.Lock()
-  
+
   async def handshake(self, extra_data: dict):
     try:
       data = { **extra_data, "version": _get_version_specifier() }
@@ -34,10 +34,10 @@ class RawConnection(ABC):
     except BaseException as e:
       self.close()
       raise e
-  
+
   def validate_handshake(self, data: dict):
     if data["version"] != _get_version_specifier(): raise ValueError("Version missmatch!")
-  
+
   @abstractmethod
   def close(self): pass
   async def send(self, data: bytes):
@@ -45,8 +45,8 @@ class RawConnection(ABC):
       await asyncio.shield(self._send(data))
   async def recv(self):
     async with self._recv_lock:
-      return await asyncio.shield(self._recv()) 
-  
+      return await asyncio.shield(self._recv())
+
   @abstractmethod
   async def _send(self, data: bytes): pass
   @abstractmethod
@@ -54,20 +54,20 @@ class RawConnection(ABC):
 
 class RawStreamConnection(RawConnection):
   SYNC_WORD = b"\xb8\x23\xa0\x6f"
-  
+
   def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
     super().__init__()
     self._reader = reader
     self._writer = writer
 
   def close(self): self._writer.close()
-    
+
   async def send(self, data: bytes):
     try:
       return await super().send(data)
     except (EOFError, ConnectionError, BrokenPipeError) as e:
       raise ConnectionClosedError(str(e))
-    
+
   async def recv(self):
     try:
       return await super().recv()
@@ -79,7 +79,7 @@ class RawStreamConnection(RawConnection):
     self._writer.write(struct.pack("<L", len(data)))
     self._writer.write(data)
     await self._writer.drain()
-    
+
   async def _recv(self) -> bytes:
     sync_index = 0
     while sync_index < len(RawStreamConnection.SYNC_WORD):
@@ -94,7 +94,7 @@ class RawConnectionLink(Link):
     super().__init__(cost)
     self._connection = connection
     self.on_closed.append(connection.close)
-    
+
   async def _send(self, message: Message):
     try: await self._connection.send(serialize_message(message))
     except asyncio.CancelledError: raise
@@ -116,7 +116,7 @@ class ServerBase(Worker):
 
   @property
   def running(self): return self._running_event.is_set()
-  
+
   @property
   def connection_count(self): return self._connection_count
 
@@ -128,13 +128,13 @@ class ServerBase(Worker):
     finally:
       self._running_event.clear()
       await self.shutdown()
-      
+
   @abstractmethod
   async def run_server(self): pass
-  
+
   async def wait_running(self): await self._running_event.wait()
   async def wait_connections_changed(self): await self._connection_count_trigger.wait()
-  
+
   def on_connected(self):
     self._connection_count += 1
     self._connection_count_trigger.trigger()
@@ -163,7 +163,7 @@ class TCPSocketServer(StreamServerBase):
     super().__init__(link, cost, handshake_data)
     self.host = host
     self.port = port
-  
+
   async def run_server(self):
     server = await asyncio.start_server(self.on_connection, self.host, self.port)
     async with server: await server.serve_forever()
@@ -172,7 +172,7 @@ class UnixSocketServer(StreamServerBase):
   def __init__(self, link: Link, path: str, cost: int = DEFAULT_COSTS.UNIX, handshake_data: dict = {}):
     super().__init__(link, cost, handshake_data)
     self.path = path
-  
+
   async def run_server(self):
     server = await asyncio.start_unix_server(self.on_connection, self.path)
     async with server: await server.serve_forever()
@@ -189,7 +189,7 @@ async def connect_tcp_socket(host: str, port: int, cost: int = DEFAULT_COSTS.TCP
   rw = await asyncio.open_connection(host, port)
   connection = RawStreamConnection(*rw)
   await connection.handshake(handshake_data)
-  return RawConnectionLink(connection, cost) 
+  return RawConnectionLink(connection, cost)
 
 async def connect_unix_socket(path: str, cost: int = DEFAULT_COSTS.UNIX, handshake_data: dict = {}):
   rw = await asyncio.open_unix_connection(path)
@@ -207,10 +207,10 @@ async def connect(url: str | None = None):
   handshake_data = {}
   cost: int | None = None
   if url is None: return await connect_node(handshake_data=handshake_data)
-  
+
   purl = urllib.parse.urlparse(url)
   handshake_data = { **handshake_data }
-  if purl.username is not None: handshake_data["username"] = purl.username 
+  if purl.username is not None: handshake_data["username"] = purl.username
   if purl.password is not None: handshake_data["password"] = purl.password
   if purl.query is not None:
     qs_data = urllib.parse.parse_qs(purl.query)
@@ -231,7 +231,7 @@ def get_server(link: Link, url: str | None = None) -> ServerBase:
   cost: int | None = None
   if url is None: return NodeServer(link)
   purl = urllib.parse.urlparse(url)
-  
+
   if purl.query is not None:
     qs_data = urllib.parse.parse_qs(purl.query)
     cost = _extract_cost_from_query_dict(qs_data) or cost
@@ -252,10 +252,10 @@ class AutoReconnector(Worker):
     self.connect_fn = connect_fn
     self.delay = delay
     self._async_connected = AsyncBool()
-    
+
   @property
   def connected(self): return self._async_connected.value
-    
+
   async def run(self):
     try:
       await self.setup()

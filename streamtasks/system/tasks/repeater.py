@@ -72,4 +72,3 @@ class RepeaterTaskHost(TaskHost):
   )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return RepeaterTask(await self.create_client(topic_space_id), RepeaterConfig.model_validate(config))
-  

@@ -15,7 +15,7 @@ class IOTypes:
   PixelFormat = str
   SampleFormat = str
   Channels = int
-  
+
 class TrackConfig(TypedDict):
   key: str
   label: NotRequired[str]
@@ -31,14 +31,14 @@ def static_configurator(label: str, description: str | None = None, inputs: list
                         config_to_input_map: dict[str, dict[str, str]] | None = None,
                         io_mirror: list[tuple[str, int]] | None = None):
   if default_config is not None:
-    if config_to_output_map is not None: 
+    if config_to_output_map is not None:
       for output, cfg_map in zip_longest(outputs, config_to_output_map[:len(outputs)], fillvalue=None):
         output.update({ out_metadata_key: default_config[cfg_key] for cfg_key, out_metadata_key in cfg_map.items() })
     if config_to_input_map:
       for input_key, cfg_map in config_to_input_map.items():
         if (tinput := next((i for i in inputs if i["key"] == input_key), None)) is not None:
           tinput.update({ in_metadata_key: default_config[cfg_key] for cfg_key, in_metadata_key in cfg_map.items() })
-      
+
   metadata = {
     "js:configurator": "std:static",
     "cfg:label": label,
@@ -68,11 +68,11 @@ class EditorFields:
   @staticmethod
   def select(key: str, items: list[tuple[bool | str | float | int, str]], label: str | None = None):
     return strip_nones_from_dict({ "type": "select", "key": key, "label": label or key_to_label(key), "items": [ { "value": value, "label": label } for value, label in items ] })
-  
+
   @staticmethod
   def text(key: str, label: str | None = None):
     return strip_nones_from_dict({ "type": "text", "key": key, "label": label or key_to_label(key) })
-  
+
   @staticmethod
   def number(key: str, label: str | None = None, min_value: float | int | None = None, max_value: float | int | None = None, unit: str | None = None, is_int: bool | None = None):
     return strip_nones_from_dict({ "type": "number", "key": key, "label": label or key_to_label(key), "min": min_value, "max": max_value, "unit": unit, "integer": is_int == True })
@@ -84,7 +84,7 @@ class EditorFields:
   @staticmethod
   def boolean(key: str, label: str | None = None):
     return strip_nones_from_dict({ "type": "boolean", "key": key, "label": label or key_to_label(key) })
-  
+
   @staticmethod
   def options(key: str, label: str | None = None):
     return strip_nones_from_dict({ "type": "kvoptions", "key": key, "label": label or key_to_label(key) })

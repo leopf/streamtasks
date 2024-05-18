@@ -19,4 +19,4 @@ def ddebug_value(*args):
   label = " ".join(str(e) for e in args[:-1])
   _VALUES[label] = str(args[-1])
   _UPDATE_COUNTER += 1
-  _print_values()  
+  _print_values()

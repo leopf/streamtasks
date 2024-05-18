@@ -164,7 +164,7 @@ class CalculatorConfigBase(BaseModel):
     ast = self.formula_ast
     CalculatorConfig.validate_formula(ast, set(input_var.name for input_var in self.variable_tracks))
     return self
-  
+
   @staticmethod
   def validate_formula(ast: ParseTree, input_vars: set[str]):
     for var_name in input_vars:
@@ -196,7 +196,7 @@ class CalculatorTask(Task):
     self.formula_ast = config.formula_ast
     self.out_topic = self.client.out_topic(config.out_topic)
     self.var_values = { input_var.name: input_var.default_value for input_var in config.variable_tracks }
-    
+
     if config.synchronized:
       sync = SequentialInTopicSynchronizer()
       self.in_topics = [
@@ -234,11 +234,11 @@ class CalculatorTask(Task):
           self.var_values[var_name] = message.value
           await self.send_value(message.timestamp)
         except ValidationError: pass
-  
+
   async def send_value(self, timestamp: int):
     result: float = CalculatorEvalTransformer(CalculatorEvalContext(self.var_values)).transform(self.formula_ast)
     await self.out_topic.send(MessagePackData(NumberMessage(timestamp=timestamp,value=result).model_dump()))
-     
+
 class CalculatorTaskHost(TaskHost):
   @property
   def metadata(self): return {

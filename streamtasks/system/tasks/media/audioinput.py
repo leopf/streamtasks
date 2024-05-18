@@ -18,7 +18,7 @@ class AudioInputConfigBase(BaseModel):
   rate: IOTypes.SampleRate = 32000
   input_id: int = -1
   buffer_size: int = 1024
-  
+
 class AudioInputConfig(AudioInputConfigBase):
   out_topic: int
 
@@ -28,10 +28,10 @@ class AudioInputTask(Task):
     self.out_topic = self.client.out_topic(config.out_topic)
     self.config = config
     self.bytes_per_second = get_audio_bytes_per_time_sample(config.sample_format, config.channels) * config.rate
-    
+
   async def run(self):
     audio = pyaudio.PyAudio()
-    stream = audio.open(self.config.rate, self.config.channels, SAMPLE_FORMAT_2_PA_TYPE[self.config.sample_format], input=True, 
+    stream = audio.open(self.config.rate, self.config.channels, SAMPLE_FORMAT_2_PA_TYPE[self.config.sample_format], input=True,
                         frames_per_buffer=self.config.buffer_size, input_device_index=None if self.config.input_id == -1 else self.config.input_id)
     try:
       async with self.out_topic, self.out_topic.RegisterContext():
@@ -46,7 +46,7 @@ class AudioInputTask(Task):
           await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=timestamp, data=data).model_dump()))
     finally:
       stream.close()
-    
+
 class AudioInputTaskHost(TaskHost):
   @property
   def metadata(self): return static_configurator(
@@ -64,4 +64,3 @@ class AudioInputTaskHost(TaskHost):
   )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return AudioInputTask(await self.create_client(topic_space_id), AudioInputConfig.model_validate(config))
-  

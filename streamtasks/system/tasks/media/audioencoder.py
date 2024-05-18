@@ -10,7 +10,6 @@ from streamtasks.system.tasks.media.utils import MediaEditorFields
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
-import numpy as np
 
 class AudioEncoderConfigBase(BaseModel):
   in_sample_format: IOTypes.SampleFormat = "s16"
@@ -24,7 +23,7 @@ class AudioEncoderConfig(AudioEncoderConfigBase):
   out_topic: int
   in_topic: int
 
-class AudioEncoderTask(Task):  
+class AudioEncoderTask(Task):
   def __init__(self, client: Client, config: AudioEncoderConfig):
     super().__init__(client)
     self.out_topic = self.client.out_topic(config.out_topic)
@@ -46,10 +45,10 @@ class AudioEncoderTask(Task):
             data = await self.in_topic.recv_data()
             message = TimestampChuckMessage.model_validate(data.data)
             if self.t0 is None: self.t0 = message.timestamp
-            
+
             frame = AudioFrame.from_buffer(message.data, self.config.out_sample_format, self.config.channels, self.config.rate)
             frame.set_ts(Fraction(message.timestamp - self.t0, 1000), self.time_base)
-            
+
             packets = await self.encoder.encode(frame)
             for packet in packets:
               if DEBUG_MEDIA(): ddebug_value("audio encoder time", float(packet.dts * self.time_base))
@@ -57,7 +56,7 @@ class AudioEncoderTask(Task):
           except ValidationError: pass
     finally:
       self.encoder.close()
-    
+
 class AudioEncoderTaskHost(TaskHost):
   @property
   def metadata(self): return static_configurator(
@@ -78,4 +77,3 @@ class AudioEncoderTaskHost(TaskHost):
   )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return AudioEncoderTask(await self.create_client(topic_space_id), AudioEncoderConfig.model_validate(config))
-  

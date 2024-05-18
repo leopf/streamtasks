@@ -38,7 +38,7 @@ class WebsocketScope(TransportScope):
   type: Literal["websocket"]
   scheme: Literal["ws", "wss"]
   subprotocols: Iterable[str]
-  
+
 ASGIScope = HTTPScope | WebsocketScope | LifespanScope | dict
 ASGIFnSend = Callable[[dict], Awaitable[Any]]
 ASGIFnReceive = Callable[[], Awaitable[dict]]
@@ -76,7 +76,7 @@ class ContextBase:
     self._scope = scope
     self._receive = receive
     self._send = send
-  
+
   async def delegate(self, app: ASGIHandler, scope: ASGIScope | None = None): await app(scope or self._scope, self._wreceive, self._wsend)
   async def next(self, scope: ASGIScope | None = None): await self.delegate(asgi_scope_get_next_fn(self._scope), scope)
 
@@ -103,7 +103,7 @@ class TransportContext(ContextBase):
       res[key] = res.get(key, []) + [v.decode(errors="ignore")] # TODO improve this...
     return res
   @functools.cached_property
-  def content_type(self): 
+  def content_type(self):
     ct = self.headers.get("content-type", None)
     if ct is None or len(ct) == 0: raise ValueError("No content type specified on request!")
     if len(ct) > 1: raise ValueError("More than one content-type was specified!")
@@ -112,8 +112,8 @@ class TransportContext(ContextBase):
     mime_type = parts[0].lower()
     params = { k.lower(): v for k, v in (tuple(p.split("=") for p in parts[1:] if p.count("=") == 1)) }
     return mime_type, params
-    
-    
+
+
 class WebsocketContext(TransportContext):
   close_reasons = {
     1000: 'Normal Closure', 1001: 'Going Away', 1002: 'Protocol Error',
@@ -123,17 +123,17 @@ class WebsocketContext(TransportContext):
     1012: 'Service Restart', 1013: 'Try Again Later', 1014: 'Bad Gateway',
     1015: 'TLS Handshake'
   }
-  
+
   def __init__(self, scope: WebsocketScope, receive: ASGIFnReceive, send: ASGIFnSend) -> None:
     super().__init__(scope, receive, send)
     self._connected = False
     self._accepted = False
     self._add_accept_headers: list[tuple[ByteString, ByteString]] = []
     self._scope: WebsocketScope
-   
+
   @property
   def connected(self): return self._connected
-  
+
   @property
   def accepted(self): return self._accepted
 
@@ -144,35 +144,35 @@ class WebsocketContext(TransportContext):
     while self._connected:
       event_type, data = await self.receive()
       if event_type == "message" and data is not None: yield data
-    
+
   async def accept(self, headers: Iterable[tuple[ByteString, ByteString]] = [], subprotocol: str | None = None):
     if self._accepted: return
     if not self._connected:
       event_type, _ = await self.receive()
       if event_type != "connect": raise RuntimeError(f"Expected 'websocket.connect' event. '{event_type}' received.")
     await self.send_accept(headers, subprotocol)
-    
+
   async def send_accept(self, headers: Iterable[tuple[ByteString, ByteString]] = [], subprotocol: str | None = None):
     await self._wsend({ "type": "websocket.accept", "subprotocol": subprotocol, "headers": [ (name.lower(), value) for name, value in headers ] })
-    
+
   async def receive_disconnect(self):
     while True:
       event = await self._wreceive()
-      if event.get("type", None) == "websocket.disconnect": return 
-  
+      if event.get("type", None) == "websocket.disconnect": return
+
   async def receive(self) -> tuple[Literal["message", "connect", "disconnect"], str | ByteString | None]:
     event = await self._wreceive()
     if event["type"] == "websocket.connect": return "connect", None
     if event["type"] == "websocket.disconnect": return "disconnect", None
     if event["type"] == "websocket.receive": return "message", event.get("bytes", None) or event.get("text", None)
-  
+
   async def send_message(self, data: str | ByteString):
     event: dict[str, Any] = { "type": "websocket.send", "bytes": None, "text": None }
     if isinstance(data, str): event["text"] = data
     else: event["bytes"] = data
     await self._wsend(event)
 
-  async def close(self, code: int = 1000, reason: str | None = None): 
+  async def close(self, code: int = 1000, reason: str | None = None):
     await self._wsend({ "type": "websocket.close", "code": code, "reason": WebsocketContext.close_reasons.get(code, "") if reason is None else reason })
 
   async def _wsend(self, event: dict):
@@ -191,7 +191,7 @@ class HTTPBodyWriter:
   def __init__(self, send: ASGIFnSend) -> None:
     self._send = send
     self._buffer = BytesIO()
-    
+
   def write(self, data: ByteString): self._buffer.write(data)
   async def flush(self, close: bool = False):
     await self._send({
@@ -207,20 +207,20 @@ class HTTPBodyReader:
   def __init__(self, receive: ASGIFnReceive) -> None:
     self._receive = receive
     self._ended = False
-    
+
   @property
   def ended(self): return self._ended
-  
+
   async def read_all(self):
     body = BytesIO()
     while not self._ended: body.write(await self.read())
     return body.getvalue()
-  
+
   async def read(self):
     event = await self._receive()
     event_type = event.get("type", None)
     if event_type == "http.disconnect": self._ended = True
-    if event_type == "http.request": 
+    if event_type == "http.request":
       self._ended = not event.get("more_body", False)
       return event.get("body", b"")
     return b""
@@ -233,7 +233,7 @@ class HTTPContext(TransportContext):
     self._more_response_body: bool = True
     self._add_response_headers: list[tuple[ByteString, ByteString]] = []
     self._scope: HTTPScope
-  
+
   @property
   def connected(self): return self._connected
   @property
@@ -244,9 +244,9 @@ class HTTPContext(TransportContext):
   def method(self): return self._scope["method"]
   @functools.cached_property
   def body(self): return HTTPBodyReader(self._wreceive)
-  
+
   def add_response_headers(self, headers: Iterable[tuple[ByteString, ByteString]]): self._add_response_headers.extend(headers)
-  
+
   async def respond_status(self, status: int): await self.respond_text({ 404: "Not found" }.get(status, "-"), status=status)
   async def respond_json(self, json_data: Any, status: int = 200): await self.respond_json_string(json.dumps(json_data), status=status)
   async def respond_json_string(self, json_string: str, status: int = 200): await self.respond_text(json_string, mime_type="application/json", status=status)
@@ -267,18 +267,18 @@ class HTTPContext(TransportContext):
     st = os.stat(path)
     mime_type = mime_type or mimetypes.guess_type(path)[0]
     if mime_type is None: raise ValueError("Unknown mime type!")
-    
+
     content_type = mime_type
     writer = await self.respond(status, headers=[
       (b"content-length", str(st.st_size).encode("utf-8")),
       (b"content-type", content_type.encode("utf-8"))
     ])
-    
+
     with open(path, "rb") as fd:
-      while len(buf := fd.read(buffer_size)) == buffer_size: 
+      while len(buf := fd.read(buffer_size)) == buffer_size:
         writer.write(buf)
         await writer.flush()
-      writer.write(buf) 
+      writer.write(buf)
       await writer.flush(close=True)
   async def respond(self, status: int, headers: Iterable[tuple[ByteString, ByteString]], trailers: bool = False):
     await self._wsend({
@@ -288,7 +288,7 @@ class HTTPContext(TransportContext):
       "trailers": trailers
     })
     return HTTPBodyWriter(self._wsend)
-  
+
   async def receive_json(self): return json.loads(await self.receive_json_raw())
   async def receive_json_raw(self): return await self.receive_text({ "application/json" })
   async def receive_text(self, allowed_mime_types: Iterable[str]):
@@ -300,7 +300,7 @@ class HTTPContext(TransportContext):
     except LookupError: raise ValueError("Invalid content-type encoding!")
     data = await self.body.read_all()
     return decoder(data, "ignore")[0]
-  
+
   async def _wsend(self, event: dict):
     event_type = event.get("type", None)
     if event_type == "http.response.start": event = { **event, "headers": event.get("headers", []) + self._add_response_headers }
@@ -312,17 +312,17 @@ class HTTPContext(TransportContext):
     if event_type == "http.disconnect": self._connected = False
     if event_type == "http.request": self._more_request_body = event.get("more_body", False)
     return event
-  
+
 def http_context_handler(fn: Callable[[HTTPContext], Awaitable[Any]]):
   async def decordator(scope: ASGIScope, receive: ASGIFnReceive, send: ASGIFnSend):
     if scope.get("type", None) != "http": await asgi_scope_get_next_fn(scope)(scope, receive, send)
-    else: await fn(HTTPContext(scope, receive, send)) 
+    else: await fn(HTTPContext(scope, receive, send))
   return decordator
 
 def websocket_context_handler(fn: Callable[[WebsocketContext], Awaitable[Any]]):
   async def decordator(scope: ASGIScope, receive: ASGIFnReceive, send: ASGIFnSend):
     if scope.get("type", None) != "websocket": await asgi_scope_get_next_fn(scope)(scope, receive, send)
-    else: await fn(WebsocketContext(scope, receive, send)) 
+    else: await fn(WebsocketContext(scope, receive, send))
   return decordator
 
 def transport_context_handler(fn: Callable[[HTTPContext], Awaitable[Any]]):
@@ -347,7 +347,7 @@ class ASGIHandlerStack:
     self.add_handler(handler)
     return handler
   async def __call__(self, scope: ASGIScope, receive: ASGIFnReceive, send: ASGIFnSend): await ASGINext(self._handlers)(scope, receive, send)
-    
+
 class ASGIServer(ASGIHandlerStack):
   async def __call__(self, scope: ASGIScope, receive: ASGIFnReceive, send: ASGIFnSend) -> Any:
     try:
@@ -359,7 +359,7 @@ class ASGIServer(ASGIHandlerStack):
       if scope.get("type", None) == "http": await HTTPContext(scope, receive, send).respond_status(500)
       elif scope.get("type", None) == "websocket": await WebsocketContext(scope, receive, send).close(code=1011)
 
-# TODO: matching needs improvements 
+# TODO: matching needs improvements
 class PathPattern:
   def __init__(self, pattern: str) -> None:
     pattern = pattern.rstrip("/")
@@ -370,25 +370,25 @@ class PathPattern:
       if param_end == -1: raise ValueError("Invalid pattern. Expected closing brace after opening brace.")
       param_search_start = param_end
       param_ranges.append((param_start, param_end))
-    
+
     param_name_regex = re.compile("^[a-zA-Z0-9_]*\*?$")
-    
+
     self.parts: list[str] = []
     self.params: list[tuple[str|None,bool]] = []
     part_start = 0
     for ps, pe in param_ranges:
       self.parts.append(pattern[part_start:ps])
-      
+
       param_txt = pattern[ps+1:pe].strip()
       if not param_name_regex.match(param_txt): raise ValueError("Invalid parameter name.")
       if param_txt.endswith("*"): self.params.append((param_txt[:-1] or None, True))
       else: self.params.append((param_txt or None, False))
 
       part_start = pe + 1
-  
+
     self.parts.append(pattern[part_start:])
-    
-    for part in self.parts: 
+
+    for part in self.parts:
       if "}" in part: raise ValueError("Invalid pattern. Found closing brace without an opening brace.")
 
   def construct(self, params: dict[str, str], default_value: str | None = None) -> str:
@@ -404,13 +404,13 @@ class PathPattern:
       result_parts.append(param_parts[idx])
     result_parts.append(self.parts[-1])
     return "".join(result_parts)
-    
+
   def match(self, path: str) -> dict[str,str] | None:
     # path = path.rstrip("/")
     if len(self.parts) == 1:
       return {} if path == self.parts[0] else None
-    
-    params: dict[str, str] = {}  
+
+    params: dict[str, str] = {}
     current_index = 0
     for idx in range(0, len(self.parts) - 1):
       part1 = self.parts[idx]
@@ -419,7 +419,7 @@ class PathPattern:
 
       part1_len = len(part1)
       if path[current_index:current_index + part1_len] != part1: return None
-      
+
       current_index += part1_len
       if part2 == "" and idx == len(self.parts) - 2:
         param_val = path[current_index:]
@@ -430,8 +430,8 @@ class PathPattern:
       current_index += len(param_val)
       if "/" in param_val and not param_allow_slash: return None
       if param_name is not None: params[param_name] = param_val
-    return params  
-    
+    return params
+
 class HTTPRoute:
   def __init__(self, handler: ASGIHandler, path_matcher: PathPattern, methods: Iterable[str]) -> None:
     self.handler = handler
@@ -442,9 +442,9 @@ class HTTPRoute:
   async def __call__(self, scope: HTTPScope, receive: ASGIFnReceive, send: ASGIFnSend) -> Any:
     ctx = HTTPContext(scope, receive, send)
     if ctx.method not in self.methods or \
-      (params := self.path_matcher.match(ctx.path)) is None: 
+      (params := self.path_matcher.match(ctx.path)) is None:
         return await ctx.next()
-    await ctx.delegate(self.handler, asgi_scope_set_state(scope, { SN_PARAMS: params, SN_NEXT_FN: ASGINext([]) }))    
+    await ctx.delegate(self.handler, asgi_scope_set_state(scope, { SN_PARAMS: params, SN_NEXT_FN: ASGINext([]) }))
 
 class WebsocketRoute:
   def __init__(self, handler: ASGIHandler, path_matcher: PathPattern) -> None:
@@ -455,18 +455,18 @@ class WebsocketRoute:
   async def __call__(self, scope: WebsocketScope, receive: ASGIFnReceive, send: ASGIFnSend) -> Any:
     ctx = WebsocketContext(scope, receive, send)
     if (params := self.path_matcher.match(ctx.path)) is None: return await ctx.next()
-    await ctx.delegate(self.handler, asgi_scope_set_state(scope, { SN_PARAMS: params, SN_NEXT_FN: ASGINext([]) }))  
+    await ctx.delegate(self.handler, asgi_scope_set_state(scope, { SN_PARAMS: params, SN_NEXT_FN: ASGINext([]) }))
 
 class TransportRoute:
   def __init__(self, handler: ASGIHandler, path_matcher: PathPattern) -> None:
     self.handler = handler
     self.path_matcher = path_matcher
-    
+
   @asgi_type_handler({ "websocket", "http" })
   async def __call__(self, scope: HTTPScope | WebsocketScope, receive: ASGIFnReceive, send: ASGIFnSend) -> Any:
     ctx = TransportContext(scope, receive, send)
     if (params := self.path_matcher.match(ctx.path)) is None: return await ctx.next()
-    await ctx.delegate(self.handler, asgi_scope_set_state(scope, { SN_PARAMS: params, SN_NEXT_FN: ASGINext([]) }))  
+    await ctx.delegate(self.handler, asgi_scope_set_state(scope, { SN_PARAMS: params, SN_NEXT_FN: ASGINext([]) }))
 
 class ASGIRouter(ASGIHandlerStack):
   def add_transport_route(self, handler: ASGIHandler, path: str): self.add_handler(TransportRoute(handler, PathPattern(path)))
@@ -475,7 +475,7 @@ class ASGIRouter(ASGIHandlerStack):
       self.add_transport_route(fn, path)
       return fn
     return decorator
-  
+
   def add_http_route(self, handler: ASGIHandler, path: str, methods: Iterable[str]):
     self.add_handler(HTTPRoute(handler, PathPattern(path), methods))
   def http_route(self, path: str, methods: Iterable[str]):
@@ -483,7 +483,7 @@ class ASGIRouter(ASGIHandlerStack):
       self.add_http_route(fn, path, methods)
       return fn
     return decorator
-  
+
   def add_websocket_route(self, handler: ASGIHandler, path: str):
     self.add_handler(WebsocketRoute(handler, PathPattern(path)))
   def websocket_route(self, path: str):
@@ -491,7 +491,7 @@ class ASGIRouter(ASGIHandlerStack):
       self.add_websocket_route(fn, path)
       return fn
     return decorator
-  
+
   def get(self, path: str): return self.http_route(path, [ "get" ])
   def head(self, path: str): return self.http_route(path, [ "head" ])
   def post(self, path: str): return self.http_route(path, [ "post" ])
@@ -508,7 +508,7 @@ def path_rewrite(fn: ASGIHandler, pattern: str | PathPattern, default_param_valu
   async def handler(ctx: TransportContext):
     await ctx.delegate(fn, { **ctx.scope, "path": pattern.construct(ctx.params, default_value=default_param_value) })
   return handler
-  
+
 def path_rewrite_handler(pattern: str | PathPattern, default_param_value: str | None = None):
   def decorator(fn: ASGIHandler): return path_rewrite(fn, pattern, default_param_value=default_param_value)
   return decorator
@@ -526,13 +526,13 @@ def static_file_handler(path: str | pathlib.Path, response_buffer_size=1000_000)
   @http_context_handler
   async def handler(ctx: HTTPContext): await ctx.respond_file(path, buffer_size=response_buffer_size)
   return handler
-    
+
 def static_files_handler(path: str | pathlib.Path, index_files: Iterable[str], response_buffer_size=1000_000):
   if any(True for p in index_files if "/" in p or "\\" in p): raise ValueError("Index files can not have a slash!")
   index_files = list(index_files)
   directory_path = pathlib.Path(path).resolve(strict=True)
   if not directory_path.is_dir(): return static_file_handler(path, response_buffer_size=response_buffer_size)
-  
+
   @http_context_handler
   async def handler(ctx: HTTPContext):
     request_path = directory_path.joinpath(ctx.path.lstrip("/\\")).resolve()
@@ -540,7 +540,7 @@ def static_files_handler(path: str | pathlib.Path, index_files: Iterable[str], r
     if request_path.is_dir(): request_path = next((p for p in (request_path.joinpath(idx_file) for idx_file in index_files) if p.exists()), None)
     if request_path is None or not request_path.exists() or request_path.is_dir(): return await ctx.respond_status(404)
     await ctx.delegate(static_file_handler(request_path, response_buffer_size=response_buffer_size))
-    
+
   return handler
 
 def decode_data_uri(data_uri: str, default_mime_types: tuple[str | None, str | None]=(None, None), default_charset="utf-8"):
@@ -549,7 +549,7 @@ def decode_data_uri(data_uri: str, default_mime_types: tuple[str | None, str | N
   metadata_parts = metadata.lower().split(';')
   is_base64 = 'base64' in metadata_parts
   mime_type = metadata_parts[0] or ((default_mime_types[1] or "application/octet-stream") if is_base64 else (default_mime_types[0] or "text/plain"))
-  
+
   if is_base64:
     charset = next((p for p in metadata_parts if p.startswith("charset=")), None)
     if charset is not None: charset = charset[8:].strip()
@@ -557,5 +557,5 @@ def decode_data_uri(data_uri: str, default_mime_types: tuple[str | None, str | N
   else:
     charset = default_charset
     byte_data = unquote_plus(encoded_data).encode(default_charset)
-  
+
   return byte_data, mime_type, charset

@@ -15,7 +15,7 @@ class AudioOutputConfigBase(BaseModel):
   rate: IOTypes.SampleRate = 32000
   output_id: int = -1
   buffer_size: int = 1024
-  
+
 class AudioOutputConfig(AudioOutputConfigBase):
   in_topic: int
 
@@ -24,10 +24,10 @@ class AudioOutputTask(Task):
     super().__init__(client)
     self.in_topic = self.client.in_topic(config.in_topic)
     self.config = config
-    
+
   async def run(self):
     audio = pyaudio.PyAudio()
-    stream = audio.open(self.config.rate, self.config.channels, SAMPLE_FORMAT_2_PA_TYPE[self.config.sample_format], output=True, 
+    stream = audio.open(self.config.rate, self.config.channels, SAMPLE_FORMAT_2_PA_TYPE[self.config.sample_format], output=True,
                         frames_per_buffer=self.config.buffer_size, output_device_index=None if self.config.output_id == -1 else self.config.output_id)
     try:
       async with self.in_topic, self.in_topic.RegisterContext():
@@ -41,7 +41,7 @@ class AudioOutputTask(Task):
           except ValidationError: pass
     finally:
       stream.close()
-    
+
 class AudioOutputTaskHost(TaskHost):
   @property
   def metadata(self): return static_configurator(
@@ -59,4 +59,3 @@ class AudioOutputTaskHost(TaskHost):
   )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return AudioOutputTask(await self.create_client(topic_space_id), AudioOutputConfig.model_validate(config))
-  

@@ -1,4 +1,4 @@
-from contextlib import AsyncExitStack, asynccontextmanager
+from contextlib import AsyncExitStack
 from typing import Any
 from pydantic import BaseModel
 from streamtasks.net.message.data import MessagePackData
@@ -12,7 +12,7 @@ from streamtasks.client import Client
 class SwitchUIConfigBase(ControlBaseTaskConfig):
   label: str = "switch"
   default_value: bool = False
-  
+
 class SwitchUIConfig(SwitchUIConfigBase):
   out_topic: int
 
@@ -24,13 +24,13 @@ class SwitchUITask(ControlBaseTask[SwitchUIConfig, SwitchValue]):
     super().__init__(client, config, SwitchValue(value=config.default_value), "switch.js")
     self.out_topic = self.client.out_topic(config.out_topic)
     self.config = config
-  
+
   async def context(self):
     exit_stack = AsyncExitStack()
     await exit_stack.enter_async_context(self.out_topic)
     await exit_stack.enter_async_context(self.out_topic.RegisterContext())
     return exit_stack
-  
+
   async def send_value(self, value: SwitchValue):
     await self.out_topic.send(MessagePackData(NumberMessage(timestamp=get_timestamp_ms(), value=1 if value.value else 0).model_dump()))
 

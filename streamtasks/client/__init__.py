@@ -37,7 +37,7 @@ class Client:
   def sync_in_topic(self, topic: int, sync: InTopicSynchronizer): return SynchronizedInTopic(self, topic, sync)
 
   def start(self): self._started_event.set()
-  async def stop_wait(self): 
+  async def stop_wait(self):
     self._started_event.clear()
     if self._receive_task is not None:
       self._receive_task.cancel("stopped receiving!")
@@ -114,7 +114,7 @@ class Client:
         descriptor=descriptor,
         body=body).model_dump()))
       response_data: FetchResponseMessage = await receiver.get()
-    if response_data.error: 
+    if response_data.error:
       raise FetchError(response_data.body)
     return response_data.body
 

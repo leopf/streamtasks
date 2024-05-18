@@ -28,7 +28,7 @@ class ControlBaseTask(Task, Generic[C, V]):
 
   @abstractmethod
   async def send_value(self, value: V): pass
-  
+
   @abstractmethod
   async def context(self) -> AsyncContextManager: pass
 
@@ -44,32 +44,32 @@ class ControlBaseTask(Task, Generic[C, V]):
   async def run(self):
     async with await self.context():
       await asyncio.gather(self._run_sender(), self._run_updater(), self._run_web_server())
-  
+
   async def _run_web_server(self):
     app = ASGIServer()
     router = ASGIRouter()
     app.add_handler(router)
-    
+
     @router.get("/index.html")
     @http_context_handler
     async def _(ctx: HTTPContext):
       with open(importlib.resources.files(__name__).joinpath("resources/controlbase.html")) as fd:
         await ctx.respond_text(fd.read(), mime_type="text/html")
-        
+
     @router.get("/main.js")
     @http_context_handler
     async def _(ctx: HTTPContext):
       with open(importlib.resources.files(__name__).joinpath("resources/" + self.script_name)) as fd:
         await ctx.respond_text(fd.read(), mime_type="application/javascript")
-      
+
     @router.get("/value")
     @http_context_handler
     async def _(ctx: HTTPContext): await ctx.respond_json(self.value.model_dump())
-          
+
     @router.get("/config")
     @http_context_handler
     async def _(ctx: HTTPContext): await ctx.respond_json(self.config.model_dump())
-      
+
     @router.post("/value")
     @http_context_handler
     async def _(ctx: HTTPContext):
@@ -79,7 +79,7 @@ class ControlBaseTask(Task, Generic[C, V]):
 
     @router.websocket_route("/value")
     @websocket_context_handler
-    async def _(ctx: WebsocketContext): 
+    async def _(ctx: WebsocketContext):
       try:
         await ctx.accept()
         receive_disconnect_task = asyncio.create_task(ctx.receive_disconnect())
@@ -93,14 +93,13 @@ class ControlBaseTask(Task, Generic[C, V]):
 
     runner = ASGIAppRunner(self.client, app)
     await runner.run()
-  
+
   async def _run_updater(self):
     while True:
       await self.value_changed_trigger.wait()
       await self.send_value(self.value)
-  
+
   async def _run_sender(self):
     while True:
       await self.send_value(self.value)
       await asyncio.sleep(self.config.repeat_interval)
-  

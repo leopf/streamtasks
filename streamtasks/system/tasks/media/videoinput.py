@@ -18,13 +18,13 @@ class VideoInputConfigBase(BaseModel):
   rate: IOTypes.FrameRate
   pixel_format: str
   camera_id: int
-  
+
   @field_validator('pixel_format')
   @classmethod
   def pixel_format_must_be_convertable(cls, v: str) -> str:
     if v not in VideoInputTask._COLOR_FORMAT2CV_MAP: raise ValueError('pixel_format must be convertable')
     return v
-  
+
   @staticmethod
   def default_config(): return VideoInputConfigBase(width=1280, height=720, rate=30, pixel_format="bgr24", camera_id=0)
 
@@ -38,7 +38,7 @@ class VideoInputTask(Task):
     "gray": (cv2.COLOR_BGR2GRAY,),
     "bgr24": ()
   }
-  
+
   def __init__(self, client: Client, config: VideoInputConfig):
     super().__init__(client)
     self.out_topic = self.client.out_topic(config.out_topic)
@@ -59,7 +59,7 @@ class VideoInputTask(Task):
     finally:
       self.mp_close_event.set()
       await recorder_fut
-      
+
   def _run_input_recorder(self):
     try:
       vc = cv2.VideoCapture(self.config.camera_id)
@@ -76,7 +76,7 @@ class VideoInputTask(Task):
         self.message_queue.put_nowait(TimestampChuckMessage(timestamp=timestamp, data=frame.tobytes()))
     finally:
       vc.release()
-    
+
 class VideoInputTaskHost(TaskHost):
   @property
   def metadata(self): return static_configurator(
@@ -94,4 +94,3 @@ class VideoInputTaskHost(TaskHost):
   )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return VideoInputTask(await self.create_client(topic_space_id), VideoInputConfig.model_validate(config))
-  

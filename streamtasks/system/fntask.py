@@ -8,13 +8,12 @@ import typing
 from pydantic import BaseModel, TypeAdapter, ValidationError
 import inspect
 from streamtasks.client import Client
-from streamtasks.client.discovery import wait_for_topic_signal
 from streamtasks.client.topic import InTopic, OutTopic, SequentialInTopicSynchronizer
 from streamtasks.connection import AutoReconnector, connect
 from streamtasks.net import EndpointOrAddress, Link, Switch
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import NumberMessage, TextMessage, TimestampChuckMessage
-from streamtasks.services.protocols import AddressNames, WorkerTopics
+from streamtasks.services.protocols import AddressNames
 from streamtasks.system.configurators import EditorFields, key_to_label, static_configurator
 from streamtasks.system.task import MetadataDict, Task, TaskHost, task_host_id_from_name
 
@@ -46,7 +45,7 @@ def _text_message_to_value(data: Any):
 def _chunk_message_to_value(data: Any):
   message = TimestampChuckMessage(**data)
   return (message.timestamp, message.data)
-  
+
 _DATA_TO_VALUE: dict[type, Callable[[Any], tuple[int, Any]]] = {
   int: _number_message_to_value,
   float: _number_message_to_value,
@@ -60,7 +59,7 @@ def _validate_object_create_empty(obj_type: type[object]):
 def _input_name_to_input_key(name: str): return "_in_tid_" + name
 def _output_index_to_input_key(idx: int): return "_out_tid_" + str(idx)
 def _validate_io_type(t: type):
-  if t not in _TYPE_METADATA: raise ValueError(f"IO type {repr(t)} is not supported!") 
+  if t not in _TYPE_METADATA: raise ValueError(f"IO type {repr(t)} is not supported!")
 def _pydantic_type_from_schema(schema: dict):
   while "schema" in schema: schema = schema["schema"]
   return schema.get("type", None)
@@ -91,13 +90,13 @@ class _FnTaskInput:
 class _FnTaskOutput:
   topic: OutTopic
   config: 'FnTaskOutputConfig'
-  
+
 class _FnTask(Task):
   def __init__(self, client: Client, pconfig: 'ParsedTaskConfig', root_config: 'FnTaskConfig'):
     super().__init__(client)
     self.pconfig = pconfig
     self.root_config = root_config
-    
+
     self.outputs = [ _FnTaskOutput(self.client.out_topic(pconfig.output_ids[idx]), output) for idx, output in enumerate(root_config.outputs) ]
     if pconfig.std_config.std_synchronized:
       sync = SequentialInTopicSynchronizer()
@@ -105,12 +104,12 @@ class _FnTask(Task):
     else:
       input_topics = { input.name: self.client.in_topic(pconfig.input_id_map[input.name]) for input in root_config.inputs }
     self.inputs = [ _FnTaskInput(input_topics[input.name], input) for input in root_config.inputs ]
-    
+
     self.execute_lock = asyncio.Lock()
-    
+
     self.param_values: dict[str, Any] = {}
     self.state = root_config.new_state()
-    
+
   async def run(self):
     async with contextlib.AsyncExitStack() as exit_stack:
       for i in self.inputs:
@@ -119,14 +118,14 @@ class _FnTask(Task):
       for o in self.outputs:
         await exit_stack.enter_async_context(o.topic)
         await exit_stack.enter_async_context(o.topic.RegisterContext())
-        
+
       self.client.start()
       await asyncio.gather(*(self._run_input(input) for input in self.inputs))
 
   async def execute(self, timestamp: int):
     for input in self.inputs:
       if input.config.name not in self.param_values: return
-    
+
     param_values = self.param_values
     result: tuple = await self.root_config.execute(timestamp=timestamp, params=param_values, state=self.state, config=self.pconfig.fn_config)
     if len(result) != len(self.outputs): raise ValueError(f"Expected {len(self.outputs)} results, got {len(result)}!")
@@ -137,7 +136,7 @@ class _FnTask(Task):
         await output.topic.send(MessagePackData(message.model_dump()))
       except ValidationError:
         logging.warning(f"Failed to create message from value on task {self.root_config.name}, output {output.config.index}!")
-          
+
   async def _run_input(self, input: _FnTaskInput):
     while True:
       try:
@@ -148,17 +147,17 @@ class _FnTask(Task):
           await self.execute(timestamp)
       except ValidationError:
         logging.warning(f"Failed to parse message value on task {self.root_config.name}, input {input.config.name}!")
-        
+
 
 class _FnTaskHost(TaskHost):
   def __init__(self, config: 'FnTaskConfig', link: Link, register_endpoits: list[EndpointOrAddress] = []):
     super().__init__(link=link, register_endpoits=register_endpoits)
     self.config = config
     self.id = task_host_id_from_name(f"fn_task_{config.name}")
-    
+
   @property
   def metadata(self): return static_configurator(
-      self.config.label, 
+      self.config.label,
       inputs=[ i.input_metadata for i in self.config.inputs ],
       outputs=[ o.output_metadata for o in self.config.outputs ],
       default_config=self.config.default_config(),
@@ -174,12 +173,12 @@ class _FnTaskHost(TaskHost):
       input_id_map={ i.name: config[i.input_key] for i in self.config.inputs },
       output_ids=[ config[o.output_key] for o in self.config.outputs ]
     )
-    
+
     return _FnTask(await self.create_client(topic_space_id), pconfig, self.config)
 
 class _FnTaskStdConfig(BaseModel):
   std_synchronized: bool = True
-  
+
   @staticmethod
   def editor_fields(): return [
     EditorFields.boolean("std_synchronized", "synchronized")
@@ -191,7 +190,7 @@ class ParsedTaskConfig:
   std_config: _FnTaskStdConfig
   input_id_map: dict[str, int]
   output_ids: list[int]
-  
+
 
 @dataclass
 class FnTaskInputConfig:
@@ -199,16 +198,16 @@ class FnTaskInputConfig:
   data_type: type
   metadata: MetadataDict
   io_map: dict[str, str]
-  
+
   @property
   def input_key(self): return _input_name_to_input_key(self.name)
-  
+
   @property
   def input_metadata(self): return { **self.metadata, "key": self.input_key }
-  
+
   @staticmethod
   def from_parameter(param: inspect.Parameter):
-    data_type = param.annotation 
+    data_type = param.annotation
     metadata = { **_DEFAULT_METADATA, "label": key_to_label(param.name) }
     io_map = {}
     if typing.get_origin(data_type) is Annotated:
@@ -217,25 +216,25 @@ class FnTaskInputConfig:
     config = FnTaskInputConfig(name=param.name, data_type=data_type, metadata=metadata, io_map=io_map)
     config.validate()
     return config
-  
+
   def validate(self): _validate_io_type(self.data_type)
-  
+
 @dataclass
 class FnTaskOutputConfig:
   index: int
   data_type: type
   metadata: MetadataDict
   io_map: dict[str, str]
-  
+
   @property
   def output_key(self): return _output_index_to_input_key(self.index)
-  
+
   @property
   def output_metadata(self): return { **self.metadata, "key": self.output_key }
-  
+
   @staticmethod
   def from_type(t: type, index: int):
-    data_type = t 
+    data_type = t
     metadata = { **_DEFAULT_METADATA, "label": f"output {index}" }
     io_map = {}
     if typing.get_origin(data_type) is Annotated:
@@ -244,9 +243,9 @@ class FnTaskOutputConfig:
     config = FnTaskOutputConfig(index=index, data_type=data_type, metadata=metadata, io_map=io_map)
     config.validate()
     return config
-  
+
   def validate(self): _validate_io_type(self.data_type)
-  
+
 @dataclass
 class FnTaskConfig:
   fn: Callable
@@ -259,17 +258,17 @@ class FnTaskConfig:
   state_type: type[object] | None
   inputs: list[FnTaskInputConfig]
   outputs: list[FnTaskOutputConfig]
-  
+
   @property
   def config_to_input_map(self) -> dict[str, dict[str, str]]: return { input.input_key: input.io_map for input in self.inputs }
-  
+
   @property
   def config_to_output_map(self) -> list[dict[str, str]]: return [ output.io_map for output in self.outputs ]
-  
-  
+
+
   @functools.cached_property
   def config_type_adapter(self): return None if self.config_type is None else TypeAdapter(self.config_type)
-  
+
   @property
   def editor_fields(self):
     type_adapter = self.config_type_adapter
@@ -277,79 +276,79 @@ class FnTaskConfig:
     if type_adapter: fields.extend(_pydantic_schema_to_editor_fields(type_adapter.core_schema))
     fields.extend(_FnTaskStdConfig.editor_fields())
     return fields
-  
+
   def new_state(self):
     if self.state_type is None: return None
     return self.state_type()
-  
+
   def default_config(self) -> dict:
     if self.config_type is None: return {}
     config = self.config_type()
     data = self.config_type_adapter.dump_python(config)
     if not isinstance(data, dict): raise ValueError("default config must be a dict!")
     return { **_FnTaskStdConfig().model_dump(), **data}
-  
+
   def validate(self):
     if self.config_type is not None:
       if not _validate_object_create_empty(self.config_type):
         raise ValueError("The config class needs to have a constructor allowing the creation of an instance without any parameters.")
       self.config_type_adapter # make sure this can be created
-      
+
     if self.state_type is not None and not _validate_object_create_empty(self.config_type):
       raise ValueError("The state class needs to have a constructor allowing the creation of an instance without any parameters.")
-  
+
   async def execute(self, timestamp: int, params: dict[str, Any], state: Any, config: Any) -> tuple:
     params = {**params}
     if self.has_timestamp: params["timestamp"] = timestamp
     if self.config_type is not None: params["config"] = config
     if self.state_type is not None: params["state"] = state
-    
+
     fn = functools.partial(self.fn, **params)
-    
+
     if self.is_async: result = await fn()
     else:
       loop = asyncio.get_running_loop()
       if self.thread_safe: result = await loop.run_in_executor(None, fn)
       else: result = fn()
-    
+
     if isinstance(result, tuple): return result
     else: return (result,)
-    
+
   @staticmethod
   def from_function(fn: Callable, options: dict[str, Any]):
     sig = inspect.signature(fn)
-    
+
     name = fn.__name__
     label = options.get("label") or key_to_label(name)
     thread_safe = bool(options.get("thread_safe", False))
     config_type: type[object] | None = None
     state_type: type[object] | None = None
     has_timestamp = False
-    
+
     params = { k: v for k, v in sig.parameters.items() }
-    
+
     if "config" in params: config_type = params.pop("config").annotation
     if "state" in params: state_type = params.pop("state").annotation
     if "timestamp" in params:
       if not typing.get_origin(params.pop("timestamp").annotation) is int: raise ValueError("timestamp must be of type int!")
       has_timestamp = True
-    
+
     inputs = [ FnTaskInputConfig.from_parameter(param) for param in params.values() ]
-    
+
     output_type = sig.return_annotation
     if output_type is inspect._empty or output_type is None: outputs = []
     elif typing.get_origin(output_type) is tuple: outputs = [ FnTaskOutputConfig.from_type(t, idx) for idx, t in enumerate(output_type.__args__) ]
-    else: outputs = [ FnTaskOutputConfig.from_type(output_type, 0) ]  
-  
+    else: outputs = [ FnTaskOutputConfig.from_type(output_type, 0) ]
+
     config = FnTaskConfig(
       fn=fn,
-      name=name, 
+      name=name,
       label=label,
       is_async=inspect.iscoroutinefunction(fn),
       thread_safe=thread_safe,
       has_timestamp=has_timestamp,
-      config_type=config_type, 
-      state_type=state_type, 
+      config_type=config_type,
+      state_type=state_type,
       inputs=inputs,
       outputs=outputs
     )
@@ -360,10 +359,10 @@ class FnTaskConfig:
 class FnTaskContext:
   def __init__(self, config: FnTaskConfig) -> None:
     self.config = config
-    
+
   def TaskHost(self, link: Link, register_endpoits: list[EndpointOrAddress] = []):
     return _FnTaskHost(self.config, link=link, register_endpoits=register_endpoits)
-  
+
   async def run(self, to: Link | str | None = None, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER]):
     if isinstance(to, Link): await self.TaskHost(link=to, register_endpoits=register_endpoits).run()
     else:
@@ -377,10 +376,10 @@ class FnTaskContext:
         reconnector_task,
         self.TaskHost(link=await switch.add_local_connection(), register_endpoits=register_endpoits).run()
       )
-    
+
   def run_sync(self, to: Link | str | None = None, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER]):
     asyncio.run(self.run(to, register_endpoits=register_endpoits))
-    
+
 def fn_task(**kwargs):
   def decorator(fn: Callable): return FnTaskContext(FnTaskConfig.from_function(fn, kwargs))
   return decorator

@@ -11,7 +11,7 @@ class TimestampUpdaterConfigBase(BaseModel):
   time_reference: Literal["message", "time"] = "time"
   time_offset: int = 0
   fail_closed: bool = True
-  
+
 class TimestampUpdaterConfig(TimestampUpdaterConfigBase):
   out_topic: int
   in_topic: int
@@ -22,7 +22,7 @@ class TimestampUpdaterTask(Task):
     self.out_topic = self.client.out_topic(config.out_topic)
     self.in_topic = self.client.in_topic(config.in_topic)
     self.time_reference: Literal["message", "time"] = config.time_reference
-    self.offset = config.time_offset 
+    self.offset = config.time_offset
     self.fail_closed = config.fail_closed
 
   async def run(self):
@@ -58,4 +58,3 @@ class TimestampUpdaterTaskHost(TaskHost):
   )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return TimestampUpdaterTask(await self.create_client(topic_space_id), TimestampUpdaterConfig.model_validate(config))
-  

@@ -12,7 +12,7 @@ import asyncio
 class PulseGeneratorConfigBase(BaseModel):
   interval: float = 1
   message_type: Literal["id", "ts"] = "ts"
-  
+
 class PulseGeneratorConfig(PulseGeneratorConfigBase):
   out_topic: int
 

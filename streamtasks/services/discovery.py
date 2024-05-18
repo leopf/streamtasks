@@ -74,7 +74,7 @@ class DiscoveryWorker(Worker):
       logging.info(f"generating {request.count} topics")
       topics = self.generate_topic_ids(request.count)
       await req.respond(GenerateTopicsResponseBody(topics=topics).model_dump())
-      
+
     @server.route(WorkerRequestDescriptors.REQUEST_ADDRESSES)
     async def _(req: FetchRequest):
       message = GenerateAddressesRequestMessageBase.model_validate(req.body)
@@ -100,7 +100,7 @@ class DiscoveryWorker(Worker):
         await req.respond(TopicSpaceTranslationResponseMessage(topic_id=topic_id_map[message.topic_id]).model_dump())
       except KeyError as e:
         await req.respond_error(new_fetch_body_not_found(str(e)))
-    
+
     @server.route(WorkerRequestDescriptors.GET_TOPIC_SPACE)
     async def _(req: FetchRequest):
       try:
@@ -109,7 +109,7 @@ class DiscoveryWorker(Worker):
         await req.respond(TopicSpaceResponseMessage(id=message.id, topic_id_map=list(topic_id_map.items())).model_dump())
       except KeyError as e:
         await req.respond_error(new_fetch_body_not_found(str(e)))
-        
+
     @server.route(WorkerRequestDescriptors.DELETE_TOPIC_SPACE)
     async def _(req: FetchRequest):
       try:

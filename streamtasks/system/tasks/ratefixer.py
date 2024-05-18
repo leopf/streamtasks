@@ -12,13 +12,13 @@ class RateFixerConfigBase(BaseModel):
   rate: float = 30
   fail_closed: bool = False
   time_reference: Literal["message", "time"] = "time"
-  
+
   @field_validator("gain")
   @classmethod
   def validate_gain(cls, v: float):
     if v < 0 or v > 1: raise ValidationError("gain must be between 0 and 1!")
     return v
-  
+
 class RateFixerConfig(RateFixerConfigBase):
   out_topic: int
   in_topic: int
@@ -46,7 +46,7 @@ class RateFixerTask(Task):
             if last_timestamp is not None:
               current_rate = 1000 / (last_timestamp - ref_time)
               new_rate = (1 - self.config.gain) * rate + self.config.gain * current_rate
-            
+
             rate_diff = new_rate - self.config.rate
             if rate_diff <= 1:
               last_timestamp = ref_time
@@ -76,4 +76,3 @@ class RateFixerTaskHost(TaskHost):
   )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return RateFixerTask(await self.create_client(topic_space_id), RateFixerConfig.model_validate(config))
-  

@@ -22,11 +22,11 @@ async def main():
   switch = Switch()
   client = Client(await switch.add_local_connection())
   client.start()
-  
+
   discovery = DiscoveryWorker(await switch.add_local_connection())
   discovery_task = asyncio.create_task(discovery.run())
   await wait_for_topic_signal(client, WorkerTopics.DISCOVERY_SIGNAL)
-  
+
   workers: list[Worker] = [
     TaskManager(await switch.add_local_connection()),
     TaskWebBackend(await switch.add_local_connection()),

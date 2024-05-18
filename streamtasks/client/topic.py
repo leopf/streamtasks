@@ -1,7 +1,7 @@
 from abc import abstractmethod
 import asyncio
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any, Coroutine, Iterable, Optional
+from typing import TYPE_CHECKING, Any, Iterable, Optional
 from streamtasks.client.receiver import Receiver
 from streamtasks.utils import AsyncBool, AsyncTrigger
 from streamtasks.net.message.data import SerializableData
@@ -118,17 +118,17 @@ class InTopicSynchronizer:
   @abstractmethod
   async def wait_for(self, topic_id: int, timestamp: int) -> bool: pass
   @abstractmethod
-  async def set_paused(self, topic_id: int, paused: bool): pass 
+  async def set_paused(self, topic_id: int, paused: bool): pass
 
 class SequentialInTopicSynchronizer(InTopicSynchronizer):
   def __init__(self) -> None:
     super().__init__()
     self._topic_timestamps: dict[int, int] = {}
     self._timestamp_trigger = AsyncTrigger()
-    
+
   @property
   def min_timestamp(self): return 0 if len(self._topic_timestamps) == 0 else min(self._topic_timestamps.values())
-    
+
   async def wait_for(self, topic_id: int, timestamp: int) -> bool:
     if timestamp < self._topic_timestamps.get(topic_id, 0): return False # NOTE: drop the past
     self._set_topic_timestamp(topic_id, timestamp)
@@ -138,7 +138,7 @@ class SequentialInTopicSynchronizer(InTopicSynchronizer):
   async def set_paused(self, topic_id: int, paused: bool):
     if paused: self._set_topic_timestamp(topic_id, None)
     else: self._set_topic_timestamp(topic_id, self.min_timestamp)
-    
+
   def _set_topic_timestamp(self, topic_id: int, timestamp: int | None):
     if timestamp is None: self._topic_timestamps.pop(topic_id, None)
     else: self._topic_timestamps[topic_id] = timestamp

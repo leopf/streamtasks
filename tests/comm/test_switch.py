@@ -28,7 +28,7 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
 
   async def asyncTearDown(self):
     for task in self.tasks: task.cancel()
-    for task in self.tasks: 
+    for task in self.tasks:
       try: await task
       except asyncio.CancelledError: pass
       except: raise
@@ -122,7 +122,7 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     self.b.close()
     while len(self.switch.link_manager.links) != 0: await asyncio.sleep(0.001)
     self.assertEqual(len(self.switch.link_manager.links), 0)
-      
+
   @async_timeout(1)
   async def test_close_reverse(self):
     for link in self.switch.link_manager.links: link.close()
@@ -135,9 +135,9 @@ class TestSwitchRemapped(TestSwitch):
     topic_map = { 1: 9000, 2: 9001 }
     self.a = TopicRemappingLink(self.a, topic_map)
     self.b = TopicRemappingLink(self.b, topic_map)
-    
+
   @unittest.skip("not supported for remapped links")
   async def test_standard_workflow(self): pass
-  
+
 if __name__ == '__main__':
   unittest.main()

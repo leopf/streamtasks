@@ -21,9 +21,9 @@ class ContainerVideoOutputConfigBase(BaseModel):
   width: IOTypes.Width
   height: IOTypes.Height
   rate: IOTypes.FrameRate
-  
+
   def to_codec_info(self): return VideoCodecInfo(width=self.width, height=self.height, frame_rate=self.rate, pixel_format=self.pixel_format, codec=self.codec)
-  
+
   @staticmethod
   def default_config(): return ContainerVideoOutputConfigBase(pixel_format="yuv420p", codec="h264", width=1280, height=720, rate=30)
 
@@ -35,9 +35,9 @@ class ContainerAudioOutputConfigBase(BaseModel):
   codec: IOTypes.Codec
   channels: IOTypes.Channels
   rate: IOTypes.SampleRate
-  
+
   def to_codec_info(self): return AudioCodecInfo(codec=self.codec, channels=self.channels, sample_rate=self.rate, sample_format=self.sample_format)
-  
+
   @staticmethod
   def default_config(): return ContainerAudioOutputConfigBase(codec="aac", sample_format="fltp", channels=1, rate=32000)
 
@@ -62,13 +62,13 @@ class OutputContainerSynchronizer(InTopicSynchronizer):
     self._startup_barrier = asyncio.Barrier(len(streams))
     self._oc_dropped_packets = 0
     self._max_desync = max_desync
-    
+
   @property
   def min_timestamp(self): return 0 if len(self.topic_timestamps) == 0 else min(self.topic_timestamps.values())
-  
+
   @property
   def min_duration(self): return min((stream.duration for tid, stream in self._streams.items() if tid in self.topic_timestamps))
-  
+
   async def wait_for(self, topic_id: int, timestamp: int) -> bool:
     if timestamp < self.topic_timestamps.get(topic_id, 0) or topic_id not in self._streams: return False
     self._set_topic_timestamp(topic_id, timestamp)
@@ -105,11 +105,11 @@ class OutputContainerSynchronizer(InTopicSynchronizer):
   async def set_paused(self, topic_id: int, paused: bool):
     if paused: self._set_topic_timestamp(topic_id, None)
     else: self._set_topic_timestamp(topic_id, self.min_timestamp)
-    
+
   def _get_next_min_duration_timestamp(self):
     min_duration = self.min_duration
     return min((self.topic_timestamps[tid] for tid, stream in self._streams.items() if stream.duration == min_duration and tid in self.topic_timestamps))
-    
+
   def _set_topic_timestamp(self, topic_id: int, timestamp: int | None):
     if timestamp is None: self.topic_timestamps.pop(topic_id, None)
     else: self.topic_timestamps[topic_id] = timestamp
@@ -149,7 +149,7 @@ class OutputContainerTask(Task):
       self.client.start()
       done, pending = await asyncio.wait(tasks, return_when="FIRST_EXCEPTION")
       for t in pending: t.cancel()
-      for t in done: await t 
+      for t in done: await t
     except asyncio.CancelledError: pass
     finally:
       if container is not None: await container.close()
