@@ -3,7 +3,7 @@ from typing import Any
 from pydantic import BaseModel
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.system.configurators import EditorFields, multitrackio_configurator, static_configurator
-from streamtasks.system.tasks.ui.controlbase import ControlBaseTask, ControlBaseTaskConfig
+from streamtasks.system.tasks.ui.controlbase import UIControlBaseTask, UIControlBaseTaskConfig
 from streamtasks.utils import get_timestamp_ms
 from streamtasks.net.message.structures import NumberMessage
 from streamtasks.system.task import TaskHost
@@ -15,13 +15,13 @@ class RadioButtonConfigBase(BaseModel):
 class RadioButtonConfig(RadioButtonConfigBase):
   out_topic: int
 
-class RadioButtonsUIConfig(ControlBaseTaskConfig):
+class RadioButtonsUIConfig(UIControlBaseTaskConfig):
   button_tracks: list[RadioButtonConfig] = []
 
 class RadioButtonsValue(BaseModel):
   selected_topic: int
 
-class RadioButtonsUITask(ControlBaseTask[RadioButtonsUIConfig, RadioButtonsValue]):
+class RadioButtonsUITask(UIControlBaseTask[RadioButtonsUIConfig, RadioButtonsValue]):
   def __init__(self, client: Client, config: RadioButtonsUIConfig):
     super().__init__(client, config, RadioButtonsValue(selected_topic=-1), "radiobuttons.js")
     self.out_topics = [ self.client.out_topic(t.out_topic) for t in config.button_tracks ]

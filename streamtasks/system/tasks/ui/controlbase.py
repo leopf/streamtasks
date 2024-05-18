@@ -11,26 +11,22 @@ from streamtasks.services.protocols import WorkerPorts
 from streamtasks.system.task import MetadataFields, Task
 from streamtasks.utils import AsyncTrigger, wait_with_dependencies
 
-class ControlBaseTaskConfig(BaseModel):
-  repeat_interval: float = 1
-
-C = TypeVar("C", bound=ControlBaseTaskConfig)
+C = TypeVar("C", bound=BaseModel)
 V = TypeVar("V", bound=BaseModel)
 
-class ControlBaseTask(Task, Generic[C, V]):
+class UIBaseTask(Task, Generic[C, V]):
   def __init__(self, client: Client, config: C, default_value: V, script_name: str):
     super().__init__(client)
     self.config: C = config
     self.value: V = default_value
     self.script_name = script_name
     self.value_changed_trigger = AsyncTrigger()
-    self.context: AsyncContextManager
-
-  @abstractmethod
-  async def send_value(self, value: V): pass
 
   @abstractmethod
   async def context(self) -> AsyncContextManager: pass
+
+  @abstractmethod
+  async def run_other(self) -> AsyncContextManager: pass
 
   async def setup(self) -> dict[str, Any]:
     self.client.start()
@@ -43,7 +39,7 @@ class ControlBaseTask(Task, Generic[C, V]):
 
   async def run(self):
     async with await self.context():
-      await asyncio.gather(self._run_sender(), self._run_updater(), self._run_web_server())
+      await asyncio.gather(self.run_other(), self._run_web_server())
 
   async def _run_web_server(self):
     app = ASGIServer()
@@ -91,15 +87,22 @@ class ControlBaseTask(Task, Generic[C, V]):
         receive_disconnect_task.cancel()
         await ctx.close()
 
-    runner = ASGIAppRunner(self.client, app)
-    await runner.run()
+    await ASGIAppRunner(self.client, app).run()
 
-  async def _run_updater(self):
-    while True:
-      await self.value_changed_trigger.wait()
-      await self.send_value(self.value)
+class UIControlBaseTaskConfig(BaseModel):
+  repeat_interval: float = 1
 
-  async def _run_sender(self):
+C2 = TypeVar("C2", bound=UIControlBaseTaskConfig)
+
+class UIControlBaseTask(UIBaseTask[C2, V]):
+  def __init__(self, client: Client, config: C2, default_value: V, script_name: str):
+    super().__init__(client, config, default_value, script_name)
+
+  @abstractmethod
+  async def send_value(self, value: V): pass
+
+  async def run_other(self) -> AsyncContextManager:
     while True:
       await self.send_value(self.value)
-      await asyncio.sleep(self.config.repeat_interval)
+      try: await asyncio.wait_for(self.value_changed_trigger.wait(), self.config.repeat_interval)
+      except asyncio.TimeoutError: pass

@@ -3,13 +3,13 @@ from typing import Any
 from pydantic import BaseModel
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.system.configurators import EditorFields, static_configurator
-from streamtasks.system.tasks.ui.controlbase import ControlBaseTask, ControlBaseTaskConfig
+from streamtasks.system.tasks.ui.controlbase import UIControlBaseTask, UIControlBaseTaskConfig
 from streamtasks.utils import get_timestamp_ms
 from streamtasks.net.message.structures import NumberMessage
 from streamtasks.system.task import TaskHost
 from streamtasks.client import Client
 
-class SwitchUIConfigBase(ControlBaseTaskConfig):
+class SwitchUIConfigBase(UIControlBaseTaskConfig):
   label: str = "switch"
   default_value: bool = False
 
@@ -19,7 +19,7 @@ class SwitchUIConfig(SwitchUIConfigBase):
 class SwitchValue(BaseModel):
   value: bool
 
-class SwitchUITask(ControlBaseTask[SwitchUIConfig, SwitchValue]):
+class SwitchUITask(UIControlBaseTask[SwitchUIConfig, SwitchValue]):
   def __init__(self, client: Client, config: SwitchUIConfig):
     super().__init__(client, config, SwitchValue(value=config.default_value), "switch.js")
     self.out_topic = self.client.out_topic(config.out_topic)
