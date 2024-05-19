@@ -49,6 +49,7 @@ class AudioVolumeMeterTask(Task):
             if isinstance(data, TopicControlData):
               if data.paused:
                 await self.out_topic.send(MessagePackData(NumberMessage(timestamp=self.sync.time, value=0).model_dump()))
+              await self.out_topic.set_paused(data.paused)
             else:
               message = TimestampChuckMessage.model_validate(data.data)
               timestamp_offset = -(self.sample_buffer.size * 1000 // self.config.rate)

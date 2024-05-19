@@ -34,7 +34,7 @@ class SliderUITask(UIControlBaseTask[SliderUIConfig, SliderValue]):
     return exit_stack
 
   async def send_value(self, value: SliderValue):
-    await self.out_topic.send(MessagePackData(NumberMessage(timestamp=get_timestamp_ms(), value=1 if value.value else 0).model_dump()))
+    await self.out_topic.send(MessagePackData(NumberMessage(timestamp=get_timestamp_ms(), value=value.value).model_dump()))
 
 class SliderUITaskHost(TaskHost):
   @property

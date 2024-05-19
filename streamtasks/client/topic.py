@@ -57,11 +57,10 @@ class _InTopicAction(Enum):
 
 
 class _InTopicReceiver(Receiver):
-  _recv_queue: asyncio.Queue[(_InTopicAction, Any)]
-
   def __init__(self, client: 'Client', topic: int):
     super().__init__(client)
     self._topic = topic
+    self._recv_queue: asyncio.Queue[(_InTopicAction, Any)]
 
   def _put_msg(self, action: _InTopicAction, data: Any):
     self._recv_queue.put_nowait((action, data))
@@ -109,7 +108,6 @@ class InTopic(_TopicBase):
         self._a_is_paused.set(data.paused)
         return data
       if action == _InTopicAction.SET_COST: self._cost = data
-
   async def _set_registered(self, registered: bool):
     if registered: await self._client.register_in_topics([ self._topic ])
     else: await self._client.unregister_in_topics([ self._topic ])
@@ -155,7 +153,7 @@ class _SynchronizedInTopicReceiver(_InTopicReceiver):
       if action == _InTopicAction.SET_CONTROL:
         assert isinstance(data, TopicControlData)
         await self._sync.set_paused(self._topic, data.paused)
-        return data
+        return (action, data)
       elif action == _InTopicAction.DATA:
         try:
           timestamp = get_timestamp_from_message(data)

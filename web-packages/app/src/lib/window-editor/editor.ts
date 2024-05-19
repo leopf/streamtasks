@@ -30,7 +30,10 @@ export class WindowRenderer extends EventEmitter<{
     private task: ManagedTask | undefined;
     private rerenderTaskDataHandler = () => this.rerenderTaskData();
     private windowPointerMoveHandler = (e: PointerEvent) => this.windowPointerMove(e);
-    private windowPointerUpHandler = () => this.pointerMoveAction = undefined;
+    private windowPointerUpHandler = () => {
+        this.pointerMoveAction = undefined;
+        this.endPointerMoveAction();
+    };
 
     private pointerMoveAction?: PointerMoveAction;
 
@@ -184,7 +187,11 @@ export class WindowRenderer extends EventEmitter<{
     }
     private startPointerMoveAction(action: PointerMoveAction) {
         this.pointerMoveAction = action;
+        this.contentEl.style.display = "none";
         this.viewport.disableDrag();
+    }
+    private endPointerMoveAction() {
+        this.contentEl.style.display = "block";
     }
     private windowPointerMove(e: PointerEvent) {
         if (!this.pointerMoveAction) return;
