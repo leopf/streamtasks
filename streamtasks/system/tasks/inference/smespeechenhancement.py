@@ -59,7 +59,7 @@ class SMESpeechEnhancementTask(Task):
               result: torch.Tensor = (await loop.run_in_executor(None, model.enhance_batch, samples, torch.tensor([1.]))).flatten()
               result = result * (np.abs(self.sample_buffer).mean() / result.abs().mean().item())
 
-              out_samples: np.ndarray = result[self.config.buffer_keep:-self.config.buffer_keep].numpy()
+              out_samples: np.ndarray = result[self.config.buffer_keep:-self.config.buffer_keep].cpu().numpy()
 
               timestamp = message.timestamp + (-self.sample_buffer.size + self.config.buffer_keep) * 1000 // _SAMPLE_RATE
               await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=timestamp, data=out_samples.tobytes("C")).model_dump()))
