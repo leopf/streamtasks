@@ -5,7 +5,7 @@ export function renderUI(value, config, setValue) {
 
     return html`
     <div class="flex-column">
-        <label style="display:block; margin-left: 1rem;">${config.label}</label>
+        <label style="display:block; margin-left: 1rem;">${config.label} - ${value.value}</label>
         <md-slider .step=${range / 200} .value=${value.value} .min=${config.min_value} .max=${config.max_value} @change=${e => setValue({ value: Number(e.target.value) })}></md-slider>
     </div>
     `;

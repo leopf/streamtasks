@@ -78,7 +78,7 @@ class AudioVolumeMeterTaskHost(TaskHost):
     editor_fields=[
       MediaEditorFields.sample_format(),
       MediaEditorFields.sample_rate(),
-      EditorFields.number("time_window", is_int=True, min_value=1),
+      EditorFields.number("time_window", is_int=True, min_value=1, unit="ms"),
     ]
   )
   async def create_task(self, config: Any, topic_space_id: int | None):
