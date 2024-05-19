@@ -44,7 +44,7 @@ class SwitchUITaskHost(TaskHost):
     editor_fields=[
       EditorFields.text(key="label"),
       EditorFields.boolean(key="default_value", label="default on/off"),
-      EditorFields.number(key="repeat_interval", min_value=0.001, unit="s")
+      EditorFields.repeat_interval()
     ]
   )
   async def create_task(self, config: Any, topic_space_id: int | None):

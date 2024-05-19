@@ -45,7 +45,7 @@ class RadioButtonsUITaskHost(TaskHost):
     label="Radio Buttons UI",
     default_config=RadioButtonsUIConfig().model_dump(),
     editor_fields=[
-      EditorFields.number(key="repeat_interval", min_value=0.001, unit="s")
+      EditorFields.repeat_interval()
     ]),
     **multitrackio_configurator(is_input=False, track_configs=[{
         "key": "button",

@@ -54,7 +54,7 @@ class AudioVolumeMeterTask(Task):
               message = TimestampChuckMessage.model_validate(data.data)
               timestamp_offset = -(self.sample_buffer.size * 1000 // self.config.rate)
 
-              new_samples = audio_buffer_to_ndarray(message.data, sample_format=self.config.sample_format, channels=1).flatten()  # TODO: endianness
+              new_samples = audio_buffer_to_ndarray(message.data, sample_format=self.config.sample_format, channels=1).flatten()
               self.sample_buffer = np.concatenate((self.sample_buffer, new_samples))
 
               while self.sample_buffer.size > self.chunk_size:

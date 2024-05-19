@@ -53,11 +53,10 @@ class GateTask(Task):
       sync = SequentialInTopicSynchronizer()
       self.in_topic = self.client.sync_in_topic(config.in_topic, sync)
       self.control_topic = self.client.sync_in_topic(config.control_topic, sync)
-      self.out_topic = self.client.out_topic(config.out_topic)
     else:
       self.in_topic = self.client.in_topic(config.in_topic)
       self.control_topic = self.client.in_topic(config.control_topic)
-      self.out_topic = self.client.out_topic(config.out_topic)
+    self.out_topic = self.client.out_topic(config.out_topic)
     self.state = GateState()
     self.fail_mode = config.fail_mode
 

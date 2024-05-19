@@ -45,10 +45,10 @@ class SliderUITaskHost(TaskHost):
     config_to_output_map=[{ "label": "label" }],
     editor_fields=[
       EditorFields.text(key="label"),
-      EditorFields.number(key="default_value", label="default on/off"),
+      EditorFields.number(key="default_value"),
       EditorFields.number(key="min_value"),
       EditorFields.number(key="max_value"),
-      EditorFields.number(key="repeat_interval", min_value=0.001, unit="s")
+      EditorFields.repeat_interval()
     ]
   )
   async def create_task(self, config: Any, topic_space_id: int | None):
