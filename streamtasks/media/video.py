@@ -28,11 +28,16 @@ class VideoFrame(Frame[av.VideoFrame]):
   def convert(self, width: int | None = None, height: int | None = None, pixel_format: str | None = None):
     return VideoFrame(self.frame.reformat(width=width, height=height, format=pixel_format))
 
+  def to_bytes(self) -> bytes: return self.to_ndarray().tobytes("C")
+
   @staticmethod
   def from_image(image): return VideoFrame(av.VideoFrame.from_image(image))
 
   @staticmethod
   def from_ndarray(array: np.ndarray, format: str): return VideoFrame(av.VideoFrame.from_ndarray(array, format))
+
+  @staticmethod
+  def from_buffer(buf: Buffer, width: int, height: int, format: str): return VideoFrame.from_ndarray(video_buffer_to_ndarray(buf, width, height), format)
 
 @dataclass
 class VideoReformatterInfo:

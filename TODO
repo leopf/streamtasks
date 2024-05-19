@@ -22,7 +22,6 @@ IO:
 - keyboard input
 
 MEDIA:
-- audio volume scaler
 - audio resampler
 - video reformatter
 - screen capture

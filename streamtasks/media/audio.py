@@ -30,10 +30,14 @@ def get_audio_bytes_per_time_sample(sample_format: str, channels: int): # time s
   if sample_format not in _SAMPLE_FORMAT_NP_2_AV_INFO: raise ValueError("Invalid sample format!")
   return _SAMPLE_FORMAT_NP_2_AV_INFO[sample_format][1]().itemsize * channels
 
-def audio_buffer_to_ndarray(buf: Buffer, sample_format: str, channels: int):  # TODO: endianness
+def audio_buffer_to_ndarray(buf: Buffer, sample_format: str): # TODO: endianness
   if sample_format not in _SAMPLE_FORMAT_NP_2_AV_INFO: raise ValueError("Invalid sample format!")
   is_planar, dtype = _SAMPLE_FORMAT_NP_2_AV_INFO[sample_format]
-  return np.frombuffer(buf, dtype=dtype).reshape((channels, -1) if is_planar else (-1, channels))
+  return np.frombuffer(buf, dtype=dtype), is_planar
+
+def audio_buffer_to_samples(buf: Buffer, sample_format: str, channels: int):
+  arr, is_planar = audio_buffer_to_ndarray(buf, sample_format)
+  return arr.reshape((channels, -1) if is_planar else (-1, channels))
 
 def sample_format_to_dtype(sample_format: str):
   if sample_format not in _SAMPLE_FORMAT_NP_2_AV_INFO: raise ValueError("Invalid sample format!")
@@ -43,6 +47,8 @@ class AudioFrame(Frame[av.AudioFrame]):
   def to_ndarray(self):
     return self.frame.to_ndarray()
 
+  def to_bytes(self) -> bytes: return self.to_ndarray().tobytes("C")
+
   @staticmethod
   def from_ndarray(ndarray: np.ndarray, sample_format: str, channels: int, sample_rate: int):
     av_frame = av.AudioFrame.from_ndarray(ndarray, sample_format, channels)
@@ -51,7 +57,10 @@ class AudioFrame(Frame[av.AudioFrame]):
 
   @staticmethod
   def from_buffer(buf: Buffer, sample_format: str, channels: int, sample_rate: int):
-    return AudioFrame.from_ndarray(audio_buffer_to_ndarray(buf, sample_format, channels), sample_format, channels, sample_rate)
+    arr, is_planar = audio_buffer_to_ndarray(buf, sample_format)
+    if is_planar: arr = arr.reshape((channels, -1))
+    else: arr = arr.reshape((1, -1))
+    return AudioFrame.from_ndarray(arr, sample_format, channels, sample_rate)
 
 @dataclass
 class AudioResamplerInfo:

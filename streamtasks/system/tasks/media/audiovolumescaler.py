@@ -4,7 +4,7 @@ from typing import Any
 import numpy as np
 from pydantic import BaseModel, ValidationError
 from streamtasks.client.topic import SequentialInTopicSynchronizer
-from streamtasks.media.audio import audio_buffer_to_ndarray, sample_format_to_dtype
+from streamtasks.media.audio import audio_buffer_to_samples, sample_format_to_dtype
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import NumberMessage, TimestampChuckMessage
 from streamtasks.net.message.types import TopicControlData
@@ -63,7 +63,7 @@ class AudioVolumeScalerTask(Task):
         if isinstance(data, TopicControlData): await self.out_topic.set_paused(data.paused)
         else:
           message = TimestampChuckMessage.model_validate(data.data)
-          samples = audio_buffer_to_ndarray(message.data, sample_format=self.config.sample_format, channels=self.config.channels)
+          samples = audio_buffer_to_samples(message.data, sample_format=self.config.sample_format, channels=self.config.channels)
           samples = np.clip(samples * self.scale, samples_dtype_info.min, samples_dtype_info.max).astype(samples_dtype)
           await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=message.timestamp, data=samples.tobytes("C")).model_dump()))
       except (ValidationError, ValueError): pass
