@@ -1,5 +1,4 @@
 import asyncio
-from fractions import Fraction
 import re
 from typing import Any
 import numpy as np
@@ -57,12 +56,12 @@ class SMESpeechEnhancementTask(Task):
 
             while self.sample_buffer.size >= self.config.buffer_size:
               samples = torch.from_numpy(self.sample_buffer.reshape((1, -1)).copy())
-              result: torch.Tensor = model.enhance_batch(samples, lengths=torch.tensor([1.])).flatten()
+              result: torch.Tensor = (await loop.run_in_executor(None, model.enhance_batch, samples, torch.tensor([1.]))).flatten()
               result = result * (np.abs(self.sample_buffer).mean() / result.abs().mean().item())
 
               out_samples: np.ndarray = result[self.config.buffer_keep:-self.config.buffer_keep].numpy()
 
-              timestamp = message.timestamp + int((-self.sample_buffer.size + self.config.buffer_keep) * Fraction(1000, _SAMPLE_RATE))
+              timestamp = message.timestamp + (-self.sample_buffer.size + self.config.buffer_keep) * 1000 // _SAMPLE_RATE
               await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=timestamp, data=out_samples.tobytes("C")).model_dump()))
               self.sample_buffer = self.sample_buffer[-2*self.config.buffer_keep:]
         except (ValidationError, ValueError): pass
