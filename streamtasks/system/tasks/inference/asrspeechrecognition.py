@@ -4,6 +4,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.env import get_data_sub_dir
 from streamtasks.media.audio import audio_buffer_to_ndarray
+from streamtasks.media.util import AudioChunker
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import TextMessage, TimestampChuckMessage
 from streamtasks.net.message.types import TopicControlData
@@ -37,6 +38,7 @@ class ASRSpeechRecognitionTask(Task):
     loop = asyncio.get_running_loop()
     model = await loop.run_in_executor(None, self.load_model)
     streaming_context = model.make_streaming_context(DynChunkTrainConfig(chunk_size=self.config.chunk_size, left_context_size=self.config.left_context_size))
+    chunker = AudioChunker(self.config.chunk_size * 320, _SAMPLE_RATE) # BUG: this is to prevent an assertion error in speechbrain about the chunk size
 
     if model is None: raise FileNotFoundError("The model could not be loaded from the specified source!")
     async with self.out_topic, self.out_topic.RegisterContext(), self.in_topic, self.in_topic.RegisterContext():
@@ -48,10 +50,11 @@ class ASRSpeechRecognitionTask(Task):
           else:
             message = TimestampChuckMessage.model_validate(data.data)
             new_samples = audio_buffer_to_ndarray(message.data, "flt")[0]
-            samples = torch.from_numpy(new_samples.reshape((1, -1)).copy())
-            result: list[str] = await loop.run_in_executor(None, model.transcribe_chunk, streaming_context, samples)
-            if len(result[0]) > 0:
-              await self.out_topic.send(MessagePackData(TextMessage(timestamp=message.timestamp, value=result[0].lower()).model_dump()))
+            for chunk, timestamp in chunker.next(new_samples, message.timestamp):
+              samples = torch.from_numpy(chunk.reshape((1, -1)).copy())
+              result: list[str] = await loop.run_in_executor(None, model.transcribe_chunk, streaming_context, samples)
+              if len(result[0]) > 0:
+                await self.out_topic.send(MessagePackData(TextMessage(timestamp=timestamp, value=result[0].lower()).model_dump()))
         except (ValidationError, ValueError): pass
 
   def load_model(self):

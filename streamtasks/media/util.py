@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Iterator, Literal
 import av
 import av.codec
+import numpy as np
 from streamtasks.utils import strip_nones_from_dict
 
 lib = ctypes.CDLL(ctypes.util.find_library("avutil"))
@@ -55,3 +56,19 @@ def list_codec_formats(name: str, mode: Literal["r", "w"]):
 
 def options_from_codec_context(ctx: av.codec.context.CodecContext) -> dict[str, str]:
     return strip_nones_from_dict({ "bit_rate": None if ctx.bit_rate is None else str(ctx.bit_rate), "bit_rate_tolerance": None if ctx.bit_rate_tolerance is None else str(ctx.bit_rate_tolerance)  })
+
+class AudioChunker:
+  def __init__(self, chunk_size: int, sample_rate: int) -> None:
+    self.chunk_size = chunk_size
+    self.sample_rate = sample_rate
+    self.buffer_duration = 1000 * chunk_size // sample_rate
+    self.buffer: np.ndarray | None = None
+
+  def next(self, buf: np.ndarray, timestamp: int):
+    current_timestamp = timestamp - (0 if self.buffer is None else self.buffer.size) * 1000 // self.sample_rate
+    self.buffer = buf.flatten() if self.buffer is None else np.concatenate((self.buffer, buf.flatten()))
+
+    while self.buffer.size > self.chunk_size:
+      yield (self.buffer[:self.chunk_size], current_timestamp)
+      self.buffer = self.buffer[self.chunk_size:]
+      current_timestamp += self.buffer_duration
