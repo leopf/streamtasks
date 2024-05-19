@@ -68,7 +68,7 @@ class ASRSpeechRecognitionTaskHost(TaskHost):
     editor_fields=[
       EditorFields.text(key="source", label="source (path or model name)"),
       EditorFields.text(key="device"),
-      EditorFields.select(key="chunk_size", items=[ (v, v) for v in [ 8, 12, 16, 24, 32 ] ]),
+      EditorFields.select(key="chunk_size", items=[ (v, str(v)) for v in [ 8, 12, 16, 24, 32 ] ]),
       EditorFields.number(key="left_context_size", min_value=1, max_value=32, is_int=True, unit="chunks")
     ]
   )
