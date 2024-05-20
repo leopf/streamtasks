@@ -5,7 +5,7 @@ import numpy as np
 from pydantic import BaseModel, ValidationError
 from streamtasks.env import get_data_sub_dir
 from streamtasks.media.audio import audio_buffer_to_ndarray
-from streamtasks.media.util import PaddedAudioChunker
+from streamtasks.media.util import AudioSmoother, PaddedAudioChunker
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import TimestampChuckMessage
 from streamtasks.net.message.types import TopicControlData
@@ -45,6 +45,7 @@ class WaveformSpeechEnhancementTask(Task):
     if model is None: raise FileNotFoundError("The model could not be loaded from the specified source!")
 
     chunker = PaddedAudioChunker(self.config.buffer_size, _SAMPLE_RATE, self.config.buffer_padding)
+    decracker = AudioSmoother(self.config.buffer_padding * 2)
 
     async with self.out_topic, self.out_topic.RegisterContext(), self.in_topic, self.in_topic.RegisterContext():
       self.client.start()
@@ -58,7 +59,7 @@ class WaveformSpeechEnhancementTask(Task):
               samples = torch.from_numpy(chunk.reshape((1, -1)).copy())
               result: torch.Tensor = (await loop.run_in_executor(None, model.enhance_batch, samples, torch.tensor([1.]))).flatten()
               result = result * (np.abs(chunk).mean() / result.abs().mean().item()) # scale to prevent volume changes
-              out_samples: np.ndarray = chunker.strip_padding(result.cpu().numpy())
+              out_samples: np.ndarray = chunker.strip_padding(decracker.smooth(result.cpu().numpy()))
               await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=timestamp, data=out_samples.tobytes("C")).model_dump()))
         except (ValidationError, ValueError): pass
 

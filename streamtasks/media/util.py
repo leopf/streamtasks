@@ -98,3 +98,18 @@ class PaddedAudioChunker:
       current_timestamp += self.buffer_duration
 
   def strip_padding(self, buf: np.ndarray): return buf[self.padding:-self.padding]
+
+class AudioSmoother:
+  def __init__(self, overlap: int) -> None:
+    self.buffer: np.ndarray | None = None
+    self.scale_old = np.linspace(1, 0, num=overlap)
+    self.scale_new = np.linspace(0, 1, num=overlap)
+    self.overlap = overlap
+
+  def smooth(self, buf: np.ndarray):
+    assert buf.size > self.overlap
+    old_overlap = self.buffer
+    self.buffer = buf[-self.overlap:].copy()
+    if old_overlap is not None:
+      buf[:self.overlap] = buf[:self.overlap] * self.scale_new + old_overlap * self.scale_old
+    return buf
