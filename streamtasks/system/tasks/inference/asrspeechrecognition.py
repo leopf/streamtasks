@@ -37,6 +37,7 @@ class ASRSpeechRecognitionTask(Task):
   async def run(self):
     loop = asyncio.get_running_loop()
     model = await loop.run_in_executor(None, self.load_model)
+    if model is None: raise FileNotFoundError("The model could not be loaded from the specified source!")
     streaming_context = model.make_streaming_context(DynChunkTrainConfig(chunk_size=self.config.chunk_size, left_context_size=self.config.left_context_size))
     chunker = AudioChunker(self.config.chunk_size * 320, _SAMPLE_RATE) # BUG: this is to prevent an assertion error in speechbrain about the chunk size
 

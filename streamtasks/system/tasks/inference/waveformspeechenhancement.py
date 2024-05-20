@@ -12,13 +12,13 @@ from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.configurators import EditorFields, static_configurator
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
-from speechbrain.inference.enhancement import SpectralMaskEnhancement
+from speechbrain.inference.enhancement import WaveformEnhancement
 import torch
 
 _SAMPLE_RATE = 16000
 
-class SMESpeechEnhancementConfigBase(BaseModel):
-  source: str = "speechbrain/metricgan-plus-voicebank"
+class WaveformSpeechEnhancementConfigBase(BaseModel):
+  source: str = "speechbrain/mtl-mimic-voicebank"
   device: str = "cpu"
   buffer_duration: int = 1000
 
@@ -28,12 +28,12 @@ class SMESpeechEnhancementConfigBase(BaseModel):
   @property
   def buffer_padding(self): return self.buffer_size // 4
 
-class SMESpeechEnhancementConfig(SMESpeechEnhancementConfigBase):
+class WaveformSpeechEnhancementConfig(WaveformSpeechEnhancementConfigBase):
   out_topic: int
   in_topic: int
 
-class SMESpeechEnhancementTask(Task):
-  def __init__(self, client: Client, config: SMESpeechEnhancementConfig):
+class WaveformSpeechEnhancementTask(Task):
+  def __init__(self, client: Client, config: WaveformSpeechEnhancementConfig):
     super().__init__(client)
     self.in_topic = self.client.in_topic(config.in_topic)
     self.out_topic = self.client.out_topic(config.out_topic)
@@ -43,6 +43,7 @@ class SMESpeechEnhancementTask(Task):
     loop = asyncio.get_running_loop()
     model = await loop.run_in_executor(None, self.load_model)
     if model is None: raise FileNotFoundError("The model could not be loaded from the specified source!")
+
     chunker = PaddedAudioChunker(self.config.buffer_size, _SAMPLE_RATE, self.config.buffer_padding)
 
     async with self.out_topic, self.out_topic.RegisterContext(), self.in_topic, self.in_topic.RegisterContext():
@@ -63,15 +64,15 @@ class SMESpeechEnhancementTask(Task):
 
   def load_model(self):
     save_dir = get_data_sub_dir("./models/" + re.sub("[^a-z0-9\\-]", "", self.config.source))
-    return SpectralMaskEnhancement.from_hparams(self.config.source, savedir=save_dir, run_opts={ "device":self.config.device })
+    return WaveformEnhancement.from_hparams(self.config.source, savedir=save_dir, run_opts={ "device":self.config.device })
 
-class SMESpeechEnhancementTaskHost(TaskHost):
+class WaveformSpeechEnhancementTaskHost(TaskHost):
   @property
   def metadata(self): return static_configurator(
-    label="SME Speech Enhancement",
+    label="Waveform Speech Enhancement",
     inputs=[{ "label": "input", "type": "ts", "key": "in_topic", "content": "audio", "codec": "raw", "rate": _SAMPLE_RATE, "channels": 1, "sample_format": "flt" }],
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "content": "audio", "codec": "raw", "rate": _SAMPLE_RATE, "channels": 1, "sample_format": "flt" }],
-    default_config=SMESpeechEnhancementConfigBase().model_dump(),
+    default_config=WaveformSpeechEnhancementConfigBase().model_dump(),
     editor_fields=[
       EditorFields.text(key="source", label="source (path or model name)"),
       EditorFields.text(key="device"),
@@ -79,4 +80,4 @@ class SMESpeechEnhancementTaskHost(TaskHost):
     ]
   )
   async def create_task(self, config: Any, topic_space_id: int | None):
-    return SMESpeechEnhancementTask(await self.create_client(topic_space_id), SMESpeechEnhancementConfig.model_validate(config))
+    return WaveformSpeechEnhancementTask(await self.create_client(topic_space_id), WaveformSpeechEnhancementConfig.model_validate(config))

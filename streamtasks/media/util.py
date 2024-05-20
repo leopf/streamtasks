@@ -64,11 +64,37 @@ class AudioChunker:
     self.buffer_duration = 1000 * chunk_size // sample_rate
     self.buffer: np.ndarray | None = None
 
+  @property
+  def buffer_size(self): return 0 if self.buffer is None else self.buffer.size
+
   def next(self, buf: np.ndarray, timestamp: int):
-    current_timestamp = timestamp - (0 if self.buffer is None else self.buffer.size) * 1000 // self.sample_rate
+    current_timestamp = timestamp - self.buffer_size * 1000 // self.sample_rate
     self.buffer = buf.flatten() if self.buffer is None else np.concatenate((self.buffer, buf.flatten()))
 
     while self.buffer.size > self.chunk_size:
       yield (self.buffer[:self.chunk_size], current_timestamp)
       self.buffer = self.buffer[self.chunk_size:]
       current_timestamp += self.buffer_duration
+
+class PaddedAudioChunker:
+  def __init__(self, chunk_size: int, sample_rate: int, padding: int) -> None:
+    self.chunk_size = chunk_size
+    self.sample_rate = sample_rate
+    self.padding = padding
+    self.process_buffer_size = self.chunk_size + 2 * self.padding
+    self.buffer_duration = 1000 * chunk_size // sample_rate
+    self.buffer: np.ndarray | None = None
+
+  @property
+  def buffer_size(self): return 0 if self.buffer is None else self.buffer.size
+
+  def next(self, buf: np.ndarray, timestamp: int):
+    current_timestamp = timestamp - (self.buffer_size - self.padding) * 1000 // self.sample_rate
+    self.buffer = buf.flatten() if self.buffer is None else np.concatenate((self.buffer, buf.flatten()))
+
+    while self.buffer.size > self.process_buffer_size:
+      yield (self.buffer[:self.process_buffer_size], current_timestamp)
+      self.buffer = self.buffer[self.chunk_size:]
+      current_timestamp += self.buffer_duration
+
+  def strip_padding(self, buf: np.ndarray): return buf[self.padding:-self.padding]
