@@ -24,6 +24,7 @@ IO:
 MEDIA:
 - screen capture
 - audio mixer
+- audio spectromter (viewer)
 
 - system audio recorder
 - virtual video input

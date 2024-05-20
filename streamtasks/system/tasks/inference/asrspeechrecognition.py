@@ -49,8 +49,7 @@ class ASRSpeechRecognitionTask(Task):
           if isinstance(data, TopicControlData): await self.out_topic.set_paused(data.paused)
           else:
             message = TimestampChuckMessage.model_validate(data.data)
-            new_samples = audio_buffer_to_ndarray(message.data, "flt")[0]
-            for chunk, timestamp in chunker.next(new_samples, message.timestamp):
+            for chunk, timestamp in chunker.next(audio_buffer_to_ndarray(message.data, "flt")[0], message.timestamp):
               samples = torch.from_numpy(chunk.reshape((1, -1)).copy())
               result: list[str] = await loop.run_in_executor(None, model.transcribe_chunk, streaming_context, samples)
               if len(result[0]) > 0:

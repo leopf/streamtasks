@@ -1,6 +1,7 @@
 from typing import Any
 from pydantic import BaseModel, ValidationError
-from streamtasks.media.audio import audio_buffer_to_samples, sample_format_to_dtype
+from streamtasks.media.audio import audio_buffer_to_ndarray, sample_format_to_dtype
+from streamtasks.media.util import AudioChunker
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import NumberMessage, TimestampChuckMessage
 from streamtasks.net.message.types import TopicControlData
@@ -23,7 +24,7 @@ class AudioVolumeMeterConfig(AudioVolumeMeterConfigBase):
 
 def max_dtype_value(dtype):
   if np.issubdtype(dtype, np.integer): return np.iinfo(dtype).max
-  elif np.issubdtype(dtype, np.floating): return np.finfo(dtype).max
+  elif np.issubdtype(dtype, np.floating): return 1
   else: raise ValueError("Unsupported dtype")
 
 class AudioVolumeMeterTask(Task):
@@ -32,40 +33,27 @@ class AudioVolumeMeterTask(Task):
     self.out_topic = self.client.out_topic(config.out_topic)
     self.in_topic = self.client.in_topic(config.in_topic)
     self.config = config
-
     sample_dtype = sample_format_to_dtype(self.config.sample_format)
     self.max_value = float(max_dtype_value(sample_dtype))
-    self.sample_buffer = np.array([], dtype=sample_dtype)
-    self.chunk_size = self.config.rate * config.time_window // 1000
     self.sync = TimeSynchronizer()
 
   async def run(self):
-    try:
-      async with self.out_topic, self.out_topic.RegisterContext(), self.in_topic, self.in_topic.RegisterContext():
-        self.client.start()
-        while True:
-          try:
-            data = await self.in_topic.recv_data_control()
-            if isinstance(data, TopicControlData):
-              if data.paused:
-                await self.out_topic.send(MessagePackData(NumberMessage(timestamp=self.sync.time, value=0).model_dump()))
-              await self.out_topic.set_paused(data.paused)
-            else:
-              message = TimestampChuckMessage.model_validate(data.data)
-              timestamp_offset = -(self.sample_buffer.size * 1000 // self.config.rate)
-
-              new_samples = audio_buffer_to_samples(message.data, sample_format=self.config.sample_format, channels=1).flatten()
-              self.sample_buffer = np.concatenate((self.sample_buffer, new_samples))
-
-              while self.sample_buffer.size > self.chunk_size:
-                timestamp = message.timestamp + timestamp_offset
-                self.sync.update(timestamp)
-                await self.out_topic.send(MessagePackData(NumberMessage(timestamp=timestamp, value=np.sqrt(np.mean(np.abs(self.sample_buffer[:self.chunk_size]) / self.max_value))).model_dump()))
-                self.sample_buffer = self.sample_buffer[self.chunk_size:]
-                timestamp_offset += self.config.time_window
-          except (ValidationError, ValueError): pass
-    finally:
-      self.sample_buffer = None
+    chunker = AudioChunker(self.config.rate * self.config.time_window // 1000, self.config.rate)
+    async with self.out_topic, self.out_topic.RegisterContext(), self.in_topic, self.in_topic.RegisterContext():
+      self.client.start()
+      while True:
+        try:
+          data = await self.in_topic.recv_data_control()
+          if isinstance(data, TopicControlData):
+            if data.paused:
+              await self.out_topic.send(MessagePackData(NumberMessage(timestamp=self.sync.time, value=0).model_dump()))
+            await self.out_topic.set_paused(data.paused)
+          else:
+            message = TimestampChuckMessage.model_validate(data.data)
+            for chunk, timestamp in chunker.next(audio_buffer_to_ndarray(message.data, self.config.sample_format)[0], message.timestamp):
+              self.sync.update(timestamp)
+              await self.out_topic.send(MessagePackData(NumberMessage(timestamp=timestamp, value=np.sqrt(np.mean(np.abs(chunk) / self.max_value))).model_dump()))
+        except (ValidationError, ValueError): pass
 
 class AudioVolumeMeterTaskHost(TaskHost):
   @property
