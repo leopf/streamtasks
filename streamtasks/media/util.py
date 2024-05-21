@@ -113,3 +113,61 @@ class AudioSmoother:
     if old_overlap is not None:
       buf[:self.overlap] = buf[:self.overlap] * self.scale_new + old_overlap * self.scale_old
     return buf
+
+class AudioSequencer:
+  def __init__(self, sample_rate: int, max_desync: int) -> None:
+    self._sample_rate = sample_rate
+    self._max_desync = max_desync
+    self._desync: int = 0
+    self._buffer_start_timestamp: int | None = None
+    self._sample_buffer: np.ndarray | None = None
+
+  @property
+  def start_timestamp(self): return self._buffer_start_timestamp - self._desync
+
+  @property
+  def started(self): return self._sample_buffer is not None and self._buffer_start_timestamp is not None
+
+  def reset(self, force: bool = False):
+    if self._sample_buffer is None or self._buffer_start_timestamp is None or self._sample_buffer.size == 0 or force:
+      self._sample_buffer = None
+      self._buffer_start_timestamp = None
+
+  def get_max_samples(self, timestamp: int) -> int: return self._sample_buffer.shape[0] - self._get_start_sample_offset(timestamp)
+  def pop_start(self, timestamp: int, sample_count: int) -> np.ndarray:
+    if self._sample_buffer is None or self._buffer_start_timestamp is None: return self._make_zeros(sample_count)
+    start_offset = self._get_start_sample_offset(timestamp)
+    buf_end = max(0, min(sample_count + start_offset, self._sample_buffer.shape[0]))
+    buf_start = min(max(0, start_offset), self._sample_buffer.shape[0])
+    pad_count = min(max(0, -start_offset), sample_count)
+    result = np.concatenate((self._make_zeros(pad_count), self._sample_buffer[buf_start:buf_end]), axis=0)
+    self._sample_buffer = self._sample_buffer[buf_end:]
+    self._buffer_start_timestamp += sample_count * 1000 // self._sample_rate
+    assert result.shape[0] <= sample_count, "more samples than allowed were popped"
+    if result.shape[0] < sample_count: result = np.concatenate((result, self._make_zeros(sample_count - result.shape[0])),  axis=0)
+    return result
+
+  def insert(self, timestamp: int, samples: np.ndarray):
+    assert len(samples.shape) == 2, "expected samples to be in shape (time, channels)"
+    assert self._sample_buffer is None or self._sample_buffer.dtype == samples.dtype
+    assert self._sample_buffer is None or self._sample_buffer.shape[1] == samples.shape[1]
+    if self._buffer_start_timestamp is None or self._sample_buffer is None:
+      self._sample_buffer = samples
+      self._buffer_start_timestamp = timestamp
+    else:
+      self._desync += timestamp - (self._buffer_start_timestamp + self._sample_buffer.shape[0] * 1000 // self._sample_rate)
+      if abs(self._desync) > self._max_desync:
+        desync_sample_count = abs(self._desync * self._sample_rate // 1000)
+        if self._desync < 0:
+          self._desync += min(desync_sample_count, samples.shape[0]) * 1000 // self._sample_rate
+          samples = samples[desync_sample_count:]
+        else:
+          samples = np.concatenate((self._make_zeros(desync_sample_count), samples), axis=0)
+          self._desync = 0
+      self._sample_buffer = np.concatenate((self._sample_buffer, samples), axis=0)
+
+  def _make_zeros(self, sample_count: int) -> np.ndarray: return np.zeros((sample_count, self._sample_buffer.shape[1]), dtype=self._sample_buffer.dtype)
+  def _get_start_sample_offset(self, timestamp: int) -> int:
+    offset = timestamp - self.start_timestamp
+    if abs(offset) < self._max_desync: return 0
+    return offset * self._sample_rate // 1000

@@ -35,15 +35,15 @@ _VALUE_TO_MESSAGE: dict[type, Callable[[int, Any], BaseModel]] = {
 }
 
 def _number_message_to_value(data: Any):
-  message = NumberMessage(**data)
+  message = NumberMessage.model_validate(data)
   return (message.timestamp, message.value)
 
 def _text_message_to_value(data: Any):
-  message = TextMessage(**data)
+  message = TextMessage.model_validate(data)
   return (message.timestamp, message.value)
 
 def _chunk_message_to_value(data: Any):
-  message = TimestampChuckMessage(**data)
+  message = TimestampChuckMessage.model_validate(data)
   return (message.timestamp, message.data)
 
 _DATA_TO_VALUE: dict[type, Callable[[Any], tuple[int, Any]]] = {
