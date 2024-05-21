@@ -2,6 +2,7 @@
 
 - merge master
 
+- output container needs to be able to stop and restart based on inputs. Also: chunkung
 
 Frontend:
 - free io keys in static config
@@ -15,6 +16,7 @@ General:
 - flow detector
 - buffer
 - pauser (after time)
+- replay buffer
 
 IO:
 - text display
@@ -26,14 +28,13 @@ MEDIA:
 - audio mixer
 - audio spectromter (viewer)
 
+- whisper/other asr
 - system audio recorder
 - virtual video input
 - virtual audio input
 - sip input
 
 ML:
-- speech enhancement
-- ASR
 - llama.cpp
 - TTS
 - VAD

@@ -1,4 +1,5 @@
 from enum import Enum
+import logging
 from typing import Any, Iterable, Optional
 from uuid import uuid4
 from pydantic import UUID4, BaseModel, TypeAdapter, ValidationError, field_serializer
@@ -160,6 +161,9 @@ class TaskHost(Worker):
       self.ready.set()
       for register_ep in self.register_endpoits: await self.register(register_ep)
       await asyncio.gather(self.run_api())
+    except BaseException as e:
+      logging.debug("Failed to register task host!", e)
+      raise e
     finally:
       # TODO: unregister all
       for task in self.tasks.values(): task.cancel()

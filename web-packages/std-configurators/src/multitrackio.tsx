@@ -14,6 +14,7 @@ const TrackConfigModel = z.object({
     defaultConfig: z.record(z.any()),
     defaultIO: MetadataModel,
     ioMap: z.record(z.string(), z.string()),
+    globalIOMap: z.record(z.string(), z.string()).optional(),
     editorFields: z.array(EditorFieldModel)
 });
 const TrackConfigsModel = z.array(TrackConfigModel);
@@ -99,7 +100,9 @@ type TrackDescription = {
 
 abstract class MultiTrackConfigurator extends StaticCLSConfigurator {
     protected get trackConfigs() {
-        return parseMetadataField(this.taskHost.metadata, "cfg:trackconfigs", TrackConfigsModel, true);
+        const r = parseMetadataField(this.taskHost.metadata, "cfg:trackconfigs", TrackConfigsModel, true);
+        console.log(r)
+        return r;
     }
 
     public rrenderEditor(onUpdate: () => void): ReactNode {
@@ -175,10 +178,12 @@ class MultiTrackInputConfigurator extends MultiTrackConfigurator {
         this.inputs.forEach((input, inputIndex) => {
             const track = trackKeyMap.get(input.key);
             if (!track) return;
-
             setter.addEdge(`config.${track.config.key}_tracks.${track.index}.in_topic`, `inputs.${inputIndex}.topic_id`);
             for (const [configKey, inputKey] of Object.entries(track.config.ioMap)) {
                 setter.addEdge(`config.${track.config.key}_tracks.${track.index}.${configKey}`, `inputs.${inputIndex}.${inputKey}`);
+            }
+            for (const [configKey, inputKey] of Object.entries(track.config.globalIOMap ?? {})) {
+                setter.addEdge(`config.${configKey}`, `inputs.${inputIndex}.${inputKey}`);
             }
             for (const field of track.config.editorFields) {
                 setter.constrainValidator(`config.${track.config.key}_tracks.${track.index}.${field.key}`, v => getFieldValidator(field).safeParse(v).success);
@@ -244,6 +249,9 @@ class MultiTrackOutputConfigurator extends MultiTrackConfigurator {
             setter.addEdge(`config.${track.config.key}_tracks.${track.index}.out_topic`, `outputs.${outputIndex}.topic_id`);
             for (const [configKey, inputKey] of Object.entries(track.config.ioMap)) {
                 setter.addEdge(`config.${track.config.key}_tracks.${track.index}.${configKey}`, `outputs.${outputIndex}.${inputKey}`);
+            }
+            for (const [configKey, inputKey] of Object.entries(track.config.globalIOMap ?? {})) {
+                setter.addEdge(`config.${configKey}`, `outputs.${outputIndex}.${inputKey}`);
             }
             for (const field of track.config.editorFields) {
                 setter.constrainValidator(`config.${track.config.key}_tracks.${track.index}.${field.key}`, v => getFieldValidator(field).safeParse(v).success);

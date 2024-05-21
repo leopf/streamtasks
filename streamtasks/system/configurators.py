@@ -20,6 +20,7 @@ class TrackConfig(TypedDict):
   key: str
   label: NotRequired[str]
   multiLabel: NotRequired[str]
+  globalIOMap: NotRequired[dict[str, str]]
   defaultConfig: dict[str, Any]
   defaultIO: MetadataDict
   ioMap: dict[str, str]
@@ -41,7 +42,7 @@ def static_configurator(label: str, description: str | None = None, inputs: list
 
   metadata = {
     "js:configurator": "std:static",
-    "cfg:label": label,
+    "cfg:label": label_to_camel_case(label),
     "cfg:inputs": json.dumps(inputs),
     "cfg:outputs": json.dumps([{k: v for k, v in output.items() if k != "key"} for output in outputs]),
     "cfg:outputkeys": json.dumps([output.get("key", None) for output in outputs]),
@@ -54,15 +55,30 @@ def static_configurator(label: str, description: str | None = None, inputs: list
   if io_mirror is not None: metadata["cfg:iomirror"] = json.dumps(io_mirror)
   return metadata
 
+def _fix_multitrack_io_config(tc: TrackConfig):
+  tc = dict(tc)
+  if "ioMap" not in tc: tc["ioMap"] = {}
+  if "defaultIO" not in tc: tc["defaultIO"] = {}
+  if "defaultConfig" not in tc: tc["defaultConfig"] = {}
+  if "editorFields" not in tc: tc["editorFields"] = []
+  tc["defaultIO"] = {
+    **{ io_key: "" for io_key in tc.get("globalIOMap", {}).values() },
+    **tc["defaultIO"],
+    **{ io_key: tc["defaultConfig"][config_key] for config_key, io_key in tc["ioMap"].items() }
+  }
+
+  return tc
+
 def multitrackio_configurator(track_configs: list[TrackConfig], is_input: bool):
   metadata = {
     "js:configurator": "std:multitrackio",
-    "cfg:trackconfigs": json.dumps(list({ **tc, "defaultIO": { **tc["defaultIO"], **{ io_key: tc["defaultConfig"][config_key] for config_key, io_key in tc["ioMap"].items() } } } for tc in track_configs)),
+    "cfg:trackconfigs": json.dumps(list(_fix_multitrack_io_config(tc) for tc in track_configs)),
     "cfg:isinput": "true" if is_input else "false"
   }
   return metadata
 
 def key_to_label(key: str): return key.replace("_", " ")
+def label_to_camel_case(label: str): return " ".join(p.capitalize() for p in label.split(" "))
 
 DEFAULT_COLORS = [
     ("#6528f7","akihabara arcade"),
