@@ -24,7 +24,7 @@ class ValueDisplayBarTask(UIBaseTask[ValueDisplayBarConfig, DisplayBarValue]):
   def __init__(self, client: Client, config: ValueDisplayBarConfig):
     super().__init__(client, config, DisplayBarValue(value=config.default_value), "value-display-bar.js")
     self.in_topic = self.client.in_topic(config.in_topic)
-    self._config = config
+    self.config = config
 
   async def context(self):
     exit_stack = AsyncExitStack()

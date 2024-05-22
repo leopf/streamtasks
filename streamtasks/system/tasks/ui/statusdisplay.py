@@ -24,7 +24,7 @@ class StatusDisplayTask(UIBaseTask[StatusDisplayConfig, StatusDisplayValue]):
   def __init__(self, client: Client, config: StatusDisplayConfig):
     super().__init__(client, config, StatusDisplayValue(value=config.threshold), "status-display.js")
     self.in_topic = self.client.in_topic(config.in_topic)
-    self._config = config
+    self.config = config
 
   async def context(self):
     exit_stack = AsyncExitStack()

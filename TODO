@@ -20,7 +20,6 @@ General:
 - replay buffer
 
 IO:
-- text display
 - video viewer
 - keyboard input
 

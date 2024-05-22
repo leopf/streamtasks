@@ -25,7 +25,7 @@ class SliderUITask(UIControlBaseTask[SliderUIConfig, SliderValue]):
   def __init__(self, client: Client, config: SliderUIConfig):
     super().__init__(client, config, SliderValue(value=config.default_value), "slider.js")
     self.out_topic = self.client.out_topic(config.out_topic)
-    self._config = config
+    self.config = config
 
   async def context(self):
     exit_stack = AsyncExitStack()

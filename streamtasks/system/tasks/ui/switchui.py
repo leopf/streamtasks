@@ -23,7 +23,7 @@ class SwitchUITask(UIControlBaseTask[SwitchUIConfig, SwitchValue]):
   def __init__(self, client: Client, config: SwitchUIConfig):
     super().__init__(client, config, SwitchValue(value=config.default_value), "switch.js")
     self.out_topic = self.client.out_topic(config.out_topic)
-    self._config = config
+    self.config = config
 
   async def context(self):
     exit_stack = AsyncExitStack()

@@ -17,7 +17,7 @@ V = TypeVar("V", bound=BaseModel)
 class UIBaseTask(Task, Generic[C, V]):
   def __init__(self, client: Client, config: C, default_value: V, script_name: str):
     super().__init__(client)
-    self._config: C = config
+    self.config: C = config
     self._value: V = default_value
     self._script_name = script_name
     self._value_changed_trigger = AsyncTrigger()
@@ -74,7 +74,7 @@ class UIBaseTask(Task, Generic[C, V]):
 
     @router.get("/config")
     @http_context_handler
-    async def _(ctx: HTTPContext): await ctx.respond_json(self._config.model_dump())
+    async def _(ctx: HTTPContext): await ctx.respond_json(self.config.model_dump())
 
     @router.post("/value")
     @http_context_handler
@@ -113,5 +113,5 @@ class UIControlBaseTask(UIBaseTask[C2, V]):
   async def run_other(self) -> AsyncContextManager:
     while True:
       await self.send_value(self._value)
-      try: await asyncio.wait_for(self.wait_value_changed(), self._config.repeat_interval)
+      try: await asyncio.wait_for(self.wait_value_changed(), self.config.repeat_interval)
       except asyncio.TimeoutError: pass
