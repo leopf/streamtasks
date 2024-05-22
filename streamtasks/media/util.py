@@ -1,6 +1,7 @@
 import ctypes
 import ctypes.util
 from dataclasses import dataclass
+from fractions import Fraction
 from typing import Iterator, Literal
 import av
 import av.codec
@@ -116,52 +117,55 @@ class AudioSmoother:
     return buf
 
 class AudioSequencer:
-  def __init__(self, sample_rate: int, max_desync: int) -> None:
+  def __init__(self, sample_rate: int, max_desync_time: Fraction) -> None:
     self._sample_rate = sample_rate
-    self._max_desync = max_desync
-    self._desync: int = 0
-    self._buffer_start_timestamp: int | None = None
+    self._max_desync_time = max_desync_time
+    self._desync_time = Fraction(0)
+    self._buffer_start_time: Fraction | None = None
     self._sample_buffer: np.ndarray | None = None
 
   @property
-  def start_timestamp(self): return self._buffer_start_timestamp
+  def start_time(self): return self._buffer_start_time
 
   @property
-  def started(self): return self._sample_buffer is not None and self._buffer_start_timestamp is not None
+  def end_time(self): return self._buffer_start_time + Fraction(self._sample_buffer.shape[0], self._sample_rate)
+
+  @property
+  def started(self): return self._sample_buffer is not None and self._buffer_start_time is not None
 
   def reset(self, force: bool = False):
-    if self._sample_buffer is None or self._buffer_start_timestamp is None or self._sample_buffer.size == 0 or force:
+    if self._sample_buffer is None or self._buffer_start_time is None or self._sample_buffer.size == 0 or force:
       self._sample_buffer = None
-      self._buffer_start_timestamp = None
-      self._desync = 0
+      self._buffer_start_time = None
+      self._desync_time = Fraction(0)
 
-  def get_max_samples(self, timestamp: int) -> int: return self._sample_buffer.shape[0] - self._get_start_sample_offset(timestamp)
-  def pop_start(self, timestamp: int, sample_count: int) -> np.ndarray:
-    if self._sample_buffer is None or self._buffer_start_timestamp is None: return self._make_zeros(sample_count)
-    start_offset = self._get_start_sample_offset(timestamp)
+  def get_max_samples(self, time: Fraction) -> int: return self._sample_buffer.shape[0] - self._get_start_sample_offset(time)
+  def pop_start(self, time: Fraction, sample_count: int) -> np.ndarray:
+    if self._sample_buffer is None or self._buffer_start_time is None: return self._make_zeros(sample_count)
+    start_offset = self._get_start_sample_offset(time)
     buf_end = max(0, min(sample_count + start_offset, self._sample_buffer.shape[0]))
     buf_start = min(max(0, start_offset), self._sample_buffer.shape[0])
     pad_count = min(max(0, -start_offset), sample_count)
     result = np.concatenate((self._make_zeros(pad_count), self._sample_buffer[buf_start:buf_end]), axis=0)
     ddebug_value("sequencer", id(self), (pad_count, buf_start, buf_end, self._sample_buffer.shape[0]))
     self._sample_buffer = self._sample_buffer[buf_end:]
-    self._buffer_start_timestamp += round(buf_end * 1000 / self._sample_rate)
+    self._buffer_start_time += Fraction(buf_end, self._sample_rate)
     assert result.shape[0] <= sample_count, "more samples than allowed were popped"
     if result.shape[0] < sample_count: result = np.concatenate((result, self._make_zeros(sample_count - result.shape[0])),  axis=0)
     return result
 
-  def insert(self, timestamp: int, samples: np.ndarray):
+  def insert(self, time: Fraction, samples: np.ndarray):
     assert len(samples.shape) == 2, "expected samples to be in shape (time, channels)"
     assert self._sample_buffer is None or self._sample_buffer.dtype == samples.dtype
     assert self._sample_buffer is None or self._sample_buffer.shape[1] == samples.shape[1]
-    if self._buffer_start_timestamp is None or self._sample_buffer is None:
+    if self._buffer_start_time is None or self._sample_buffer is None:
       self._sample_buffer = samples
-      self._buffer_start_timestamp = timestamp
+      self._buffer_start_time = time
     else:
-      self._desync += timestamp - round(self._buffer_start_timestamp + self._sample_buffer.shape[0] * 1000 / self._sample_rate)
-      if abs(self._desync) > self._max_desync:
-        desync_sample_count = round((abs(self._desync) - self._max_desync) * self._sample_rate / 1000)
-        ddebug_value("track insert desync", id(self), (self._desync, desync_sample_count))
+      self._desync_time += time - self.end_time
+      if abs(self._desync_time) > self._max_desync_time:
+        desync_sample_count: int = round((abs(self._desync_time) - self._max_desync_time) * self._sample_rate)
+        ddebug_value("track insert desync", id(self), (float(self._desync_time), desync_sample_count))
         # if self._desync < 0:
         #   self._desync += round(min(desync_sample_count, samples.shape[0]) * 1000 / self._sample_rate)
         #   samples = samples[desync_sample_count:]
@@ -171,4 +175,4 @@ class AudioSequencer:
       self._sample_buffer = np.concatenate((self._sample_buffer, samples), axis=0)
 
   def _make_zeros(self, sample_count: int) -> np.ndarray: return np.zeros((sample_count, self._sample_buffer.shape[1]), dtype=self._sample_buffer.dtype)
-  def _get_start_sample_offset(self, timestamp: int) -> int: return round((timestamp - self._buffer_start_timestamp) * self._sample_rate / 1000)
+  def _get_start_sample_offset(self, time: Fraction) -> int: return int((time - self._buffer_start_time) * self._sample_rate)

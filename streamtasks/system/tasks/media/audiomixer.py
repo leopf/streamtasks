@@ -1,6 +1,7 @@
 import asyncio
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
+from fractions import Fraction
 from typing import Any
 from jsonschema import ValidationError
 import numpy as np
@@ -31,6 +32,9 @@ class AudioMixerConfigBase(BaseModel):
   max_desync: int = 100
   synchronized: bool = True
 
+  @property
+  def max_desync_time(self): return Fraction(self.max_desync, 1000)
+
   @field_validator("sample_format")
   @classmethod
   def validate_address_name(cls, value: str):
@@ -56,20 +60,25 @@ class AudioMixerTask(Task):
     else:
       in_topics = [ self.client.in_topic(track.in_topic) for track in config.audio_tracks ]
 
-    self.audio_tracks = [ AudioTrackContext(topic=in_topic, sequencer=AudioSequencer(config.rate, config.max_desync), is_paused=False) for in_topic in in_topics ]
+    self.audio_tracks = [ AudioTrackContext(topic=in_topic, sequencer=AudioSequencer(config.rate, config.max_desync_time), is_paused=False) for in_topic in in_topics ]
     self.out_topic = self.client.out_topic(config.out_topic)
     self.config = config
 
   async def run(self):
-    async with AsyncExitStack() as exit_stack:
-      await exit_stack.enter_async_context(self.out_topic)
-      await exit_stack.enter_async_context(self.out_topic.RegisterContext())
+    try:
+      async with AsyncExitStack() as exit_stack:
+        await exit_stack.enter_async_context(self.out_topic)
+        await exit_stack.enter_async_context(self.out_topic.RegisterContext())
 
-      for track in self.audio_tracks:
-        await exit_stack.enter_async_context(track.topic)
-        await exit_stack.enter_async_context(track.topic.RegisterContext())
-      self.client.start()
-      await asyncio.gather(*(self.run_track(track) for track in self.audio_tracks))
+        for track in self.audio_tracks:
+          await exit_stack.enter_async_context(track.topic)
+          await exit_stack.enter_async_context(track.topic.RegisterContext())
+        self.client.start()
+        await asyncio.gather(*(self.run_track(track) for track in self.audio_tracks))
+    except BaseException as e:
+      import traceback
+      print(traceback.format_exc())
+      raise e
 
   async def run_track(self, track: AudioTrackContext):
     t0: None | int = None
@@ -89,35 +98,35 @@ class AudioMixerTask(Task):
           if t0 is None: t0 = message.timestamp - 1
           sample_count += samples.shape[0]
           ddebug_value("track sample rate", id(track.sequencer), sample_count * 1000 / (message.timestamp - t0))
-          track.sequencer.insert(message.timestamp, samples)
+          track.sequencer.insert(Fraction(message.timestamp, 1000), samples)
           await self.send_next()
       except ValidationError: pass
 
   async def send_next(self):
     if any(True for track in self.audio_tracks if not track.is_paused and not track.sequencer.started): return # not ready yet
-    start_times = [track.sequencer.start_timestamp for track in self.audio_tracks if not track.is_paused]
+    start_times = [track.sequencer.start_time for track in self.audio_tracks if not track.is_paused]
     if len(start_times) == 0: return
     start_times.sort()
 
-    target_timestamps = [ t for t in start_times if t - self.config.max_desync  < start_times[0] ]
-    target_timestamp = round(sum(target_timestamps) / len(target_timestamps))
-    num_sample_counts = min(track.sequencer.get_max_samples(target_timestamp) for track in self.audio_tracks if not track.is_paused)
+    target_times = [ t for t in start_times if t - self.config.max_desync_time  < start_times[0] ]
+    target_time = sum(target_times) / len(target_times)
+    num_sample_counts = min(track.sequencer.get_max_samples(target_time) for track in self.audio_tracks if not track.is_paused)
     if num_sample_counts <= 0: return
 
     result: np.ndarray | None = None
     for track in self.audio_tracks:
-      if track.sequencer.start_timestamp:
-        ddebug_value("track start", id(track.sequencer), track.sequencer.start_timestamp)
-        ddebug_value("track duration", id(track.sequencer), track.sequencer.get_max_samples(track.sequencer.start_timestamp))
+      if track.sequencer.start_time:
+        ddebug_value("track start", id(track.sequencer), track.sequencer.start_time)
+        ddebug_value("track duration", id(track.sequencer), track.sequencer.get_max_samples(track.sequencer.start_time))
       if track.sequencer.started:
-        new_samples = track.sequencer.pop_start(target_timestamp, num_sample_counts)
+        new_samples = track.sequencer.pop_start(target_time, num_sample_counts)
         assert new_samples.shape[0] == num_sample_counts, "wrong amount of samples from sequencer!"
         if result is not None: result = result + new_samples
         else: result = new_samples
       if track.is_paused: track.sequencer.reset()
 
     if result.size != 0:
-      await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=target_timestamp, data=result.tobytes("C")).model_dump()))
+      await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=round(target_time * 1000), data=result.tobytes("C")).model_dump()))
 
 class AudioMixerTaskHost(TaskHost):
   @property
