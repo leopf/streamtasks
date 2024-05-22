@@ -15,7 +15,6 @@ General:
 - string matcher
 - string concatinator
 - buffer
-- pauser (after time)
 - replay buffer
 
 IO:
