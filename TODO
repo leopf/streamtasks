@@ -25,7 +25,6 @@ IO:
 
 MEDIA:
 - screen capture
-- audio mixer
 - audio spectromter (viewer)
 
 - whisper/other asr

@@ -51,6 +51,13 @@ class AudioTrackContext:
   sequencer: AudioSequencer
   is_paused: bool
 
+"""
+NOTES:
+The mixer still has some issues. Enable DEBUG_MIXER to observe them.
+
+1. Under certain conditions the desync will get stuck on the edge.
+"""
+
 class AudioMixerTask(Task):
   def __init__(self, client: Client, config: AudioMixerConfig):
     super().__init__(client)
