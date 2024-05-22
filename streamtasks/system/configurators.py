@@ -130,8 +130,8 @@ class EditorFields:
     return strip_nones_from_dict({ "type": "kvoptions", "key": key, "label": label or key_to_label(key) })
 
   @staticmethod
-  def repeat_interval(key: str="repeat_interval", label: str | None = None):
-    return EditorFields.number(key=key, label=label, min_value=0.001, unit="s")
+  def repeat_interval(key: str="repeat_interval", label: str | None = None, min_value=0.001):
+    return EditorFields.number(key=key, label=label, min_value=min_value, unit="s")
 
   @staticmethod
   def color_select(key: str, label: str | None = None):

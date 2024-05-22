@@ -17,15 +17,12 @@ class GateFailMode(Enum):
   OPEN = "open"
 
 class GateConfigBase(BaseModel):
-  fail_mode: GateFailMode
+  fail_mode: GateFailMode = GateFailMode.OPEN
   synchronized: bool = True
   initial_control: bool = False
 
   @field_serializer("fail_mode")
   def ser_fail_mode(self, value: GateFailMode): return value.value
-
-  @staticmethod
-  def default_config(): return GateConfigBase(fail_mode=GateFailMode.OPEN)
 
 class GateConfig(GateConfigBase):
   control_topic: int
@@ -107,7 +104,7 @@ class GateTaskHost(TaskHost):
     label="gate",
     inputs=[{ "label": "input", "type": "ts", "key": "in_topic" }, { "label": "control", "type": "ts", "content": "number", "key": "control_topic" }],
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic" }],
-    default_config=GateConfigBase.default_config().model_dump(),
+    default_config=GateConfigBase().model_dump(),
     io_mirror=[("in_topic", 0)],
     editor_fields=[
       EditorFields.select(key="fail_mode", items=[ (m.value, m.value) for m in GateFailMode ]),
