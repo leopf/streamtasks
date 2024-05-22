@@ -50,6 +50,7 @@ class ContainerAudioInputConfig(ContainerAudioInputConfigBase):
 
 class InputContainerConfig(BaseModel):
   source: str
+  real_time: bool = True
   video_tracks: list[ContainerVideoInputConfig]
   audio_tracks: list[ContainerAudioInputConfig]
   container_options: dict[str, str]
@@ -72,11 +73,16 @@ class InputContainerTask(Task):
           assert all(p.rel_dts >= 0 for p in packets), "rel dts must be greater >= 0"
           for packet in packets:
             assert packet.dts is not None
-            ts = stream.convert_position(packet.dts or 0, Fraction(1, 1000))
-            if self._t0 is None: self._t0 = get_timestamp_ms() - ts
-            if DEBUG_MEDIA(): ddebug_value("in", stream._stream.type, ts)
-            await out_topic.send(MessagePackData(MediaMessage(timestamp=self._t0 + ts, packet=packet).model_dump()))
+            offset_timestamp = stream.convert_position(packet.dts or 0, Fraction(1, 1000))
+            if self._t0 is None: self._t0 = get_timestamp_ms() - offset_timestamp
+            if DEBUG_MEDIA(): ddebug_value("in", stream._stream.type, offset_timestamp)
+            timestamp = self._t0 + offset_timestamp
+            if self.config.real_time:
+              current_timestamp = get_timestamp_ms()
+              await asyncio.sleep(max(0, (timestamp - current_timestamp) / 1000))
+            await out_topic.send(MessagePackData(MediaMessage(timestamp=timestamp, packet=packet).model_dump()))
     except EOFError: pass
+
   async def run(self):
     try:
       container: InputContainer | None = None
@@ -105,6 +111,7 @@ class InputContainerTaskHost(TaskHost):
     default_config=InputContainerConfig.default_config().model_dump(),
     editor_fields=[
       EditorFields.text(key="source", label="source path or url"),
+      EditorFields.boolean("real_time"),
       EditorFields.options("container_options"),
     ]),
     **multitrackio_configurator(is_input=False, track_configs=[
