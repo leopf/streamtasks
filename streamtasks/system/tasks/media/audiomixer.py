@@ -8,6 +8,7 @@ import numpy as np
 from pydantic import BaseModel, field_validator
 from extra.debugging import ddebug_value
 from streamtasks.client.topic import InTopic, SequentialInTopicSynchronizer
+from streamtasks.env import DEBUG_MIXER
 from streamtasks.media.audio import audio_buffer_to_ndarray
 from streamtasks.media.util import AudioSequencer, list_sample_formats
 from streamtasks.net.message.data import MessagePackData
@@ -53,7 +54,6 @@ class AudioTrackContext:
 class AudioMixerTask(Task):
   def __init__(self, client: Client, config: AudioMixerConfig):
     super().__init__(client)
-    config.max_desync = 1
     if config.synchronized:
       sync = SequentialInTopicSynchronizer()
       in_topics = [ self.client.sync_in_topic(track.in_topic, sync) for track in config.audio_tracks ]
@@ -65,20 +65,16 @@ class AudioMixerTask(Task):
     self.config = config
 
   async def run(self):
-    try:
-      async with AsyncExitStack() as exit_stack:
-        await exit_stack.enter_async_context(self.out_topic)
-        await exit_stack.enter_async_context(self.out_topic.RegisterContext())
+    async with AsyncExitStack() as exit_stack:
+      await exit_stack.enter_async_context(self.out_topic)
+      await exit_stack.enter_async_context(self.out_topic.RegisterContext())
 
-        for track in self.audio_tracks:
-          await exit_stack.enter_async_context(track.topic)
-          await exit_stack.enter_async_context(track.topic.RegisterContext())
-        self.client.start()
-        await asyncio.gather(*(self.run_track(track) for track in self.audio_tracks))
-    except BaseException as e:
-      import traceback
-      print(traceback.format_exc())
-      raise e
+      for track in self.audio_tracks:
+        await exit_stack.enter_async_context(track.topic)
+        await exit_stack.enter_async_context(track.topic.RegisterContext())
+      self.client.start()
+      await asyncio.gather(*(self.run_track(track) for track in self.audio_tracks))
+
 
   async def run_track(self, track: AudioTrackContext):
     t0: None | int = None
@@ -93,11 +89,12 @@ class AudioMixerTask(Task):
           sample_count = 0
         else:
           message = TimestampChuckMessage.model_validate(data.data)
-          ddebug_value("track timestamp", id(track.sequencer), message.timestamp)
           samples = audio_buffer_to_ndarray(message.data, self.config.sample_format)[0].reshape((-1, self.config.channels))
           if t0 is None: t0 = message.timestamp - 1
           sample_count += samples.shape[0]
-          ddebug_value("track sample rate", id(track.sequencer), sample_count * 1000 / (message.timestamp - t0))
+          if DEBUG_MIXER():
+            ddebug_value("track timestamp", id(track.sequencer), message.timestamp)
+            ddebug_value("track sample rate", id(track.sequencer), sample_count * 1000 / (message.timestamp - t0))
           track.sequencer.insert(Fraction(message.timestamp, 1000), samples)
           await self.send_next()
       except ValidationError: pass
@@ -115,7 +112,7 @@ class AudioMixerTask(Task):
 
     result: np.ndarray | None = None
     for track in self.audio_tracks:
-      if track.sequencer.start_time:
+      if DEBUG_MIXER() and track.sequencer.start_time:
         ddebug_value("track start", id(track.sequencer), track.sequencer.start_time)
         ddebug_value("track duration", id(track.sequencer), track.sequencer.get_max_samples(track.sequencer.start_time))
       if track.sequencer.started:
@@ -139,6 +136,7 @@ class AudioMixerTaskHost(TaskHost):
       MediaEditorFields.sample_format(allowed_values=set(fmt for fmt in list_sample_formats() if "p" not in fmt)),
       MediaEditorFields.sample_rate(),
       MediaEditorFields.channel_count(),
+      EditorFields.number(key="max_desync", is_int=True, min_value=1, unit="ms"),
       EditorFields.boolean(key="synchronized"),
     ]
   ),

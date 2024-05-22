@@ -181,6 +181,8 @@ class TaskHost(Worker):
       status = TaskStatus.ended
     except asyncio.CancelledError: status = TaskStatus.stopped
     except BaseException as e:
+      import traceback
+      print(traceback.format_exc())
       status = TaskStatus.failed
       error_text = str(e)
 

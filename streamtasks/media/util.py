@@ -7,6 +7,7 @@ import av
 import av.codec
 import numpy as np
 from extra.debugging import ddebug_value
+from streamtasks.env import DEBUG_MIXER
 from streamtasks.utils import strip_nones_from_dict
 
 lib = ctypes.CDLL(ctypes.util.find_library("avutil"))
@@ -147,7 +148,6 @@ class AudioSequencer:
     buf_start = min(max(0, start_offset), self._sample_buffer.shape[0])
     pad_count = min(max(0, -start_offset), sample_count)
     result = np.concatenate((self._make_zeros(pad_count), self._sample_buffer[buf_start:buf_end]), axis=0)
-    ddebug_value("sequencer", id(self), (pad_count, buf_start, buf_end, self._sample_buffer.shape[0]))
     self._sample_buffer = self._sample_buffer[buf_end:]
     self._buffer_start_time += Fraction(buf_end, self._sample_rate)
     assert result.shape[0] <= sample_count, "more samples than allowed were popped"
@@ -163,15 +163,16 @@ class AudioSequencer:
       self._buffer_start_time = time
     else:
       self._desync_time += time - self.end_time
+      if DEBUG_MIXER(): ddebug_value("track desync time", id(self), float(self._desync_time))
       if abs(self._desync_time) > self._max_desync_time:
         desync_sample_count: int = round((abs(self._desync_time) - self._max_desync_time) * self._sample_rate)
-        ddebug_value("track insert desync", id(self), (float(self._desync_time), desync_sample_count))
-        # if self._desync < 0:
-        #   self._desync += round(min(desync_sample_count, samples.shape[0]) * 1000 / self._sample_rate)
-        #   samples = samples[desync_sample_count:]
-        # else:
-        #   samples = np.concatenate((self._make_zeros(desync_sample_count), samples), axis=0)
-        #   self._desync -= desync_sample_count * 1000 // self._sample_rate
+        if self._desync_time < 0:
+          self._desync_time += Fraction(min(desync_sample_count, samples.shape[0]), self._sample_rate)
+          samples = samples[desync_sample_count:]
+        else:
+          samples = np.concatenate((self._make_zeros(desync_sample_count), samples), axis=0)
+          self._desync_time -= Fraction(desync_sample_count, self._sample_rate)
+
       self._sample_buffer = np.concatenate((self._sample_buffer, samples), axis=0)
 
   def _make_zeros(self, sample_count: int) -> np.ndarray: return np.zeros((sample_count, self._sample_buffer.shape[1]), dtype=self._sample_buffer.dtype)

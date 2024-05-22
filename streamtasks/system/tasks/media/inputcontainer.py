@@ -67,6 +67,7 @@ class InputContainerTask(Task):
   async def _run_stream(self, stream: AVInputStream, out_topic_id: int):
     try:
       out_topic = self.client.out_topic(out_topic_id)
+      offset = 0
       async with out_topic, out_topic.RegisterContext():
         while True:
           packets = await stream.demux()
@@ -79,8 +80,9 @@ class InputContainerTask(Task):
             timestamp = self._t0 + offset_timestamp
             if self.config.real_time:
               current_timestamp = get_timestamp_ms()
-              await asyncio.sleep(max(0, (timestamp - current_timestamp) / 1000))
+              await asyncio.sleep(max(0, (timestamp - current_timestamp - offset) / 1000))
             await out_topic.send(MessagePackData(MediaMessage(timestamp=timestamp, packet=packet).model_dump()))
+            offset += get_timestamp_ms() - timestamp
     except EOFError: pass
 
   async def run(self):

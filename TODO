@@ -2,6 +2,8 @@
 
 - merge master
 - output container needs to be able to stop and restart based on inputs. Also: chunkung
+- audio volume scaler does not work for float sample formats
+- input container real time is shit?
 
 Frontend:
 - multitrackio disable field not working with globalIO
