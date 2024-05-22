@@ -5,6 +5,7 @@ from typing import Any
 from jsonschema import ValidationError
 import numpy as np
 from pydantic import BaseModel, field_validator
+from extra.debugging import ddebug_value
 from streamtasks.client.topic import InTopic, SequentialInTopicSynchronizer
 from streamtasks.media.audio import audio_buffer_to_ndarray
 from streamtasks.media.util import AudioSequencer, list_sample_formats
@@ -48,6 +49,7 @@ class AudioTrackContext:
 class AudioMixerTask(Task):
   def __init__(self, client: Client, config: AudioMixerConfig):
     super().__init__(client)
+    config.max_desync = 1
     if config.synchronized:
       sync = SequentialInTopicSynchronizer()
       in_topics = [ self.client.sync_in_topic(track.in_topic, sync) for track in config.audio_tracks ]
@@ -70,15 +72,23 @@ class AudioMixerTask(Task):
       await asyncio.gather(*(self.run_track(track) for track in self.audio_tracks))
 
   async def run_track(self, track: AudioTrackContext):
+    t0: None | int = None
+    sample_count: int = 0
     while True:
       try:
         data = await track.topic.recv_data_control()
         if isinstance(data, TopicControlData):
           if track.is_paused and not data.paused: track.sequencer.reset(True) # hard reset on unpause
           track.is_paused = data.paused
+          t0 = None
+          sample_count = 0
         else:
           message = TimestampChuckMessage.model_validate(data.data)
+          ddebug_value("track timestamp", id(track.sequencer), message.timestamp)
           samples = audio_buffer_to_ndarray(message.data, self.config.sample_format)[0].reshape((-1, self.config.channels))
+          if t0 is None: t0 = message.timestamp - 1
+          sample_count += samples.shape[0]
+          ddebug_value("track sample rate", id(track.sequencer), sample_count * 1000 / (message.timestamp - t0))
           track.sequencer.insert(message.timestamp, samples)
           await self.send_next()
       except ValidationError: pass
@@ -90,11 +100,15 @@ class AudioMixerTask(Task):
     start_times.sort()
 
     target_timestamps = [ t for t in start_times if t - self.config.max_desync  < start_times[0] ]
-    target_timestamp = int(sum(target_timestamps) / len(target_timestamps))
+    target_timestamp = round(sum(target_timestamps) / len(target_timestamps))
     num_sample_counts = min(track.sequencer.get_max_samples(target_timestamp) for track in self.audio_tracks if not track.is_paused)
+    if num_sample_counts <= 0: return
 
     result: np.ndarray | None = None
     for track in self.audio_tracks:
+      if track.sequencer.start_timestamp:
+        ddebug_value("track start", id(track.sequencer), track.sequencer.start_timestamp)
+        ddebug_value("track duration", id(track.sequencer), track.sequencer.get_max_samples(track.sequencer.start_timestamp))
       if track.sequencer.started:
         new_samples = track.sequencer.pop_start(target_timestamp, num_sample_counts)
         assert new_samples.shape[0] == num_sample_counts, "wrong amount of samples from sequencer!"
