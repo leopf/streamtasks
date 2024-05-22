@@ -19,6 +19,7 @@ class GateFailMode(Enum):
 class GateConfigBase(BaseModel):
   fail_mode: GateFailMode
   synchronized: bool = True
+  initial_control: bool = False
 
   @field_serializer("fail_mode")
   def ser_fail_mode(self, value: GateFailMode): return value.value
@@ -32,12 +33,12 @@ class GateConfig(GateConfigBase):
   out_topic: int
 
 class GateState(AsyncObservable):
-  def __init__(self) -> None:
+  def __init__(self, control: bool) -> None:
     super().__init__()
+    self.control: bool = control
     self.control_paused: bool = False
     self.control_errored: bool = False
     self.input_paused: bool = False
-    self.control: bool = True
 
   def get_open(self, fail_mode: GateFailMode):
     if self.input_paused or not self.control: return False
@@ -57,7 +58,7 @@ class GateTask(Task):
       self.in_topic = self.client.in_topic(config.in_topic)
       self.control_topic = self.client.in_topic(config.control_topic)
     self.out_topic = self.client.out_topic(config.out_topic)
-    self.state = GateState()
+    self.state = GateState(config.initial_control)
     self.fail_mode = config.fail_mode
 
   async def run(self):
@@ -110,6 +111,7 @@ class GateTaskHost(TaskHost):
     io_mirror=[("in_topic", 0)],
     editor_fields=[
       EditorFields.select(key="fail_mode", items=[ (m.value, m.value) for m in GateFailMode ]),
+      EditorFields.boolean(key="initial_control", label="initial control (initial state of the gate)"),
       EditorFields.boolean(key="synchronized")
     ]
   )

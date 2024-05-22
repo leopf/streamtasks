@@ -24,7 +24,7 @@ class GateSimEvent(Enum):
 class GateSim(Simulator):
   def __init__(self, fail_mode: GateFailMode) -> None:
     super().__init__()
-    self.state = GateState()
+    self.state = GateState(True)
     self.fail_mode = fail_mode
     self.expect_receive_data = False
 
@@ -72,7 +72,8 @@ class TestGate(TaskTestBase):
       in_topic=self.in_topic.topic,
       control_topic=self.gate_topic.topic,
       out_topic=self.out_topic.topic,
-      synchronized=False
+      synchronized=False,
+      initial_control=True
     ))
     self.tasks.append(asyncio.create_task(run_task(task)))
     return task

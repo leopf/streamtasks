@@ -1,12 +1,11 @@
 # MY TODOS
 
 - merge master
-- fix gate leak
 - output container needs to be able to stop and restart based on inputs. Also: chunkung
-- allow inputs changes to the same values
 
 Frontend:
 - multitrackio disable field not working with globalIO
+    - allow inputs changes to the same values   
 - free io keys in static config
 
 
