@@ -41,7 +41,6 @@ class ASRSpeechRecognitionTask(Task):
     streaming_context = model.make_streaming_context(DynChunkTrainConfig(chunk_size=self.config.chunk_size, left_context_size=self.config.left_context_size))
     chunker = AudioChunker(self.config.chunk_size * 320, _SAMPLE_RATE) # BUG: this is to prevent an assertion error in speechbrain about the chunk size
 
-    if model is None: raise FileNotFoundError("The model could not be loaded from the specified source!")
     async with self.out_topic, self.out_topic.RegisterContext(), self.in_topic, self.in_topic.RegisterContext():
       self.client.start()
       while True:
