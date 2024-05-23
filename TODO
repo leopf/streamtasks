@@ -9,13 +9,12 @@ Frontend:
 - multitrackio disable field not working with globalIO
     - allow inputs changes to the same values   
 - free io keys in static config
-
+- string concatinator sync fix (maybe gate or flow detector is broken)
 
 -----TASKS-----
 General:
 - switch
 - string matcher
-- string concatinator
 - buffer
 - replay buffer
 

@@ -59,19 +59,10 @@ class GateTask(Task):
     self.fail_mode = config.fail_mode
 
   async def run(self):
-    tasks: list[asyncio.Task] = []
-    try:
-      async with self.in_topic, self.control_topic, self.out_topic, self.in_topic.RegisterContext(), \
-              self.control_topic.RegisterContext(), self.out_topic.RegisterContext():
-
-        tasks.append(asyncio.create_task(self.run_control_recv()))
-        tasks.append(asyncio.create_task(self.run_in_recv()))
-        tasks.append(asyncio.create_task(self.run_out_pauser()))
-
-        self.client.start()
-        await asyncio.gather(*tasks)
-    finally:
-      for task in tasks: task.cancel()
+    async with self.in_topic, self.control_topic, self.out_topic, self.in_topic.RegisterContext(), \
+            self.control_topic.RegisterContext(), self.out_topic.RegisterContext():
+      self.client.start()
+      await asyncio.gather(self.run_control_recv(), self.run_in_recv(), self.run_out_pauser())
 
   async def run_control_recv(self):
     while True:
