@@ -4,6 +4,7 @@ import platform
 
 
 def NODE_NAME(): return os.getenv('NODE_NAME', platform.node())
+def DEBUG(): return int(os.getenv("DEBUG", "0"))
 def DEBUG_MEDIA(): return int(os.getenv("DEBUG_MEDIA", "0"))
 def DEBUG_MIXER(): return int(os.getenv("DEBUG_MIXER", "0"))
 def DEBUG_SER(): return int(os.getenv("DEBUG_SER", "0"))
