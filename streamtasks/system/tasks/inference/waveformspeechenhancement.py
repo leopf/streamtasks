@@ -1,9 +1,7 @@
 import asyncio
-import re
 from typing import Any
 import numpy as np
 from pydantic import BaseModel, ValidationError
-from streamtasks.env import get_data_sub_dir
 from streamtasks.media.audio import audio_buffer_to_ndarray
 from streamtasks.media.util import AudioSmoother, PaddedAudioChunker
 from streamtasks.net.message.data import MessagePackData
@@ -14,6 +12,8 @@ from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 from speechbrain.inference.enhancement import WaveformEnhancement
 import torch
+
+from streamtasks.system.tasks.inference.utils import get_model_data_dir
 
 _SAMPLE_RATE = 16000
 
@@ -64,8 +64,7 @@ class WaveformSpeechEnhancementTask(Task):
         except (ValidationError, ValueError): pass
 
   def load_model(self):
-    save_dir = get_data_sub_dir("./models/" + re.sub("[^a-z0-9\\-]", "", self.config.source))
-    return WaveformEnhancement.from_hparams(self.config.source, savedir=save_dir, run_opts={ "device":self.config.device })
+    return WaveformEnhancement.from_hparams(self.config.source, savedir=get_model_data_dir(self.config.source), run_opts={ "device":self.config.device })
 
 class WaveformSpeechEnhancementTaskHost(TaskHost):
   @property
