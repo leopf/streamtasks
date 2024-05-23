@@ -10,6 +10,7 @@ from streamtasks.client import Client
 class TextDisplayConfigBase(UIControlBaseTaskConfig):
   max_length: int = 2000
   seperator: str = ""
+  append: bool = True
 
 class TextDisplayConfig(TextDisplayConfigBase):
   in_topic: int
@@ -34,7 +35,8 @@ class TextDisplayTask(UIBaseTask[TextDisplayConfig, TextDisplayValue]):
       try:
         data = await self.in_topic.recv_data()
         message = TextMessage.model_validate(data.data)
-        new_text = self.value.value + self.config.seperator + message.value
+        if self.config.append: new_text = self.value.value + self.config.seperator + message.value
+        else: new_text = message.value
         if self.config.max_length != -1: new_text = new_text[-self.config.max_length:]
         self.value = TextDisplayValue(value=new_text)
       except ValidationError: pass
@@ -47,6 +49,7 @@ class TextDisplayTaskHost(TaskHost):
     default_config=TextDisplayConfigBase().model_dump(),
     editor_fields=[
       EditorFields.number(key="max_length", label="max text length (-1 for unlimited)", is_int=True, min_value=-1, unit="chars"),
+      EditorFields.boolean(key="append", label="append incoming messages"),
       EditorFields.text(key="seperator"),
     ]
   )
