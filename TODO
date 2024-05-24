@@ -33,8 +33,6 @@ MEDIA:
 - sip input
 
 ML:
-- llama.cpp
-- TTS
 - VAD
 
 -----SOON-----

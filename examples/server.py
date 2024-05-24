@@ -1,11 +1,8 @@
-import argparse
 import logging
-import os
-
 logging.basicConfig(level=logging.INFO)
-os.environ["DATA_DIR"] = ".data"
 
 import asyncio
+import argparse
 from streamtasks.connection import NodeServer
 from streamtasks.asgi import HTTPServerOverASGI
 from streamtasks.client import Client

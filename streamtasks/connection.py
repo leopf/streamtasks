@@ -63,14 +63,12 @@ class RawStreamConnection(RawConnection):
   def close(self): self._writer.close()
 
   async def send(self, data: bytes):
-    try:
-      return await super().send(data)
+    try: return await super().send(data)
     except (EOFError, ConnectionError, BrokenPipeError) as e:
       raise ConnectionClosedError(str(e))
 
   async def recv(self):
-    try:
-      return await super().recv()
+    try: return await super().recv()
     except (EOFError, ConnectionError, BrokenPipeError, asyncio.IncompleteReadError) as e:
       raise ConnectionClosedError(str(e))
 

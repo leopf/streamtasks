@@ -1,11 +1,8 @@
 import logging
-import os
+logging.basicConfig(level=logging.INFO)
 
 from streamtasks.asgi import HTTPServerOverASGI
 from streamtasks.system.connection_manager import ConnectionManager
-logging.basicConfig(level=logging.INFO)
-os.environ["DATA_DIR"] = ".data"
-
 import functools
 import asyncio
 from streamtasks.client import Client
