@@ -33,16 +33,9 @@
             isLive: true,
             url: wsUrl
         })
-        player.on("STATISTICS_INFO", (e) => {
-            console.log(e);
-            return
-            player.destroy();
-            document.getElementById("videoElement").remove();
-        });
         player.attachMediaElement(document.getElementById("videoElement"));
         player.load();
         player.play();
-        console.log("DONE PLAYING")
     </script>
 </body>
 </html>

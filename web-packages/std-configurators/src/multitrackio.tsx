@@ -100,9 +100,7 @@ type TrackDescription = {
 
 abstract class MultiTrackConfigurator extends StaticCLSConfigurator {
     protected get trackConfigs() {
-        const r = parseMetadataField(this.taskHost.metadata, "cfg:trackconfigs", TrackConfigsModel, true);
-        console.log(r)
-        return r;
+        return parseMetadataField(this.taskHost.metadata, "cfg:trackconfigs", TrackConfigsModel, true);
     }
 
     public rrenderEditor(onUpdate: () => void): ReactNode {

@@ -91,7 +91,6 @@ export const NodeEditor = observer(() => {
         const centerTimeoutHdl = setTimeout(() => nodeRenderer.viewport.panToCenter(), 500);
         const disposers = [
             observe(deployment.tasks, (a) => {
-                console.log(a);
                 if (a.type === "delete" || a.type === "update") {
                     nodeRenderer.deleteNode(a.oldValue.id);
                 }
