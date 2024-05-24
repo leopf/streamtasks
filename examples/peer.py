@@ -1,5 +1,5 @@
 import logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 from streamtasks.asgi import HTTPServerOverASGI
 from streamtasks.system.connection_manager import ConnectionManager

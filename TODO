@@ -19,7 +19,6 @@ General:
 - replay buffer
 
 IO:
-- video viewer
 - keyboard input
 
 MEDIA:

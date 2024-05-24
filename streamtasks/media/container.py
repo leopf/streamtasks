@@ -1,6 +1,7 @@
 import dataclasses
 from fractions import Fraction
 import functools
+from typing import BinaryIO
 import av.container
 import av.stream
 import av
@@ -182,8 +183,8 @@ class OutputContainer:
     return AVOutputStream(self._ctx, time_base, stream)
 
   @staticmethod
-  async def open(url_or_path: str, **kwargs):
+  async def open(file: str | BinaryIO, **kwargs):
     loop = asyncio.get_running_loop()
-    container: av.OutputContainer = await loop.run_in_executor(None, functools.partial(av.open, url_or_path, "w", **kwargs))
+    container: av.OutputContainer = await loop.run_in_executor(None, functools.partial(av.open, file, "w", **kwargs))
     container.flags |= av.container.Flags.NOBUFFER
     return OutputContainer(container)
