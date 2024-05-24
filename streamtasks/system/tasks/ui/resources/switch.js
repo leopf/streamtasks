@@ -1,3 +1,4 @@
+import "@material/web/switch/switch.js";
 import { html } from "lit-html";
 
 export function renderUI(value, config, setValue) {

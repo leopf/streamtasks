@@ -1,3 +1,4 @@
+import "@material/web/radio/radio.js";
 import { html } from "lit-html";
 
 export function renderUI(value, config, setValue) {
