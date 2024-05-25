@@ -30,11 +30,9 @@ class AudioMixerConfigBase(BaseModel):
   sample_format: IOTypes.SampleFormat = "s16"
   rate: IOTypes.SampleRate = 32000
   channels: IOTypes.Channels = 1
-  max_desync: int = 100
+  buffer_keep_size: int = 0
+  max_stretch_ratio: float = 1.1
   synchronized: bool = True
-
-  @property
-  def max_desync_time(self): return Fraction(self.max_desync, 1000)
 
   @field_validator("sample_format")
   @classmethod
@@ -67,7 +65,7 @@ class AudioMixerTask(Task):
     else:
       in_topics = [ self.client.in_topic(track.in_topic) for track in config.audio_tracks ]
 
-    self.audio_tracks = [ AudioTrackContext(topic=in_topic, sequencer=AudioSequencer(config.rate, config.max_desync_time), is_paused=False) for in_topic in in_topics ]
+    self.audio_tracks = [ AudioTrackContext(topic=in_topic, sequencer=AudioSequencer(config.rate, config.max_stretch_ratio, config.buffer_keep_size), is_paused=False) for in_topic in in_topics ]
     self.out_topic = self.client.out_topic(config.out_topic)
     self.config = config
 
@@ -110,10 +108,7 @@ class AudioMixerTask(Task):
     if any(True for track in self.audio_tracks if not track.is_paused and not track.sequencer.started): return # not ready yet
     start_times = [track.sequencer.start_time for track in self.audio_tracks if not track.is_paused]
     if len(start_times) == 0: return
-    start_times.sort()
-
-    target_times = [ t for t in start_times if t - self.config.max_desync_time  < start_times[0] ]
-    target_time = sum(target_times) / len(target_times)
+    target_time = min(start_times)
     num_sample_counts = min(track.sequencer.get_max_samples(target_time) for track in self.audio_tracks if not track.is_paused)
     if num_sample_counts <= 0: return
 
@@ -143,7 +138,8 @@ class AudioMixerTaskHost(TaskHost):
       MediaEditorFields.sample_format(allowed_values=set(fmt for fmt in list_sample_formats() if "p" not in fmt)),
       MediaEditorFields.sample_rate(),
       MediaEditorFields.channel_count(),
-      EditorFields.number(key="max_desync", is_int=True, min_value=1, unit="ms"),
+      EditorFields.slider(key="max_stretch_ratio", min_value=1, max_value=2),
+      EditorFields.number(key="buffer_keep_size", is_int=True, min_value=0, unit="samples"),
       EditorFields.boolean(key="synchronized"),
     ]
   ),

@@ -38,23 +38,7 @@ export function renderUI(value, config) {
     if (chart !== undefined) {
         chart.data.datasets[0] = dataset;
         chart.update()
-        console.log("update!")
     }
 
-
     return html`<div style="width:100vw; height:100vh;"><canvas ${ref(chartCanvasRef)}></canvas></div>`;
-
-    return html`<canvas ${ref(el => {
-        setTimeout(() => {
-            console.log(el.getBoundingClientRect(), chart)
-
-            if (chart == undefined) {
-
-            }
-            else {
-
-            }
-        }, 100);
-
-    })}></canvas>`;
 }

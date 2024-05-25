@@ -118,12 +118,14 @@ class AudioSmoother:
     return buf
 
 class AudioSequencer:
-  def __init__(self, sample_rate: int, max_desync_time: Fraction) -> None:
+  def __init__(self, sample_rate: int, max_stretch_ratio: float, keep_buffer_size: int) -> None:
     self._sample_rate = sample_rate
-    self._max_desync_time = max_desync_time
     self._desync_time = Fraction(0)
     self._buffer_start_time: Fraction | None = None
     self._sample_buffer: np.ndarray | None = None
+    self._keep_buffer_size = keep_buffer_size
+    assert max_stretch_ratio >= 1
+    self._max_stretch_ratio = max_stretch_ratio
 
   @property
   def start_time(self): return self._buffer_start_time
@@ -140,7 +142,7 @@ class AudioSequencer:
       self._buffer_start_time = None
       self._desync_time = Fraction(0)
 
-  def get_max_samples(self, time: Fraction) -> int: return self._sample_buffer.shape[0] - self._get_start_sample_offset(time)
+  def get_max_samples(self, time: Fraction) -> int: return max(0, self._sample_buffer.shape[0] - self._get_start_sample_offset(time) - self._keep_buffer_size)
   def pop_start(self, time: Fraction, sample_count: int) -> np.ndarray:
     if self._sample_buffer is None or self._buffer_start_time is None: return self._make_zeros(sample_count)
     start_offset = self._get_start_sample_offset(time)
@@ -158,22 +160,42 @@ class AudioSequencer:
     assert len(samples.shape) == 2, "expected samples to be in shape (time, channels)"
     assert self._sample_buffer is None or self._sample_buffer.dtype == samples.dtype
     assert self._sample_buffer is None or self._sample_buffer.shape[1] == samples.shape[1]
+
     if self._buffer_start_time is None or self._sample_buffer is None:
       self._sample_buffer = samples
       self._buffer_start_time = time
     else:
       self._desync_time += time - self.end_time
+      next_sample_count = self._sample_buffer.shape[0] + samples.shape[0]
+      desync_sample_count: int = round(abs(self._desync_time) * self._sample_rate)
       if DEBUG_MIXER(): ddebug_value("track desync time", id(self), float(self._desync_time))
-      if abs(self._desync_time) > self._max_desync_time:
-        desync_sample_count: int = round((abs(self._desync_time) - self._max_desync_time) * self._sample_rate)
+      if desync_sample_count > 0:
         if self._desync_time < 0:
+          new_buf_length = self._sample_buffer.shape[0] + samples.shape[0] - desync_sample_count
+          if new_buf_length > 0 and next_sample_count / new_buf_length < self._max_stretch_ratio:
+            self._sample_buffer = np.concatenate((self._sample_buffer, samples), axis=0)
+            self._strech_sample_buffer(new_buf_length)
+          else:
+            self._sample_buffer = np.concatenate((self._sample_buffer, samples[desync_sample_count:]), axis=0)
           self._desync_time += Fraction(min(desync_sample_count, samples.shape[0]), self._sample_rate)
-          samples = samples[desync_sample_count:]
         else:
-          samples = np.concatenate((self._make_zeros(desync_sample_count), samples), axis=0)
+          new_buf_length = self._sample_buffer.shape[0] + desync_sample_count + samples.shape[0]
+          if next_sample_count != 0 and new_buf_length / next_sample_count < self._max_stretch_ratio:
+            self._sample_buffer = np.concatenate((self._sample_buffer, samples), axis=0)
+            self._strech_sample_buffer(new_buf_length)
+          else:
+            self._sample_buffer = np.concatenate((self._sample_buffer, self._make_zeros(desync_sample_count), samples), axis=0)
           self._desync_time -= Fraction(desync_sample_count, self._sample_rate)
+      else: self._sample_buffer = np.concatenate((self._sample_buffer, samples), axis=0)
 
-      self._sample_buffer = np.concatenate((self._sample_buffer, samples), axis=0)
 
+  def _strech_sample_buffer(self, new_length: int):
+    assert len(self._sample_buffer.shape) == 2
+    original_indices = np.linspace(0, self._sample_buffer.shape[0] - 1, num=self._sample_buffer.shape[0])
+    new_indices = np.linspace(0, self._sample_buffer.shape[0] - 1, num=new_length)
+    out_array = np.empty_like(self._sample_buffer, shape=(new_length, self._sample_buffer.shape[1]))
+    for i in range(self._sample_buffer.shape[1]):
+      out_array[:, i] = np.interp(new_indices, original_indices, self._sample_buffer[:, i])
+    self._sample_buffer = out_array
   def _make_zeros(self, sample_count: int) -> np.ndarray: return np.zeros((sample_count, self._sample_buffer.shape[1]), dtype=self._sample_buffer.dtype)
   def _get_start_sample_offset(self, time: Fraction) -> int: return int((time - self._buffer_start_time) * self._sample_rate)
