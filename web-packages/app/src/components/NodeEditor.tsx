@@ -136,10 +136,11 @@ export const NodeEditor = observer(() => {
             </Box>
             <Snackbar
                 open={!!connectFailureInfo}
+                ContentProps={{ sx: theme => ({ color: theme.palette.text.primary, bgcolor: theme.palette.background.paper }) }}
                 autoHideDuration={6000}
                 onClose={() => setConnectFailureInfo(undefined)}
                 message={`Failed to connect! Mismatch on the fields ${connectFailureMismatchedFields.map(k => `"${ioFieldNameToLabel(k)}"`).join(", ")}.${connectFailureInfo?.errorText ? ` Error: ${connectFailureInfo.errorText}` : ""}`}
-                action={(<Button color="secondary" size="small" onClick={() => setConnectFailureInfo(undefined)}>close</Button>)}
+                action={(<Button size="small" onClick={() => setConnectFailureInfo(undefined)}>close</Button>)}
                 />
             <Dialog open={isDeleting && !deployment.running} onClose={() => setDeleting(false)}>
                 <DialogTitle>delete task</DialogTitle>
