@@ -35,7 +35,7 @@ export function LabelEditor(props: { task: ManagedTask }) {
         }} />;
     }
     else {
-        return <TextField fullWidth inputProps={{ style: { fontSize: "0.85rem" } }} value={props.task.label} size="small"
+        return <TextField fullWidth inputProps={{ style: { fontSize: "0.85rem", lineHeight: 1, padding: "unset" } }} value={props.task.label} size="small"
             onInput={e => props.task.label = (e.target as HTMLInputElement).value}
             onClick={() => editorClickedRef.current = true}
             onKeyDown={e => e.key === "Enter" && setEditing(false)} variant="standard" />;

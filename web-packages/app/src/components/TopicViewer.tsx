@@ -93,8 +93,8 @@ function TopicBitmapViewer(props: { message: ParsedTopicMessage }) {
     return (
         <Box>
             <Stack padding={1} spacing={1} direction="row">
-                <TextField size="small" value={aspectRatioText} error={!aspectRatioIsValid} onInput={e => setAspectRatioText((e.target as HTMLInputElement).value)} label="aspect ratio" />
-                <FormControl>
+                <TextField size="small" value={aspectRatioText} error={!aspectRatioIsValid} onInput={e => setAspectRatioText((e.target as HTMLInputElement).value)} label="aspect ratio" variant="filled" />
+                <FormControl variant="filled">
                     <InputLabel htmlFor="bm_display_color_format">color format</InputLabel>
                     <Select
                         id="bm_display_color_format"

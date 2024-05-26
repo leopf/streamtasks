@@ -8,7 +8,7 @@ export interface Node {
     id: string;
     label: string;
     host: string | undefined;
-    outlineColor?: string;
+    statusColor?: string;
     position: { x: number, y: number };
     outputs: OutputConnection[];
     inputs: InputConnection[];

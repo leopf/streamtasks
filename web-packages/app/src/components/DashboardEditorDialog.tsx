@@ -35,7 +35,7 @@ export const DashboardEditorDialog = observer(() => {
                     required
                     label="Label"
                     fullWidth
-                    variant="standard"
+                    variant="filled"
                 />
             </DialogContent>
             <DialogActions>

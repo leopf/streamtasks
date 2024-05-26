@@ -21,6 +21,7 @@ export function renderUI(value, config) {
             type: 'line',
             options: {
                 animation: false,
+                maintainAspectRatio: false,
                 scales: {
                     y: {
                         type: 'linear',

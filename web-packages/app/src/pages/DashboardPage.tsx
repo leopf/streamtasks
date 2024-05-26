@@ -54,8 +54,8 @@ const DashboardEditor = observer((props: { dashboard: Dashboard, deployment: Dep
     return (
         <Stack width="100%" height="100%" direction="row">
             {state.menuOpen && (
-                <Box flex={1} bgcolor="#fff" sx={{ overflowY: "auto", direction: "rtl", borderRight: "1px solid #cfcfcf" }}>
-                    <Box sx={{ direction: "ltr" }}>
+                <Box flex={1} bgcolor={theme => theme.palette.background.paper} sx={{ overflowY: "auto", direction: "rtl" }}>
+                    <Box sx={{ direction: "ltr" }} color={theme => theme.palette.text.primary}>
                         <Typography sx={{ ml: 2, mt: 2, mb: 2 }} variant="h6">
                             Tasks
                         </Typography>
@@ -170,7 +170,6 @@ export const DashboardPage = observer(() => {
     return (
         <PageLayout headerContent={(
             <>
-                <Divider color="inherit" orientation="vertical" sx={{ marginX: 3, height: "1rem", borderColor: "#fff" }} />
                 <Typography marginRight={1}>{state.dashboard.label}</Typography>
                 <IconButton color="inherit" size="small" onClick={() => rootStore.uiControl.editDashboard(state.dashboard!)}><EditIcon fontSize="inherit" /></IconButton>
             </>

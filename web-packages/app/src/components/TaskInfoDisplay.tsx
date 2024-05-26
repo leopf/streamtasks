@@ -35,7 +35,7 @@ export function TaskInfoDisplay(props: { task: ManagedTask, updateCounter: numbe
                                 <TableBody>
                                     {taskHostInfo.map(row => (
                                         <TableRow key={row[0]}>
-                                            <TableCell valign="top"><Typography fontSize="0.8rem" fontWeight="bold">{row[0]}</Typography></TableCell>
+                                            <TableCell valign="top"><Typography fontSize="0.8rem" fontWeight="600">{row[0]}</Typography></TableCell>
                                             <TableCell><Typography fontSize="0.8rem">{row[1]}</Typography></TableCell>
                                         </TableRow>
                                     ))}

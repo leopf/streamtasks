@@ -2,10 +2,11 @@ import { ReactNode, useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";
 import objectPath from "object-path";
-import { Accordion, AccordionDetails, AccordionSummary, Box, Stack, Typography } from "@mui/material";
+import { Accordion, AccordionDetails, AccordionSummary, Box, Stack, ThemeProvider, Typography } from "@mui/material";
 import { ExpandMore as ExpandMoreIcon } from "@mui/icons-material";
 import urlJoin from "url-join";
 import { Metadata, parseMetadataField, TaskPartialInputModel, MetadataModel, Task, TaskInstance, TaskDisplayOptions, TaskInstanceStatus, StaticEditor, EditorField, TaskCLSConfigurator, TaskCLSReactRendererMixin, TaskConfiguratorContext, getObjectDiffPaths, compareIOIgnorePaths, extractObjectPathValues, GraphSetter, TaskPartialInput, TaskInput, createCLSConfigurator, EditorFieldsModel, getFieldValidator } from "@streamtasks/core";
+import { theme } from "@streamtasks/core";
 
 const IOMirrorDataModel = z.array(z.tuple([z.string(), z.number().int()]));
 type IOMirrorData = z.infer<typeof IOMirrorDataModel>;
@@ -34,7 +35,7 @@ function TaskDisplay(props: { task: Task, taskInstance: TaskInstance, editorFiel
     }, [frontendUrl]);
 
     return (
-        <Stack direction="column" spacing={3} height="100%" width="100%">
+        <Stack direction="column" spacing={3} height="100%" width="100%" color={theme => theme.palette.text.primary}>
             {props.options.context !== "dashboard" && (
                 <Accordion expanded={configExpanded} onChange={() => setConfigExpanded(pv => !pv)}>
                     <AccordionSummary expandIcon={<ExpandMoreIcon />}>
@@ -46,7 +47,7 @@ function TaskDisplay(props: { task: Task, taskInstance: TaskInstance, editorFiel
                 </Accordion>
             )}
             {frontendUrl && (
-                <Box flex={1}>
+                <Box flex={1} color={theme => theme.palette.text.primary}>
                     <iframe src={frontendUrl} width="100%" height="100%" style={{ display: "block", border: "none" }} />
                 </Box>
             )}
@@ -78,14 +79,22 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
         if (!this.taskInstance) {
             return;
         }
-        return <TaskDisplay editorFields={this.editorFields} task={this.task} taskInstance={this.taskInstance} options={options} />
+        return (
+            <ThemeProvider theme={theme}>
+                <TaskDisplay editorFields={this.editorFields} task={this.task} taskInstance={this.taskInstance} options={options} />
+            </ThemeProvider>
+        )
     }
     public rrenderEditor(onUpdate: () => void): ReactNode {
         const cs = this.getGraph();
-        return <StaticEditor data={this.config} fields={this.editorFields} onUpdated={() => {
-            this.applyConfig(true);
-            onUpdate();
-        }} disabledFields={cs.getDisabledFields("config", true)} />
+        return (
+            <ThemeProvider theme={theme}>
+                <StaticEditor data={this.config} fields={this.editorFields} onUpdated={() => {
+                    this.applyConfig(true);
+                    onUpdate();
+                }} disabledFields={cs.getDisabledFields("config", true)} />
+            </ThemeProvider>
+        )
     }
     public connect(key: string, output?: (Record<string, string | number | boolean | undefined> & { topic_id: number; }) | undefined): void | Promise<void> {
         const [input, inputIndex] = this.getInput(key, true);

@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { Box, IconButton, Stack, Typography } from "@mui/material";
+import { Box, IconButton, Stack, ThemeProvider, Typography } from "@mui/material";
 import { Add as AddIcon, Delete as DeleteIcon } from "@mui/icons-material";
 import cloneDeep from "clone-deep";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { StaticCLSConfigurator } from "./static";
 import { v4 as uuidv4 } from "uuid";
-import { MetadataModel, StaticEditor, parseMetadataField, GraphSetter, createCLSConfigurator, EditorField, EditorFieldModel, getFieldValidator } from "@streamtasks/core";
+import { MetadataModel, StaticEditor, parseMetadataField, GraphSetter, createCLSConfigurator, EditorField, EditorFieldModel, getFieldValidator, theme } from "@streamtasks/core";
 
 const TrackConfigModel = z.object({
     key: z.string(),
@@ -30,7 +30,7 @@ function TrackList(props: {
 }) {
     const allFields = useMemo(() => new Set(props.config.editorFields.map(f => f.key)), [props.config]);
     const [updateHandle, setUpdate] = useState(0);
-    const tracks: TrackMetadata[]  = props.data[`${props.config.key}_tracks`] ?? [];
+    const tracks: TrackMetadata[] = props.data[`${props.config.key}_tracks`] ?? [];
     const setTracks = (tracks: TrackMetadata[]) => {
         props.data[`${props.config.key}_tracks`] = tracks;
         setUpdate(pv => pv + 1);
@@ -105,11 +105,13 @@ abstract class MultiTrackConfigurator extends StaticCLSConfigurator {
 
     public rrenderEditor(onUpdate: () => void): ReactNode {
         return (
-            <MultiTrackEditor disabledTracks={new Set(this.inputs.filter(i => i.topic_id !== undefined).map(i => i.key))} data={this.config} fields={this.editorFields} trackConfigs={this.trackConfigs} onUpdated={() => {
-                this.beforeUpdate();
-                this.applyConfig(true);
-                onUpdate();
-            }} />
+            <ThemeProvider theme={theme}>
+                <MultiTrackEditor disabledTracks={new Set(this.inputs.filter(i => i.topic_id !== undefined).map(i => i.key))} data={this.config} fields={this.editorFields} trackConfigs={this.trackConfigs} onUpdated={() => {
+                    this.beforeUpdate();
+                    this.applyConfig(true);
+                    onUpdate();
+                }} />
+            </ThemeProvider>
         )
     }
 
@@ -165,7 +167,7 @@ class MultiTrackInputConfigurator extends MultiTrackConfigurator {
                 if (!Object.values(track.config.ioMap).includes("label")) {
                     input.label = `${track.config.label ?? track.config.key} ${track.index + 1}`;
                 }
-            } catch {}
+            } catch { }
         }
 
         this.trackInputKeys = tracks.map(t => t.data._key);
@@ -209,7 +211,7 @@ class MultiTrackOutputConfigurator extends MultiTrackConfigurator {
 
         const trackKeys = new Set(tracks.map(d => d.data._key));
 
-        const deleteOutputsTopicIds = new Set([...trackOutputMap.entries()].filter(([ key, _ ]) => !trackKeys.has(key)).map(([_, topic_id]) => topic_id));
+        const deleteOutputsTopicIds = new Set([...trackOutputMap.entries()].filter(([key, _]) => !trackKeys.has(key)).map(([_, topic_id]) => topic_id));
         this.outputs = this.outputs.filter(o => !deleteOutputsTopicIds.has(o.topic_id));
         Array.from(trackOutputMap.keys()).filter(key => !trackKeys.has(key)).forEach(key => trackOutputMap.delete(key)); // delete from map
 
@@ -229,7 +231,7 @@ class MultiTrackOutputConfigurator extends MultiTrackConfigurator {
                     const output = this.getOutput(out_topic, false);
                     output.label = `${track.config.label ?? track.config.key} ${track.index + 1}`;
                 }
-            } catch {}
+            } catch { }
         }
 
         this.trackOutputMap = Object.fromEntries(trackOutputMap.entries());

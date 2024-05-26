@@ -3,11 +3,13 @@ import { Connection, Node, InputConnection, OutputConnection } from "./types";
 import EventEmitter from 'eventemitter3';
 import { HTMLViewport } from '../html-viewport';
 import { Point, addPoints, pointDistance, scalarToPoint, subPoints } from '../point';
+import Color from "color";
 
 const streamCircleRadiusRem = 0.5;
-const outlineColor = "#333";
-const outlineWidth = 2;
-const selectedNodeFillColor = "#f0f6ff";
+const nodeColor = "#000";
+const connectionColor = "#888";
+const outlineWidth = 1;
+const selectedNodeFillColor = "#444";
 
 const connectionColorSamples = [
     "#6528F7",
@@ -57,7 +59,10 @@ export class NodeRenderer {
         return this.editor?.selectedNode === this;
     }
     private get fillColor() {
-        return this.isSelected ? selectedNodeFillColor : "#ffffff";
+        const baseColor = Color(nodeColor);
+        const statusColor = Color(this.node.statusColor ?? nodeColor);
+        const selectedColor = Color(this.isSelected ? selectedNodeFillColor : "#000")
+        return baseColor.mix(statusColor.mix(selectedColor), 0.4).hex();
     }
 
     public get inputs() {
@@ -84,6 +89,7 @@ export class NodeRenderer {
         this.group.style.letterSpacing = "1px";
         this.group.style.position = "absolute";
         this.group.style.width = "min-content";
+        this.group.style.color = "#ddd";
         this.group.addEventListener('pointerdown', () => this.editor?.onPressNode(this.id));
 
         this.editor?.viewport.host.appendChild(this.group);
@@ -123,17 +129,15 @@ export class NodeRenderer {
 
         const containerRect = document.createElement("div");
         containerRect.style.position = "relative";
-        containerRect.style.border = `${outlineWidth}px solid ${this.node.outlineColor ?? outlineColor}`
         containerRect.style.backgroundColor = this.fillColor;
         containerRect.style.borderRadius = `${streamCircleRadiusRem}rem`;
-        containerRect.style.boxSizing = "border-box";
+
         this.group.appendChild(containerRect);
 
+
         const nodeLabel = document.createElement("div");
-        nodeLabel.innerText = this.node.label;
-        nodeLabel.style.fontFamily = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+        nodeLabel.innerText = this.fixLabel(this.node.label);
         nodeLabel.style.fontSize = "1rem";
-        nodeLabel.style.color = "#000";
         nodeLabel.style.whiteSpace = "nowrap";
         nodeLabel.style.width = "100%";
         nodeLabel.style.textAlign = "center";
@@ -202,6 +206,26 @@ export class NodeRenderer {
         }
     }
 
+    private fixLabel(label: string) {
+        const maxLabelLen = 20;
+        const parts = label.split(" ");
+        const submittedParts: string[] = [];
+        let lengthSinceBreak = 0;
+        for (const part of parts) {
+            if (lengthSinceBreak !== 0 && lengthSinceBreak + part.length > maxLabelLen) {
+                submittedParts.push("\n");
+                lengthSinceBreak = 0;
+            }
+            if (lengthSinceBreak !== 0) {
+                submittedParts.push(" ");
+                lengthSinceBreak += 1;
+            }
+            submittedParts.push(part);
+            lengthSinceBreak += part.length;
+        }
+        return submittedParts.join("");
+    }
+
     private calculateConnectionCirclePosition(element: HTMLElement) {
         const pos: Point = { x: element.offsetWidth / 2, y: element.offsetHeight / 2 };
         let currentElement: HTMLElement | null = element;
@@ -222,7 +246,6 @@ export class NodeRenderer {
         const element = document.createElement("div");
         element.style.fontFamily = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
         element.style.fontSize = "0.9rem";
-        element.style.color = "#000";
         element.style.whiteSpace = "nowrap";
         element.innerText = label;
         return element;
@@ -234,8 +257,7 @@ export class NodeRenderer {
         element.style.height = `${streamCircleRadiusRem * 2}rem`
         element.style.boxSizing = "border-box";
         element.style.cursor = "pointer";
-        element.style.border = `${outlineWidth}px solid ${this.node.outlineColor ?? outlineColor}`
-        element.style.backgroundColor = getStreamColor(connection);
+        element.style.backgroundImage = `radial-gradient(${getStreamColor(connection)}, ${this.fillColor})`;
 
         element.addEventListener('pointerdown', async () => {
             await this.editor?.onSelectStartConnection(connection.id)
@@ -355,6 +377,7 @@ export class NodeEditorRenderer extends EventEmitter<{
 
         this.viewport = new HTMLViewport();
         this.viewport.host.appendChild(this.connectionLayer);
+        this.viewport.host.style.color = "#fff";
 
         this.viewport.container.addEventListener("pointermove", (e) => {
             if (!this.nodePressActive || !this.selectedNodeId || this._readOnly) return;
@@ -704,7 +727,7 @@ export class NodeEditorRenderer extends EventEmitter<{
 
         const cp1 = { x: a.x - cpXOffset * cpXOffsetScale, y: a.y + cpYOffset * cpYOffsetScale };
         const cp2 = { x: b.x + cpXOffset * cpXOffsetScale, y: b.y - cpYOffset * cpYOffsetScale };
-        element.innerHTML = `<path d="M ${a.x},${a.y} C ${cp1.x},${cp1.y} ${cp2.x},${cp2.y} ${b.x},${b.y}" ${dashed ? `stroke-dasharray="4"` : ""} style="fill:none; stroke:${outlineColor}; stroke-width:${outlineWidth}px;" />`;
+        element.innerHTML = `<path d="M ${a.x},${a.y} C ${cp1.x},${cp1.y} ${cp2.x},${cp2.y} ${b.x},${b.y}" ${dashed ? `stroke-dasharray="4"` : ""} style="fill:none; stroke:${connectionColor}; stroke-width:${outlineWidth}px;" />`;
 
         const position = subPoints(minPos, hPaddingVec);
         element.style.left = `${position.x}px`;

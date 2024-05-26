@@ -25,7 +25,7 @@ export const TaskTemplateItem = observer((props: { taskHost: ParsedTaskHost }) =
             e.dataTransfer.setData("task_host", JSON.stringify(dragData));
             e.dataTransfer.setDragImage(containerRef.current, dragData.ox, dragData.oy);
         }}>
-            <Stack direction="column" alignItems="center" spacing={2}>
+            <Stack direction="column" alignItems="center" spacing={2} color={theme => theme.palette.text.primary}>
                 <Stack paddingX={3} direction="column" alignItems="center">
                     <Box ref={containerRef} />
                 </Stack>

@@ -10,10 +10,13 @@ const ctx = await esbuild.context({
     minify: true,
     format: "esm"
 })
+
 await ctx.rebuild()
 if (process.argv.at(-1) === "--watch") {
     console.log("watching...")
     await ctx.watch()
 }
+else {
+    await ctx.dispose()
+}
 
-await ctx.dispose()

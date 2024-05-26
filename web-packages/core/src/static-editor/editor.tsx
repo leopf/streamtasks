@@ -17,6 +17,7 @@ function TextFieldEditor(props: { config: STextField, data: Record<string, any>,
         <TextField
             size="small"
             fullWidth
+            variant="filled"
             disabled={props.disabled}
             value={value}
             onInput={e => setValue((e.target as HTMLInputElement).value)}
@@ -60,13 +61,14 @@ function NumberFieldEditor(props: { config: NumberField, data: Record<string, an
                 size="small"
                 fullWidth
                 disabled={props.disabled}
+                variant="filled"
                 value={value}
                 onInput={e => setValue((e.target as HTMLInputElement).value)}
                 label={props.config.label}
                 helperText={error}
                 error={!!error} />
             {!!props.config.unit && (
-                <Typography position="absolute" display="block" right="1rem" top="50%" sx={{ transform: "translate(0, -50%)" }}>{props.config.unit}</Typography>
+                <Typography position="absolute" color={theme => theme.palette.text.primary} display="block" right="1rem" top="50%" sx={{ transform: "translate(0, -50%)" }}>{props.config.unit}</Typography>
             )}
         </Box>
     )
@@ -101,7 +103,7 @@ function SliderFieldEditor(props: { config: SliderField, data: Record<string, an
 
     return (
         <Box>
-            <Typography color="GrayText" fontSize="0.8rem">{props.config.label} ({Math.round(value * 10000) / 10000})</Typography>
+            <Typography color={theme => theme.palette.text.primary} fontSize="0.8rem">{props.config.label} ({Math.round(value * 10000) / 10000})</Typography>
             <Slider
                 disabled={props.disabled}
                 valueLabelDisplay="auto"
@@ -121,7 +123,7 @@ function SliderFieldEditor(props: { config: SliderField, data: Record<string, an
 
 function SelectFieldEditor(props: { config: SelectField, data: Record<string, any>, onUpdated: () => void, disabled?: boolean }) {
     return (
-        <FormControl fullWidth>
+        <FormControl fullWidth variant="filled">
             <InputLabel htmlFor={`select-field-${props.config.key}`}>{props.config.label}</InputLabel>
             <Select
                 id={`select-field-${props.config.key}`}
@@ -155,13 +157,13 @@ function KVOptionsFieldEditor(props: { config: KVOptionsField, data: Record<stri
     }, [record])
 
     return (
-        <Stack spacing={0.25}>
-            <Typography color="GrayText">{props.config.label}</Typography>
+        <Stack spacing={0.25} color={theme => theme.palette.text.primary}>
+            <Typography>{props.config.label}</Typography>
             <Grid container rowSpacing={1} columns={props.disabled ? 11 : 12}>
                 {items.map(item => (
                     <React.Fragment key={item[0]}>
                         <Grid item xs={5}>
-                            <TextField fullWidth size="small" value={item[0]} label="key" disabled />
+                            <TextField variant="filled" fullWidth size="small" value={item[0]} label="key" disabled />
                         </Grid>
                         <Grid item xs={1}>
                             <Stack alignItems="center" justifyContent="center" height="100%">
@@ -169,7 +171,7 @@ function KVOptionsFieldEditor(props: { config: KVOptionsField, data: Record<stri
                             </Stack>
                         </Grid>
                         <Grid item xs={5}>
-                            <TextField fullWidth size="small" value={item[1]} label="key" disabled />
+                            <TextField variant="filled" fullWidth size="small" value={item[1]} label="key" disabled />
                         </Grid>
                         {!props.disabled && (
                             <Grid item xs={1} paddingX={1}>
@@ -180,10 +182,10 @@ function KVOptionsFieldEditor(props: { config: KVOptionsField, data: Record<stri
                         )}
                     </React.Fragment>
                 ))}
-                {!props.disabled && (
+                {(!props.disabled || items.length == 0) && (
                     <>
                         <Grid item xs={5}>
-                            <TextField fullWidth size="small" value={newItemKey} label="key" onInput={e => setNewItemKey((e.target as HTMLInputElement).value)} />
+                            <TextField variant="filled" fullWidth size="small" value={newItemKey} label="key" onInput={e => setNewItemKey((e.target as HTMLInputElement).value)} disabled={props.disabled} />
                         </Grid>
                         <Grid item xs={1}>
                             <Stack alignItems="center" justifyContent="center" height="100%">
@@ -191,19 +193,22 @@ function KVOptionsFieldEditor(props: { config: KVOptionsField, data: Record<stri
                             </Stack>
                         </Grid>
                         <Grid item xs={5}>
-                            <TextField fullWidth size="small" value={newItemValue} label="key" onInput={e => setNewItemValue((e.target as HTMLInputElement).value)} />
+                            <TextField variant="filled" fullWidth size="small" value={newItemValue} label="value" onInput={e => setNewItemValue((e.target as HTMLInputElement).value)} disabled={props.disabled} />
                         </Grid>
-                        <Grid item xs={1} paddingX={1}>
-                            <IconButton onClick={() => {
-                                if (!props.disabled) {
-                                    setRecord(pv => ({ ...pv, [newItemKey]: newItemValue }));
-                                    setNewItemKey("");
-                                    setNewItemValue("");
-                                }
-                            }}>
-                                <AddIcon />
-                            </IconButton>
-                        </Grid>
+                        {!props.disabled && (
+
+                            <Grid item xs={1} paddingX={1}>
+                                <IconButton onClick={() => {
+                                    if (!props.disabled) {
+                                        setRecord(pv => ({ ...pv, [newItemKey]: newItemValue }));
+                                        setNewItemKey("");
+                                        setNewItemValue("");
+                                    }
+                                }} disabled={props.disabled}>
+                                    <AddIcon />
+                                </IconButton>
+                            </Grid>
+                        )}
                     </>
                 )}
             </Grid>
@@ -222,7 +227,7 @@ function BooleanFieldEditor(props: { config: BooleanField, data: Record<string, 
                     props.data[props.config.key] = e.target.checked;
                     props.onUpdated();
                 }} />
-        )} label={props.config.label} />
+        )} label={<Typography color={theme => theme.palette.text.primary}>{props.config.label}</Typography>} />
     );
 }
 

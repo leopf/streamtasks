@@ -5,13 +5,11 @@ export function NodeOverlayTile(props: React.PropsWithChildren<{ header?: React.
     return (
         <Stack
             boxSizing="border-box"
-            bgcolor="#fff"
-            // boxShadow="0 0 10px rgba(0,0,0,0.1)"
-            border="1px solid #cfcfcf"
+            bgcolor={theme => theme.palette.background.paper}
             width="100%"
             height="100%"
             borderRadius={1}>
-            <Box borderBottom="1px solid #cfcfcf" paddingX={1} paddingY={0.75}>{props.header}</Box>
+            <Box paddingX={1} paddingY={0.75} color={theme => theme.palette.text.primary}>{props.header}</Box>
             <Stack flex={1} overflow="auto" direction={"column"}>{props.children}</Stack>
         </Stack>
     );

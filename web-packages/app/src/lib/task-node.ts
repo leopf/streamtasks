@@ -33,7 +33,7 @@ export class TaskNode extends EventEmitter<{ "updated": [] }> implements Node {
         return this.task.parsedTaskHost.nodeName;
     }
 
-    public get outlineColor() {
+    public get statusColor() {
         let status: GeneralStatus = "ok";
         if (this.task.taskHost.metadata["js:configurator"] === "std:notfound") {
             status = "error";

@@ -38,7 +38,7 @@ export const DeploymentEditorDialog = observer(() => {
                     required
                     label="Label"
                     fullWidth
-                    variant="standard"
+                    variant="filled"
                 />
             </DialogContent>
             <DialogActions>

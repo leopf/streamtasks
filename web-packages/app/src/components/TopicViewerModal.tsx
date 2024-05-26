@@ -11,7 +11,7 @@ export const TopicViewerModal = observer(() => {
 
     return (
         <Modal open={!!rootStore.uiControl.selectedTopic} onClose={close}>
-            <Stack position="fixed" top="5%" left="5%" width="90%" height="90%" bgcolor="#fff">
+            <Stack position="fixed" top="5%" left="5%" width="90%" height="90%" bgcolor={theme => theme.palette.background.paper} sx={{ backgroundImage: "linear-gradient(rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.16))" }} color={theme => theme.palette.text.primary}>
                 <Stack direction="row" alignItems="center" paddingLeft={2}>
                     <Box flex={1} />
                     <IconButton onClick={close}>

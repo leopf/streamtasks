@@ -30,7 +30,7 @@ function UrlEditorDialog(props: { title: string, isOpen: boolean, label: string,
                     required
                     label={props.label}
                     fullWidth
-                    variant="standard"
+                    variant="filled"
                 />
             </DialogContent>
             <DialogActions>
@@ -103,7 +103,7 @@ export function ConnectionManager(props: { pathRegistration: PathRegistrationFro
                     <Box paddingY={10}>
                         <Typography variant="h2" gutterBottom>{props.pathRegistration.frontend.label}</Typography>
                         <Typography variant="h3" gutterBottom marginTop={5}>connections</Typography>
-                        <Grid container spacing={2} columns={{ sm: 4, md: 8 }}>
+                        <Grid container spacing={2} columns={{ xs: 4, sm: 8, md: 12 }}>
                             {connections.map(connection => (
                                 <Grid item xs={4}>
                                     <Card sx={{ minWidth: 275 }} key={connection.id}>
@@ -131,7 +131,7 @@ export function ConnectionManager(props: { pathRegistration: PathRegistrationFro
                             ))}
                         </Grid>
                         <Typography variant="h3" gutterBottom marginTop={5}>servers</Typography>
-                        <Grid container spacing={2} columns={{ sm: 4, md: 8 }}>
+                        <Grid container spacing={2} columns={{ xs: 4, sm: 8, md: 12 }}>
                             {servers.map(server => (
                                 <Grid item xs={4}>
                                     <Card sx={{ minWidth: 275 }} key={server.id}>

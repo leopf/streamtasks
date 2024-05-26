@@ -6,6 +6,7 @@ import { DeploymentManager } from "../../state/deployment-manager";
 import { DashboardWindow } from "../../types/dashboard";
 
 const resizeElementSize = 3;
+const borderSize = 2;
 const windowHeaderHeight = 20;
 const headerFontSize = windowHeaderHeight - 8;
 const headerHSpacing = windowHeaderHeight / 4;
@@ -44,17 +45,17 @@ export class WindowRenderer extends EventEmitter<{
         this.task = task;
         this.element = document.createElement("div");
         this.element.style.position = "absolute";
-        this.element.style.backgroundColor = task ? "#9DA8FF" : "red";
+        this.element.style.backgroundColor = task ? "#000" : "rgb(126, 35, 35)";
         this.element.style.zIndex = String(viewport.host.childElementCount + 10);
         this.element.style.borderRadius = "5px";
 
         this.contentEl = document.createElement("div");
         this.contentEl.style.position = "absolute";
         this.contentEl.style.top = (resizeElementSize + windowHeaderHeight) + "px";
-        this.contentEl.style.bottom = resizeElementSize + "px";
-        this.contentEl.style.left = resizeElementSize + "px";
-        this.contentEl.style.right = resizeElementSize + "px";
-        this.contentEl.style.backgroundColor = "#fff";
+        this.contentEl.style.bottom = borderSize + "px";
+        this.contentEl.style.left = borderSize + "px";
+        this.contentEl.style.right = borderSize + "px";
+        this.contentEl.style.backgroundColor = "#2a2a2a";
         this.contentEl.style.overflow = "hidden";
         this.contentEl.style.padding = "0.5rem";
 
@@ -77,8 +78,7 @@ export class WindowRenderer extends EventEmitter<{
         this.labelEl.style.marginLeft = headerHSpacing + "px";
         this.labelEl.style.fontSize = headerFontSize + "px";
         this.labelEl.style.lineHeight = headerFontSize + "px";
-        this.labelEl.style.fontWeight = "400";
-        this.labelEl.style.letterSpacing = "1px";
+        // this.labelEl.style.letterSpacing = "1px";
         this.labelEl.style.fontWeight = "bold";
         this.labelEl.style.color = "white";
         headerEl.appendChild(this.labelEl);
@@ -223,7 +223,7 @@ export class WindowRenderer extends EventEmitter<{
             }
             else {
                 this.contentEl.innerHTML = `<div style="display: flex; align-items: center; justify-content: center;width: 100%; height: 100%;">
-                    <div style="font-size: 1.5rem; font-weight: bold; color: #888;">not running!</div>
+                    <div style="font-size: 1.5rem; font-weight: 600; color: #888;">not running!</div>
                 </div>`;
             }
         }

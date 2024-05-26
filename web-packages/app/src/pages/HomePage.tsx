@@ -15,9 +15,9 @@ export const HomePage = observer(() => {
                 <Container>
                     <Box paddingY={10}>
                         <Typography variant="h2" gutterBottom>Deployments</Typography>
-                        <Grid container spacing={2}>
+                        <Grid container spacing={2} columns={{ xs: 4, sm: 8, md: 12 }}>
                             {rootStore.deployment.deployments.map(d => (
-                                <Grid item key={d.id} xs={3}>
+                                <Grid item key={d.id} xs={4}>
                                     <NodeOverlayTile header={(
                                         <Stack direction="row">
                                             <Box flex={1} />

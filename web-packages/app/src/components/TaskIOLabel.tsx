@@ -24,7 +24,7 @@ export function TaskIOLabel(props: { io: Metadata, alignRight?: true, allowOpen?
             </Stack>
         )}>
             <Stack spacing={1} direction={props.alignRight ? "row-reverse" : "row"} alignItems="center">
-                <Box border="1px solid black" bgcolor={color} borderRadius="100%" height="0.7rem" width="0.7rem" />
+                <Box bgcolor={color} borderRadius="100%" height="0.8rem" width="0.8rem" />
                 <Typography fontSize="0.9rem">{label}</Typography>
                 {props.allowOpen && (
                     <IconButton size="small" onClick={props.onOpen}><LaunchIcon fontSize="inherit"/></IconButton>

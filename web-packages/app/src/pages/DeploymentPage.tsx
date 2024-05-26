@@ -56,14 +56,13 @@ export const DeploymentPage = observer(() => {
     return (
         <PageLayout headerContent={(
             <>
-                <Divider color="inherit" orientation="vertical" sx={{ marginX: 3, height: "1rem", borderColor: "#fff" }} />
                 <Typography marginRight={1}>{state.deployment.label}</Typography>
                 <IconButton color="inherit" size="small" onClick={() => rootStore.uiControl.editingDeployment = state.deployment?.deployment}><EditIcon fontSize="inherit" /></IconButton>
                 <Box flex={1} />
                 {state.deployment.running ? (
                     <>
                         <Stack spacing={0.5} direction="row" marginRight={2}>
-                            {Object.entries({}).filter(([_, v]) => v).map(([k, v]) => <StatusBadge key={k} status={k as any} text={String(v)} round />)}
+                            {Object.entries({}).filter(([_, v]) => v).map(([k, v]) => <StatusBadge key={k} status={k as any} text={String(v)} />)}
                         </Stack>
                         <Button color="inherit" startIcon={<Stop />} variant="text" onClick={() => state.deployment?.stop()}>Stop</Button>
                     </>
@@ -75,7 +74,7 @@ export const DeploymentPage = observer(() => {
             <DeploymentContext.Provider value={state.deployment}>
                 <Box width="100%" height="100%" position="relative">
                     <Box width={"100%"} height={"100%"} position="absolute"><NodeEditor /></Box>
-                    <Box height={"100%"} sx={theme => ({ [theme.breakpoints.up("xl")]: { width: "15%" }, [theme.breakpoints.down("xl")]: { width: "20%" }, [theme.breakpoints.down("md")]: { width: "25%" } })} position="absolute">
+                    <Box height={"100%"} width="min-content" position="absolute">
                         <TaskSelectionMenu />
                     </Box>
                 </Box>

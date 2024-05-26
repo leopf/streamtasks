@@ -31,7 +31,7 @@ const DeploymentListItem = observer((props: { deployment: Deployment }) => {
                 </IconButton>
             )}>
                 <ListItemButton component={Link} to={`/deployment/${props.deployment.id}`}>
-                    <ListItemText primary={props.deployment.label} primaryTypographyProps={{ sx: { fontWeight: params.id == props.deployment.id ? "bold" : "400" } }} />
+                    <ListItemText primary={props.deployment.label} primaryTypographyProps={{ sx: { fontWeight: params.id == props.deployment.id ? "600" : "400" } }} />
                 </ListItemButton>
             </ListItem>
             <Collapse in={state.isExpanded} timeout="auto" unmountOnExit>
@@ -80,7 +80,7 @@ export const Header = observer((props: React.PropsWithChildren<{}>) => {
                     >
                         <MenuIcon />
                     </IconButton>
-                    <Typography variant="h6" component="div">
+                    <Typography variant="h6" component="div" sx={{ textTransform: "unset" }} marginRight={6}>
                         streamtasks
                     </Typography>
                     {props.children}

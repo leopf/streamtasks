@@ -3,6 +3,7 @@
 
 - merge master
 - output container needs to be able to stop and restart based on inputs. Also: chunkung
+- video viewer restructuring and solve pausing issue
 - audio volume scaler does not work for float sample formats
 
 Frontend:
@@ -10,6 +11,7 @@ Frontend:
     - allow inputs changes to the same values   
 - free io keys in static config
 - string concatinator sync fix (maybe gate or flow detector is broken)
+
 
 -----TASKS-----
 General:
