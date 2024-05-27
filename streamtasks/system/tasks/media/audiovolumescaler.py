@@ -13,6 +13,12 @@ from streamtasks.system.configurators import EditorFields, IOTypes, static_confi
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 
+def get_dtype_min_max(dtype: np.dtype):
+  if np.issubdtype(dtype, np.integer):
+    info = np.iinfo(dtype)
+    return info.min, info.max
+  else: return (-1, 1)
+
 class AudioVolumeScalerConfigBase(BaseModel):
   sample_format: IOTypes.SampleFormat = "s16"
   rate: IOTypes.SampleRate = 32000
@@ -56,7 +62,7 @@ class AudioVolumeScalerTask(Task):
 
   async def run_in_audio(self):
     samples_dtype = sample_format_to_dtype(self.config.sample_format)
-    samples_dtype_info = np.iinfo(samples_dtype)
+    samples_dtype_min_max = get_dtype_min_max(samples_dtype)
     while True:
       try:
         data = await self.in_topic.recv_data_control()
@@ -64,7 +70,7 @@ class AudioVolumeScalerTask(Task):
         else:
           message = TimestampChuckMessage.model_validate(data.data)
           samples = audio_buffer_to_samples(message.data, sample_format=self.config.sample_format, channels=self.config.channels)
-          samples = np.clip(samples * self.scale, samples_dtype_info.min, samples_dtype_info.max).astype(samples_dtype)
+          samples = np.clip(samples * self.scale, samples_dtype_min_max[0], samples_dtype_min_max[1]).astype(samples_dtype)
           await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=message.timestamp, data=samples.tobytes("C")).model_dump()))
       except (ValidationError, ValueError): pass
 
