@@ -39,7 +39,7 @@ class TimestampUpdaterTask(Task):
             data = data.copy()
             set_timestamp_on_message(data, ref_time + self.offset)
             await self.out_topic.send(data)
-          except:
+          except (ValueError, KeyError):
             if not self.fail_closed: await self.out_topic.send(data)
 
 class TimestampUpdaterTaskHost(TaskHost):

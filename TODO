@@ -16,10 +16,8 @@ Frontend:
 -----TASKS-----
 General:
 - switch
-- string matcher
 - buffer
 - replay buffer
-- flip flop (sr)
 
 IO:
 - keyboard input
