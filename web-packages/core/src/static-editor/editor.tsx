@@ -18,6 +18,7 @@ function TextFieldEditor(props: { config: STextField, data: Record<string, any>,
             size="small"
             fullWidth
             variant="filled"
+            multiline={props.config.multiline}
             disabled={props.disabled}
             value={value}
             onInput={e => setValue((e.target as HTMLInputElement).value)}

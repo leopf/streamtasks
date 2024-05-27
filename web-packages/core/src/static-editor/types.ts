@@ -4,6 +4,7 @@ export const TextFieldModel = z.object({
     type: z.literal("text"),
     label: z.string(),
     key: z.string(),
+    multiline: z.boolean().optional()
 });
 export const NumberFieldModel = z.object({
     type: z.literal("number"),

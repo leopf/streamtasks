@@ -14,6 +14,7 @@ from llama_cpp import ChatCompletionRequestMessage, Llama
 class LLamaCppChatConfigBase(BaseModel):
   model_path: str = ""
   use_gpu: bool = False
+  context_length: int = 512
   max_tokens: int = 0
   system_message: str = ""
 
@@ -47,11 +48,11 @@ class LLamaCppChatTask(Task):
             if len(result["choices"]) > 0:
               amessage = result["choices"][0]["message"]
               messages.append(amessage)
+              print(result)
               await self.out_topic.send(MessagePackData(TextMessage(timestamp=message.timestamp, value=amessage["content"]).model_dump()))
-
         except (ValidationError, ValueError): pass
 
-  def load_model(self): return Llama(model_path=self.config.model_path, n_gpu_layers=-1 if self.config.use_gpu else 0, verbose=bool(DEBUG()))
+  def load_model(self): return Llama(model_path=self.config.model_path, n_gpu_layers=-1 if self.config.use_gpu else 0, verbose=bool(DEBUG()), n_ctx=self.config.context_length)
 
 class LLamaCppChatTaskHost(TaskHost):
   @property
@@ -62,7 +63,8 @@ class LLamaCppChatTaskHost(TaskHost):
     default_config=LLamaCppChatConfigBase().model_dump(),
     editor_fields=[
       EditorFields.text(key="model_path"),
-      EditorFields.text(key="system_message"),
+      EditorFields.multiline_text(key="system_message"),
+      EditorFields.integer(key="context_length", min_value=0),
       EditorFields.integer(key="max_tokens", min_value=0),
       EditorFields.boolean(key="use_gpu"),
     ]

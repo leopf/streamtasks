@@ -110,8 +110,11 @@ class EditorFields:
     return strip_nones_from_dict({ "type": "select", "key": key, "label": label or key_to_label(key), "items": [ { "value": value, "label": label } for value, label in items ] })
 
   @staticmethod
-  def text(key: str, label: str | None = None):
-    return strip_nones_from_dict({ "type": "text", "key": key, "label": label or key_to_label(key) })
+  def text(key: str, label: str | None = None, multiline: bool | None = None):
+    return strip_nones_from_dict({ "type": "text", "key": key, "label": label or key_to_label(key), "multiline": multiline })
+
+  @staticmethod
+  def multiline_text(key: str, label: str | None = None): return EditorFields.text(key=key, label=label, multiline=True)
 
   @staticmethod
   def number(key: str, label: str | None = None, min_value: float | int | None = None, max_value: float | int | None = None, unit: str | None = None, is_int: bool | None = None):
