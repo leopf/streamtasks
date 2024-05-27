@@ -70,7 +70,7 @@ class ASRSpeechRecognitionTaskHost(TaskHost):
       EditorFields.text(key="source", label="source (path or model name)"),
       EditorFields.text(key="device"),
       EditorFields.select(key="chunk_size", items=[ (v, str(v)) for v in [ 8, 12, 16, 24, 32 ] ]),
-      EditorFields.number(key="left_context_size", min_value=1, max_value=32, is_int=True, unit="chunks")
+      EditorFields.integer(key="left_context_size", min_value=1, max_value=32, unit="chunks")
     ]
   )
   async def create_task(self, config: Any, topic_space_id: int | None):

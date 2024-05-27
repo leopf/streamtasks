@@ -63,7 +63,7 @@ class LLamaCppChatTaskHost(TaskHost):
     editor_fields=[
       EditorFields.text(key="model_path"),
       EditorFields.text(key="system_message"),
-      EditorFields.number(key="max_tokens", is_int=True, min_value=0),
+      EditorFields.integer(key="max_tokens", min_value=0),
       EditorFields.boolean(key="use_gpu"),
     ]
   )

@@ -66,7 +66,7 @@ class AudioInputTaskHost(TaskHost):
       MediaEditorFields.sample_format(allowed_values=set(SAMPLE_FORMAT_2_PA_TYPE.keys())),
       MediaEditorFields.channel_count(),
       MediaEditorFields.sample_rate(),
-      EditorFields.number(key="input_id", label="id/index of the input device (-1 to automatically select)", min_value=-1, is_int=True),
+      EditorFields.integer(key="input_id", label="id/index of the input device (-1 to automatically select)", min_value=-1),
       MediaEditorFields.audio_buffer_size()
     ]
   )

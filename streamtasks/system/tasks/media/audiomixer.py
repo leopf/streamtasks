@@ -132,7 +132,7 @@ class AudioMixerTaskHost(TaskHost):
       MediaEditorFields.sample_rate(),
       MediaEditorFields.channel_count(),
       EditorFields.slider(key="max_stretch_ratio", min_value=1, max_value=2),
-      EditorFields.number(key="buffer_keep_size", is_int=True, min_value=0, unit="samples"),
+      EditorFields.integer(key="buffer_keep_size", min_value=0, unit="samples"),
       EditorFields.boolean(key="synchronized"),
     ]
   ),

@@ -60,7 +60,7 @@ class AudioFrequencyDisplayTaskHost(TaskHost):
     editor_fields=[
       MediaEditorFields.sample_format(),
       MediaEditorFields.sample_rate(),
-      EditorFields.number(key="bin_size", is_int=True, min_value=1)
+      EditorFields.integer(key="bin_size", min_value=1)
     ]
   )
   async def create_task(self, config: Any, topic_space_id: int | None):

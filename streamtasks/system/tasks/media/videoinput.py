@@ -85,7 +85,7 @@ class VideoInputTaskHost(TaskHost):
     default_config=VideoInputConfigBase.default_config().model_dump(),
     config_to_output_map=[ { v: v for v in [ "rate", "pixel_format", "width", "height" ] } ],
     editor_fields=[
-      EditorFields.number(key="camera_id", is_int=True, min_value=0),
+      EditorFields.integer(key="camera_id", min_value=0),
       MediaEditorFields.pixel_format(allowed_values=set(VideoInputTask._COLOR_FORMAT2CV_MAP.keys())),
       MediaEditorFields.pixel_size("width"),
       MediaEditorFields.pixel_size("height"),

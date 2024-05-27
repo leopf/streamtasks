@@ -70,7 +70,7 @@ def _pydantic_schema_to_editor_fields(schema: dict):
     field_name = field["name"]
     field_type_name = _pydantic_type_from_schema(field)
     if field_type_name == "int": fields.append(EditorFields.number(field_name, is_int=True))
-    if field_type_name == "float": fields.append(EditorFields.number(field_name, is_int=False))
+    if field_type_name == "float": fields.append(EditorFields.number(field_name))
     if field_type_name == "bool": fields.append(EditorFields.boolean(field_name))
     if field_type_name == "str": fields.append(EditorFields.text(field_name))
   return fields

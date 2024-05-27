@@ -48,7 +48,7 @@ class TextDisplayTaskHost(TaskHost):
     inputs=[{ "label": "value", "key": "in_topic", "type": "ts", "content": "text" }],
     default_config=TextDisplayConfigBase().model_dump(),
     editor_fields=[
-      EditorFields.number(key="max_length", label="max text length (-1 for unlimited)", is_int=True, min_value=-1, unit="chars"),
+      EditorFields.integer(key="max_length", label="max text length (-1 for unlimited)", min_value=-1, unit="chars"),
       EditorFields.boolean(key="append", label="append incoming messages"),
       EditorFields.text(key="seperator"),
     ]

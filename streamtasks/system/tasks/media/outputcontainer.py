@@ -162,7 +162,7 @@ class OutputContainerTaskHost(TaskHost):
       default_config=OutputContainerConfig().model_dump(),
       editor_fields=[
         EditorFields.text(key="destination", label="destination path or url"),
-        EditorFields.number(key="max_desync", label="maximum desynchronization", is_int=True, min_value=0, unit="ms"),
+        EditorFields.integer(key="max_desync", label="maximum desynchronization", min_value=0, unit="ms"),
         EditorFields.options("container_options"),
     ]),
     **multitrackio_configurator(is_input=True, track_configs=[

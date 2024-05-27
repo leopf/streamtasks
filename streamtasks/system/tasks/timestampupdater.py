@@ -52,7 +52,7 @@ class TimestampUpdaterTaskHost(TaskHost):
     io_mirror=[("in_topic", 0)],
     editor_fields=[
       EditorFields.select(key="time_reference", items=[("time", "time"), ("message", "message")]),
-      EditorFields.number(key="time_offset", label="time offset from reference", is_int=True, unit="ms"),
+      EditorFields.integer(key="time_offset", label="time offset from reference", unit="ms"),
       EditorFields.boolean(key="fail_closed"),
     ]
   )

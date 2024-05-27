@@ -118,6 +118,10 @@ class EditorFields:
     return strip_nones_from_dict({ "type": "number", "key": key, "label": label or key_to_label(key), "min": min_value, "max": max_value, "unit": unit, "integer": is_int == True })
 
   @staticmethod
+  def integer(key: str, label: str | None = None, min_value: int | None = None, max_value: int | None = None, unit: str | None = None):
+    return EditorFields.number(key=key, label=label, min_value=min_value, max_value=max_value, unit=unit, is_int=True)
+
+  @staticmethod
   def slider(key: str, min_value: float | int, max_value: float | int, label: str | None = None, pow: float = 1):
     return strip_nones_from_dict({ "type": "slider", "key": key, "label": label or key_to_label(key), "min": min_value, "max": max_value, "pow": pow })
 

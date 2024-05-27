@@ -18,18 +18,18 @@ class MediaEditorFields:
     return MediaEditorFields.codec_name(mode=mode, key=key, codec_type="audio", label=label)
 
   def pixel_size(key: str, label: str | None = None):
-    return EditorFields.number(key=key, label=label, is_int=True, min_value=0, unit="px")
+    return EditorFields.integer(key=key, label=label, min_value=0, unit="px")
 
-  def rate(unit: str, key: str = "rate", label: str | None = None):
-    return EditorFields.number(key=key, label=label, unit=unit, is_int=True, min_value=0)
+  def rate(unit: str, key: str = "rate", label: str | None = None, is_int: bool = False):
+    return EditorFields.number(key=key, label=label, unit=unit, min_value=0, is_int=is_int)
 
   def channel_count(key: str = "channels", label: str | None = None):
-    return EditorFields.number(key=key, label=label, is_int=True, min_value=1, max_value=16)
+    return EditorFields.integer(key=key, label=label, min_value=1, max_value=16)
 
   def sample_format(key: str = "sample_format", label: str | None = None, allowed_values: set[str] | None = None):
     return EditorFields.select(key=key, label=label,
       items=[ (sample_fmt, sample_fmt.upper()) for sample_fmt in list_sample_formats() if allowed_values is None or sample_fmt in allowed_values ])
 
-  def frame_rate(key: str = "rate", label: str = "frame rate"): return MediaEditorFields.rate("fps", key, label)
-  def sample_rate(key: str = "rate", label: str = "sample rate"): return MediaEditorFields.rate("hz", key, label)
-  def audio_buffer_size(key: str = "buffer_size", label: str = "audio buffer size"): return EditorFields.number(key=key, label=label, min_value=1, is_int=True)
+  def frame_rate(key: str = "rate", label: str = "frame rate"): return MediaEditorFields.rate("fps", key, label, is_int=False)
+  def sample_rate(key: str = "rate", label: str = "sample rate"): return MediaEditorFields.rate("hz", key, label, is_int=True)
+  def audio_buffer_size(key: str = "buffer_size", label: str = "audio buffer size"): return EditorFields.integer(key=key, label=label, min_value=1)

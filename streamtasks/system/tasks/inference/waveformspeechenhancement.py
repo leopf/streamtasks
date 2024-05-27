@@ -76,7 +76,7 @@ class WaveformSpeechEnhancementTaskHost(TaskHost):
     editor_fields=[
       EditorFields.text(key="source", label="source (path or model name)"),
       EditorFields.text(key="device"),
-      EditorFields.number(key="buffer_duration", is_int=True, unit="ms")
+      EditorFields.integer(key="buffer_duration", unit="ms")
     ]
   )
   async def create_task(self, config: Any, topic_space_id: int | None):
