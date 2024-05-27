@@ -1,7 +1,7 @@
 
 from typing import Any
 from pydantic import BaseModel, ValidationError, field_serializer
-from streamtasks.client.topic import SequentialInTopicSynchronizer
+from streamtasks.client.topic import PrioritizedSequentialInTopicSynchronizer
 from streamtasks.system.configurators import EditorFields, static_configurator
 from streamtasks.utils import AsyncObservable
 from streamtasks.net.message.structures import NumberMessage
@@ -48,7 +48,10 @@ class GateTask(Task):
   def __init__(self, client: Client, config: GateConfig):
     super().__init__(client)
     if config.synchronized:
-      sync = SequentialInTopicSynchronizer()
+      sync = PrioritizedSequentialInTopicSynchronizer()
+      # make sure control is received before in data is (if timestamps match)
+      sync.set_priority(config.control_topic, 1)
+      sync.set_priority(config.in_topic, 0)
       self.in_topic = self.client.sync_in_topic(config.in_topic, sync)
       self.control_topic = self.client.sync_in_topic(config.control_topic, sync)
     else:

@@ -1,18 +1,17 @@
 # MY TODOS
 - move heavy workloads to executor
+- video viewer solve pausing issue
 
-- merge master
 - output container needs to be able to stop and restart based on inputs. Also: chunkung
-- video viewer restructuring and solve pausing issue
 - audio volume scaler does not work for float sample formats
 - llama context length fix
 
 Frontend:
 - multitrackio disable field not working with globalIO
     - allow inputs changes to the same values   
-- free io keys in static config
 - string concatinator sync fix (maybe gate or flow detector is broken)
 
+- merge master
 
 -----TASKS-----
 General:
@@ -43,6 +42,7 @@ Testing:
 Infra:
 - secret manager
 - topic id efficient broadcasting server (optimization)
+- video viewer restructuring, move the websocket stream closer to the task web backend
 
 Frontend:
 - list raw task instances

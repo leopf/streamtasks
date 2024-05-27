@@ -48,7 +48,6 @@ class LLamaCppChatTask(Task):
             if len(result["choices"]) > 0:
               amessage = result["choices"][0]["message"]
               messages.append(amessage)
-              print(result)
               await self.out_topic.send(MessagePackData(TextMessage(timestamp=message.timestamp, value=amessage["content"]).model_dump()))
         except (ValidationError, ValueError): pass
 

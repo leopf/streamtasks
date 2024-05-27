@@ -36,7 +36,11 @@ class FlowDetectorState(AsyncObservable):
     self.input_paused = False
     self.timed_out = False
 
-  def get_signal(self):
+  @property
+  def output_paused(self): return self.input_paused or self.timed_out
+
+  @property
+  def signal(self):
     if self.input_paused or self.timed_out: return False
     if self.last_message_invalid:
       if self.fail_mode == FlowDetectorFailMode.CLOSED: return False
@@ -85,7 +89,8 @@ class FlowDetectorTask(Task):
 
   async def run_updater(self):
     while True:
-      await self.signal_topic.send(MessagePackData(NumberMessage(timestamp=self.time_sync.time, value=float(self.state.get_signal())).model_dump()))
+      await self.out_topic.set_paused(self.state.output_paused)
+      await self.signal_topic.send(MessagePackData(NumberMessage(timestamp=self.time_sync.time, value=float(self.state.signal)).model_dump()))
       try: await asyncio.wait_for(self.state.wait_change(), timeout=self.config.repeat_interval or None)
       except asyncio.TimeoutError: pass
 

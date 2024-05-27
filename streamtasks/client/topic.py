@@ -117,6 +117,7 @@ class InTopicSynchronizer:
   async def wait_for(self, topic_id: int, timestamp: int) -> bool: pass
   @abstractmethod
   async def set_paused(self, topic_id: int, paused: bool): pass
+  def start_receive(self, topic_id: int): pass
 
 class SequentialInTopicSynchronizer(InTopicSynchronizer):
   def __init__(self) -> None:
@@ -130,17 +131,43 @@ class SequentialInTopicSynchronizer(InTopicSynchronizer):
   async def wait_for(self, topic_id: int, timestamp: int) -> bool:
     if timestamp < self._topic_timestamps.get(topic_id, 0): return False # NOTE: drop the past
     self._set_topic_timestamp(topic_id, timestamp)
-    while self.min_timestamp < timestamp: await self._timestamp_trigger.wait()
+    while self._is_waiting(topic_id, timestamp): await self._timestamp_trigger.wait()
     return True
 
   async def set_paused(self, topic_id: int, paused: bool):
     if paused: self._set_topic_timestamp(topic_id, None)
     else: self._set_topic_timestamp(topic_id, self.min_timestamp)
 
+  def _is_waiting(self, topic_id: int, timestamp: int): return self.min_timestamp < timestamp
   def _set_topic_timestamp(self, topic_id: int, timestamp: int | None):
     if timestamp is None: self._topic_timestamps.pop(topic_id, None)
     else: self._topic_timestamps[topic_id] = timestamp
     self._timestamp_trigger.trigger()
+
+class PrioritizedSequentialInTopicSynchronizer(SequentialInTopicSynchronizer):
+  def __init__(self) -> None:
+    super().__init__()
+    self._topic_priorities: dict[int, int] = {}
+    self._done_topics = set()
+
+  async def wait_for(self, topic_id: int, timestamp: int) -> bool:
+    if topic_id is self._done_topics: self._done_topics.remove(topic_id)
+    return await super().wait_for(topic_id, timestamp)
+
+  def start_receive(self, topic_id: int):
+    self._done_topics.add(topic_id)
+    self._timestamp_trigger.trigger()
+    return super().start_receive(topic_id)
+
+  def set_priority(self, topic_id: int, priority: int):
+    self._topic_priorities[topic_id] = priority
+
+  def _is_waiting(self, topic_id: int, timestamp: int):
+    min_timestamp = self.min_timestamp
+    if min_timestamp < timestamp: return True
+    if len(self._topic_priorities) == 0: return False
+    priority = self._topic_priorities.get(topic_id, 0)
+    return any(True for tid, timestamp in self._topic_timestamps.items() if tid != topic_id and timestamp == min_timestamp and tid not in self._done_topics and self._topic_priorities.get(tid, 0) > priority)
 
 class _SynchronizedInTopicReceiver(_InTopicReceiver):
   def __init__(self, client: 'Client', topic: int, sync: InTopicSynchronizer):
@@ -149,6 +176,7 @@ class _SynchronizedInTopicReceiver(_InTopicReceiver):
 
   async def get(self):
     while True:
+      self._sync.start_receive(self._topic)
       action, data = await super().get()
       if action == _InTopicAction.SET_CONTROL:
         assert isinstance(data, TopicControlData)
