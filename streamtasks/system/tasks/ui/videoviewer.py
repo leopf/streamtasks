@@ -60,7 +60,7 @@ class VideoViewerTask(Task):
       in_topic = self.client.in_topic(self.config.in_topic)
       async with in_topic, in_topic.RegisterContext():
         buffer = BytesIO()
-        container = await OutputContainer.open(buffer, format="flv")
+        container = await OutputContainer.open(buffer, format="mpegts")
         video_stream = container.add_video_stream(VideoCodecInfo(self.config.width, self.config.height, self.config.rate, self.config.pixel_format, "h264"))
         receive_disconnect_task = asyncio.create_task(ctx.receive_disconnect())
 

@@ -36,7 +36,7 @@ class ScreenCaptureTask(Task):
   async def run(self):
     try:
       loop = asyncio.get_running_loop()
-      grapper_fut = loop.run_in_executor(None, self._run_input_recorder)
+      grapper_fut = loop.run_in_executor(None, self._run_input_recorder, loop)
       async with self.out_topic, self.out_topic.RegisterContext():
         self.client.start()
         while not grapper_fut.done():
@@ -46,7 +46,7 @@ class ScreenCaptureTask(Task):
       self.mp_close_event.set()
       await grapper_fut
 
-  def _run_input_recorder(self):
+  def _run_input_recorder(self, loop: asyncio.BaseEventLoop):
     frame_count = 0
     start_time = time.time()
     frame_time = 1.0 / self.config.rate
@@ -55,7 +55,7 @@ class ScreenCaptureTask(Task):
         wait_dur = ((frame_count + 1) * frame_time + start_time) - time.time()
         if wait_dur > 0: time.sleep(wait_dur)
         img = sct.grab((self.config.left_offset, self.config.top_offset, self.config.width, self.config.height))
-        self.message_queue.put_nowait(TimestampChuckMessage(timestamp=get_timestamp_ms(), data=img.bgra))
+        loop.call_soon_threadsafe(self.message_queue.put_nowait, TimestampChuckMessage(timestamp=get_timestamp_ms(), data=img.bgra))
         frame_count += 1
 
 class ScreenCaptureTaskHost(TaskHost):

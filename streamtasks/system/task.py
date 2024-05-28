@@ -1,4 +1,5 @@
 from enum import Enum
+import gc
 import logging
 from typing import Any, Iterable, Optional
 from uuid import uuid4
@@ -255,7 +256,9 @@ class TaskManager(Worker):
       task = self.tasks[report.id]
       task.status = report.status
       task.error = report.error
-      if task.status is not TaskStatus.running: self.tasks.pop(task.id, None)
+      if task.status is not TaskStatus.running:
+        self.tasks.pop(task.id, None)
+        gc.collect()
       await self.bc_server.broadcast(get_namespace_by_task_id(task.id), MessagePackData(task.model_dump()))
 
     @server.route(TASK_CONSTANTS.SD_UNREGISTER_TASK_HOST)

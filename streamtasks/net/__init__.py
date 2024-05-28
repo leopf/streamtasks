@@ -54,6 +54,7 @@ class Link(ABC):
       try: self._receiver.cancel(ConnectionClosedError())
       except asyncio.InvalidStateError: pass
     for handler in self.on_closed: handler()
+    self.on_closed.clear()
 
   def get_priced_out_topics(self, topics: set[int] = None) -> set[PricedId]:
     if topics is None:
@@ -165,11 +166,17 @@ class QueueLink(Link):
     self.in_messages = in_messages
 
   async def _send(self, message: Message): await self.out_messages.put(message)
-  async def _recv(self) -> Message: return await self.in_messages.get()
+  async def _recv(self) -> Message:
+    result = await self.in_messages.get()
+    self.in_messages.task_done()
+    return result
 
 class RawQueueLink(QueueLink):
   async def _send(self, message: Message): await self.out_messages.put(serialize_message(message))
-  async def _recv(self) -> Message: return deserialize_message(await self.in_messages.get())
+  async def _recv(self) -> Message:
+    result = await self.in_messages.get()
+    self.in_messages.task_done()
+    return deserialize_message(result)
 
 def create_queue_connection(raw: bool = False) -> tuple[Link, Link]:
   queue_a, queue_b = asyncio.Queue(), asyncio.Queue()
