@@ -49,18 +49,20 @@ class Encoder(Generic[F]):
 
   def __del__(self): self.close()
 
-  async def encode(self, data: F) -> list[MediaPacket]:
+  async def encode(self, frame: F) -> list[MediaPacket]:
     loop = asyncio.get_running_loop()
-    packets = await loop.run_in_executor(None, self._encode, data.frame)
-    return [ MediaPacket.from_av_packet(packet, self.time_base) for packet in packets ]
+    return await loop.run_in_executor(None, self.encode_sync, frame)
 
   async def flush(self) -> list[MediaPacket]:
     loop = asyncio.get_running_loop()
-    packets = await loop.run_in_executor(None, self._encode, None)
-    return [ MediaPacket.from_av_packet(packet, self.time_base) for packet in packets ]
+    return await loop.run_in_executor(None, self.flush_sync)
+
+  def encode_sync(self, frame: F): return self._encode(frame)
+  def flush_sync(self): return self._encode(None)
 
   def close(self): self.codec_context.close(strict=False)
-  def _encode(self, frame: F) -> list[av.Packet]: return self.codec_context.encode(frame)
+  def _encode(self, frame: F | None): return [ MediaPacket.from_av_packet(packet, self.time_base) for packet in self.codec_context.encode(None if frame is None else frame.frame) ]
+
 
 class Decoder(Generic[F]):
   def __init__(self, codec_info: 'CodecInfo[F]', codec_context: av.codec.context.CodecContext | None = None):

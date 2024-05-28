@@ -1,8 +1,7 @@
+import asyncio
 from fractions import Fraction
 from typing import Any
 from pydantic import BaseModel, ValidationError
-from extra.debugging import ddebug_value
-from streamtasks.env import DEBUG_MEDIA
 from streamtasks.media.video import VideoCodecInfo, VideoFrame, video_buffer_to_ndarray
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import MediaMessage, TimestampChuckMessage
@@ -10,6 +9,7 @@ from streamtasks.system.tasks.media.utils import MediaEditorFields
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
+import queue
 
 class VideoEncoderConfigBase(BaseModel):
   in_pixel_format: IOTypes.PixelFormat
@@ -44,28 +44,34 @@ class VideoEncoderTask(Task):
       pixel_format=config.out_pixel_format,
       codec=config.codec, options=config.codec_options)
     self.encoder = codec_info.get_encoder()
+    self.frame_data_queue: queue.Queue[TimestampChuckMessage] = queue.Queue()
 
   async def run(self):
     try:
       async with self.out_topic, self.out_topic.RegisterContext(), self.in_topic, self.in_topic.RegisterContext():
         self.client.start()
-        while True:
-          try:
-            data = await self.in_topic.recv_data()
-            message = TimestampChuckMessage.model_validate(data.data)
-            if self.t0 is None: self.t0 = message.timestamp
-
-            bitmap = video_buffer_to_ndarray(message.data, self.config.width, self.config.height)
-            frame = VideoFrame.from_ndarray(bitmap, self.config.in_pixel_format)
-            frame.set_ts(Fraction(message.timestamp - self.t0, 1000), self.time_base)
-
-            packets = await self.encoder.encode(frame)
-            for packet in packets:
-              if DEBUG_MEDIA(): ddebug_value("video encoder time", float(packet.dts * self.time_base))
-              await self.out_topic.send(MessagePackData(MediaMessage(timestamp=int(self.t0 + packet.dts * self.time_base * 1000), packet=packet).model_dump()))
-          except ValidationError: pass
+        loop = asyncio.get_running_loop()
+        await asyncio.gather(asyncio.to_thread(self._run_encoder, loop), self._run_receiver())
     finally:
       self.encoder.close()
+
+  async def _run_receiver(self):
+    while True:
+      try:
+        data = await self.in_topic.recv_data()
+        self.frame_data_queue.put(TimestampChuckMessage.model_validate(data.data))
+      except ValidationError: pass
+
+  def _run_encoder(self, loop: asyncio.BaseEventLoop):
+    while True:
+      message = self.frame_data_queue.get()
+      if self.t0 is None: self.t0 = message.timestamp
+      bitmap = video_buffer_to_ndarray(message.data, self.config.width, self.config.height)
+      frame = VideoFrame.from_ndarray(bitmap, self.config.in_pixel_format)
+      frame.set_ts(Fraction(message.timestamp - self.t0, 1000), self.time_base)
+      packets = self.encoder.encode_sync(frame)
+      for packet in packets:
+        asyncio.run_coroutine_threadsafe(self.out_topic.send(MessagePackData(MediaMessage(timestamp=int(self.t0 + packet.dts * self.time_base * 1000), packet=packet).model_dump())), loop)
 
 class VideoEncoderTaskHost(TaskHost):
   @property

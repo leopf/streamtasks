@@ -113,6 +113,7 @@ class AudioCodecInfo(CodecInfo[AudioFrame]):
     ctx.sample_rate = self.sample_rate
     ctx.options.update(self.options)
 
+    if "threads" in self.options: ctx.thread_count = int(self.options["threads"])
     if "bit_rate" in self.options: ctx.bit_rate = int(self.options["bit_rate"])
     if "bit_rate_tolerance" in self.options: ctx.bit_rate_tolerance = int(self.options["bit_rate_tolerance"])
 

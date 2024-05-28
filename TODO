@@ -1,6 +1,7 @@
 # MY TODOS
+- set message queue size to 1
+- fix video encoder memory problems
 - move heavy workloads to executor
-- video viewer solve pausing issue
 
 - output container needs to be able to stop and restart based on inputs. Also: chunkung
 - llama context length fix
