@@ -39,12 +39,13 @@ class SyncTask(Task):
 
   async def run(self):
     fut: None | asyncio.Future = None
-    try:
-      async with self.init():
+    async with self.init():
+      try:
         fut = self.loop.run_in_executor(None, self.run_sync)
-    finally:
-      self.stop_event.set()
-      if fut: await fut
+        await asyncio.shield(fut)
+      finally:
+        self.stop_event.set()
+        if fut: await fut
 
   @abstractmethod
   async def init(self) -> AsyncContextManager: pass

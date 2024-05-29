@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import asynccontextmanager
 from fractions import Fraction
 from typing import Any
 from pydantic import BaseModel, ValidationError
@@ -7,10 +8,9 @@ from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import MediaMessage, TimestampChuckMessage
 from streamtasks.system.tasks.media.utils import MediaEditorFields
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
-from streamtasks.system.task import Task, TaskHost
+from streamtasks.system.task import SyncTask, TaskHost
 from streamtasks.client import Client
 import queue
-import threading
 
 class VideoEncoderConfigBase(BaseModel):
   in_pixel_format: IOTypes.PixelFormat
@@ -28,7 +28,7 @@ class VideoEncoderConfig(VideoEncoderConfigBase):
   out_topic: int
   in_topic: int
 
-class VideoEncoderTask(Task):
+class VideoEncoderTask(SyncTask):
   def __init__(self, client: Client, config: VideoEncoderConfig):
     super().__init__(client)
     self.out_topic = self.client.out_topic(config.out_topic)
@@ -46,17 +46,18 @@ class VideoEncoderTask(Task):
       codec=config.codec, options=config.codec_options)
     self.encoder = codec_info.get_encoder()
 
-    self.loop = asyncio.get_running_loop()
-    self.stop_event = threading.Event()
     self.frame_data_queue: queue.Queue[TimestampChuckMessage] = queue.Queue()
 
-  async def run(self):
+  @asynccontextmanager
+  async def init(self):
+    recv_task: None | asyncio.Task = None
     try:
       async with self.out_topic, self.out_topic.RegisterContext(), self.in_topic, self.in_topic.RegisterContext():
         self.client.start()
-        await asyncio.gather(asyncio.to_thread(self._run_encoder), self._run_receiver())
+        recv_task = asyncio.create_task(self._run_receiver())
+        yield
     finally:
-      self.stop_event.set()
+      recv_task.cancel()
       self.encoder.close()
 
   async def _run_receiver(self):
@@ -66,7 +67,7 @@ class VideoEncoderTask(Task):
         self.frame_data_queue.put(TimestampChuckMessage.model_validate(data.data))
       except ValidationError: pass
 
-  def _run_encoder(self):
+  def run_sync(self):
     timeout = 2 / self.config.rate
     while not self.stop_event.is_set():
       try:
@@ -77,7 +78,7 @@ class VideoEncoderTask(Task):
         frame.set_ts(Fraction(message.timestamp - self.t0, 1000), self.time_base)
         packets = self.encoder.encode_sync(frame)
         for packet in packets:
-          asyncio.run_coroutine_threadsafe(self.out_topic.send(MessagePackData(MediaMessage(timestamp=int(self.t0 + packet.dts * self.time_base * 1000), packet=packet).model_dump())), self.loop)
+          self.send_data(self.out_topic, MessagePackData(MediaMessage(timestamp=int(self.t0 + packet.dts * self.time_base * 1000), packet=packet).model_dump()))
         self.frame_data_queue.task_done()
       except queue.Empty: pass
 
