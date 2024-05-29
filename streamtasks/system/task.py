@@ -1,7 +1,8 @@
 from enum import Enum
 import gc
 import logging
-from typing import Any, Iterable, Optional
+import threading
+from typing import Any, AsyncContextManager, Iterable, Optional
 from uuid import uuid4
 from pydantic import UUID4, BaseModel, TypeAdapter, ValidationError, field_serializer
 from abc import ABC, abstractmethod
@@ -11,8 +12,9 @@ from streamtasks.client.broadcast import BroadcastReceiver, BroadcastingServer
 from streamtasks.client.discovery import get_topic_space, register_address_name, wait_for_topic_signal
 from streamtasks.client.fetch import FetchError, FetchErrorStatusCode, FetchRequest, FetchServer, new_fetch_body_bad_request, new_fetch_body_general_error, new_fetch_body_not_found
 from streamtasks.client.signal import SignalServer, send_signal
+from streamtasks.client.topic import OutTopic
 from streamtasks.net import DAddress, EndpointOrAddress, Link, TopicRemappingLink, create_queue_connection
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import MessagePackData, SerializableData
 from streamtasks.net.message.types import Message, TopicDataMessage
 from streamtasks.services.protocols import AddressNames, WorkerTopics
 from streamtasks.env import DEBUG, NODE_NAME
@@ -28,6 +30,29 @@ class Task(ABC):
   async def setup(self) -> dict[str, Any]: return {}
   @abstractmethod
   async def run(self): pass
+
+class SyncTask(Task):
+  def __init__(self, client: Client):
+    super().__init__(client)
+    self.loop = asyncio.get_running_loop()
+    self.stop_event = threading.Event()
+
+  async def run(self):
+    fut: None | asyncio.Future = None
+    try:
+      async with self.init():
+        fut = self.loop.run_in_executor(None, self.run_sync)
+    finally:
+      self.stop_event.set()
+      if fut: await fut
+
+  @abstractmethod
+  async def init(self) -> AsyncContextManager: pass
+
+  @abstractmethod
+  def run_sync(self): pass
+
+  def send_data(self, topic: OutTopic, data: SerializableData): asyncio.run_coroutine_threadsafe(topic.send(data), self.loop)
 
 class ModelWithId(BaseModel):
   id: UUID4
