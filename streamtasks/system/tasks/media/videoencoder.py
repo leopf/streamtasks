@@ -1,4 +1,3 @@
-import asyncio
 from contextlib import asynccontextmanager
 from fractions import Fraction
 from typing import Any
@@ -11,6 +10,8 @@ from streamtasks.system.configurators import EditorFields, IOTypes, static_confi
 from streamtasks.system.task import SyncTask, TaskHost
 from streamtasks.client import Client
 import queue
+
+from streamtasks.utils import context_task
 
 class VideoEncoderConfigBase(BaseModel):
   in_pixel_format: IOTypes.PixelFormat
@@ -50,14 +51,11 @@ class VideoEncoderTask(SyncTask):
 
   @asynccontextmanager
   async def init(self):
-    recv_task: None | asyncio.Task = None
     try:
-      async with self.out_topic, self.out_topic.RegisterContext(), self.in_topic, self.in_topic.RegisterContext():
+      async with self.out_topic, self.out_topic.RegisterContext(), self.in_topic, self.in_topic.RegisterContext(), context_task(self._run_receiver()):
         self.client.start()
-        recv_task = asyncio.create_task(self._run_receiver())
         yield
     finally:
-      recv_task.cancel()
       self.encoder.close()
 
   async def _run_receiver(self):

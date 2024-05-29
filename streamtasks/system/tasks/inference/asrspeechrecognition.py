@@ -1,4 +1,5 @@
-import asyncio
+from contextlib import asynccontextmanager
+import queue
 from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.media.audio import audio_buffer_to_ndarray
@@ -7,13 +8,14 @@ from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import TextMessage, TimestampChuckMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.configurators import EditorFields, static_configurator
-from streamtasks.system.task import Task, TaskHost
+from streamtasks.system.task import SyncTask, TaskHost
 from streamtasks.client import Client
 from speechbrain.inference.ASR import StreamingASR
 from speechbrain.utils.dynamic_chunk_training import DynChunkTrainConfig
 import torch
 
 from streamtasks.system.tasks.inference.utils import get_model_data_dir
+from streamtasks.utils import context_task
 
 _SAMPLE_RATE = 16000
 
@@ -27,37 +29,46 @@ class ASRSpeechRecognitionConfig(ASRSpeechRecognitionConfigBase):
   out_topic: int
   in_topic: int
 
-class ASRSpeechRecognitionTask(Task):
+class ASRSpeechRecognitionTask(SyncTask):
   def __init__(self, client: Client, config: ASRSpeechRecognitionConfig):
     super().__init__(client)
     self.in_topic = self.client.in_topic(config.in_topic)
     self.out_topic = self.client.out_topic(config.out_topic)
     self.config = config
+    self.message_queue: queue.Queue[TimestampChuckMessage] = queue.Queue()
 
-  async def run(self):
-    loop = asyncio.get_running_loop()
-    model = await loop.run_in_executor(None, self.load_model)
-    if model is None: raise FileNotFoundError("The model could not be loaded from the specified source!")
-    streaming_context = model.make_streaming_context(DynChunkTrainConfig(chunk_size=self.config.chunk_size, left_context_size=self.config.left_context_size))
-    chunker = AudioChunker(self.config.chunk_size * 320, _SAMPLE_RATE) # BUG: this is to prevent an assertion error in speechbrain about the chunk size
-
-    async with self.out_topic, self.out_topic.RegisterContext(), self.in_topic, self.in_topic.RegisterContext():
+  @asynccontextmanager
+  async def init(self):
+    async with self.out_topic, self.out_topic.RegisterContext(), self.in_topic, self.in_topic.RegisterContext(), context_task(self._run_receiver()):
       self.client.start()
-      while True:
-        try:
-          data = await self.in_topic.recv_data_control()
-          if isinstance(data, TopicControlData): await self.out_topic.set_paused(data.paused)
-          else:
-            message = TimestampChuckMessage.model_validate(data.data)
-            for chunk, timestamp in chunker.next(audio_buffer_to_ndarray(message.data, "flt")[0], message.timestamp):
-              samples = torch.from_numpy(chunk.reshape((1, -1)).copy())
-              result: list[str] = await loop.run_in_executor(None, model.transcribe_chunk, streaming_context, samples)
-              if len(result[0]) > 0:
-                await self.out_topic.send(MessagePackData(TextMessage(timestamp=timestamp, value=result[0].lower()).model_dump()))
-        except (ValidationError, ValueError): pass
+      yield
 
-  def load_model(self):
-    return StreamingASR.from_hparams(self.config.source, savedir=get_model_data_dir(self.config.source), run_opts={ "device":self.config.device })
+  async def _run_receiver(self):
+    while True:
+      try:
+        data = await self.in_topic.recv_data_control()
+        if isinstance(data, TopicControlData): await self.out_topic.set_paused(data.paused)
+        else: self.message_queue.put(TimestampChuckMessage.model_validate(data.data))
+      except (ValidationError, ValueError): pass
+
+  def run_sync(self):
+    try:
+      model = StreamingASR.from_hparams(self.config.source, savedir=get_model_data_dir(self.config.source), run_opts={ "device":self.config.device })
+      if model is None: raise FileNotFoundError("The model could not be loaded from the specified source!")
+
+      streaming_context = model.make_streaming_context(DynChunkTrainConfig(chunk_size=self.config.chunk_size, left_context_size=self.config.left_context_size))
+      chunker = AudioChunker(self.config.chunk_size * 320, _SAMPLE_RATE) # BUG: this is to prevent an assertion error in speechbrain about the chunk size
+
+      while not self.stop_event.is_set():
+        try:
+          message = self.message_queue.get(timeout=0.5)
+          for chunk, timestamp in chunker.next(audio_buffer_to_ndarray(message.data, "flt")[0], message.timestamp):
+            samples = torch.from_numpy(chunk.reshape((1, -1)).copy())
+            result: list[str] = model.transcribe_chunk(streaming_context, samples)
+            if len(result[0]) > 0: self.send_data(self.out_topic, MessagePackData(TextMessage(timestamp=timestamp, value=result[0].lower()).model_dump()))
+        except queue.Empty: pass
+    finally:
+      if model: del model
 
 class ASRSpeechRecognitionTaskHost(TaskHost):
   @property

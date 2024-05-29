@@ -1,17 +1,15 @@
-import asyncio
-import multiprocessing as mp
-import time
+from contextlib import asynccontextmanager
 from typing import Any
 from pydantic import BaseModel
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import TimestampChuckMessage
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
-from streamtasks.system.task import Task, TaskHost
+from streamtasks.system.task import SyncTask, TaskHost
 from streamtasks.client import Client
-import mss
-
 from streamtasks.system.tasks.media.utils import MediaEditorFields
-from streamtasks.utils import get_timestamp_ms, wait_with_dependencies
+from streamtasks.utils import get_timestamp_ms
+import time
+import mss
 
 class ScreenCaptureConfigBase(BaseModel):
   left_offset: IOTypes.Width = 0
@@ -25,37 +23,28 @@ class ScreenCaptureConfigBase(BaseModel):
 class ScreenCaptureConfig(ScreenCaptureConfigBase):
   out_topic: int
 
-class ScreenCaptureTask(Task):
+class ScreenCaptureTask(SyncTask):
   def __init__(self, client: Client, config: ScreenCaptureConfig):
     super().__init__(client)
     self.out_topic = self.client.out_topic(config.out_topic)
-    self.message_queue: asyncio.Queue[TimestampChuckMessage] = asyncio.Queue()
     self.config = config
-    self.mp_close_event = mp.Event()
 
-  async def run(self):
-    try:
-      loop = asyncio.get_running_loop()
-      grapper_fut = loop.run_in_executor(None, self._run_input_recorder, loop)
-      async with self.out_topic, self.out_topic.RegisterContext():
-        self.client.start()
-        while not grapper_fut.done():
-          message: TimestampChuckMessage = await wait_with_dependencies(self.message_queue.get(), [ grapper_fut ])
-          await self.out_topic.send(MessagePackData(message.model_dump()))
-    finally:
-      self.mp_close_event.set()
-      await grapper_fut
+  @asynccontextmanager
+  async def init(self):
+    async with self.out_topic, self.out_topic.RegisterContext():
+      self.client.start()
+      yield
 
-  def _run_input_recorder(self, loop: asyncio.BaseEventLoop):
+  def run_sync(self):
     frame_count = 0
     start_time = time.time()
     frame_time = 1.0 / self.config.rate
     with mss.mss(with_cursor=self.config.with_cursor, display=self.config.display or None) as sct:
-      while not self.mp_close_event.is_set():
+      while not self.stop_event.is_set():
         wait_dur = ((frame_count + 1) * frame_time + start_time) - time.time()
         if wait_dur > 0: time.sleep(wait_dur)
         img = sct.grab((self.config.left_offset, self.config.top_offset, self.config.width, self.config.height))
-        loop.call_soon_threadsafe(self.message_queue.put_nowait, TimestampChuckMessage(timestamp=get_timestamp_ms(), data=img.bgra))
+        self.send_data(self.out_topic, MessagePackData(TimestampChuckMessage(timestamp=get_timestamp_ms(), data=img.bgra).model_dump()))
         frame_count += 1
 
 class ScreenCaptureTaskHost(TaskHost):

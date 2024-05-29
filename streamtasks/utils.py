@@ -1,5 +1,6 @@
 from abc import abstractmethod
 from collections import deque
+from contextlib import asynccontextmanager
 import hashlib
 import threading
 from types import CoroutineType
@@ -295,3 +296,13 @@ class IdGenerator:
     return res
 
 def strip_nones_from_dict(data: dict): return { k: v for k, v in data.items() if v is not None }
+
+@asynccontextmanager
+async def context_task(coro):
+  try:
+    task = asyncio.create_task(coro)
+    yield
+  finally:
+    task.cancel()
+    try: await task
+    except asyncio.CancelledError: pass

@@ -1,12 +1,11 @@
-import asyncio
+from contextlib import asynccontextmanager
 from typing import Any
-from typing_extensions import Buffer
 from pydantic import BaseModel
 from streamtasks.media.audio import get_audio_bytes_per_time_sample
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import TimestampChuckMessage
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
-from streamtasks.system.task import Task, TaskHost
+from streamtasks.system.task import SyncTask, TaskHost
 from streamtasks.client import Client
 from streamtasks.system.tasks.media.pa_utils import SAMPLE_FORMAT_2_PA_TYPE
 from streamtasks.system.tasks.media.utils import MediaEditorFields
@@ -23,37 +22,31 @@ class AudioInputConfigBase(BaseModel):
 class AudioInputConfig(AudioInputConfigBase):
   out_topic: int
 
-class AudioInputTask(Task):
+class AudioInputTask(SyncTask):
   def __init__(self, client: Client, config: AudioInputConfig):
     super().__init__(client)
     self.out_topic = self.client.out_topic(config.out_topic)
     self.config = config
     self.bytes_per_second = get_audio_bytes_per_time_sample(config.sample_format, config.channels) * config.rate
 
-  async def run(self):
-    loop = asyncio.get_running_loop()
-    read_lock = asyncio.Lock()
+  @asynccontextmanager
+  async def init(self):
+    async with self.out_topic, self.out_topic.RegisterContext():
+      self.client.start()
+      yield
+
+  def run_sync(self):
     audio = pyaudio.PyAudio()
     stream = audio.open(self.config.rate, self.config.channels, SAMPLE_FORMAT_2_PA_TYPE[self.config.sample_format], input=True,
                         frames_per_buffer=self.config.buffer_size, input_device_index=None if self.config.input_id == -1 else self.config.input_id)
+    min_next_timestamp = 0
 
-    async def read() -> Buffer:
-      async with read_lock:
-        return await loop.run_in_executor(None, stream.read, self.config.buffer_size)
-
-    try:
-      async with self.out_topic, self.out_topic.RegisterContext():
-        self.client.start()
-        min_next_timestamp = 0
-        while True:
-          data = await asyncio.shield(read())
-          timestamp = max(get_timestamp_ms(), min_next_timestamp)
-          frame_duration = len(data) * 1000 // self.bytes_per_second
-          min_next_timestamp = timestamp + frame_duration
-          await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=timestamp, data=data).model_dump()))
-    finally:
-      await read_lock.acquire()
-      stream.close()
+    while not self.stop_event.is_set():
+      data = stream.read(self.config.buffer_size)
+      timestamp = max(get_timestamp_ms(), min_next_timestamp)
+      frame_duration = len(data) * 1000 // self.bytes_per_second
+      min_next_timestamp = timestamp + frame_duration
+      self.send_data(self.out_topic, MessagePackData(TimestampChuckMessage(timestamp=timestamp, data=data).model_dump()))
 
 class AudioInputTaskHost(TaskHost):
   @property

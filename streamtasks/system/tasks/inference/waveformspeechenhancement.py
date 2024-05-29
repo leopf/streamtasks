@@ -1,4 +1,5 @@
-import asyncio
+from contextlib import asynccontextmanager
+import queue
 from typing import Any
 import numpy as np
 from pydantic import BaseModel, ValidationError
@@ -8,12 +9,13 @@ from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import TimestampChuckMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.configurators import EditorFields, static_configurator
-from streamtasks.system.task import Task, TaskHost
+from streamtasks.system.task import SyncTask, TaskHost
 from streamtasks.client import Client
 from speechbrain.inference.enhancement import WaveformEnhancement
 import torch
 
 from streamtasks.system.tasks.inference.utils import get_model_data_dir
+from streamtasks.utils import context_task
 
 _SAMPLE_RATE = 16000
 
@@ -32,39 +34,44 @@ class WaveformSpeechEnhancementConfig(WaveformSpeechEnhancementConfigBase):
   out_topic: int
   in_topic: int
 
-class WaveformSpeechEnhancementTask(Task):
+class WaveformSpeechEnhancementTask(SyncTask):
   def __init__(self, client: Client, config: WaveformSpeechEnhancementConfig):
     super().__init__(client)
     self.in_topic = self.client.in_topic(config.in_topic)
     self.out_topic = self.client.out_topic(config.out_topic)
     self.config = config
+    self.message_queue: queue.Queue[TimestampChuckMessage] = queue.Queue()
 
-  async def run(self):
-    loop = asyncio.get_running_loop()
-    model = await loop.run_in_executor(None, self.load_model)
+  @asynccontextmanager
+  async def init(self):
+    async with self.out_topic, self.out_topic.RegisterContext(), self.in_topic, self.in_topic.RegisterContext(), context_task(self._run_receiver()):
+      self.client.start()
+      yield
+
+  async def _run_receiver(self):
+    while True:
+      try:
+        data = await self.in_topic.recv_data_control()
+        if isinstance(data, TopicControlData): await self.out_topic.set_paused(data.paused)
+        else: self.message_queue.put(TimestampChuckMessage.model_validate(data.data))
+      except (ValidationError, ValueError): pass
+
+  def run_sync(self):
+    model = WaveformEnhancement.from_hparams(self.config.source, savedir=get_model_data_dir(self.config.source), run_opts={ "device":self.config.device })
     if model is None: raise FileNotFoundError("The model could not be loaded from the specified source!")
-
     chunker = PaddedAudioChunker(self.config.buffer_size, _SAMPLE_RATE, self.config.buffer_padding)
     decracker = AudioSmoother(self.config.buffer_padding * 2)
 
-    async with self.out_topic, self.out_topic.RegisterContext(), self.in_topic, self.in_topic.RegisterContext():
-      self.client.start()
-      while True:
-        try:
-          data = await self.in_topic.recv_data_control()
-          if isinstance(data, TopicControlData): await self.out_topic.set_paused(data.paused)
-          else:
-            message = TimestampChuckMessage.model_validate(data.data)
-            for chunk, timestamp in chunker.next(audio_buffer_to_ndarray(message.data, "flt")[0], message.timestamp):
-              samples = torch.from_numpy(chunk.reshape((1, -1)).copy())
-              result: torch.Tensor = (await loop.run_in_executor(None, model.enhance_batch, samples, torch.tensor([1.]))).flatten()
-              result = result * (np.abs(chunk).mean() / result.abs().mean().item()) # scale to prevent volume changes
-              out_samples: np.ndarray = chunker.strip_padding(decracker.smooth(result.cpu().numpy()))
-              await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=timestamp, data=out_samples.tobytes("C")).model_dump()))
-        except (ValidationError, ValueError): pass
-
-  def load_model(self):
-    return WaveformEnhancement.from_hparams(self.config.source, savedir=get_model_data_dir(self.config.source), run_opts={ "device":self.config.device })
+    while not self.stop_event.is_set():
+      try:
+        message = self.message_queue.get(timeout=0.5)
+        for chunk, timestamp in chunker.next(audio_buffer_to_ndarray(message.data, "flt")[0], message.timestamp):
+          samples = torch.from_numpy(chunk.reshape((1, -1)).copy())
+          result: torch.Tensor = model.enhance_batch(samples, torch.tensor([1.])).flatten()
+          result = result * (np.abs(chunk).mean() / result.abs().mean().item()) # scale to prevent volume changes
+          out_samples: np.ndarray = chunker.strip_padding(decracker.smooth(result.cpu().numpy()))
+          self.send_data(self.out_topic, MessagePackData(TimestampChuckMessage(timestamp=timestamp, data=out_samples.tobytes("C")).model_dump()))
+      except queue.Empty: pass
 
 class WaveformSpeechEnhancementTaskHost(TaskHost):
   @property

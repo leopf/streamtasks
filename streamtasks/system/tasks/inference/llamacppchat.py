@@ -1,5 +1,5 @@
-import asyncio
-import functools
+from contextlib import asynccontextmanager
+import queue
 from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.env import DEBUG
@@ -7,9 +7,11 @@ from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import TextMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.configurators import EditorFields, static_configurator
-from streamtasks.system.task import Task, TaskHost
+from streamtasks.system.task import SyncTask, TaskHost
 from streamtasks.client import Client
 from llama_cpp import ChatCompletionRequestMessage, Llama
+
+from streamtasks.utils import context_task
 
 class LLamaCppChatConfigBase(BaseModel):
   model_path: str = ""
@@ -22,36 +24,43 @@ class LLamaCppChatConfig(LLamaCppChatConfigBase):
   out_topic: int
   in_topic: int
 
-class LLamaCppChatTask(Task):
+class LLamaCppChatTask(SyncTask):
   def __init__(self, client: Client, config: LLamaCppChatConfig):
     super().__init__(client)
     self.in_topic = self.client.in_topic(config.in_topic)
     self.out_topic = self.client.out_topic(config.out_topic)
     self.config = config
+    self.message_queue: queue.Queue[TextMessage] = queue.Queue()
 
-  async def run(self):
-    loop = asyncio.get_running_loop()
-    model = await loop.run_in_executor(None, self.load_model)
+  @asynccontextmanager
+  async def init(self):
+    async with self.out_topic, self.out_topic.RegisterContext(), self.in_topic, self.in_topic.RegisterContext(), context_task(self._run_receiver()):
+      self.client.start()
+      yield
+
+  async def _run_receiver(self):
+    while True:
+      try:
+        data = await self.in_topic.recv_data_control()
+        if isinstance(data, TopicControlData): await self.out_topic.set_paused(data.paused)
+        else: self.message_queue.put(TextMessage.model_validate(data.data))
+      except (ValidationError, ValueError): pass
+
+  def run_sync(self):
+    model = Llama(model_path=self.config.model_path, n_gpu_layers=-1 if self.config.use_gpu else 0, verbose=bool(DEBUG()), n_ctx=self.config.context_length)
     messages: list[ChatCompletionRequestMessage] = []
     if self.config.system_message: messages.append({ "role": "system", "content": self.config.system_message })
 
-    async with self.out_topic, self.out_topic.RegisterContext(), self.in_topic, self.in_topic.RegisterContext():
-      self.client.start()
-      while True:
-        try:
-          data = await self.in_topic.recv_data_control()
-          if isinstance(data, TopicControlData): await self.out_topic.set_paused(data.paused)
-          else:
-            message = TextMessage.model_validate(data.data)
-            messages.append({ "role": "user", "content": message.value })
-            result = await loop.run_in_executor(None, functools.partial(model.create_chat_completion, messages, max_tokens=self.config.max_tokens or None))
-            if len(result["choices"]) > 0:
-              amessage = result["choices"][0]["message"]
-              messages.append(amessage)
-              await self.out_topic.send(MessagePackData(TextMessage(timestamp=message.timestamp, value=amessage["content"]).model_dump()))
-        except (ValidationError, ValueError): pass
-
-  def load_model(self): return Llama(model_path=self.config.model_path, n_gpu_layers=-1 if self.config.use_gpu else 0, verbose=bool(DEBUG()), n_ctx=self.config.context_length)
+    while not self.stop_event.is_set():
+      try:
+        message = self.message_queue.get(timeout=0.5)
+        messages.append({ "role": "user", "content": message.value })
+        result = model.create_chat_completion(messages, max_tokens=self.config.max_tokens or None)
+        if len(result["choices"]) > 0:
+          amessage = result["choices"][0]["message"]
+          messages.append(amessage)
+          self.send_data(self.out_topic, MessagePackData(TextMessage(timestamp=message.timestamp, value=amessage["content"]).model_dump()))
+      except queue.Empty: pass
 
 class LLamaCppChatTaskHost(TaskHost):
   @property

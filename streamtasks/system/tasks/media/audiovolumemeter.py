@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+import queue
 from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.media.audio import audio_buffer_to_ndarray, sample_format_to_dtype
@@ -7,11 +9,10 @@ from streamtasks.net.message.structures import NumberMessage, TimestampChuckMess
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.tasks.media.utils import MediaEditorFields
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
-from streamtasks.system.task import Task, TaskHost
+from streamtasks.system.task import SyncTask, TaskHost
 from streamtasks.client import Client
 import numpy as np
-
-from streamtasks.utils import TimeSynchronizer
+from streamtasks.utils import TimeSynchronizer, context_task
 
 class AudioVolumeMeterConfigBase(BaseModel):
   sample_format: IOTypes.SampleFormat = "s16"
@@ -27,7 +28,7 @@ def max_dtype_value(dtype):
   elif np.issubdtype(dtype, np.floating): return 1
   else: raise ValueError("Unsupported dtype")
 
-class AudioVolumeMeterTask(Task):
+class AudioVolumeMeterTask(SyncTask):
   def __init__(self, client: Client, config: AudioVolumeMeterConfig):
     super().__init__(client)
     self.out_topic = self.client.out_topic(config.out_topic)
@@ -35,25 +36,36 @@ class AudioVolumeMeterTask(Task):
     self.config = config
     sample_dtype = sample_format_to_dtype(self.config.sample_format)
     self.max_value = float(max_dtype_value(sample_dtype))
-    self.sync = TimeSynchronizer()
+    self.message_queue: queue.Queue[TimestampChuckMessage] = queue.Queue()
 
-  async def run(self):
-    chunker = AudioChunker(self.config.rate * self.config.time_window // 1000, self.config.rate)
-    async with self.out_topic, self.out_topic.RegisterContext(), self.in_topic, self.in_topic.RegisterContext():
+  @asynccontextmanager
+  async def init(self):
+    async with self.out_topic, self.out_topic.RegisterContext(), self.in_topic, self.in_topic.RegisterContext(), context_task(self._run_receiver()):
       self.client.start()
-      while True:
-        try:
-          data = await self.in_topic.recv_data_control()
-          if isinstance(data, TopicControlData):
-            if data.paused:
-              await self.out_topic.send(MessagePackData(NumberMessage(timestamp=self.sync.time, value=0).model_dump()))
-            await self.out_topic.set_paused(data.paused)
-          else:
-            message = TimestampChuckMessage.model_validate(data.data)
-            for chunk, timestamp in chunker.next(audio_buffer_to_ndarray(message.data, self.config.sample_format)[0], message.timestamp):
-              self.sync.update(timestamp)
-              await self.out_topic.send(MessagePackData(NumberMessage(timestamp=timestamp, value=np.sqrt(np.mean(np.abs(chunk) / self.max_value))).model_dump()))
-        except (ValidationError, ValueError): pass
+      yield
+
+  async def _run_receiver(self):
+    sync = TimeSynchronizer()
+    while True:
+      try:
+        data = await self.in_topic.recv_data_control()
+        if isinstance(data, TopicControlData):
+          if data.paused: await self.out_topic.send(MessagePackData(NumberMessage(timestamp=sync.time, value=0).model_dump()))
+          await self.out_topic.set_paused(data.paused)
+        else:
+          message = TimestampChuckMessage.model_validate(data.data)
+          sync.update(message.timestamp)
+          self.message_queue.put(message)
+      except (ValidationError, ValueError): pass
+
+  def run_sync(self):
+    chunker = AudioChunker(self.config.rate * self.config.time_window // 1000, self.config.rate)
+    while not self.stop_event.is_set():
+      try:
+        message = self.message_queue.get(timeout=0.5)
+        for chunk, timestamp in chunker.next(audio_buffer_to_ndarray(message.data, self.config.sample_format)[0], message.timestamp):
+          self.send_data(self.out_topic, MessagePackData(NumberMessage(timestamp=timestamp, value=np.sqrt(np.mean(np.abs(chunk) / self.max_value))).model_dump()))
+      except queue.Empty: pass
 
 class AudioVolumeMeterTaskHost(TaskHost):
   @property
