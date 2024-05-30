@@ -5,7 +5,7 @@ import objectPath from "object-path";
 import { Accordion, AccordionDetails, AccordionSummary, Box, Stack, ThemeProvider, Typography } from "@mui/material";
 import { ExpandMore as ExpandMoreIcon } from "@mui/icons-material";
 import urlJoin from "url-join";
-import { Metadata, parseMetadataField, TaskPartialInputModel, MetadataModel, Task, TaskInstance, TaskDisplayOptions, TaskInstanceStatus, StaticEditor, EditorField, TaskCLSConfigurator, TaskCLSReactRendererMixin, TaskConfiguratorContext, getObjectDiffPaths, compareIOIgnorePaths, extractObjectPathValues, GraphSetter, TaskPartialInput, TaskInput, createCLSConfigurator, EditorFieldsModel, getFieldValidator } from "@streamtasks/core";
+import { Metadata, parseMetadataField, TaskPartialInputModel, MetadataModel, Task, TaskInstance, TaskDisplayOptions, TaskInstanceStatus, StaticEditor, EditorField, TaskCLSConfigurator, TaskCLSReactRendererMixin, TaskConfiguratorContext, getObjectDiffPaths, compareIOIgnorePaths, extractObjectPathValues, GraphSetter, TaskPartialInput, TaskInput, createCLSConfigurator, EditorFieldsModel, getConfigModelByFields } from "@streamtasks/core";
 import { theme } from "@streamtasks/core";
 
 const IOMirrorDataModel = z.array(z.tuple([z.string(), z.number().int()]));
@@ -147,9 +147,9 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
 
     protected getGraph() {
         const setter = new GraphSetter();
-        for (const field of this.editorFields) {
-            const validator = getFieldValidator(field);
-            setter.constrainValidator(`config.${field.key}`, v => validator.safeParse(v).success)
+
+        for (const [fieldKey, validator] of Object.entries(getConfigModelByFields(this.editorFields))) {
+            setter.constrainValidator(`config.${fieldKey}`, v => validator.safeParse(v).success)
         }
 
         const config2InputMap = parseMetadataField(this.taskHost.metadata, "cfg:config2inputmap", z.record(z.string(), z.record(z.string(), z.string()))) ?? {};

@@ -16,47 +16,40 @@ from streamtasks.system.tasks.media.utils import MediaEditorFields
 from streamtasks.utils import get_timestamp_ms
 
 class ContainerVideoInputConfigBase(BaseModel):
-  pixel_format: IOTypes.PixelFormat
-  codec: IOTypes.Codec
-  width: IOTypes.Width
-  height: IOTypes.Height
-  rate: IOTypes.FrameRate
-  force_transcode: bool
-  codec_options: dict[str, str]
+  pixel_format: IOTypes.PixelFormat = "yuv420p"
+  encoder: IOTypes.CoderName = "h264"
+  codec: IOTypes.CodecName = "h264"
+  width: IOTypes.Width = 1280
+  height: IOTypes.Height = 720
+  rate: IOTypes.FrameRate = 30
+  force_transcode: bool = False
+  codec_options: dict[str, str] = {}
 
-  def to_codec_info(self): return VideoCodecInfo(width=self.width, height=self.height, frame_rate=self.rate, pixel_format=self.pixel_format, codec=self.codec, options=self.codec_options)
-
-  @staticmethod
-  def default_config(): return ContainerVideoInputConfigBase(pixel_format="yuv420p", codec="h264", width=1280, height=720, rate=30, force_transcode=False, codec_options={})
+  def to_codec_info(self): return VideoCodecInfo(width=self.width, height=self.height, frame_rate=self.rate, pixel_format=self.pixel_format, codec=self.encoder, options=self.codec_options)
 
 class ContainerVideoInputConfig(ContainerVideoInputConfigBase):
   out_topic: int
 
 class ContainerAudioInputConfigBase(BaseModel):
-  sample_format: IOTypes.SampleFormat
-  codec: IOTypes.Codec
-  channels: IOTypes.Channels
-  rate: IOTypes.SampleRate
-  force_transcode: bool
-  codec_options: dict[str, str]
+  sample_format: IOTypes.SampleFormat = "fltp"
+  codec: IOTypes.CodecName = "aac"
+  encoder: IOTypes.CoderName = "aac"
+  channels: IOTypes.Channels = 1
+  rate: IOTypes.SampleRate = 32000
+  force_transcode: bool = False
+  codec_options: dict[str, str] = {}
 
-  def to_codec_info(self): return AudioCodecInfo(codec=self.codec, channels=self.channels, sample_rate=self.rate, sample_format=self.sample_format, options=self.codec_options)
-
-  @staticmethod
-  def default_config(): return ContainerAudioInputConfigBase(codec="aac", sample_format="fltp", channels=1, rate=32000, force_transcode=False, codec_options={})
+  def to_codec_info(self): return AudioCodecInfo(codec=self.encoder, channels=self.channels, sample_rate=self.rate, sample_format=self.sample_format, options=self.codec_options)
 
 class ContainerAudioInputConfig(ContainerAudioInputConfigBase):
   out_topic: int
 
 class InputContainerConfig(BaseModel):
-  source: str
+  source: str = ""
   real_time: bool = True
-  video_tracks: list[ContainerVideoInputConfig]
-  audio_tracks: list[ContainerAudioInputConfig]
-  container_options: dict[str, str]
-
-  @staticmethod
-  def default_config(): return InputContainerConfig(source="", container_options={}, audio_tracks=[], video_tracks=[])
+  video_tracks: list[ContainerVideoInputConfig] = []
+  audio_tracks: list[ContainerAudioInputConfig] = []
+  container_options: dict[str, str] = {}
 
 class InputContainerTask(Task):
   def __init__(self, client: Client, config: InputContainerConfig):
@@ -110,7 +103,7 @@ class InputContainerTaskHost(TaskHost):
   @property
   def metadata(self): return {**static_configurator(
     label="input container",
-    default_config=InputContainerConfig.default_config().model_dump(),
+    default_config=InputContainerConfig().model_dump(),
     editor_fields=[
       EditorFields.text(key="source", label="source path or url"),
       EditorFields.boolean("real_time"),
@@ -118,13 +111,13 @@ class InputContainerTaskHost(TaskHost):
     ]),
     **multitrackio_configurator(is_input=False, track_configs=[
       {
-        "defaultConfig": ContainerVideoInputConfigBase.default_config().model_dump(),
+        "defaultConfig": ContainerVideoInputConfigBase().model_dump(),
         "defaultIO": { "type": "ts", "content": "video" },
         "ioMap": { v: v for v in [ "pixel_format", "codec", "width", "height", "rate" ] },
         "key": "video",
         "editorFields": [
           MediaEditorFields.pixel_format(),
-          MediaEditorFields.video_codec_name("w"),
+          MediaEditorFields.video_codec("w", coder_key="encoder"),
           MediaEditorFields.pixel_size("width"),
           MediaEditorFields.pixel_size("height"),
           MediaEditorFields.frame_rate(),
@@ -133,12 +126,12 @@ class InputContainerTaskHost(TaskHost):
         ]
       },
       {
-        "defaultConfig": ContainerAudioInputConfigBase.default_config().model_dump(),
+        "defaultConfig": ContainerAudioInputConfigBase().model_dump(),
         "defaultIO": { "type": "ts", "content": "audio" },
         "ioMap": { v: v for v in [ "codec", "rate", "channels", "sample_format" ] },
         "key": "audio",
         "editorFields": [
-          MediaEditorFields.audio_codec_name("w"),
+          MediaEditorFields.audio_codec("w", coder_key="encoder"),
           MediaEditorFields.sample_format(),
           MediaEditorFields.sample_rate(),
           MediaEditorFields.channel_count(),

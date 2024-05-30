@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from functools import cached_property
 from typing_extensions import Buffer
 import av.audio
 import av.audio.codeccontext
@@ -98,9 +99,17 @@ class AudioCodecInfo(CodecInfo[AudioFrame]):
   @property
   def resampler_info(self): return AudioResamplerInfo(sample_format=self.sample_format, channels=self.channels, rate=self.rate)
 
+  @cached_property
+  def codec_id(self):
+    try: return av.Codec(self.codec, "r").id
+    except: pass
+    try: return av.Codec(self.codec, "w").id
+    except: pass
+    raise ValueError("Codec not found!")
+
   def compatible_with(self, other: 'CodecInfo') -> bool:
     if not isinstance(other, AudioCodecInfo): return False
-    return self.codec == other.codec and self.channels == other.channels and self.sample_rate == other.sample_rate and self.sample_format == other.sample_format
+    return self.codec_id == other.codec_id and self.channels == other.channels and self.sample_rate == other.sample_rate and self.sample_format == other.sample_format
 
   def get_reformatter(self, from_codec: 'AudioCodecInfo') -> Reformatter: return AudioResampler(self.resampler_info, from_codec.resampler_info)
   def get_resampler(self): return AudioResampler(self.resampler_info)

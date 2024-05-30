@@ -16,30 +16,26 @@ from streamtasks.system.tasks.media.utils import MediaEditorFields
 from streamtasks.utils import AsyncTrigger
 
 class ContainerVideoOutputConfigBase(BaseModel):
-  pixel_format: IOTypes.PixelFormat
-  codec: IOTypes.Codec
-  width: IOTypes.Width
-  height: IOTypes.Height
-  rate: IOTypes.FrameRate
+  pixel_format: IOTypes.PixelFormat = "yuv420p"
+  encoder: IOTypes.CoderName = "h264"
+  codec: IOTypes.CodecName = "h264"
+  width: IOTypes.Width = 1280
+  height: IOTypes.Height = 720
+  rate: IOTypes.FrameRate = 30
 
-  def to_codec_info(self): return VideoCodecInfo(width=self.width, height=self.height, frame_rate=self.rate, pixel_format=self.pixel_format, codec=self.codec)
-
-  @staticmethod
-  def default_config(): return ContainerVideoOutputConfigBase(pixel_format="yuv420p", codec="h264", width=1280, height=720, rate=30)
+  def to_codec_info(self): return VideoCodecInfo(width=self.width, height=self.height, frame_rate=self.rate, pixel_format=self.pixel_format, codec=self.encoder)
 
 class ContainerVideoOutputConfig(ContainerVideoOutputConfigBase):
   in_topic: int
 
 class ContainerAudioOutputConfigBase(BaseModel):
-  sample_format: IOTypes.SampleFormat
-  codec: IOTypes.Codec
-  channels: IOTypes.Channels
-  rate: IOTypes.SampleRate
+  sample_format: IOTypes.SampleFormat = "fltp"
+  encoder: IOTypes.CoderName = "aac"
+  codec: IOTypes.CodecName = "aac"
+  channels: IOTypes.Channels = 1
+  rate: IOTypes.SampleRate = 32000
 
-  def to_codec_info(self): return AudioCodecInfo(codec=self.codec, channels=self.channels, sample_rate=self.rate, sample_format=self.sample_format)
-
-  @staticmethod
-  def default_config(): return ContainerAudioOutputConfigBase(codec="aac", sample_format="fltp", channels=1, rate=32000)
+  def to_codec_info(self): return AudioCodecInfo(codec=self.encoder, channels=self.channels, sample_rate=self.rate, sample_format=self.sample_format)
 
 class ContainerAudioOutputConfig(ContainerAudioOutputConfigBase):
   in_topic: int
@@ -168,11 +164,11 @@ class OutputContainerTaskHost(TaskHost):
     **multitrackio_configurator(is_input=True, track_configs=[
       {
         "key": "video",
-        "defaultConfig": ContainerVideoOutputConfigBase.default_config().model_dump(),
+        "defaultConfig": ContainerVideoOutputConfigBase().model_dump(),
         "defaultIO": { "type": "ts", "content": "video" },
         "editorFields": [
           MediaEditorFields.pixel_format(),
-          MediaEditorFields.video_codec_name("w"),
+          MediaEditorFields.video_codec("w", coder_key="encoder"),
           MediaEditorFields.pixel_size("width"),
           MediaEditorFields.pixel_size("height"),
           MediaEditorFields.frame_rate(),
@@ -181,10 +177,10 @@ class OutputContainerTaskHost(TaskHost):
       },
       {
         "key": "audio",
-        "defaultConfig": ContainerAudioOutputConfigBase.default_config().model_dump(),
+        "defaultConfig": ContainerAudioOutputConfigBase().model_dump(),
         "defaultIO": { "type": "ts", "content": "audio" },
         "editorFields": [
-          MediaEditorFields.audio_codec_name("w"),
+          MediaEditorFields.audio_codec("w", coder_key="encoder"),
           MediaEditorFields.sample_format(),
           MediaEditorFields.sample_rate(),
           MediaEditorFields.channel_count()

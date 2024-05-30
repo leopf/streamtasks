@@ -147,7 +147,6 @@ class AVOutputStream:
     if DEBUG_MEDIA():
       ddebug_value("mux wait", self._stream.type, False)
 
-
     loop = asyncio.get_running_loop()
     async with self._ctx.lock:
       assert av_packet.dts <= av_packet.pts, "dts must be lower than pts before muxing"

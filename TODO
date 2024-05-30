@@ -1,6 +1,5 @@
 # MY TODOS
-- set message queue size to 1
-- fix video encoder memory problems
+- media codecs name codec not coder
 
 move the following tasks to threads:
 - audiomixer
@@ -44,7 +43,9 @@ Testing:
 - testing web task backend
 
 Infra:
+- set message queue size to 1
 - secret manager
+- dependency manager
 - topic id efficient broadcasting server (optimization)
 - video viewer restructuring, move the websocket stream closer to the task web backend
 

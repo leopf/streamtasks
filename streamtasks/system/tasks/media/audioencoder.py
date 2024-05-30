@@ -15,7 +15,8 @@ class AudioEncoderConfigBase(BaseModel):
   in_sample_format: IOTypes.SampleFormat = "s16"
   out_sample_format: IOTypes.SampleFormat = "fltp"
   channels: IOTypes.Channels = 1
-  codec: IOTypes.Codec = "aac"
+  encoder: IOTypes.CoderName = "aac"
+  codec: IOTypes.CodecName = "aac"
   rate: IOTypes.SampleRate = 32000
   codec_options: dict[str, str] = {}
 
@@ -33,7 +34,7 @@ class AudioEncoderTask(Task):
     self.time_base = Fraction(1, config.rate)
     self.t0: int | None = None
 
-    out_codec_info = AudioCodecInfo(codec=config.codec, sample_rate=config.rate, sample_format=config.out_sample_format, channels=config.channels, options=config.codec_options)
+    out_codec_info = AudioCodecInfo(codec=config.encoder, sample_rate=config.rate, sample_format=config.out_sample_format, channels=config.channels, options=config.codec_options)
     self.encoder = out_codec_info.get_encoder()
 
   async def run(self):
@@ -69,7 +70,7 @@ class AudioEncoderTaskHost(TaskHost):
     editor_fields=[
       MediaEditorFields.sample_format("in_sample_format"),
       MediaEditorFields.sample_format("out_sample_format"),
-      MediaEditorFields.audio_codec_name("r"),
+      MediaEditorFields.audio_codec("w", coder_key="encoder"),
       MediaEditorFields.channel_count(),
       MediaEditorFields.sample_rate(),
       EditorFields.options("codec_options"),

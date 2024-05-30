@@ -1,5 +1,5 @@
 import { Box, Checkbox, FormControl, FormControlLabel, Grid, IconButton, InputLabel, MenuItem, Select, Slider, SliderValueLabelProps, Stack, TextField, Tooltip, Typography } from "@mui/material";
-import { BooleanField, EditorField, KVOptionsField, NumberField, SelectField, SliderField, TextField as STextField } from "./types";
+import { BooleanField, EditorField, KVOptionsField, MultiselectField, NumberField, SelectField, SliderField, TextField as STextField } from "./types";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Add as AddIcon, Close as CloseIcon } from "@mui/icons-material";
 
@@ -129,7 +129,7 @@ function SelectFieldEditor(props: { config: SelectField, data: Record<string, an
             <Select
                 id={`select-field-${props.config.key}`}
                 label={props.config.label}
-                value={props.data[props.config.key] || undefined}
+                value={props.data[props.config.key] ?? undefined}
                 size="small"
                 disabled={props.disabled}
                 onChange={e => {
@@ -141,6 +141,48 @@ function SelectFieldEditor(props: { config: SelectField, data: Record<string, an
             </Select>
         </FormControl>
     );
+}
+
+function MultiselectFieldEditor(props: { config: MultiselectField, data: Record<string, any>, onUpdated: () => void, disabledFields?: Set<string>, disableAll: boolean }) {
+    const keys = Object.keys(props.config.items[0]);
+
+    const keyItems = useMemo(() => {
+        return Object.fromEntries(keys.map(key => [key, Array.from(new Set(props.config.items.map(item => item[key])))]))
+    }, [props.config]);
+
+    const updateOthers = (key: string) => {
+        const value = props.data[key];
+        let remainingItems = props.config.items.filter(item => item[key] === value);
+        const others = keys.map(okey => [okey, remainingItems.filter(item => item[okey] === props.data[okey]).length] as [string, number]).sort((a, b) => b[1] - a[1]).map(v => v[0]);
+        for (const otherKey of others) {
+            const nrem = remainingItems.filter(item => item[otherKey] === props.data[otherKey]);
+            if (nrem.length === 0) {
+                remainingItems = [remainingItems[0]];
+                props.data[otherKey] = remainingItems[0][otherKey];
+            }
+            else {
+                remainingItems = nrem;
+            }
+        }
+    }
+
+    return keys.map(key => (
+        <FormControl key={key} fullWidth variant="filled">
+            <InputLabel htmlFor={`select-field-${key}`} sx={{ textTransform: "capitalize" }}>{key}</InputLabel>
+            <Select
+                id={`select-field-${key}`}
+                value={props.data[key] ?? undefined}
+                size="small"
+                onChange={e => {
+                    props.data[key] = e.target.value;
+                    updateOthers(key);
+                    props.onUpdated();
+                }}
+            >
+                {keyItems[key].map(item => <MenuItem value={item} key={String(item)} sx={{ textTransform: "uppercase" }}>{item}</MenuItem>)}
+            </Select>
+        </FormControl>
+    ));
 }
 
 function KVOptionsFieldEditor(props: { config: KVOptionsField, data: Record<string, any>, onUpdated: () => void, disabled?: boolean }) {
@@ -247,6 +289,9 @@ export function StaticEditor(props: { data: Record<string, any>, fields: EditorF
                 }
                 else if (field.type === "select") {
                     return <SelectFieldEditor disabled={disabledFields.has(field.key) || props.disableAll} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />
+                }
+                else if (field.type === "multiselect") {
+                    return <MultiselectFieldEditor disabledFields={disabledFields} key={Object.keys(field.items[0]).join(";")} data={props.data} config={field} onUpdated={onUpdated} disableAll={!!props.disableAll}/>
                 }
                 else if (field.type === "boolean") {
                     return <BooleanFieldEditor disabled={disabledFields.has(field.key) || props.disableAll} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />

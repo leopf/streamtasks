@@ -5,7 +5,7 @@ import cloneDeep from "clone-deep";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { StaticCLSConfigurator } from "./static";
 import { v4 as uuidv4 } from "uuid";
-import { MetadataModel, StaticEditor, parseMetadataField, GraphSetter, createCLSConfigurator, EditorField, EditorFieldModel, getFieldValidator, theme } from "@streamtasks/core";
+import { MetadataModel, StaticEditor, parseMetadataField, GraphSetter, createCLSConfigurator, EditorField, EditorFieldModel, theme, getConfigModelByFields } from "@streamtasks/core";
 
 const TrackConfigModel = z.object({
     key: z.string(),
@@ -28,7 +28,7 @@ function TrackList(props: {
     data: Record<string, any>,
     onUpdated: () => void,
 }) {
-    const allFields = useMemo(() => new Set(props.config.editorFields.map(f => f.key)), [props.config]);
+    const allFields = useMemo(() => new Set(Object.keys(getConfigModelByFields(props.config.editorFields))), [props.config]);
     const [updateHandle, setUpdate] = useState(0);
     const tracks: TrackMetadata[] = props.data[`${props.config.key}_tracks`] ?? [];
     const setTracks = (tracks: TrackMetadata[]) => {
@@ -185,8 +185,8 @@ class MultiTrackInputConfigurator extends MultiTrackConfigurator {
             for (const [configKey, inputKey] of Object.entries(track.config.globalIOMap ?? {})) {
                 setter.addEdge(`config.${configKey}`, `inputs.${inputIndex}.${inputKey}`);
             }
-            for (const field of track.config.editorFields) {
-                setter.constrainValidator(`config.${track.config.key}_tracks.${track.index}.${field.key}`, v => getFieldValidator(field).safeParse(v).success);
+            for (const [fieldKey, validator] of Object.entries(getConfigModelByFields(track.config.editorFields))) {
+                setter.constrainValidator(`config.${track.config.key}_tracks.${track.index}.${fieldKey}`, v => validator.safeParse(v).success);
             }
         })
         return setter;
@@ -253,8 +253,8 @@ class MultiTrackOutputConfigurator extends MultiTrackConfigurator {
             for (const [configKey, inputKey] of Object.entries(track.config.globalIOMap ?? {})) {
                 setter.addEdge(`config.${configKey}`, `outputs.${outputIndex}.${inputKey}`);
             }
-            for (const field of track.config.editorFields) {
-                setter.constrainValidator(`config.${track.config.key}_tracks.${track.index}.${field.key}`, v => getFieldValidator(field).safeParse(v).success);
+            for (const [fieldKey, validator] of Object.entries(getConfigModelByFields(track.config.editorFields))) {
+                setter.constrainValidator(`config.${track.config.key}_tracks.${track.index}.${fieldKey}`, v => validator.safeParse(v).success);
             }
         })
         return setter;

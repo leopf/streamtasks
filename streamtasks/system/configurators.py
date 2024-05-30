@@ -7,7 +7,8 @@ from streamtasks.utils import strip_nones_from_dict
 class IOTypes:
   Type = Literal["ts", "id"]
   Contents = Literal["image", "video", "audio"] | str
-  Codec = Literal["raw"] | str
+  CoderName = str
+  CodecName = Literal["raw"] | str
   Width = int
   Height = int
   FrameRate = int | float
@@ -108,6 +109,9 @@ class EditorFields:
   @staticmethod
   def select(key: str, items: list[tuple[bool | str | float | int, str]], label: str | None = None):
     return strip_nones_from_dict({ "type": "select", "key": key, "label": label or key_to_label(key), "items": [ { "value": value, "label": label } for value, label in items ] })
+
+  @staticmethod
+  def multiselect(items: list[dict[str, str | int | float]]): return { "type": "multiselect", "items": items }
 
   @staticmethod
   def text(key: str, label: str | None = None, multiline: bool | None = None):

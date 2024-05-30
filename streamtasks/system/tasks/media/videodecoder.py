@@ -10,16 +10,14 @@ from streamtasks.client import Client
 from streamtasks.system.tasks.media.utils import MediaEditorFields
 
 class VideoDecoderConfigBase(BaseModel):
-  in_pixel_format: IOTypes.PixelFormat
-  out_pixel_format: IOTypes.PixelFormat
-  codec: IOTypes.Codec
-  width: IOTypes.Width
-  height: IOTypes.Height
-  rate: IOTypes.FrameRate
-  codec_options: dict[str, str]
-
-  @staticmethod
-  def default_config(): return VideoDecoderConfigBase(in_pixel_format="yuv420p", out_pixel_format="rgb24", codec="h264", width=1280, height=720, rate=30, codec_options={})
+  in_pixel_format: IOTypes.PixelFormat = "yuv420p"
+  out_pixel_format: IOTypes.PixelFormat = "bgr24"
+  decoder: IOTypes.CoderName = "h264"
+  codec: IOTypes.CodecName = "h264"
+  width: IOTypes.Width = 1280
+  height: IOTypes.Height = 720
+  rate: IOTypes.FrameRate = 30
+  codec_options: dict[str, str] = {}
 
 class VideoDecoderConfig(VideoDecoderConfigBase):
   out_topic: int
@@ -40,7 +38,7 @@ class VideoDecoderTask(Task):
       height=config.height,
       frame_rate=config.rate,
       pixel_format=config.out_pixel_format,
-      codec=config.codec, options=config.codec_options)
+      codec=config.decoder, options=config.codec_options)
     self.decoder = codec_info.get_decoder()
 
   async def run(self):
@@ -66,13 +64,13 @@ class VideoDecoderTaskHost(TaskHost):
     label="video decoder",
     inputs=[{ "label": "input", "type": "ts", "key": "in_topic", "content": "video" }],
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "content": "video", "codec": "raw" }],
-    default_config=VideoDecoderConfigBase.default_config().model_dump(),
+    default_config=VideoDecoderConfigBase().model_dump(),
     config_to_input_map={ "in_topic": { **{ v: v for v in [ "rate", "width", "height", "codec" ] }, "in_pixel_format": "pixel_format" } },
     config_to_output_map=[ { **{ v: v for v in [ "rate", "width", "height" ] }, "out_pixel_format": "pixel_format" } ],
     editor_fields=[
       MediaEditorFields.pixel_format("in_pixel_format", "input pixel format"),
       MediaEditorFields.pixel_format("out_pixel_format", "output pixel format"),
-      MediaEditorFields.video_codec_name("r"),
+      MediaEditorFields.video_codec("r", codec_key="decoder"),
       MediaEditorFields.pixel_size("width"),
       MediaEditorFields.pixel_size("height"),
       MediaEditorFields.frame_rate(),

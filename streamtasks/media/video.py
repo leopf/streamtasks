@@ -1,6 +1,7 @@
 import ctypes
 from dataclasses import dataclass
 from fractions import Fraction
+from functools import cached_property
 from typing import Any, Literal
 import av.video.reformatter
 from typing_extensions import Buffer
@@ -73,11 +74,19 @@ class VideoCodecInfo(CodecInfo[VideoFrame]):
   @property
   def reformatter_info(self): return VideoReformatterInfo(self.frame_rate, self.pixel_format, self.width, self.height)
 
+  @cached_property
+  def codec_id(self):
+    try: return av.Codec(self.codec, "r").id
+    except: pass
+    try: return av.Codec(self.codec, "w").id
+    except: pass
+    raise ValueError("Codec not found!")
+
   def get_reformatter(self, from_codec: 'VideoCodecInfo') -> Reformatter: return VideoReformatter(self.reformatter_info, from_codec.reformatter_info)
 
   def compatible_with(self, other: 'CodecInfo') -> bool:
     if not isinstance(other, VideoCodecInfo): return False
-    return self.codec == other.codec and self.frame_rate == other.frame_rate and self.width == other.width and self.height == other.height and self.pixel_format == other.pixel_format
+    return self.codec_id == other.codec_id and self.frame_rate == other.frame_rate and self.width == other.width and self.height == other.height and self.pixel_format == other.pixel_format
 
   def _get_av_codec_context(self, mode: Literal["w", "w"]):
     if mode not in ('r', 'w'): raise ValueError(f'Invalid mode: {mode}. Must be "r" or "w".')

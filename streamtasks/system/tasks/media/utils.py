@@ -9,7 +9,16 @@ class MediaEditorFields:
 
   def codec_name(mode: Literal["w", "r"], codec_type: str, key: str = "codec", label: str | None = None):
     return EditorFields.select(key=key, label=label,
-      items=[ (codec.name, codec.name.upper()) for codec in list_sorted_available_codecs(mode) if codec.type == codec_type])
+      items=[ (codec.coder_name, codec.coder_name.upper()) for codec in list_sorted_available_codecs(mode) if codec.type == codec_type])
+
+  def codec(mode: Literal["w", "w"], codec_type: str, codec_key: str = "codec", coder_key: str = "coder"):
+    return EditorFields.multiselect([ { codec_key: codec.codec_name, coder_key: codec.coder_name } for codec in list_sorted_available_codecs(mode) if codec.type == codec_type ])
+
+  def video_codec(mode: Literal["w", "w"], codec_key: str = "codec", coder_key: str = "coder"):
+    return MediaEditorFields.codec(mode, "video", codec_key=codec_key, coder_key=coder_key)
+
+  def audio_codec(mode: Literal["w", "w"], codec_key: str = "codec", coder_key: str = "coder"):
+    return MediaEditorFields.codec(mode, "audio", codec_key=codec_key, coder_key=coder_key)
 
   def video_codec_name(mode: Literal["w", "r"], key: str = "codec", label: str | None = None):
     return MediaEditorFields.codec_name(mode=mode, key=key, codec_type="video", label=label)

@@ -10,13 +10,20 @@ from extra.debugging import ddebug_value
 from streamtasks.env import DEBUG_MIXER
 from streamtasks.utils import strip_nones_from_dict
 
-lib = ctypes.CDLL(ctypes.util.find_library("avutil"))
+# TODO: memory management
 
-av_get_pix_fmt_name = lib.av_get_pix_fmt_name
+libavutil = ctypes.CDLL(ctypes.util.find_library("avutil"))
+libavcodec = ctypes.CDLL(ctypes.util.find_library("avcodec"))
+
+avcodec_get_name = libavcodec.avcodec_get_name
+avcodec_get_name.argtypes = [ctypes.c_int]
+avcodec_get_name.restype = ctypes.c_char_p
+
+av_get_pix_fmt_name = libavutil.av_get_pix_fmt_name
 av_get_pix_fmt_name.argtypes = [ctypes.c_int]
 av_get_pix_fmt_name.restype = ctypes.c_char_p
 
-av_get_sample_fmt_name = lib.av_get_sample_fmt_name
+av_get_sample_fmt_name = libavutil.av_get_sample_fmt_name
 av_get_sample_fmt_name.argtypes = [ctypes.c_int]
 av_get_sample_fmt_name.restype = ctypes.c_char_p
 
@@ -40,17 +47,21 @@ def list_sample_formats() -> list[str]:
 
 @dataclass
 class CodecInfo:
-  name: str
+  id: int
+  coder_name: str # the name of encoder / decoder
   type: Literal["audio", "video"]
+
+  @property
+  def codec_name(self): return avcodec_get_name(self.id).decode("utf-8")
 
 def list_available_codecs(mode: Literal["r", "w"]) -> Iterator[CodecInfo]:
   for name in av.codecs_available:
     try:
       c = av.codec.Codec(name, mode)
-      yield CodecInfo(name=name, type=c.type)
+      yield CodecInfo(id=c.id, coder_name=name, type=c.type)
     except BaseException: pass
 
-def list_sorted_available_codecs(mode: Literal["r", "w"]) -> Iterator[CodecInfo]: return sorted(list_available_codecs(mode), key=lambda c: c.name)
+def list_sorted_available_codecs(mode: Literal["r", "w"]) -> Iterator[CodecInfo]: return sorted(list_available_codecs(mode), key=lambda c: c.coder_name)
 
 def list_codec_formats(name: str, mode: Literal["r", "w"]):
   c = av.codec.Codec(name, mode)
