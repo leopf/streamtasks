@@ -19,7 +19,7 @@ class VideoEncoderConfigBase(BaseModel):
   encoder: IOTypes.CoderName = "h264"
   codec: IOTypes.CodecName = "h264"
   width: IOTypes.Width = 1280
-  height: IOTypes.Height = "720"
+  height: IOTypes.Height = 720
   rate: IOTypes.FrameRate = 50
   codec_options: dict[str, str] = {}
 

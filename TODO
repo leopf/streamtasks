@@ -1,5 +1,4 @@
 # MY TODOS
-- media codecs name codec not coder
 
 move the following tasks to threads:
 - audiomixer
@@ -7,12 +6,13 @@ move the following tasks to threads:
 - audiofrequencydisplay
 
 - output container needs to be able to stop and restart based on inputs. Also: chunkung
+- better solution for flow detector
 - llama context length fix
 
 Frontend:
+- make graph data dependent 
 - multitrackio disable field not working with globalIO
     - allow inputs changes to the same values   
-- string concatinator sync fix (maybe gate or flow detector is broken)
 
 - merge master
 
@@ -27,14 +27,11 @@ IO:
 
 MEDIA:
 - video mixer
-
-- whisper/other asr
-- system audio recorder
-- virtual video input
-- virtual audio input
-- sip input
+- frame layout
+- v4l2 i/o
 
 ML:
+- whisper/other asr
 - VAD
 
 -----SOON-----
@@ -68,3 +65,7 @@ Network:
 - link set cost
 - ping pong message for bandwidth tests
 - topic relabeling on the switch level to allow for traffic to be rerouted
+
+----- MAYBE------
+- system audio recorder
+- virtual audio input
