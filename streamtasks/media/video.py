@@ -121,6 +121,13 @@ def copy_av_video_frame(frame: av.VideoFrame) -> av.VideoFrame:
     ctypes.memmove(a.buffer_ptr, b.buffer_ptr, min(a.buffer_size, b.buffer_size))
   return new_frame
 
+class FrameReformatter:
+  def __init__(self, **kwargs) -> None:
+    self.reformatter = av.video.reformatter.VideoReformatter()
+    self.kwargs = kwargs
+
+  def reformat(self, frame: VideoFrame):
+    return VideoFrame(self.reformatter.reformat(frame.frame, **self.kwargs))
 
 class VideoReformatter(Reformatter[VideoFrame]):
   def __init__(self, to_codec: VideoReformatterInfo, from_codec: VideoReformatterInfo) -> None:
