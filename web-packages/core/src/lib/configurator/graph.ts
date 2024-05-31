@@ -1,3 +1,4 @@
+import objectPath from "object-path";
 
 export function matchBasePath(path: string, basePath: string) {
     if (path === basePath) {
@@ -11,115 +12,102 @@ export function matchBasePath(path: string, basePath: string) {
     }
 }
 
+export function getAllObjectPaths(obj: any, basePath: string = ""): string[] {
+    if (typeof obj === "object" && obj !== null) {
+        if (Array.isArray(obj)) {
+            return obj.map((el, idx) => getAllObjectPaths(el, basePath ? `${basePath}.${idx}` : `${idx}`)).reduce((pv, cv) => [...pv, ...cv], []);
+        }
+        else {
+            return Object.entries(obj).map(([k, v]) => getAllObjectPaths(v, basePath ? `${basePath}.${k}` : `${k}`)).reduce((pv, cv) => [...pv, ...cv], []);
+        }
+    }
+    return [basePath];
+}
 
-export class GraphSetter {
-    private validatorsConstraints: Record<string, (v: any) => boolean> = {};
-    private valueConstraints: Record<string, any> = {};
-    private disableCheckers: [string, (subPath: string, basePath: string) => boolean][] = [];
-    
-    private edges = new Map<string, string[]>();
-    private edgeGenerators: [string, (subPath: string, basePath: string) => string[]][] = [];
-
+export class GraphSetter<T extends object> {
+    private edgeGenerators: [string, (subPath: string) => string[]][] = [];
+    private validators: [string, (v: any, subPath: string) => boolean][] = [];
     private setters = new Map<string, any>();
 
-    public constrainValidator(path: string, validator: (v: any) => boolean) {
-        this.validatorsConstraints[path] = validator;
-    }
-    public constrainValue(path: string, value: any) {
-        this.valueConstraints[path] = value;
-    }
+    public data: T;
 
-    public addDisableCheck(basePath: string, gen: (subPath: string, basePath: string) => boolean) {
-        this.disableCheckers.push([basePath, gen]);
-    }
-
-    public clearSetters() {
-        this.setters.clear();
+    constructor(data: T) {
+        this.data = data;
     }
 
     public addEdge(path1: string, path2: string) {
-        this.edges.set(path1, [...(this.edges.get(path1) ?? []), path2]);
-        this.edges.set(path2, [...(this.edges.get(path2) ?? []), path1]);
+        this.edgeGenerators.push([path1, () => [path2]]);
+        this.edgeGenerators.push([path2, () => [path1]]);
     }
-    public addEdgeGenerator(basePath: string, gen: (subPath: string, basePath: string) => string[]) {
+    public addEdgeGenerator(basePath: string, gen: (subPath: string) => string[]) {
         this.edgeGenerators.push([basePath, gen]);
+    }
+    public addValidator(path: string, validator: (v: any, subPath: string) => boolean) {
+        this.validators.push([path, validator]);
+    }
+
+    public isDisabled(path: string) {
+        for (const p of this.getEffectedPaths(path)) {
+            const value = objectPath.get(this.data, p);
+            if (!this.validatePathValue(p, value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    public getDisabledPaths(root: string, strip: boolean) { // TODO: make this more efficient
+        const disabledPaths = new Set<string>();
+        const data = objectPath.get(this.data, root);
+        const paths = getAllObjectPaths(data, root);
+        let rootLen = root.endsWith(".") ? root.length : root.length + 1
+        for (const p of paths) {
+            if (this.isDisabled(p)) {
+                if (strip) {
+                    disabledPaths.add(p.substring(rootLen));
+                }
+                else {
+                    disabledPaths.add(p);
+                }
+            }
+        }
+        return disabledPaths;
+    }
+
+    public apply() {
+        const model = objectPath(this.data);
+        const setters: [string, any][] = []
+        for (const [path, value] of this.setters.entries()) {
+            if (model.get(path) !== value) {
+                if (!this.validatePathValue(path, value)) {
+                    throw new Error(`Invalid value on path "${path}"!`);
+                }
+                setters.push([path, value])
+            }
+        }
+        for (const [path, value] of setters) {
+            model.set(path, value);
+        }
     }
 
     public set(path: string, value: any) {
-        const paths = this.getEffectedPaths(path);
-        for (const p of paths) {
-            if (!this.setters.has(p)) {
-                this.setters.set(p, value);
-            }
-            else if (this.setters.get(p) !== value) {
-                throw new Error(`Setter has a value conflict on path "${p}" between "${value}" and "${this.setters.get(p)}"`);
-            }
+        for (const p of this.getEffectedPaths(path)) {
+            this.setters.set(p, value);
         }
     }
-
-    // TODO: remove?
-    public getDisabledFields(path: string, strip: boolean = true) {
-        if (path.length > 0) {
-            path += ".";
-        }
-        const paths = new Set([
-            ...Object.keys(this.valueConstraints),
-            ...Object.keys(this.validatorsConstraints),
-            ...Object.keys(this.edges),
-        ].filter(p => p.startsWith(path)));
-        const result = new Set<string>();
-        const substringStart = (strip && path.length > 0) ? path.length : 0; 
-        for (const p of paths) {
-            if (this.isDisabled(p)) {
-                result.add(p.substring(substringStart));
-            }
-        }
-        return result;
+    public reset() {
+        this.setters.clear();
     }
 
-    public isDisabled(path: string): boolean {
-        const paths = this.getEffectedPaths(path);
-        for (const p of paths) {
-            if (p in this.valueConstraints) {
-                return true;
-            }
-            if (this.checkPathDisabled(p)) {
-                return true;
+
+    private validatePathValue(path: string, value: any) {
+        for (const [basePath, validator] of this.validators) {
+            const subPath = matchBasePath(path, basePath);
+            if (subPath !== undefined && !validator(value, subPath)) {
+                return false;
             }
         }
-        return false;
+        return true;
     }
-
-    public validate(): Record<string, any> {
-        const result: Record<string, any> = {};
-        for (const [setField, setValue] of this.setters.entries()) {
-            if (this.checkPathDisabled(setField)) {
-                throw new Error(`Trying to set path "${setField}" which is disabled!`);
-            }
-            const validatorConstraint = this.validatorsConstraints[setField];
-            if (validatorConstraint && !validatorConstraint(setValue)) {
-                throw new Error(`Validation for path "${setField}" failed!`);
-            }
-
-            const valueConstraint = this.valueConstraints[setField];
-            if (valueConstraint !== undefined && valueConstraint !== setValue) {
-                throw new Error(`Validation for path "${setField}" failed!`);
-            }
-            result[setField] = setValue;
-        }
-        return result;
-    }
-
-    private checkPathDisabled(path: string) {
-        for (const [basePath, checker] of this.disableCheckers) {
-            const subPath = matchBasePath(path, basePath)
-            if (subPath !== undefined && checker(subPath, basePath)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private getEffectedPaths(path: string) {
         const visitedPaths = new Set([path]);
         const newPaths = new Set([path]);
@@ -138,13 +126,12 @@ export class GraphSetter {
         }
         return visitedPaths;
     }
-
     private getConnectedNodes(path: string) {
-        const nodes = Array.from(this.edges.get(path) ?? []);
+        const nodes: string[] = [];
         for (const [basePath, gen] of this.edgeGenerators) {
             const subPath = matchBasePath(path, basePath)
             if (subPath !== undefined) {
-                nodes.push(...gen(subPath, basePath));
+                nodes.push(...gen(subPath));
             }
         }
         return nodes;

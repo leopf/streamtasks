@@ -90,9 +90,11 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
         return (
             <ThemeProvider theme={theme}>
                 <StaticEditor data={this.config} fields={this.editorFields} onUpdated={() => {
-                    this.applyConfig(true);
-                    onUpdate();
-                }} disabledFields={cs.getDisabledFields("config", true)} />
+                    try {
+                        this.applyConfig(true);
+                        onUpdate();
+                    } catch (e) { console.error(e) }
+                }} disabledFields={cs.getDisabledPaths("config", true)} />
             </ThemeProvider>
         )
     }
@@ -100,7 +102,7 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
         const [input, inputIndex] = this.getInput(key, true);
         const dcSetter = this.getGraph();
         dcSetter.set(`inputs.${inputIndex}.topic_id`, undefined);
-        this.setFields(dcSetter.validate());
+        dcSetter.apply();
 
         if (output) {
             const setter = this.getGraph();
@@ -110,13 +112,13 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
                 setter.set(`inputs.${inputIndex}.${diff}`, objectPath.get(output, diff));
             }
             try {
-                this.setFields(setter.validate());
+                setter.apply();
             }
             catch {
                 if (input.topic_id === output.topic_id) {
-                    setter.clearSetters();
+                    setter.reset();
                     setter.set(`inputs.${inputIndex}.topic_id`, undefined);
-                    this.setFields(setter.validate());
+                    setter.apply();
                 }
             }
         }
@@ -125,7 +127,7 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
     protected applyOutputIds() {
         const setter = this.getGraph();
         this.outputs.forEach((o, idx) => setter.set(`outputs.${idx}.topic_id`, o.topic_id));
-        this.setFields(setter.validate())
+        setter.apply();
     }
 
     protected applyConfig(ignoreDisabled: boolean) {
@@ -142,14 +144,14 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
         for (const [k, v] of pathValues.entries()) {
             setter.set(k, v);
         }
-        this.setFields(setter.validate())
+        setter.apply();
     }
 
     protected getGraph() {
-        const setter = new GraphSetter();
+        const setter = new GraphSetter(this.task);
 
         for (const [fieldKey, validator] of Object.entries(getConfigModelByFields(this.editorFields))) {
-            setter.constrainValidator(`config.${fieldKey}`, v => validator.safeParse(v).success)
+            setter.addValidator(`config.${fieldKey}`, v => validator.safeParse(v).success);
         }
 
         const config2InputMap = parseMetadataField(this.taskHost.metadata, "cfg:config2inputmap", z.record(z.string(), z.record(z.string(), z.string()))) ?? {};
@@ -168,7 +170,7 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
                 setter.addEdge(`inputs.${idx}.topic_id`, `config.${input.key}`);
             }
             if (input.topic_id !== undefined) {
-                setter.addDisableCheck(`inputs.${idx}`, (subPath) => !compareIOIgnorePaths.has(subPath));
+                setter.addValidator(`inputs.${idx}`, (_, subPath) => compareIOIgnorePaths.has(subPath));
             }
         });
 
@@ -177,7 +179,7 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
             const disableFields = Object.keys(oInput).filter(k => !compareIOIgnorePaths.has(k) && !mappedFields.includes(k));
             const inputIndex = this.inputs.findIndex(input => input.key === oInput.key);
             if (inputIndex !== -1) {
-                disableFields.forEach(field => setter.addDisableCheck(`inputs.${inputIndex}.${field}`, () => true));
+                disableFields.forEach(field => setter.addValidator(`inputs.${inputIndex}.${field}`, () => false));
             }
         }
 
@@ -192,7 +194,7 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
             const mappedFields = Object.values(map ?? {});
             const oOutput = originalOutputs[outputIndex] ?? {};
             const disableFields = Object.keys(oOutput).filter(k => !compareIOIgnorePaths.has(k) && !mappedFields.includes(k));
-            disableFields.forEach(field => setter.addDisableCheck(`outputs.${outputIndex}.${field}`, () => true));
+            disableFields.forEach(field => setter.addValidator(`outputs.${outputIndex}.${field}`, () => false));
         });
 
         const outputConfigKeys = parseMetadataField(this.taskHost.metadata, "cfg:outputkeys", z.array(z.string().optional())) ?? [];
@@ -207,7 +209,7 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
         return setter;
     }
 
-    private makeIOMirrorGraph(setter: GraphSetter) {
+    private makeIOMirrorGraph(setter: GraphSetter<Task>) {
         // if (String(this.taskHost.metadata["cfg:label"]).startsWith("timestamp")) debugger;
         const data = parseMetadataField(this.taskHost.metadata, "cfg:iomirror", IOMirrorDataModel) ?? [];
 
@@ -217,7 +219,7 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
         const baseOutputs = parseOutputs(this.taskHost.metadata).map((output, idx) => [idx, output] as [number, Metadata]).filter(([idx, _]) => effectedOutputs.has(idx));
 
         this.inputs.map((input, idx) => [input, idx] as [TaskInput, number]).filter(([input, _]) => !effectedInputs.has(input.key))
-            .forEach(([input, idx]) => setter.addDisableCheck(`inputs.${idx}`, subPath => !compareIOIgnorePaths.has(subPath) && !objectPath.has(input, subPath)))
+            .forEach(([input, idx]) => setter.addValidator(`inputs.${idx}`, (_, subPath) => compareIOIgnorePaths.has(subPath) || objectPath.has(input, subPath)))
 
         const inputKeyToIndexMap = Object.fromEntries(baseInputs.map(([idx, input]) => [input.key, idx]));
         [

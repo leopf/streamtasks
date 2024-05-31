@@ -8,7 +8,7 @@ export abstract class TaskCLSConfigurator {
 
     private _task: Task;
     public get task() {
-        return cloneDeep(this._task);
+        return this._task;
     }
     
     public get id() {

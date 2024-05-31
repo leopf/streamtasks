@@ -5,7 +5,7 @@ import cloneDeep from "clone-deep";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { StaticCLSConfigurator } from "./static";
 import { v4 as uuidv4 } from "uuid";
-import { MetadataModel, StaticEditor, parseMetadataField, GraphSetter, createCLSConfigurator, EditorField, EditorFieldModel, theme, getConfigModelByFields } from "@streamtasks/core";
+import { MetadataModel, StaticEditor, parseMetadataField, GraphSetter, createCLSConfigurator, EditorField, EditorFieldModel, theme, getConfigModelByFields, Task } from "@streamtasks/core";
 
 const TrackConfigModel = z.object({
     key: z.string(),
@@ -83,10 +83,11 @@ function MultiTrackEditor(props: {
     fields: EditorField[],
     trackConfigs: TrackConfig[],
     disabledTracks: Set<string>,
+    disabledFields?: Set<string>
 }) {
     return (
         <Stack spacing={3}>
-            <StaticEditor data={props.data} fields={props.fields} onUpdated={props.onUpdated} />
+            <StaticEditor data={props.data} fields={props.fields} onUpdated={props.onUpdated} disabledFields={props.disabledFields}/>
             {props.trackConfigs.map(c => <TrackList config={c} data={props.data} disabledTracks={props.disabledTracks} onUpdated={props.onUpdated} />)}
         </Stack>
     );
@@ -104,13 +105,23 @@ abstract class MultiTrackConfigurator extends StaticCLSConfigurator {
     }
 
     public rrenderEditor(onUpdate: () => void): ReactNode {
+        const cs = this.getGraph();
         return (
             <ThemeProvider theme={theme}>
-                <MultiTrackEditor disabledTracks={new Set(this.inputs.filter(i => i.topic_id !== undefined).map(i => i.key))} data={this.config} fields={this.editorFields} trackConfigs={this.trackConfigs} onUpdated={() => {
-                    this.beforeUpdate();
-                    this.applyConfig(true);
-                    onUpdate();
-                }} />
+                <MultiTrackEditor 
+                    disabledTracks={new Set(this.inputs.filter(i => i.topic_id !== undefined).map(i => i.key))} 
+                    data={this.config} 
+                    fields={this.editorFields} 
+                    trackConfigs={this.trackConfigs}
+                    disabledFields={cs.getDisabledPaths("config", true)}
+                    onUpdated={() => {
+                        try {
+                            this.beforeUpdate();
+                            this.applyConfig(true);
+                            onUpdate();
+                        } catch (e) { console.error(e) }
+                    }}
+                />
             </ThemeProvider>
         )
     }
@@ -172,7 +183,7 @@ class MultiTrackInputConfigurator extends MultiTrackConfigurator {
 
         this.trackInputKeys = tracks.map(t => t.data._key);
     }
-    protected getGraph(): GraphSetter {
+    protected getGraph(): GraphSetter<Task> {
         const trackKeyMap = new Map(this.listTracks().map(t => [t.data._key, t]));
         const setter = super.getGraph();
         this.inputs.forEach((input, inputIndex) => {
@@ -186,7 +197,7 @@ class MultiTrackInputConfigurator extends MultiTrackConfigurator {
                 setter.addEdge(`config.${configKey}`, `inputs.${inputIndex}.${inputKey}`);
             }
             for (const [fieldKey, validator] of Object.entries(getConfigModelByFields(track.config.editorFields))) {
-                setter.constrainValidator(`config.${track.config.key}_tracks.${track.index}.${fieldKey}`, v => validator.safeParse(v).success);
+                setter.addValidator(`config.${track.config.key}_tracks.${track.index}.${fieldKey}`, v => validator.safeParse(v).success);
             }
         })
         return setter;
@@ -236,7 +247,7 @@ class MultiTrackOutputConfigurator extends MultiTrackConfigurator {
 
         this.trackOutputMap = Object.fromEntries(trackOutputMap.entries());
     }
-    protected getGraph(): GraphSetter {
+    protected getGraph(): GraphSetter<Task> {
         const trackKeyMap = new Map(this.listTracks().map(t => [t.data._key, t]));
         const output2TrackKeyMap = new Map(Object.entries(this.trackOutputMap).map(([k, v]) => [v, k]));
 
@@ -254,7 +265,7 @@ class MultiTrackOutputConfigurator extends MultiTrackConfigurator {
                 setter.addEdge(`config.${configKey}`, `outputs.${outputIndex}.${inputKey}`);
             }
             for (const [fieldKey, validator] of Object.entries(getConfigModelByFields(track.config.editorFields))) {
-                setter.constrainValidator(`config.${track.config.key}_tracks.${track.index}.${fieldKey}`, v => validator.safeParse(v).success);
+                setter.addValidator(`config.${track.config.key}_tracks.${track.index}.${fieldKey}`, v => validator.safeParse(v).success);
             }
         })
         return setter;

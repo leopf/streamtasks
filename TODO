@@ -10,10 +10,6 @@ move the following tasks to threads:
 - llama context length fix
 
 Frontend:
-- make graph data dependent 
-- multitrackio disable field not working with globalIO
-    - allow inputs changes to the same values   
-
 - merge master
 
 -----TASKS-----
