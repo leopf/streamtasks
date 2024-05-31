@@ -19,6 +19,8 @@ def video_buffer_to_ndarray(buf: Buffer, width: int, height: int):
   if bitmap.shape[-1] == 1: bitmap = bitmap.squeeze()
   return bitmap
 
+TRANSPARENT_PXL_FORMATS = { "rgba", "bgra", "abgr", "argb" }
+
 class VideoFrame(Frame[av.VideoFrame]):
   def to_rgb(self):
     return VideoFrame(self.frame.to_rgb())

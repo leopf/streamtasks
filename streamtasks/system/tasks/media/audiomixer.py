@@ -36,7 +36,7 @@ class AudioMixerConfigBase(BaseModel):
 
   @field_validator("sample_format")
   @classmethod
-  def validate_address_name(cls, value: str):
+  def validate_sample_format(cls, value: str):
     if "p" in value: raise ValueError("Only non planar formats allowed!")
     return value
 

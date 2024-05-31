@@ -117,7 +117,7 @@ abstract class MultiTrackConfigurator extends StaticCLSConfigurator {
                     onUpdated={() => {
                         try {
                             this.beforeUpdate();
-                            this.applyConfig(true);
+                            this.applyConfig();
                             onUpdate();
                         } catch (e) { console.error(e) }
                     }}

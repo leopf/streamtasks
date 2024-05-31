@@ -2,8 +2,8 @@ from contextlib import asynccontextmanager
 import queue
 from typing import Any, Self
 import numpy as np
-from pydantic import BaseModel, ValidationError, model_validator
-from streamtasks.media.video import FrameReformatter, VideoFrame
+from pydantic import BaseModel, ValidationError, field_validator, model_validator
+from streamtasks.media.video import TRANSPARENT_PXL_FORMATS, FrameReformatter, VideoFrame
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import TimestampChuckMessage
 from streamtasks.net.message.types import TopicControlData
@@ -39,6 +39,11 @@ class VideoLayoutConfigBase(BaseModel):
     if self.place_left_offset < 0 or self.place_left_offset >= self.out_width: raise ValueError("Image must be placed within the output frame (left offset)!")
     return self
 
+  @field_validator("pixel_format")
+  @classmethod
+  def validate_pixel_format(cls, v: str):
+    if v not in TRANSPARENT_PXL_FORMATS: raise ValueError("Invalid pixel format!")
+    return v
 
 class VideoLayoutConfig(VideoLayoutConfigBase):
   out_topic: int
@@ -82,7 +87,7 @@ class VideoLayoutTask(SyncTask):
         assert arr.dtype == np.uint8, "not uint8"
         out_data = np.zeros((self.config.out_height, self.config.out_width, 4), dtype=np.uint8)
         out_data[self.config.place_top_offset:self.config.place_top_offset + arr.shape[0], self.config.place_left_offset:self.config.place_left_offset + arr.shape[1]] = arr
-        self.send_data(self.out_topic, MessagePackData(TimestampChuckMessage(timestamp=message.timestamp, data=out_data.tobytes("C"))))
+        self.send_data(self.out_topic, MessagePackData(TimestampChuckMessage(timestamp=message.timestamp, data=out_data.tobytes("C")).model_dump()))
       except queue.Empty: pass
 
 class VideoLayoutTaskHost(TaskHost):
@@ -95,7 +100,7 @@ class VideoLayoutTaskHost(TaskHost):
     config_to_input_map={ "in_topic": { v: v for v in [ "rate", "pixel_format" ] } | { "in_width": "width", "in_height": "height" } },
     config_to_output_map=[ { v: v for v in [ "rate", "pixel_format" ] } | { "out_width": "width", "out_height": "height" } ],
     editor_fields=[
-      MediaEditorFields.pixel_format(allowed_values = { "rgba", "bgra", "abgr", "argb" }),
+      MediaEditorFields.pixel_format(allowed_values = TRANSPARENT_PXL_FORMATS),
       MediaEditorFields.frame_rate(),
       MediaEditorFields.pixel_size(key="place_top_offset"),
       MediaEditorFields.pixel_size(key="place_left_offset"),

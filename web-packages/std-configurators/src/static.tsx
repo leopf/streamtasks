@@ -71,7 +71,7 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
         });
         if (!task) {
             this.applyOutputIds();
-            this.applyConfig(false);
+            this.applyConfig();
         }
     }
 
@@ -91,7 +91,7 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
             <ThemeProvider theme={theme}>
                 <StaticEditor data={this.config} fields={this.editorFields} onUpdated={() => {
                     try {
-                        this.applyConfig(true);
+                        this.applyConfig();
                         onUpdate();
                     } catch (e) { console.error(e) }
                 }} disabledFields={cs.getDisabledPaths("config", true)} />
@@ -130,17 +130,9 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
         setter.apply();
     }
 
-    protected applyConfig(ignoreDisabled: boolean) {
+    protected applyConfig() {
         const setter = this.getGraph();
         const pathValues = extractObjectPathValues(this.config, "config.");
-        if (ignoreDisabled) {
-            Array.from(pathValues.keys()).forEach(k => {
-                if (setter.isDisabled(k)) {
-                    pathValues.delete(k);
-                }
-            })
-        }
-
         for (const [k, v] of pathValues.entries()) {
             setter.set(k, v);
         }
