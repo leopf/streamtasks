@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from typing import Any
+import numpy as np
 from pydantic import BaseModel
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import TimestampChuckMessage
@@ -17,6 +18,7 @@ class ScreenCaptureConfigBase(BaseModel):
   width: IOTypes.Width = 1920
   height: IOTypes.Height = 1080
   rate: IOTypes.FrameRate = 30
+  set_alpha: int = 255
   display: str = ""
   with_cursor: bool = True
 
@@ -44,7 +46,10 @@ class ScreenCaptureTask(SyncTask):
         wait_dur = ((frame_count + 1) * frame_time + start_time) - time.time()
         if wait_dur > 0: time.sleep(wait_dur)
         img = sct.grab((self.config.left_offset, self.config.top_offset, self.config.width, self.config.height))
-        self.send_data(self.out_topic, MessagePackData(TimestampChuckMessage(timestamp=get_timestamp_ms(), data=img.bgra).model_dump()))
+        if self.config.set_alpha != 0:
+          arr = np.ndarray((self.config.height* self.config.width, 4), dtype=np.uint8, buffer=memoryview(img.raw))
+          arr[:,3] = self.config.set_alpha
+        self.send_data(self.out_topic, MessagePackData(TimestampChuckMessage(timestamp=get_timestamp_ms(), data=img.raw).model_dump()))
         frame_count += 1
 
 class ScreenCaptureTaskHost(TaskHost):
@@ -60,6 +65,7 @@ class ScreenCaptureTaskHost(TaskHost):
       MediaEditorFields.pixel_size("width"),
       MediaEditorFields.pixel_size("height"),
       MediaEditorFields.frame_rate(),
+      EditorFields.integer(key="set_alpha", label="set alpha (0=use native)", min_value=0, max_value=255),
       EditorFields.text(key="display"),
       EditorFields.boolean(key="with_cursor")
     ]
