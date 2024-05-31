@@ -124,8 +124,6 @@ class ConnectionManager(TaskWebPathHandler):
       for url in self.get_server_urls(): self._server_url_data.append(await self.create_server_url_data(url))
       for url_data in itertools.chain(self._connection_url_data, self._server_url_data): url_data.start()
       await self.run_web_server()
-    except BaseException as e:
-      print(e)
     finally:
       for data in itertools.chain(self._connection_url_data, self._connection_url_data): await data.stop()
 

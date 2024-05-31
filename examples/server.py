@@ -16,9 +16,9 @@ from streamtasks.system.task_web import TaskWebBackend
 from streamtasks.system.helpers import get_all_task_hosts
 from streamtasks.worker import Worker
 
-parser = argparse.ArgumentParser(description="Argument parser for connect and serve URLs")
+parser = argparse.ArgumentParser(description="Run a server.")
 parser.add_argument("--web-port", help="The port to serve the web dashboard on", default=8080, type=int)
-args = parser.parse_args()
+args, _ = parser.parse_known_args()
 
 async def main():
   switch = Switch()
