@@ -2,6 +2,7 @@ from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
 from functools import cached_property
 import queue
+import re
 from typing import Any
 import numpy as np
 from pydantic import BaseModel, ValidationError, field_validator
@@ -23,11 +24,12 @@ class VideoTrack(VideoTrackBase):
   in_topic: int
 
 class VideoMixerConfigBase(BaseModel):
+  video_tracks: list[VideoTrack] = []
   width: IOTypes.Width = 1280
   height: IOTypes.Height = 720
   pixel_format: IOTypes.PixelFormat = "bgra"
   rate: IOTypes.FrameRate = 30
-  video_tracks: list[VideoTrack] = []
+  bgcolor_hex: str = "#000000"
   synchronized: bool = True
 
   @field_validator("pixel_format")
@@ -36,8 +38,19 @@ class VideoMixerConfigBase(BaseModel):
     if v not in TRANSPARENT_PXL_FORMATS: raise ValueError("Invalid pixel format!")
     return v
 
+  @field_validator("bgcolor_hex")
+  @classmethod
+  def validate_bgcolor_hex(cls, v: str):
+    if not re.match(r"^#[0-9a-f]{6}$", v, re.IGNORECASE): raise ValueError("Invalid hex string. Must be #RRGGBB (hex).")
+    return v
+
   @cached_property
   def alpha_index(self): return self.pixel_format.index("a")
+
+  @cached_property
+  def bgcolor(self) -> np.ndarray:
+    colors = dict(zip("rgba", (int(self.bgcolor_hex[1:3], 16), int(self.bgcolor_hex[3:5], 16), int(self.bgcolor_hex[5:7], 16), 255)))
+    return np.array([ colors[c] for c in self.pixel_format.lower() ], dtype=np.uint8)
 
 class VideoMixerConfig(VideoMixerConfigBase):
   out_topic: int
@@ -110,6 +123,7 @@ class VideoMixerTask(SyncTask):
         frames = [ frame.astype(np.float32) for frame in job.frames ]
         if len(frames) == 0: continue
         out = np.zeros_like(frames[0])
+        out[:, :] = self.config.bgcolor
         for frame in frames:
           alpha_mask = np.expand_dims(frame[:,:,self.config.alpha_index], -1) * (1. / 255.)
           out = out * (1 - alpha_mask) + frame * alpha_mask
@@ -129,6 +143,7 @@ class VideoMixerTaskHost(TaskHost):
       MediaEditorFields.frame_rate(),
       MediaEditorFields.pixel_size(key="width"),
       MediaEditorFields.pixel_size(key="height"),
+      EditorFields.text(key="bgcolor_hex", label="background hex color"),
       EditorFields.boolean(key="synchronized"),
     ]
   ),
