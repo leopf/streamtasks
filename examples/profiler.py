@@ -32,6 +32,4 @@ while True:
 signal.signal(signal.SIGALRM, lambda *args: os.kill(server.pid, signal.SIGINT))
 signal.alarm(args.duration)
 server.join()
-try: os.kill(server.pid, signal.SIGKILL) # NOTE: sometimes the process doesn't close fully -> port still in use
-except OSError: pass
 print("written to: ", args.outfile)

@@ -101,8 +101,8 @@ class VideoMixerTask(SyncTask):
         data = await track.topic.recv_data_control()
         if isinstance(data, TopicControlData): track.last_message = None
         else:
-          track.last_message = TimestampChuckMessage.model_validate(data.data)
           if last_frame_count == self.frame_count: self.submit_job()
+          track.last_message = TimestampChuckMessage.model_validate(data.data)
           last_frame_count = self.frame_count
       except ValidationError: pass
 
@@ -121,7 +121,6 @@ class VideoMixerTask(SyncTask):
       try:
         job = self.job_queue.get(timeout=timeout)
         frames = [ frame.astype(np.float32) for frame in job.frames ]
-        if len(frames) == 0: continue
         out = np.zeros_like(frames[0])
         out[:, :] = self.config.bgcolor
         for frame in frames:

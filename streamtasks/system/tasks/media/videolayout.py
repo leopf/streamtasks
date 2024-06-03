@@ -1,9 +1,10 @@
 from contextlib import asynccontextmanager
 import queue
 from typing import Any, Self
+import cv2
 import numpy as np
 from pydantic import BaseModel, ValidationError, field_validator, model_validator
-from streamtasks.media.video import TRANSPARENT_PXL_FORMATS, FrameReformatter, VideoFrame
+from streamtasks.media.video import TRANSPARENT_PXL_FORMATS, video_buffer_to_ndarray
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import TimestampChuckMessage
 from streamtasks.net.message.types import TopicControlData
@@ -76,13 +77,11 @@ class VideoLayoutTask(SyncTask):
 
   def run_sync(self):
     timeout = 2 / self.config.rate
-    reformatter = FrameReformatter(width=self.config.place_width, height=self.config.place_height)
-
     while not self.stop_event.is_set():
       try:
         message = self.message_queue.get(timeout=timeout)
-        frame = VideoFrame.from_buffer(message.data, self.config.in_width, self.config.in_height, self.config.pixel_format)
-        arr = reformatter.reformat(frame).to_ndarray()
+        arr = video_buffer_to_ndarray(message.data, self.config.in_width, self.config.in_height)
+        arr = cv2.resize(arr, (self.config.place_width, self.config.place_height), interpolation=cv2.INTER_LINEAR)
         arr = arr[:self.config.apply_height,:self.config.apply_width,:]
         assert arr.dtype == np.uint8, "not uint8"
         out_data = np.zeros((self.config.out_height, self.config.out_width, 4), dtype=np.uint8)
