@@ -7,7 +7,7 @@ from typing import Any
 import numpy as np
 from pydantic import BaseModel, ValidationError, field_validator
 from streamtasks.client.topic import InTopic, SequentialInTopicSynchronizer
-from streamtasks.media.video import TRANSPARENT_PXL_FORMATS, video_buffer_to_ndarray
+from streamtasks.media.video import TRANSPARENT_PXL_FORMATS
 from streamtasks.net.message.data import MessagePackData
 from streamtasks.net.message.structures import TimestampChuckMessage
 from streamtasks.net.message.types import TopicControlData
@@ -16,6 +16,7 @@ from streamtasks.system.configurators import EditorFields, IOTypes, multitrackio
 from streamtasks.system.task import SyncTask, TaskHost
 from streamtasks.client import Client
 from streamtasks.utils import context_task
+from streamtasks.media.video_perf import merge_images
 
 class VideoTrackBase(BaseModel):
   label: str = "video track"
@@ -45,7 +46,10 @@ class VideoMixerConfigBase(BaseModel):
     return v
 
   @cached_property
-  def alpha_index(self): return self.pixel_format.index("a")
+  def alpha_front(self):
+    if self.pixel_format.startswith("a"): return True
+    elif self.pixel_format.endswith("a"): return False
+    raise ValueError("Alpha channel must be in the front or back!")
 
   @cached_property
   def bgcolor(self) -> np.ndarray:
@@ -63,7 +67,7 @@ class VideoTrackContext:
 @dataclass
 class MixingJob:
   timestamp: int
-  frames: list[np.ndarray]
+  frames: list[bytes]
 
 class VideoMixerTask(SyncTask):
   def __init__(self, client: Client, config: VideoMixerConfig):
@@ -112,7 +116,7 @@ class VideoMixerTask(SyncTask):
     if len(messages) == 0: return
     self.job_queue.put(MixingJob(
       timestamp=min(m.timestamp for m in messages),
-      frames=[ video_buffer_to_ndarray(m.data, self.config.width, self.config.height) for m in messages ]
+      frames=[ m.data for m in messages ]
     ))
 
   def run_sync(self):
@@ -120,14 +124,8 @@ class VideoMixerTask(SyncTask):
     while not self.stop_event.is_set():
       try:
         job = self.job_queue.get(timeout=timeout)
-        frames = [ frame.astype(np.float32) for frame in job.frames ]
-        out = np.zeros_like(frames[0])
-        out[:, :] = self.config.bgcolor
-        for frame in frames:
-          alpha_mask = np.expand_dims(frame[:,:,self.config.alpha_index], -1) * (1. / 255.)
-          out = out * (1 - alpha_mask) + frame * alpha_mask
-        out = np.clip(out, 0, 255).astype(np.uint8)
-        self.send_data(self.out_topic, MessagePackData(TimestampChuckMessage(timestamp=job.timestamp, data=out.tobytes("C")).model_dump()))
+        result = merge_images([ frame for frame in job.frames ], self.config.alpha_front)
+        self.send_data(self.out_topic, MessagePackData(TimestampChuckMessage(timestamp=job.timestamp, data=result).model_dump()))
       except queue.Empty: pass
 
 class VideoMixerTaskHost(TaskHost):
