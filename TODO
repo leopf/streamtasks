@@ -22,8 +22,6 @@ IO:
 - keyboard input
 
 MEDIA:
-- video mixer
-- frame layout
 - v4l2 i/o
 
 ML:
