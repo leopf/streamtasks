@@ -2,7 +2,7 @@ from fractions import Fraction
 from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.media.video import VideoFrame, VideoReformatter, VideoReformatterInfo
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.structures import TimestampChuckMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.tasks.media.utils import MediaEditorFields
@@ -50,7 +50,7 @@ class VideoReformatterTask(Task):
             frame = VideoFrame.from_buffer(message.data, self.config.in_width, self.config.in_height, self.config.in_pixel_format)
             frame.set_ts(Fraction(message.timestamp - t0, 1000), Fraction(1, self.config.in_rate))
             for nframe in await self.reformatter.reformat(frame):
-              await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=int(nframe.dtime * 1000) + t0, data=nframe.to_bytes()).model_dump()))
+              await self.out_topic.send(RawData(TimestampChuckMessage(timestamp=int(nframe.dtime * 1000) + t0, data=nframe.to_bytes()).model_dump()))
         except (ValidationError, ValueError): pass
 
 class VideoReformatterTaskHost(TaskHost):

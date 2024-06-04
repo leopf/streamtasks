@@ -2,6 +2,7 @@ from abc import abstractmethod
 from collections import deque
 from contextlib import asynccontextmanager
 import hashlib
+import math
 import threading
 from types import CoroutineType
 from typing import Any, Awaitable, Generic, Iterable, Optional, TypeVar
@@ -306,3 +307,16 @@ async def context_task(coro):
     task.cancel()
     try: await task
     except asyncio.CancelledError: pass
+
+def make_json_serializable(v: Any):
+  if isinstance(v, (str, int, bool)) or v is None: return v
+  if isinstance(v, float):
+    if math.isnan(v): return "NaN"
+    else: return v
+  if isinstance(v, (bytes, bytearray, memoryview)): return v.hex()
+  try: v = dict(v)
+  except (TypeError, ValueError): v = list(v)
+  except: pass
+  if isinstance(v, dict): return { make_json_serializable(k): make_json_serializable(v) for k, v in v.items() }
+  if isinstance(v, list): return [ make_json_serializable(v) for v in v ]
+  return repr(v)

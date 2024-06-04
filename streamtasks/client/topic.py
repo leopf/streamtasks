@@ -4,7 +4,7 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Iterable, Optional
 from streamtasks.client.receiver import Receiver
 from streamtasks.utils import AsyncBool, AsyncTrigger
-from streamtasks.net.message.data import SerializableData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.utils import get_timestamp_from_message
 from streamtasks.net import Message
 from streamtasks.net.message.types import InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicControlMessage, TopicDataMessage
@@ -94,12 +94,12 @@ class InTopic(_TopicBase):
   async def start(self): await self._receiver.start_recv()
   async def stop(self): await self._receiver.stop_recv()
   async def wait_paused(self, value: bool = True): return await self._a_is_paused.wait(value)
-  async def recv_data(self) -> SerializableData:
+  async def recv_data(self) -> RawData:
     while True:
       data = await self.recv_data_control()
       if not isinstance(data, TopicControlData): return data
 
-  async def recv_data_control(self) -> TopicControlData | SerializableData:
+  async def recv_data_control(self) -> TopicControlData | RawData:
     while True:
       action, data = await self._receiver.get()
       if action == _InTopicAction.DATA: return data
@@ -236,7 +236,7 @@ class OutTopic(_TopicBase):
 
   async def wait_requested(self, value: bool = True): return await self._a_is_requested.wait(value)
 
-  async def send(self, data: SerializableData): await self._client.send_stream_data(self._topic, data)
+  async def send(self, data: RawData): await self._client.send_stream_data(self._topic, data)
   async def set_paused(self, paused: bool):
     if paused != self._is_paused:
       self._is_paused = paused

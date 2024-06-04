@@ -2,7 +2,7 @@ from fractions import Fraction
 from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.media.video import VideoCodecInfo, VideoFrame
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.structures import MediaMessage, TimestampChuckMessage
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
 from streamtasks.system.task import Task, TaskHost
@@ -53,7 +53,7 @@ class VideoDecoderTask(Task):
             frames: list[VideoFrame] = await self.decoder.decode(message.packet)
             for frame in frames: # TODO: endianness
               bitmap = frame.convert(width=self.config.width, height=self.config.height, pixel_format=self.config.out_pixel_format).to_ndarray()
-              await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=self.t0 + int(frame.dtime * 1000), data=bitmap.tobytes("C")).model_dump()))
+              await self.out_topic.send(RawData(TimestampChuckMessage(timestamp=self.t0 + int(frame.dtime * 1000), data=bitmap.tobytes("C")).model_dump()))
           except ValidationError: pass
     finally:
       self.decoder.close()

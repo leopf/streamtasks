@@ -8,7 +8,7 @@ import numpy as np
 from pydantic import BaseModel, ValidationError, field_validator
 from streamtasks.client.topic import InTopic, SequentialInTopicSynchronizer
 from streamtasks.media.video import TRANSPARENT_PXL_FORMATS
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.structures import TimestampChuckMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.tasks.media.utils import MediaEditorFields
@@ -125,7 +125,7 @@ class VideoMixerTask(SyncTask):
       try:
         job = self.job_queue.get(timeout=timeout)
         result = merge_images([ frame for frame in job.frames ], self.config.alpha_front)
-        self.send_data(self.out_topic, MessagePackData(TimestampChuckMessage(timestamp=job.timestamp, data=result).model_dump()))
+        self.send_data(self.out_topic, RawData(TimestampChuckMessage(timestamp=job.timestamp, data=result).model_dump()))
       except queue.Empty: pass
 
 class VideoMixerTaskHost(TaskHost):

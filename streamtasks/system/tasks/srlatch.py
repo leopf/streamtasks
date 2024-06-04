@@ -2,7 +2,7 @@ import asyncio
 from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.client.topic import InTopic, SequentialInTopicSynchronizer
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.structures import NumberMessage
 from streamtasks.system.configurators import EditorFields, static_configurator
 from streamtasks.system.task import Task, TaskHost
@@ -52,7 +52,7 @@ class SRLatchTask(Task):
     if self.set_value != self.reset_value:
       if self.set_value: self.value = True
       if self.reset_value: self.value = False
-    await self.out_topic.send(MessagePackData(NumberMessage(timestamp=timestamp, value=self.value).model_dump()))
+    await self.out_topic.send(RawData(NumberMessage(timestamp=timestamp, value=self.value).model_dump()))
 
 class SRLatchTaskHost(TaskHost):
   @property

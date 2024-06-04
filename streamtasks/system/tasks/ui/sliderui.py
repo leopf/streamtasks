@@ -1,7 +1,7 @@
 from contextlib import AsyncExitStack
 from typing import Any
 from pydantic import BaseModel
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.system.configurators import EditorFields, static_configurator
 from streamtasks.system.tasks.ui.controlbase import UIControlBaseTask, UIControlBaseTaskConfig
 from streamtasks.utils import get_timestamp_ms
@@ -34,7 +34,7 @@ class SliderUITask(UIControlBaseTask[SliderUIConfig, SliderValue]):
     return exit_stack
 
   async def send_value(self, value: SliderValue):
-    await self.out_topic.send(MessagePackData(NumberMessage(timestamp=get_timestamp_ms(), value=value.value).model_dump()))
+    await self.out_topic.send(RawData(NumberMessage(timestamp=get_timestamp_ms(), value=value.value).model_dump()))
 
 class SliderUITaskHost(TaskHost):
   @property

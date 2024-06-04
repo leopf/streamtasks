@@ -1,7 +1,7 @@
 import contextlib
 from typing import Any
 from pydantic import BaseModel
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.system.configurators import EditorFields, multitrackio_configurator, static_configurator
 from streamtasks.system.tasks.ui.controlbase import UIControlBaseTask, UIControlBaseTaskConfig
 from streamtasks.utils import get_timestamp_ms
@@ -37,7 +37,7 @@ class RadioButtonsUITask(UIControlBaseTask[RadioButtonsUIConfig, RadioButtonsVal
     timestamp = get_timestamp_ms()
     for out_topic in self.out_topics:
       value = 1 if out_topic.topic == data.selected_topic else 0
-      await out_topic.send(MessagePackData(NumberMessage(timestamp=timestamp, value=value).model_dump()))
+      await out_topic.send(RawData(NumberMessage(timestamp=timestamp, value=value).model_dump()))
 
 class RadioButtonsUITaskHost(TaskHost):
   @property

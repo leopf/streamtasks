@@ -5,7 +5,7 @@ from streamtasks.client import Client
 from streamtasks.client.fetch import FetchRequest, FetchRequestReceiver, new_fetch_body_bad_request, new_fetch_body_general_error
 from streamtasks.client.receiver import Receiver
 from streamtasks.net import EndpointOrAddress, endpoint_or_address_to_endpoint
-from streamtasks.net.message.data import SerializableData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.types import Message, TopicDataMessage
 from streamtasks.services.protocols import WorkerPorts
 
@@ -15,7 +15,7 @@ class BroadcastingServer:
     self.client = client
     self.namespaces: dict[str, int] = {}
 
-  async def broadcast(self, ns: str, data: SerializableData):
+  async def broadcast(self, ns: str, data: RawData):
     if (topic_id := self.namespaces.get(ns, None)) != None:
       await self.client.send_stream_data(topic_id, data)
 
@@ -45,7 +45,7 @@ class BroadcastReceiver(Receiver):
     self._namespaces = set(namespaces)
     self._endpoint = endpoint_or_address_to_endpoint(endpoint, WorkerPorts.BROADCAST)
     self._topics_ns_map: dict[int, str] = {}
-    self._recv_queue: asyncio.Queue[tuple[str, SerializableData]]
+    self._recv_queue: asyncio.Queue[tuple[str, RawData]]
 
   async def _on_start_recv(self):
     ns_topic_map: dict[int, str] = await self._client.fetch(self._endpoint, "gettopics", list(self._namespaces))

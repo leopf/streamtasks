@@ -6,7 +6,7 @@ from streamtasks.client import Client
 from streamtasks.client.receiver import AddressReceiver
 from streamtasks.connection import UnixSocketServer, connect_unix_socket
 from streamtasks.net import ConnectionClosedError, create_queue_connection
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.structures import TextMessage
 
 
@@ -41,7 +41,7 @@ class TestSync(unittest.IsolatedAsyncioTestCase):
       client2.start()
       while server.connection_count != 1: await server.wait_connections_changed()
       await asyncio.sleep(0.001) # ?? wait for address to be registered in link
-      await client2.send_to((1, 1), MessagePackData(TextMessage(timestamp=1, value="Hello").model_dump()))
+      await client2.send_to((1, 1), RawData(TextMessage(timestamp=1, value="Hello").model_dump()))
 
       _, data = await recv.recv()
       self.assertEqual(data.data["value"], "Hello")

@@ -1,7 +1,7 @@
 import asyncio
 from typing import Any
 from pydantic import BaseModel
-from streamtasks.net.message.data import SerializableData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.net.message.utils import get_timestamp_from_message, set_timestamp_on_message
 from streamtasks.system.configurators import EditorFields, static_configurator
@@ -24,7 +24,7 @@ class RepeaterTask(Task):
     self.in_topic = self.client.in_topic(config.in_topic)
     self.interval = config.interval
     self.fail_closed = config.fail_closed
-    self.current_message: SerializableData | None = None
+    self.current_message: RawData | None = None
     self.time_sync = TimeSynchronizer()
 
   async def run(self):

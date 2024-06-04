@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 import numpy as np
 from pydantic import BaseModel
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.structures import TimestampChuckMessage
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
 from streamtasks.system.task import SyncTask, TaskHost
@@ -49,7 +49,7 @@ class ScreenCaptureTask(SyncTask):
         if self.config.set_alpha != 0:
           arr = np.ndarray((self.config.height* self.config.width, 4), dtype=np.uint8, buffer=memoryview(img.raw))
           arr[:,3] = self.config.set_alpha
-        self.send_data(self.out_topic, MessagePackData(TimestampChuckMessage(timestamp=get_timestamp_ms(), data=img.raw).model_dump()))
+        self.send_data(self.out_topic, RawData(TimestampChuckMessage(timestamp=get_timestamp_ms(), data=img.raw).model_dump()))
         frame_count += 1
 
 class ScreenCaptureTaskHost(TaskHost):

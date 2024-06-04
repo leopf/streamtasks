@@ -1,7 +1,7 @@
-from streamtasks.net.message.data import SerializableData
+from streamtasks.net.message.data import RawData
 
 
-def get_timestamp_from_message(data: SerializableData) -> int:
+def get_timestamp_from_message(data: RawData) -> int:
   content = data.data
   timestamp = None
   if isinstance(content, dict) and "timestamp" in content: timestamp = content["timestamp"]
@@ -11,7 +11,7 @@ def get_timestamp_from_message(data: SerializableData) -> int:
   if isinstance(timestamp, float): return int(timestamp)
   raise ValueError(f"could not get timestamp from message: {data}")
 
-def set_timestamp_on_message(data: SerializableData, timestamp: int):
+def set_timestamp_on_message(data: RawData, timestamp: int):
   content = data.data
   if isinstance(content, dict) and "timestamp" in content: content["timestamp"] = timestamp
   elif hasattr(content, "timestamp") and isinstance(content.timestamp, int): content.timestamp = timestamp

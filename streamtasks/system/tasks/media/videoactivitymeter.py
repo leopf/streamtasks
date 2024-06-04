@@ -4,7 +4,7 @@ from typing import Any
 import numpy as np
 from pydantic import BaseModel, ValidationError
 from streamtasks.media.video import video_buffer_to_ndarray
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.structures import NumberMessage, TimestampChuckMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.configurators import IOTypes, static_configurator
@@ -45,7 +45,7 @@ class VideoActivityMeterTask(SyncTask):
       try:
         data = await self.in_topic.recv_data_control()
         if isinstance(data, TopicControlData):
-          if data.paused: await self.out_topic.send(MessagePackData(NumberMessage(timestamp=sync.time, value=0).model_dump()))
+          if data.paused: await self.out_topic.send(RawData(NumberMessage(timestamp=sync.time, value=0).model_dump()))
           await self.out_topic.set_paused(data.paused)
         else:
           message = TimestampChuckMessage.model_validate(data.data)
@@ -61,7 +61,7 @@ class VideoActivityMeterTask(SyncTask):
         message = self.message_queue.get(timeout=timeout)
         bitmap = video_buffer_to_ndarray(message.data, self.config.width, self.config.height)
         if last_bitmap is not None:
-          self.send_data(self.out_topic, MessagePackData(NumberMessage(timestamp=message.timestamp, value=np.abs(last_bitmap - bitmap).flatten().mean()).model_dump()))
+          self.send_data(self.out_topic, RawData(NumberMessage(timestamp=message.timestamp, value=np.abs(last_bitmap - bitmap).flatten().mean()).model_dump()))
         last_bitmap = bitmap
       except queue.Empty: pass
 

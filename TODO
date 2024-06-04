@@ -12,17 +12,17 @@ move the following tasks to threads:
 Frontend:
 - merge master
 
+- use ffmpeg where we can
+
 -----TASKS-----
 General:
 - switch
+- synchronizer
 - buffer
 - replay buffer
 
 IO:
 - keyboard input
-
-MEDIA:
-- v4l2 i/o
 
 ML:
 - whisper/other asr

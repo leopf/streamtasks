@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 from pydantic import BaseModel, ValidationError, field_validator, model_validator
 from streamtasks.media.video import TRANSPARENT_PXL_FORMATS, video_buffer_to_ndarray
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.structures import TimestampChuckMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.tasks.media.utils import MediaEditorFields
@@ -86,7 +86,7 @@ class VideoLayoutTask(SyncTask):
         assert arr.dtype == np.uint8, "not uint8"
         out_data = np.zeros((self.config.out_height, self.config.out_width, 4), dtype=np.uint8)
         out_data[self.config.place_top_offset:self.config.place_top_offset + arr.shape[0], self.config.place_left_offset:self.config.place_left_offset + arr.shape[1]] = arr
-        self.send_data(self.out_topic, MessagePackData(TimestampChuckMessage(timestamp=message.timestamp, data=out_data.tobytes("C")).model_dump()))
+        self.send_data(self.out_topic, RawData(TimestampChuckMessage(timestamp=message.timestamp, data=out_data.tobytes("C")).model_dump()))
       except queue.Empty: pass
 
 class VideoLayoutTaskHost(TaskHost):

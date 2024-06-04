@@ -1,6 +1,6 @@
 import unittest
 import asyncio
-from streamtasks.net.message.data import TextData
+from streamtasks.net.message.data import RawData
 
 from streamtasks.net import Link, Switch, TopicRemappingLink, create_queue_connection
 from streamtasks.net.message.types import InTopicsChangedMessage, OutTopicsChangedMessage, OutTopicsChangedRecvMessage, PricedId, TopicDataMessage
@@ -48,7 +48,7 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     self.assertIn(1, self.switch_links[1].in_topics)
     self.assertIn(1, self.switch.in_topics)
 
-    await self.a.send(TopicDataMessage(1, TextData("Hello")))
+    await self.a.send(TopicDataMessage(1, RawData("Hello")))
 
     received = await self.b.recv()
     self.assertEqual(received.data.data, "Hello")
@@ -69,7 +69,7 @@ class TestSwitch(unittest.IsolatedAsyncioTestCase):
     self.assertIsInstance(a_received, InTopicsChangedMessage)
     self.assertIn(1, a_received.add)
 
-    await self.a.send(TopicDataMessage(1, TextData("Hello")))
+    await self.a.send(TopicDataMessage(1, RawData("Hello")))
 
     b_received = await self.b.recv()
     self.assertEqual(b_received.data.data, "Hello")

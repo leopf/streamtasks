@@ -2,7 +2,7 @@ from enum import Enum
 import itertools
 from typing import Any
 import unittest
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.structures import NumberMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.tasks.gate import GateConfig, GateState, GateTask, GateFailMode
@@ -80,15 +80,15 @@ class TestGate(TaskTestBase):
 
   async def send_input_data(self, value: float):
     self.timestamp += 1
-    await self.in_topic.send(MessagePackData(NumberMessage(timestamp=self.timestamp, value=value).model_dump()))
+    await self.in_topic.send(RawData(NumberMessage(timestamp=self.timestamp, value=value).model_dump()))
 
   async def send_gate_data(self, value: float):
     self.timestamp += 1
-    await self.gate_topic.send(MessagePackData(NumberMessage(timestamp=self.timestamp, value=value).model_dump()))
+    await self.gate_topic.send(RawData(NumberMessage(timestamp=self.timestamp, value=value).model_dump()))
 
   async def send_gate_invalid(self):
     self.timestamp += 1
-    await self.gate_topic.send(MessagePackData({
+    await self.gate_topic.send(RawData({
       "timestamp": self.timestamp
     }))
 

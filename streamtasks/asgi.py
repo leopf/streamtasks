@@ -3,7 +3,7 @@ from streamtasks.client.fetch import FetchRequestReceiver, FetchRequest, new_fet
 from streamtasks.utils import AsyncTaskManager
 from streamtasks.net import Endpoint, EndpointOrAddress, Link, endpoint_or_address_to_endpoint
 from streamtasks.net.message.types import AddressedMessage, Message
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from pydantic import BaseModel, ValidationError
 from abc import ABC
 from dataclasses import dataclass
@@ -115,7 +115,7 @@ class ASGIEventReceiver(Receiver):
     if not isinstance(message, AddressedMessage): return
     a_message: AddressedMessage = message
     if a_message.address != self._own_address or a_message.port != self._own_port: return
-    if not isinstance(a_message.data, MessagePackData): return
+    if not isinstance(a_message.data, RawData): return
     try:
       self._recv_queue.put_nowait(ASGIEventMessage.model_validate(a_message.data.data))
     except ValidationError: pass
@@ -130,7 +130,7 @@ class ASGIEventSender:
     await self._send(events=[], closed=True)
   async def _send(self, events: list[dict], closed: Optional[bool] = None):
     events = [MessagePackValueTransformer.annotate_value(event) for event in events]
-    await self._client.send_to(self._remote_endpoint, MessagePackData(ASGIEventMessage(events=events, closed=closed).model_dump()))
+    await self._client.send_to(self._remote_endpoint, RawData(ASGIEventMessage(events=events, closed=closed).model_dump()))
 
 
 class ASGIAppRunner:

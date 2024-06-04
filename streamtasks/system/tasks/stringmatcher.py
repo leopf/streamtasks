@@ -1,7 +1,7 @@
 from functools import reduce
 from typing import Any
 from pydantic import BaseModel, ValidationError
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.structures import NumberMessage, TextMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.configurators import EditorFields, static_configurator
@@ -40,7 +40,7 @@ class StringMatcherTask(Task):
             await self.out_topic.set_paused(data.paused)
           else:
             message = TextMessage.model_validate(data.data)
-            await self.out_topic.send(MessagePackData(NumberMessage(timestamp=message.timestamp, value=0 if self.regex.match(message.value) is None else 1).model_dump()))
+            await self.out_topic.send(RawData(NumberMessage(timestamp=message.timestamp, value=0 if self.regex.match(message.value) is None else 1).model_dump()))
         except ValidationError: pass
 
 class StringMatcherTaskHost(TaskHost):

@@ -4,7 +4,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.media.audio import audio_buffer_to_ndarray
 from streamtasks.media.util import AudioChunker
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.structures import TextMessage, TimestampChuckMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.configurators import EditorFields, static_configurator
@@ -65,7 +65,7 @@ class ASRSpeechRecognitionTask(SyncTask):
           for chunk, timestamp in chunker.next(audio_buffer_to_ndarray(message.data, "flt")[0], message.timestamp):
             samples = torch.from_numpy(chunk.reshape((1, -1)).copy())
             result: list[str] = model.transcribe_chunk(streaming_context, samples)
-            if len(result[0]) > 0: self.send_data(self.out_topic, MessagePackData(TextMessage(timestamp=timestamp, value=result[0].lower()).model_dump()))
+            if len(result[0]) > 0: self.send_data(self.out_topic, RawData(TextMessage(timestamp=timestamp, value=result[0].lower()).model_dump()))
         except queue.Empty: pass
     finally:
       if model: del model

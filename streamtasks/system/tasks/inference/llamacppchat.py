@@ -3,7 +3,7 @@ import queue
 from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.env import DEBUG
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.structures import TextMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.configurators import EditorFields, static_configurator
@@ -59,7 +59,7 @@ class LLamaCppChatTask(SyncTask):
         if len(result["choices"]) > 0:
           amessage = result["choices"][0]["message"]
           messages.append(amessage)
-          self.send_data(self.out_topic, MessagePackData(TextMessage(timestamp=message.timestamp, value=amessage["content"]).model_dump()))
+          self.send_data(self.out_topic, RawData(TextMessage(timestamp=message.timestamp, value=amessage["content"]).model_dump()))
       except queue.Empty: pass
 
 class LLamaCppChatTaskHost(TaskHost):

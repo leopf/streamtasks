@@ -4,7 +4,7 @@ import httpx
 from streamtasks.asgi import ASGIProxyApp
 from streamtasks.client.discovery import register_topic_space, wait_for_topic_signal
 from streamtasks.net import ConnectionClosedError, Link, Switch
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.services.protocols import AddressNames, WorkerTopics
 from streamtasks.system.task import Task, TaskHost, TaskHostRegistrationList, TaskManager, TaskManagerClient, TaskStatus
 from streamtasks.system.task_web import TaskWebBackend
@@ -22,7 +22,7 @@ class DemoTask(Task):
   async def run(self):
     self.client.start()
     async with self.shoot_topic, self.shoot_topic.RegisterContext(): await self.stop_event.wait()
-  async def shoot(self): await self.shoot_topic.send(MessagePackData("BANG"))
+  async def shoot(self): await self.shoot_topic.send(RawData("BANG"))
 
 class DemoTaskHost(TaskHost):
   def __init__(self, link: Link):

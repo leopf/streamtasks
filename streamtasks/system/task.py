@@ -14,7 +14,7 @@ from streamtasks.client.fetch import FetchError, FetchErrorStatusCode, FetchRequ
 from streamtasks.client.signal import SignalServer, send_signal
 from streamtasks.client.topic import OutTopic
 from streamtasks.net import DAddress, EndpointOrAddress, Link, TopicRemappingLink, create_queue_connection
-from streamtasks.net.message.data import MessagePackData, SerializableData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.types import Message, TopicDataMessage
 from streamtasks.services.protocols import AddressNames, WorkerTopics
 from streamtasks.env import DEBUG, NODE_NAME
@@ -53,7 +53,7 @@ class SyncTask(Task):
   @abstractmethod
   def run_sync(self): pass
 
-  def send_data(self, topic: OutTopic, data: SerializableData): asyncio.run_coroutine_threadsafe(topic.send(data), self.loop)
+  def send_data(self, topic: OutTopic, data: RawData): asyncio.run_coroutine_threadsafe(topic.send(data), self.loop)
 
 class ModelWithId(BaseModel):
   id: UUID4
@@ -285,7 +285,7 @@ class TaskManager(Worker):
       if task.status is not TaskStatus.running:
         self.tasks.pop(task.id, None)
         gc.collect()
-      await self.bc_server.broadcast(get_namespace_by_task_id(task.id), MessagePackData(task.model_dump()))
+      await self.bc_server.broadcast(get_namespace_by_task_id(task.id), RawData(task.model_dump()))
 
     @server.route(TASK_CONSTANTS.SD_UNREGISTER_TASK_HOST)
     async def _(message_data: Any):

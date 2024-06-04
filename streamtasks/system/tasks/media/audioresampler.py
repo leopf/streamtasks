@@ -2,7 +2,7 @@ from fractions import Fraction
 from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.media.audio import AudioFrame, AudioResampler, AudioResamplerInfo
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.structures import TimestampChuckMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.tasks.media.utils import MediaEditorFields
@@ -48,7 +48,7 @@ class AudioResamplerTask(Task):
             frame = AudioFrame.from_buffer(message.data, self.config.in_sample_format, self.config.in_channels, self.config.in_rate)
             frame.set_ts(Fraction(message.timestamp - t0, 1000), Fraction(1, self.config.in_rate))
             for nframe in await self.resampler.reformat(frame):
-              await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=int(nframe.dtime * 1000) + t0, data=nframe.to_bytes()).model_dump()))
+              await self.out_topic.send(RawData(TimestampChuckMessage(timestamp=int(nframe.dtime * 1000) + t0, data=nframe.to_bytes()).model_dump()))
         except (ValidationError, ValueError): pass
 
 class AudioResamplerTaskHost(TaskHost):

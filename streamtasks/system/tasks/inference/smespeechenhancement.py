@@ -5,7 +5,7 @@ import numpy as np
 from pydantic import BaseModel, ValidationError
 from streamtasks.media.audio import audio_buffer_to_ndarray
 from streamtasks.media.util import AudioSmoother, PaddedAudioChunker
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.structures import TimestampChuckMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.configurators import EditorFields, static_configurator
@@ -70,7 +70,7 @@ class SMESpeechEnhancementTask(SyncTask):
           result: torch.Tensor = model.enhance_batch(samples, torch.tensor([1.])).flatten()
           result = result * (np.abs(chunk).mean() / result.abs().mean().item()) # scale to prevent volume changes
           out_samples: np.ndarray = chunker.strip_padding(decracker.smooth(result.cpu().numpy()))
-          self.send_data(self.out_topic, MessagePackData(TimestampChuckMessage(timestamp=timestamp, data=out_samples.tobytes("C")).model_dump()))
+          self.send_data(self.out_topic, RawData(TimestampChuckMessage(timestamp=timestamp, data=out_samples.tobytes("C")).model_dump()))
       except queue.Empty: pass
 
 class SMESpeechEnhancementTaskHost(TaskHost):

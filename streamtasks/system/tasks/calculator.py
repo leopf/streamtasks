@@ -4,7 +4,7 @@ import functools
 from streamtasks.client import Client
 from streamtasks.client.topic import InTopic, SequentialInTopicSynchronizer
 from streamtasks.system.configurators import EditorFields, multitrackio_configurator, static_configurator
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.structures import NumberMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.task import Task, TaskHost
@@ -237,7 +237,7 @@ class CalculatorTask(Task):
 
   async def send_value(self, timestamp: int):
     result: float = CalculatorEvalTransformer(CalculatorEvalContext(self.var_values)).transform(self.formula_ast)
-    await self.out_topic.send(MessagePackData(NumberMessage(timestamp=timestamp,value=result).model_dump()))
+    await self.out_topic.send(RawData(NumberMessage(timestamp=timestamp,value=result).model_dump()))
 
 class CalculatorTaskHost(TaskHost):
   @property

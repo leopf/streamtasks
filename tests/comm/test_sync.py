@@ -5,7 +5,7 @@ import unittest
 from streamtasks.client import Client
 from streamtasks.client.topic import InTopic, InTopicSynchronizer, SequentialInTopicSynchronizer
 from streamtasks.net import ConnectionClosedError, Switch, create_queue_connection
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.structures import NumberMessage
 from streamtasks.utils import get_timestamp_ms
 
@@ -63,10 +63,10 @@ class TestSync(unittest.IsolatedAsyncioTestCase):
     random_count = self.message_count - self.topic_count # we need this to make the expected messages deterministic
     for i in range(random_count):
       topic = rng.choice(out_topics)
-      await topic.send(MessagePackData(NumberMessage(timestamp=i + start_time, value=i).model_dump()))
+      await topic.send(RawData(NumberMessage(timestamp=i + start_time, value=i).model_dump()))
 
     for i, topic in enumerate(out_topics):
-      await topic.send(MessagePackData(NumberMessage(timestamp=random_count + i + start_time, value=i).model_dump()))
+      await topic.send(RawData(NumberMessage(timestamp=random_count + i + start_time, value=i).model_dump()))
 
     for i in range(expected_count):
       v = await recv_queue.get()

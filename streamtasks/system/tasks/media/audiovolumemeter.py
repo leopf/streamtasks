@@ -4,7 +4,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.media.audio import audio_buffer_to_ndarray, sample_format_to_dtype
 from streamtasks.media.util import AudioChunker
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.structures import NumberMessage, TimestampChuckMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.tasks.media.utils import MediaEditorFields
@@ -50,7 +50,7 @@ class AudioVolumeMeterTask(SyncTask):
       try:
         data = await self.in_topic.recv_data_control()
         if isinstance(data, TopicControlData):
-          if data.paused: await self.out_topic.send(MessagePackData(NumberMessage(timestamp=sync.time, value=0).model_dump()))
+          if data.paused: await self.out_topic.send(RawData(NumberMessage(timestamp=sync.time, value=0).model_dump()))
           await self.out_topic.set_paused(data.paused)
         else:
           message = TimestampChuckMessage.model_validate(data.data)
@@ -64,7 +64,7 @@ class AudioVolumeMeterTask(SyncTask):
       try:
         message = self.message_queue.get(timeout=0.5)
         for chunk, timestamp in chunker.next(audio_buffer_to_ndarray(message.data, self.config.sample_format)[0], message.timestamp):
-          self.send_data(self.out_topic, MessagePackData(NumberMessage(timestamp=timestamp, value=np.sqrt(np.mean(np.abs(chunk) / self.max_value))).model_dump()))
+          self.send_data(self.out_topic, RawData(NumberMessage(timestamp=timestamp, value=np.sqrt(np.mean(np.abs(chunk) / self.max_value))).model_dump()))
       except queue.Empty: pass
 
 class AudioVolumeMeterTaskHost(TaskHost):

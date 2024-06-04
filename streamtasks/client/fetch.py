@@ -2,7 +2,7 @@ from enum import Enum
 from streamtasks.client.receiver import Receiver
 from streamtasks.net import Endpoint
 from streamtasks.net.message.types import AddressedMessage, Message
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 import asyncio
 from pydantic import BaseModel, ValidationError
 from typing import TYPE_CHECKING, Any, Optional, Callable, Awaitable
@@ -33,11 +33,11 @@ class FetchRequest:
     self.response_sent = False
 
   async def respond(self, body: Any):
-    await self._client.send_to(self._return_endpoint, MessagePackData(FetchResponseMessage(body=body).model_dump()))
+    await self._client.send_to(self._return_endpoint, RawData(FetchResponseMessage(body=body).model_dump()))
     self.response_sent = True
 
   async def respond_error(self, content: Any):
-    await self._client.send_to(self._return_endpoint, MessagePackData(FetchResponseMessage(body=content, error=True).model_dump()))
+    await self._client.send_to(self._return_endpoint, RawData(FetchResponseMessage(body=content, error=True).model_dump()))
     self.response_sent = True
 
 class FetchErrorStatusCode(Enum):
@@ -71,7 +71,7 @@ class FetchReponseReceiver(Receiver):
   def on_message(self, message: Message):
     if not isinstance(message, AddressedMessage): return
     a_message: AddressedMessage = message
-    if not a_message.port == self._return_port or not isinstance(a_message.data, MessagePackData): return
+    if not a_message.port == self._return_port or not isinstance(a_message.data, RawData): return
     try:
       fr_message = FetchResponseMessage.model_validate(a_message.data.data)
       self._recv_queue.put_nowait(fr_message)
@@ -97,7 +97,7 @@ class FetchServer(Receiver):
   def on_message(self, message: Message):
     if not isinstance(message, AddressedMessage): return
     a_message: AddressedMessage = message
-    if a_message.port != self._port or not isinstance(a_message.data, MessagePackData): return
+    if a_message.port != self._port or not isinstance(a_message.data, RawData): return
     try:
       fr_message = FetchRequestMessage.model_validate(a_message.data.data)
       if fr_message.descriptor in self._descriptor_mapping:
@@ -133,7 +133,7 @@ class FetchRequestReceiver(Receiver):
     if not isinstance(message, AddressedMessage): return
     a_message: AddressedMessage = message
     if (self._address is not None and a_message.address != self._address) or \
-      a_message.port != self._port or not isinstance(a_message.data, MessagePackData): return
+      a_message.port != self._port or not isinstance(a_message.data, RawData): return
     try:
       fr_message = FetchRequestMessage.model_validate(a_message.data.data)
       if fr_message.descriptor == self._descriptor:

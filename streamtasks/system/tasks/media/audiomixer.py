@@ -11,7 +11,7 @@ from streamtasks.client.topic import InTopic, SequentialInTopicSynchronizer
 from streamtasks.env import DEBUG_MIXER
 from streamtasks.media.audio import audio_buffer_to_ndarray
 from streamtasks.media.util import AudioSequencer, list_sample_formats
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.structures import TimestampChuckMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.tasks.media.utils import MediaEditorFields
@@ -118,7 +118,7 @@ class AudioMixerTask(Task):
       if track.is_paused: track.sequencer.reset()
 
     if result.size != 0:
-      await self.out_topic.send(MessagePackData(TimestampChuckMessage(timestamp=round(target_time * 1000), data=result.tobytes("C")).model_dump()))
+      await self.out_topic.send(RawData(TimestampChuckMessage(timestamp=round(target_time * 1000), data=result.tobytes("C")).model_dump()))
 
 class AudioMixerTaskHost(TaskHost):
   @property

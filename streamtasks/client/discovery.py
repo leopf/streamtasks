@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Optional
 from pydantic import ValidationError
 from streamtasks.client.receiver import Receiver
 from streamtasks.client.signal import send_signal
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.types import Message, TopicDataMessage, TopicMessage
 from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, RegisterAddressRequestBody, RegisterTopicSpaceRequestMessage, TopicSpaceRequestMessage, TopicSpaceResponseMessage, TopicSpaceTranslationRequestMessage, TopicSpaceTranslationResponseMessage, WorkerAddresses, WorkerRequestDescriptors, WorkerTopics
 import asyncio
@@ -37,7 +37,7 @@ class AddressNameAssignedReceiver(Receiver):
   def on_message(self, message: Message):
     if not isinstance(message, TopicDataMessage): return
     if message.topic != WorkerTopics.ADDRESS_NAME_ASSIGNED: return
-    if not isinstance(message.data, MessagePackData): return
+    if not isinstance(message.data, RawData): return
     try:
       self._recv_queue.put_nowait(AddressNameAssignmentMessage.model_validate(message.data.data))
     except ValidationError: pass
@@ -54,7 +54,7 @@ class ResolveAddressesReceiver(Receiver):
   def on_message(self, message: Message):
     if isinstance(message, TopicDataMessage) and message.topic == WorkerTopics.ADDRESSES_CREATED:
       sd_message: TopicDataMessage = message
-      if isinstance(sd_message.data, MessagePackData):
+      if isinstance(sd_message.data, RawData):
         try:
           ra_message = GenerateAddressesResponseMessage.model_validate(sd_message.data.data)
           if ra_message.request_id == self._request_id:

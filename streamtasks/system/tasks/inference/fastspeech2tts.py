@@ -3,7 +3,7 @@ import queue
 from typing import Any
 import numpy as np
 from pydantic import BaseModel, ValidationError
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.structures import TextMessage, TimestampChuckMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.configurators import EditorFields, static_configurator
@@ -61,7 +61,7 @@ class FastSpeech2TTSTask(SyncTask):
         message = self.message_queue.get(timeout=0.5)
         mel_output, _, _, _ = fastspeech2.encode_text([message.value], pace=self.config.pace, pitch_rate=self.config.pitch, energy_rate=1.0)
         samples: np.ndarray = hifi_gan.decode_batch(mel_output).cpu().numpy()
-        self.send_data(self.out_topic, MessagePackData(TimestampChuckMessage(timestamp=message.timestamp, data=samples.tobytes("C")).model_dump()))
+        self.send_data(self.out_topic, RawData(TimestampChuckMessage(timestamp=message.timestamp, data=samples.tobytes("C")).model_dump()))
       except queue.Empty: pass
 
 class FastSpeech2TTSTaskHost(TaskHost):

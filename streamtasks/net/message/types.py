@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Any
 from abc import ABC
 from typing_extensions import Self
-from streamtasks.net.message.data import SerializableData, SerializationType, data_from_serialization_type
+from streamtasks.net.message.data import RawData
 
 
 class Message(ABC):
@@ -12,17 +12,13 @@ class Message(ABC):
 
 
 class DataMessage(Message, ABC):
-  data: SerializableData
+  data: RawData
 
-  def as_dict(self): return { **self.__dict__, 'data': self.data.serialize(), 'ser_type': self.data.type.value }
+  def as_dict(self): return { **self.__dict__, 'data': self.data.serialize() }
   @classmethod
   def from_dict(cls, data: dict[str, Any]) -> Self:
-    ser_type = SerializationType(data['ser_type'])
-    data.pop('ser_type', None)
-
     inner_data = data['data'] if isinstance(data['data'], memoryview) else memoryview(data['data'])
-
-    return cls(**{ **data, 'data': data_from_serialization_type(inner_data, ser_type) })
+    return cls(**{ **data, 'data': RawData(inner_data) })
 
 
 class TopicMessage(Message, ABC):
@@ -32,7 +28,7 @@ class TopicMessage(Message, ABC):
 @dataclass(frozen=True)
 class TopicDataMessage(TopicMessage, DataMessage):
   topic: int
-  data: SerializableData
+  data: RawData
 
 
 @dataclass(frozen=True)
@@ -47,7 +43,7 @@ class TopicControlMessage(TopicMessage):
 class AddressedMessage(DataMessage):
   address: int
   port: int
-  data: SerializableData
+  data: RawData
 
 
 @dataclass(frozen=True)

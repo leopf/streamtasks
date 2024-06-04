@@ -7,7 +7,7 @@ from streamtasks.env import DEBUG_MEDIA
 from streamtasks.media.audio import AudioCodecInfo
 from streamtasks.media.container import AVInputStream, InputContainer
 from streamtasks.media.video import VideoCodecInfo
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.system.configurators import EditorFields, IOTypes, multitrackio_configurator, static_configurator
 from streamtasks.net.message.structures import MediaMessage
 from streamtasks.system.task import Task, TaskHost
@@ -74,7 +74,7 @@ class InputContainerTask(Task):
             if self.config.real_time:
               current_timestamp = get_timestamp_ms()
               await asyncio.sleep(max(0, (timestamp - current_timestamp - offset) / 1000))
-            await out_topic.send(MessagePackData(MediaMessage(timestamp=timestamp, packet=packet).model_dump()))
+            await out_topic.send(RawData(MediaMessage(timestamp=timestamp, packet=packet).model_dump()))
             offset += get_timestamp_ms() - timestamp
     except EOFError: pass
 

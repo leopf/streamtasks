@@ -11,7 +11,7 @@ from streamtasks.client import Client
 from streamtasks.client.topic import InTopic, OutTopic, SequentialInTopicSynchronizer
 from streamtasks.connection import AutoReconnector, connect
 from streamtasks.net import EndpointOrAddress, Link, Switch
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.structures import NumberMessage, TextMessage, TimestampChuckMessage
 from streamtasks.services.protocols import AddressNames
 from streamtasks.system.configurators import EditorFields, key_to_label, static_configurator
@@ -133,7 +133,7 @@ class _FnTask(Task):
     for value, output in zip(result, self.outputs):
       try:
         message = _VALUE_TO_MESSAGE[output.config.data_type](timestamp, value)
-        await output.topic.send(MessagePackData(message.model_dump()))
+        await output.topic.send(RawData(message.model_dump()))
       except ValidationError:
         logging.warning(f"Failed to create message from value on task {self.root_config.name}, output {output.config.index}!")
 

@@ -7,7 +7,7 @@ from streamtasks.client.discovery import wait_for_topic_signal
 from streamtasks.client.fetch import FetchRequest, FetchRequestReceiver
 from streamtasks.client.receiver import AddressReceiver, TopicsReceiver
 from streamtasks.client.signal import SignalRequestReceiver, SignalServer, send_signal
-from streamtasks.net.message.data import TextData
+from streamtasks.net.message.data import RawData
 from streamtasks.net import ConnectionClosedError, Switch, create_queue_connection
 from streamtasks.services.discovery import DiscoveryWorker
 from streamtasks.services.protocols import WorkerPorts, WorkerTopics
@@ -58,8 +58,8 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     await self.a.register_out_topics([ 1, 2 ])
 
     async with TopicsReceiver(self.b, [ 1, 2 ]) as b_recv:
-      await self.a.send_stream_data(1, TextData("Hello 1"))
-      await self.a.send_stream_data(2, TextData("Hello 2"))
+      await self.a.send_stream_data(1, RawData("Hello 1"))
+      await self.a.send_stream_data(2, RawData("Hello 2"))
 
       recv_data = await b_recv.get()
       self.assertEqual((recv_data[0], recv_data[1].data, recv_data[2]), (1, "Hello 1", None))
@@ -69,8 +69,8 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
       await self.b.unregister_in_topics([ 1 ])
 
-      await self.a.send_stream_data(1, TextData("Hello 1"))
-      await self.a.send_stream_data(2, TextData("Hello 2"))
+      await self.a.send_stream_data(1, RawData("Hello 1"))
+      await self.a.send_stream_data(2, RawData("Hello 2"))
 
       recv_data = await b_recv.get()
       self.assertEqual((recv_data[0], recv_data[1].data, recv_data[2]), (2, "Hello 2", None))
@@ -78,7 +78,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
   @async_timeout(1)
   async def test_address(self):
     await self.a.set_address(1)
-    await self.b.send_to((1, 10), TextData("Hello 1"))
+    await self.b.send_to((1, 10), RawData("Hello 1"))
 
     a_recv = AddressReceiver(self.a, 1, 10)
     topic, data = await a_recv.recv()
@@ -93,7 +93,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     async def wait_topic():
       await wait_for_topic_signal(self.b, 1)
     receiver_task = asyncio.create_task(wait_topic())
-    await self.a.send_stream_data(1, TextData("Hello!"))
+    await self.a.send_stream_data(1, RawData("Hello!"))
     await receiver_task
 
   @async_timeout(1)
@@ -171,17 +171,17 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
     receiver = BroadcastReceiver(self.b, [ "test/1" ], self.a.address)
 
-    await server.broadcast("test/1", TextData("Hello1"))
-    await server.broadcast("test/2", TextData("Hello2"))
+    await server.broadcast("test/1", RawData("Hello1"))
+    await server.broadcast("test/2", RawData("Hello2"))
     await receiver.start_recv()
-    await server.broadcast("test/1", TextData("Hello1"))
-    await server.broadcast("test/2", TextData("Hello2"))
+    await server.broadcast("test/1", RawData("Hello1"))
+    await server.broadcast("test/2", RawData("Hello2"))
     ns, data = await receiver.get()
     self.assertEqual(ns, "test/1")
     self.assertEqual(data.data, "Hello1")
     await receiver.stop_recv()
-    await server.broadcast("test/1", TextData("Hello1"))
-    await server.broadcast("test/2", TextData("Hello2"))
+    await server.broadcast("test/1", RawData("Hello1"))
+    await server.broadcast("test/2", RawData("Hello2"))
     await asyncio.sleep(0)
     self.assertTrue(receiver.empty())
 

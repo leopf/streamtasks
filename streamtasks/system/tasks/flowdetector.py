@@ -1,5 +1,5 @@
 from pydantic import BaseModel, field_serializer
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.utils import get_timestamp_from_message
 from streamtasks.net.message.structures import NumberMessage
 from streamtasks.net.message.types import TopicControlData
@@ -90,7 +90,7 @@ class FlowDetectorTask(Task):
   async def run_updater(self):
     while True:
       await self.out_topic.set_paused(self.state.output_paused)
-      await self.signal_topic.send(MessagePackData(NumberMessage(timestamp=self.time_sync.time, value=float(self.state.signal)).model_dump()))
+      await self.signal_topic.send(RawData(NumberMessage(timestamp=self.time_sync.time, value=float(self.state.signal)).model_dump()))
       try: await asyncio.wait_for(self.state.wait_change(), timeout=self.config.repeat_interval or None)
       except asyncio.TimeoutError: pass
 

@@ -3,7 +3,7 @@ from fractions import Fraction
 from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.media.video import VideoCodecInfo, VideoFrame, video_buffer_to_ndarray
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.structures import MediaMessage, TimestampChuckMessage
 from streamtasks.system.tasks.media.utils import MediaEditorFields
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
@@ -74,7 +74,7 @@ class VideoEncoderTask(SyncTask):
         frame.set_ts(Fraction(message.timestamp - self.t0, 1000), self.time_base)
         packets = self.encoder.encode_sync(frame)
         for packet in packets:
-          self.send_data(self.out_topic, MessagePackData(MediaMessage(timestamp=int(self.t0 + packet.dts * self.time_base * 1000), packet=packet).model_dump()))
+          self.send_data(self.out_topic, RawData(MediaMessage(timestamp=int(self.t0 + packet.dts * self.time_base * 1000), packet=packet).model_dump()))
         self.frame_data_queue.task_done()
       except queue.Empty: pass
 

@@ -5,7 +5,7 @@ from streamtasks.services.protocols import AddressNameAssignmentMessage, Generat
 from streamtasks.worker import Worker
 from streamtasks.client import Client
 from streamtasks.client.fetch import FetchRequest, FetchServer, new_fetch_body_bad_request, new_fetch_body_not_found
-from streamtasks.net.message.data import TextData, MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.net import Link
 import pydantic
@@ -44,7 +44,7 @@ class DiscoveryWorker(Worker):
   async def _run_lighthouse(self, client: Client):
     await client.send_stream_control(WorkerTopics.DISCOVERY_SIGNAL, TopicControlData(False)) # NOTE: not sure if i want this...
     while True:
-      await client.send_stream_data(WorkerTopics.DISCOVERY_SIGNAL, TextData("running"))
+      await client.send_stream_data(WorkerTopics.DISCOVERY_SIGNAL, RawData("running"))
       await asyncio.sleep(1)
 
   async def _run_fetch_server(self, client: Client):
@@ -57,7 +57,7 @@ class DiscoveryWorker(Worker):
       if request.address is None: self._address_map.pop(request.address_name, None)
       else: self._address_map[request.address_name] = request.address
 
-      await client.send_stream_data(WorkerTopics.ADDRESS_NAME_ASSIGNED, MessagePackData(AddressNameAssignmentMessage(
+      await client.send_stream_data(WorkerTopics.ADDRESS_NAME_ASSIGNED, RawData(AddressNameAssignmentMessage(
         address_name=request.address_name,
         address=self._address_map.get(request.address_name, None)
       ).model_dump()))
@@ -129,7 +129,7 @@ class DiscoveryWorker(Worker):
           request = GenerateAddressesRequestMessage.model_validate(message_data)
           logging.info(f"generating {request.count} addresses")
           addresses = self.generate_addresses(request.count)
-          await client.send_stream_data(WorkerTopics.ADDRESSES_CREATED, MessagePackData(GenerateAddressesResponseMessage(
+          await client.send_stream_data(WorkerTopics.ADDRESSES_CREATED, RawData(GenerateAddressesResponseMessage(
             request_id=request.request_id,
             addresses=addresses
           ).model_dump()))

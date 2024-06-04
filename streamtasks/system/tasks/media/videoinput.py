@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from typing import Any
 from pydantic import BaseModel, field_validator
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.structures import TimestampChuckMessage
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
 from streamtasks.system.task import SyncTask, TaskHost
@@ -63,7 +63,7 @@ class VideoInputTask(SyncTask):
         if not result: raise Exception("Failed to read image!")
         frame = cv2.resize(frame, (self.config.width, self.config.height))
         for clr_coversion in VideoInputTask._COLOR_FORMAT2CV_MAP[self.config.pixel_format]: frame = cv2.cvtColor(frame, clr_coversion)
-        self.send_data(self.out_topic, MessagePackData(TimestampChuckMessage(timestamp=timestamp, data=frame.tobytes()).model_dump()))
+        self.send_data(self.out_topic, RawData(TimestampChuckMessage(timestamp=timestamp, data=frame.tobytes()).model_dump()))
     finally:
       vc.release()
 

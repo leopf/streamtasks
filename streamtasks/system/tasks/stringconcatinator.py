@@ -2,7 +2,7 @@
 from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.client.topic import PrioritizedSequentialInTopicSynchronizer
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.system.configurators import EditorFields, static_configurator
 from streamtasks.net.message.structures import NumberMessage, TextMessage
 from streamtasks.net.message.types import TopicControlData
@@ -49,7 +49,7 @@ class StringConcatinatorTask(Task):
         else:
           message = NumberMessage.model_validate(data.data)
           if last_control <= 0.5 and message.value > 0.5 and len(self.value) > 0:
-            await self.out_topic.send(MessagePackData(TextMessage(timestamp=message.timestamp, value=self.value).model_dump()))
+            await self.out_topic.send(RawData(TextMessage(timestamp=message.timestamp, value=self.value).model_dump()))
             self.value = ""
           last_control = message.value
       except ValidationError: pass

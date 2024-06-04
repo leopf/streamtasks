@@ -19,12 +19,11 @@ from streamtasks.client.receiver import TopicsReceiver
 from streamtasks.client.signal import SignalServer
 from streamtasks.env import get_data_sub_dir
 from streamtasks.net import EndpointOrAddress, Link
-from streamtasks.net.message.data import SerializableData
-from streamtasks.net.message.serialize import serializable_data_to_json
+from streamtasks.net.message.data import RawData
 from streamtasks.net.utils import str_to_endpoint
 from streamtasks.services.protocols import AddressNames
 from streamtasks.system.task import TASK_CONSTANTS, MetadataDict, MetadataFields, ModelWithId, TaskHostRegistration, TaskHostRegistrationList, TaskInstance, TaskManagerClient, TaskNotFoundError
-from streamtasks.utils import get_node_name_id, wait_with_dependencies
+from streamtasks.utils import get_node_name_id, make_json_serializable, wait_with_dependencies
 from streamtasks.worker import Worker
 import importlib.resources
 
@@ -383,9 +382,9 @@ class TaskWebBackend(Worker):
         async with TopicsReceiver(self.client, [ topic_id ]) as recv:
           while ctx.connected:
             _, data, _ = await wait_with_dependencies(recv.get(), [receive_disconnect_task])
-            data: SerializableData | None
+            data: RawData | None
             try:
-              if data is not None: await ctx.send_message(f'{{ "data": {json.dumps(serializable_data_to_json(data), allow_nan=False)} }}')
+              if data is not None: await ctx.send_message(f'{{ "data": {json.dumps(make_json_serializable(data.data), allow_nan=False)} }}')
             except BaseException as e: logging.warning("Failed to send message ", e)
       except asyncio.CancelledError: pass
       finally:

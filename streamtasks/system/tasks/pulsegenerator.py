@@ -1,7 +1,7 @@
 from typing import Any, Literal
 from uuid import uuid4
 from pydantic import BaseModel
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net.message.data import RawData
 from streamtasks.system.configurators import EditorFields, static_configurator
 from streamtasks.utils import get_timestamp_ms
 from streamtasks.net.message.structures import IdMessage, TimestampMessage
@@ -28,9 +28,9 @@ class PulseGeneratorTask(Task):
       self.client.start()
       while True:
         if self.message_type == "id":
-          await self.out_topic.send(MessagePackData(IdMessage(id=str(uuid4())).model_dump()))
+          await self.out_topic.send(RawData(IdMessage(id=str(uuid4())).model_dump()))
         elif self.message_type == "ts":
-          await self.out_topic.send(MessagePackData(TimestampMessage(timestamp=get_timestamp_ms()).model_dump()))
+          await self.out_topic.send(RawData(TimestampMessage(timestamp=get_timestamp_ms()).model_dump()))
         await asyncio.sleep(self.interval)
 
 class PulseGeneratorTaskHost(TaskHost):
