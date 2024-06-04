@@ -5,7 +5,7 @@ import numpy as np
 from pydantic import BaseModel, ValidationError
 from streamtasks.media.video import video_buffer_to_ndarray
 from streamtasks.net.message.data import RawData
-from streamtasks.net.message.structures import NumberMessage, TimestampChuckMessage
+from streamtasks.message import NumberMessage, TimestampChuckMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.configurators import IOTypes, static_configurator
 from streamtasks.system.task import SyncTask, TaskHost

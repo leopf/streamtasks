@@ -5,7 +5,7 @@ from streamtasks.net.message.data import RawData
 from streamtasks.system.configurators import EditorFields, static_configurator
 from streamtasks.system.tasks.ui.controlbase import UIControlBaseTask, UIControlBaseTaskConfig
 from streamtasks.utils import get_timestamp_ms
-from streamtasks.net.message.structures import NumberMessage
+from streamtasks.message import NumberMessage
 from streamtasks.system.task import TaskHost
 from streamtasks.client import Client
 

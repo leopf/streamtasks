@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from streamtasks.net.message.data import RawData
 from streamtasks.system.configurators import EditorFields, static_configurator
 from streamtasks.utils import get_timestamp_ms
-from streamtasks.net.message.structures import IdMessage, TimestampMessage
+from streamtasks.message import IdMessage, TimestampMessage
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 import asyncio

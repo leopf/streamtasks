@@ -6,7 +6,7 @@ import numpy as np
 from pydantic import BaseModel, ValidationError, field_validator, model_validator
 from streamtasks.media.video import TRANSPARENT_PXL_FORMATS, video_buffer_to_ndarray
 from streamtasks.net.message.data import RawData
-from streamtasks.net.message.structures import TimestampChuckMessage
+from streamtasks.message import TimestampChuckMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.tasks.media.utils import MediaEditorFields
 from streamtasks.system.configurators import IOTypes, static_configurator

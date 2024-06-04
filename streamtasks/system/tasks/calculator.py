@@ -5,7 +5,7 @@ from streamtasks.client import Client
 from streamtasks.client.topic import InTopic, SequentialInTopicSynchronizer
 from streamtasks.system.configurators import EditorFields, multitrackio_configurator, static_configurator
 from streamtasks.net.message.data import RawData
-from streamtasks.net.message.structures import NumberMessage
+from streamtasks.message import NumberMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.task import Task, TaskHost
 from pydantic import BaseModel, ValidationError, model_validator

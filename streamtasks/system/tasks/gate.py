@@ -4,7 +4,7 @@ from pydantic import BaseModel, ValidationError, field_serializer
 from streamtasks.client.topic import PrioritizedSequentialInTopicSynchronizer
 from streamtasks.system.configurators import EditorFields, static_configurator
 from streamtasks.utils import AsyncObservable
-from streamtasks.net.message.structures import NumberMessage
+from streamtasks.message import NumberMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client

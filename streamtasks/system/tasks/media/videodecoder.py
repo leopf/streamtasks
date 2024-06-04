@@ -3,7 +3,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.media.video import VideoCodecInfo, VideoFrame
 from streamtasks.net.message.data import RawData
-from streamtasks.net.message.structures import MediaMessage, TimestampChuckMessage
+from streamtasks.message import MediaMessage, TimestampChuckMessage
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client

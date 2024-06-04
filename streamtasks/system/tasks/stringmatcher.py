@@ -2,7 +2,7 @@ from functools import reduce
 from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.net.message.data import RawData
-from streamtasks.net.message.structures import NumberMessage, TextMessage
+from streamtasks.message import NumberMessage, TextMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.configurators import EditorFields, static_configurator
 from streamtasks.system.task import Task, TaskHost

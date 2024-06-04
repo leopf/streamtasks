@@ -12,7 +12,7 @@ from streamtasks.env import DEBUG_MIXER
 from streamtasks.media.audio import audio_buffer_to_ndarray
 from streamtasks.media.util import AudioSequencer, list_sample_formats
 from streamtasks.net.message.data import RawData
-from streamtasks.net.message.structures import TimestampChuckMessage
+from streamtasks.message import TimestampChuckMessage
 from streamtasks.net.message.types import TopicControlData
 from streamtasks.system.tasks.media.utils import MediaEditorFields
 from streamtasks.system.configurators import EditorFields, IOTypes, multitrackio_configurator, static_configurator

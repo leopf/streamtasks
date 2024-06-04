@@ -3,7 +3,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.system.configurators import DEFAULT_COLORS, EditorFields, static_configurator
 from streamtasks.system.tasks.ui.controlbase import UIBaseTask, UIControlBaseTaskConfig
-from streamtasks.net.message.structures import NumberMessage
+from streamtasks.message import NumberMessage
 from streamtasks.system.task import TaskHost
 from streamtasks.client import Client
 

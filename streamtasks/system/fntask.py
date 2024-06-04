@@ -12,7 +12,7 @@ from streamtasks.client.topic import InTopic, OutTopic, SequentialInTopicSynchro
 from streamtasks.connection import AutoReconnector, connect
 from streamtasks.net import EndpointOrAddress, Link, Switch
 from streamtasks.net.message.data import RawData
-from streamtasks.net.message.structures import NumberMessage, TextMessage, TimestampChuckMessage
+from streamtasks.message import NumberMessage, TextMessage, TimestampChuckMessage
 from streamtasks.services.protocols import AddressNames
 from streamtasks.system.configurators import EditorFields, key_to_label, static_configurator
 from streamtasks.system.task import MetadataDict, Task, TaskHost, task_host_id_from_name

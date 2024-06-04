@@ -1,13 +1,14 @@
 from typing import Any, Callable, Union
 from streamtasks.env import DEBUG_SER
 from streamtasks.net.helpers import PricedIdTracker
+from streamtasks.net.message.data import RawData
 from streamtasks.net.message.serialize import serialize_message, deserialize_message
 from streamtasks.utils import IdTracker
 from abc import ABC, abstractmethod
 import logging
 import asyncio
 
-from streamtasks.net.message.types import AddressedMessage, AddressesChangedMessage, AddressesChangedRecvMessage, InTopicsChangedMessage, Message, OutTopicsChangedMessage, OutTopicsChangedRecvMessage, PricedId, TopicControlData, TopicControlMessage, TopicDataMessage, TopicMessage
+from streamtasks.net.message.types import AddressedMessage, AddressesChangedMessage, AddressesChangedRecvMessage, DataMessage, InTopicsChangedMessage, Message, OutTopicsChangedMessage, OutTopicsChangedRecvMessage, PricedId, TopicControlData, TopicControlMessage, TopicDataMessage, TopicMessage
 
 DAddress = Union[str, int] # dynamic address, which allows names or ints
 Endpoint = tuple[DAddress, int]
@@ -70,6 +71,7 @@ class Link(ABC):
 
   async def send(self, message: Message):
     if self._closed: raise ConnectionClosedError()
+    assert not isinstance(message, DataMessage) or isinstance(message.data, RawData), "The message data must be of type raw data!"
     message = _transform_message(message)
     if isinstance(message, InTopicsChangedMessage):
       itc_message: InTopicsChangedMessage = message
