@@ -7,6 +7,7 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sstream>
+#include <pybind11/embed.h>
 
 #define REQ_BUFFER_COUNT 2
 #define REQ_MIN_BUFFER_COUNT REQ_BUFFER_COUNT
@@ -45,7 +46,7 @@ private:
     bool started = false;
     bool closed = false;
     struct v4l2_format format;
-    struct v4l2_format params;
+    struct v4l2_streamparm params;
     std::vector<frame_buffer> buffers;
 
     void enqueue_buffer(unsigned int index)
@@ -130,6 +131,19 @@ public:
         close_device();
     }
 
+    unsigned int get_width() {
+        return format.fmt.pix.width;
+    }
+    unsigned int get_height() {
+        return format.fmt.pix.height;
+    }
+    unsigned int get_pixelformat() {
+        return format.fmt.pix.pixelformat;
+    }
+    struct v4l2_fract *get_framerate() {
+        return &(params.parm.capture.timeperframe);
+    }
+
     std::string read_frame()
     {
         struct v4l2_buffer buf;
@@ -207,6 +221,8 @@ VideoCapture* py_create_video_capture(const char* dev_name, unsigned int width, 
 
 PYBIND11_MODULE(v4l2, m)
 {
+    py::module fractions = py::module::import("fractions");
+    py::object Fraction = fractions.attr("Fraction");
     py::class_<VideoCapture>(m, "VideoCapture")
         .def(py::init<>(&py_create_video_capture))
         .def("start", &VideoCapture::start)
@@ -214,5 +230,15 @@ PYBIND11_MODULE(v4l2, m)
         .def("read_frame", [](VideoCapture &self) {
             return py::bytes(self.read_frame());
         })
-        .def("close", &VideoCapture::close_device);
+        .def("close", &VideoCapture::close_device)
+        .def_property_readonly("width", &VideoCapture::get_width)
+        .def_property_readonly("height", &VideoCapture::get_height)
+        .def_property_readonly("pixelformat", [](VideoCapture &self) {
+            return self.get_pixelformat(); // TODO convert
+        })
+        .def_property_readonly("framerate", [Fraction](VideoCapture &self) {
+            struct v4l2_fract *fr = self.get_framerate();
+            return Fraction(fr->numerator, fr->denominator);
+        })
+        ;
 }

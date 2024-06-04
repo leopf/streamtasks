@@ -1,0 +1,1 @@
+def merge_images(images: list[bytes], alpha_front: bool) -> bytes: pass
