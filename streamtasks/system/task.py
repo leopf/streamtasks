@@ -17,7 +17,7 @@ from streamtasks.net import DAddress, EndpointOrAddress, Link, TopicRemappingLin
 from streamtasks.net.serialization import RawData
 from streamtasks.net.messages import Message, TopicDataMessage
 from streamtasks.services.protocols import AddressNames, WorkerTopics
-from streamtasks.env import DEBUG, NODE_NAME
+from streamtasks.env import NODE_NAME
 from streamtasks.utils import get_node_name_id
 from streamtasks.worker import Worker
 
@@ -190,10 +190,9 @@ class TaskHost(Worker):
       await asyncio.gather(self.run_api())
     except asyncio.CancelledError: raise
     except BaseException as e:
-      logging.debug("Failed to register task host!", e)
-      if DEBUG():
+      if logging.getLogger().isEnabledFor(logging.DEBUG):
         import traceback
-        print(traceback.format_exc())
+        logging.debug("Failed to register task host!", e, traceback.format_exc())
       raise e
     finally:
       # TODO: unregister all

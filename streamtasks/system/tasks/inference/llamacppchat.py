@@ -2,7 +2,6 @@ from contextlib import asynccontextmanager
 import queue
 from typing import Any
 from pydantic import BaseModel, ValidationError
-from streamtasks.env import DEBUG
 from streamtasks.net.serialization import RawData
 from streamtasks.message.types import TextMessage
 from streamtasks.net.messages import TopicControlData
@@ -47,7 +46,7 @@ class LLamaCppChatTask(SyncTask):
       except (ValidationError, ValueError): pass
 
   def run_sync(self):
-    model = Llama(model_path=self.config.model_path, n_gpu_layers=-1 if self.config.use_gpu else 0, verbose=bool(DEBUG()), n_ctx=self.config.context_length)
+    model = Llama(model_path=self.config.model_path, n_gpu_layers=-1 if self.config.use_gpu else 0, verbose=bool(__debug__), n_ctx=self.config.context_length)
     messages: list[ChatCompletionRequestMessage] = []
     if self.config.system_message: messages.append({ "role": "system", "content": self.config.system_message })
 
