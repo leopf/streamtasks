@@ -1,9 +1,11 @@
 import esbuild from "esbuild";
+import fs from "fs";
+import path from "path";
 
-
+const entriesDir = "src/entries";
 const ctx = await esbuild.context({
     outdir: "../../streamtasks/system/assets/public/configurators/",
-    entryPoints: [ "src/static.tsx", "src/multitrackio.tsx", "src/notfound.ts" ],
+    entryPoints: (await fs.promises.readdir(entriesDir)).map(fn => path.resolve(entriesDir, fn)),
     bundle: true,
     platform: "browser",
     sourcemap: "inline",

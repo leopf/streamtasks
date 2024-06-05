@@ -18,6 +18,7 @@ export function TaskDisplayWindow(props: { task: ManagedTask, onClose: () => voi
 
     useEffect(() => {
         if (!props.task.hasDisplay || !customDisplayRef.current) return;
+        customDisplayRef.current.innerHTML = "";
         props.task.renderDisplay(customDisplayRef.current, { context: "task" });
     }, [props.task, customDisplayRef.current]);
 

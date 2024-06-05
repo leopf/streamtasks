@@ -47,6 +47,7 @@ export function TaskEditorWindow(props: { task: ManagedTask, onClose: () => void
 
     useEffect(() => {
         if (!props.task.hasEditor || !customEditorRef.current) return;
+        customEditorRef.current.innerHTML = "";
 
         const taskUpdateHandler = (e: Event) => {
             const newData = TaskModel.parse((e as CustomEvent).detail);

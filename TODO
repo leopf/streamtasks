@@ -21,12 +21,6 @@ General:
 - buffer
 - replay buffer
 
-IO:
-- keyboard input
-
-ML:
-- whisper/other asr
-- VAD
 
 -----SOON-----
 Testing:
@@ -49,8 +43,12 @@ Frontend:
 Network:
 - Better topic control data (more maintainable).
 
-Media:
-- performance optimization!
+IO:
+- keyboard input
+
+ML:
+- whisper/other asr
+- VAD
 
 -----Later-----
 - casting
