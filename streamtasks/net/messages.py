@@ -1,9 +1,10 @@
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TYPE_CHECKING
 from abc import ABC
 from typing_extensions import Self
-from streamtasks.net.message.data import RawData
 
+if TYPE_CHECKING:
+  from streamtasks.net.serialization import RawData
 
 class Message(ABC):
   def as_dict(self) -> dict[str, Any]: return self.__dict__
@@ -12,11 +13,12 @@ class Message(ABC):
 
 
 class DataMessage(Message, ABC):
-  data: RawData
+  data: 'RawData'
 
   def as_dict(self): return { **self.__dict__, 'data': self.data.serialize() }
   @classmethod
   def from_dict(cls, data: dict[str, Any]) -> Self:
+    from streamtasks.net.serialization import RawData
     inner_data = data['data'] if isinstance(data['data'], memoryview) else memoryview(data['data'])
     return cls(**{ **data, 'data': RawData(inner_data) })
 
@@ -28,7 +30,7 @@ class TopicMessage(Message, ABC):
 @dataclass(frozen=True)
 class TopicDataMessage(TopicMessage, DataMessage):
   topic: int
-  data: RawData
+  data: 'RawData'
 
 
 @dataclass(frozen=True)
@@ -43,7 +45,7 @@ class TopicControlMessage(TopicMessage):
 class AddressedMessage(DataMessage):
   address: int
   port: int
-  data: RawData
+  data: 'RawData'
 
 
 @dataclass(frozen=True)

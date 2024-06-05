@@ -9,8 +9,8 @@ import tempfile
 from typing import Awaitable, Callable
 from streamtasks.env import NODE_NAME
 from streamtasks.net import ConnectionClosedError, Link
-from streamtasks.net.message.serialize import deserialize_message, serialize_message
-from streamtasks.net.message.types import Message
+from streamtasks.net.serialization import deserialize_message, serialize_message
+from streamtasks.net.messages import Message
 from importlib.metadata import version
 import urllib.parse
 from streamtasks.utils import AsyncBool, AsyncTrigger

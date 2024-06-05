@@ -1,8 +1,8 @@
 from pydantic import BaseModel, field_serializer
-from streamtasks.net.message.data import RawData
-from streamtasks.net.message.utils import get_timestamp_from_message
-from streamtasks.message import NumberMessage
-from streamtasks.net.message.types import TopicControlData
+from streamtasks.net.serialization import RawData
+from streamtasks.message.utils import get_timestamp_from_message
+from streamtasks.message.types import NumberMessage
+from streamtasks.net.messages import TopicControlData
 from streamtasks.system.configurators import EditorFields, static_configurator
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client

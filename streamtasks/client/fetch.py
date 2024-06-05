@@ -1,8 +1,8 @@
 from enum import Enum
 from streamtasks.client.receiver import Receiver
 from streamtasks.net import Endpoint
-from streamtasks.net.message.types import AddressedMessage, Message
-from streamtasks.net.message.data import RawData
+from streamtasks.net.messages import AddressedMessage, Message
+from streamtasks.net.serialization import RawData
 import asyncio
 from pydantic import BaseModel, ValidationError
 from typing import TYPE_CHECKING, Any, Optional, Callable, Awaitable

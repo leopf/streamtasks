@@ -4,10 +4,10 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Iterable, Optional
 from streamtasks.client.receiver import Receiver
 from streamtasks.utils import AsyncBool, AsyncTrigger
-from streamtasks.net.message.data import RawData
-from streamtasks.net.message.utils import get_timestamp_from_message
+from streamtasks.net.serialization import RawData
+from streamtasks.message.utils import get_timestamp_from_message
 from streamtasks.net import Message
-from streamtasks.net.message.types import InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicControlMessage, TopicDataMessage
+from streamtasks.net.messages import InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicControlMessage, TopicDataMessage
 
 if TYPE_CHECKING:
   from streamtasks.client import Client

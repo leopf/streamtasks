@@ -11,9 +11,9 @@ from streamtasks.client.topic import InTopic, SequentialInTopicSynchronizer
 from streamtasks.env import DEBUG_MIXER
 from streamtasks.media.audio import audio_buffer_to_ndarray
 from streamtasks.media.util import AudioSequencer, list_sample_formats
-from streamtasks.net.message.data import RawData
-from streamtasks.message import TimestampChuckMessage
-from streamtasks.net.message.types import TopicControlData
+from streamtasks.net.serialization import RawData
+from streamtasks.message.types import TimestampChuckMessage
+from streamtasks.net.messages import TopicControlData
 from streamtasks.system.tasks.media.utils import MediaEditorFields
 from streamtasks.system.configurators import EditorFields, IOTypes, multitrackio_configurator, static_configurator
 from streamtasks.system.task import Task, TaskHost

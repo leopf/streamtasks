@@ -1,10 +1,10 @@
 from typing import Any, Literal
 from uuid import uuid4
 from pydantic import BaseModel
-from streamtasks.net.message.data import RawData
+from streamtasks.net.serialization import RawData
 from streamtasks.system.configurators import EditorFields, static_configurator
 from streamtasks.utils import get_timestamp_ms
-from streamtasks.message import IdMessage, TimestampMessage
+from streamtasks.message.types import IdMessage, TimestampMessage
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 import asyncio

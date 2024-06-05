@@ -8,9 +8,9 @@ import numpy as np
 from pydantic import BaseModel, ValidationError, field_validator
 from streamtasks.client.topic import InTopic, SequentialInTopicSynchronizer
 from streamtasks.media.video import TRANSPARENT_PXL_FORMATS
-from streamtasks.net.message.data import RawData
-from streamtasks.message import TimestampChuckMessage
-from streamtasks.net.message.types import TopicControlData
+from streamtasks.net.serialization import RawData
+from streamtasks.message.types import TimestampChuckMessage
+from streamtasks.net.messages import TopicControlData
 from streamtasks.system.tasks.media.utils import MediaEditorFields
 from streamtasks.system.configurators import EditorFields, IOTypes, multitrackio_configurator, static_configurator
 from streamtasks.system.task import SyncTask, TaskHost

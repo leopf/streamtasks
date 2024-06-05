@@ -19,7 +19,7 @@ from streamtasks.client.receiver import TopicsReceiver
 from streamtasks.client.signal import SignalServer
 from streamtasks.env import get_data_sub_dir
 from streamtasks.net import EndpointOrAddress, Link
-from streamtasks.net.message.data import RawData
+from streamtasks.net.serialization import RawData
 from streamtasks.net.utils import str_to_endpoint
 from streamtasks.services.protocols import AddressNames
 from streamtasks.system.task import TASK_CONSTANTS, MetadataDict, MetadataFields, ModelWithId, TaskHostRegistration, TaskHostRegistrationList, TaskInstance, TaskManagerClient, TaskNotFoundError

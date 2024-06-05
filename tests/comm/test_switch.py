@@ -1,9 +1,9 @@
 import unittest
 import asyncio
-from streamtasks.net.message.data import RawData
+from streamtasks.net.serialization import RawData
 
 from streamtasks.net import Link, Switch, TopicRemappingLink, create_queue_connection
-from streamtasks.net.message.types import InTopicsChangedMessage, OutTopicsChangedMessage, OutTopicsChangedRecvMessage, PricedId, TopicDataMessage
+from streamtasks.net.messages import InTopicsChangedMessage, OutTopicsChangedMessage, OutTopicsChangedRecvMessage, PricedId, TopicDataMessage
 from tests.shared import async_timeout
 
 

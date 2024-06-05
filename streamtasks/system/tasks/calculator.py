@@ -4,9 +4,9 @@ import functools
 from streamtasks.client import Client
 from streamtasks.client.topic import InTopic, SequentialInTopicSynchronizer
 from streamtasks.system.configurators import EditorFields, multitrackio_configurator, static_configurator
-from streamtasks.net.message.data import RawData
-from streamtasks.message import NumberMessage
-from streamtasks.net.message.types import TopicControlData
+from streamtasks.net.serialization import RawData
+from streamtasks.message.types import NumberMessage
+from streamtasks.net.messages import TopicControlData
 from streamtasks.system.task import Task, TaskHost
 from pydantic import BaseModel, ValidationError, model_validator
 from typing import Any

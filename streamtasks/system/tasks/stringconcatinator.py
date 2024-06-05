@@ -2,10 +2,10 @@
 from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.client.topic import PrioritizedSequentialInTopicSynchronizer
-from streamtasks.net.message.data import RawData
+from streamtasks.net.serialization import RawData
 from streamtasks.system.configurators import EditorFields, static_configurator
-from streamtasks.message import NumberMessage, TextMessage
-from streamtasks.net.message.types import TopicControlData
+from streamtasks.message.types import NumberMessage, TextMessage
+from streamtasks.net.messages import TopicControlData
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 import asyncio

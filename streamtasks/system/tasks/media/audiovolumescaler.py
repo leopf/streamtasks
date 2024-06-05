@@ -5,9 +5,9 @@ import numpy as np
 from pydantic import BaseModel, ValidationError
 from streamtasks.client.topic import SequentialInTopicSynchronizer
 from streamtasks.media.audio import audio_buffer_to_samples, sample_format_to_dtype
-from streamtasks.net.message.data import RawData
-from streamtasks.message import NumberMessage, TimestampChuckMessage
-from streamtasks.net.message.types import TopicControlData
+from streamtasks.net.serialization import RawData
+from streamtasks.message.types import NumberMessage, TimestampChuckMessage
+from streamtasks.net.messages import TopicControlData
 from streamtasks.system.tasks.media.utils import MediaEditorFields
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
 from streamtasks.system.task import Task, TaskHost

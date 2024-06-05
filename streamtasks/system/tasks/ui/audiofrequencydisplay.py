@@ -8,7 +8,7 @@ from streamtasks.media.util import AudioChunker
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
 from streamtasks.system.tasks.media.utils import MediaEditorFields
 from streamtasks.system.tasks.ui.controlbase import UIBaseTask, UIControlBaseTaskConfig
-from streamtasks.message import TimestampChuckMessage
+from streamtasks.message.types import TimestampChuckMessage
 from streamtasks.system.task import TaskHost
 from streamtasks.client import Client
 

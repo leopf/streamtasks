@@ -8,13 +8,13 @@ from streamtasks.asgi import ASGIAppRunner
 from streamtasks.asgiserver import ASGIRouter, ASGIServer, HTTPContext, WebsocketContext, http_context_handler, websocket_context_handler
 from streamtasks.media.container import OutputContainer
 from streamtasks.media.video import VideoCodecInfo
-from streamtasks.net.message.data import RawData
+from streamtasks.net.serialization import RawData
 from streamtasks.net.utils import endpoint_to_str
 from streamtasks.services.protocols import WorkerPorts
 from streamtasks.system.configurators import IOTypes, static_configurator
 from streamtasks.system.tasks.media.utils import MediaEditorFields
 from streamtasks.system.tasks.ui.controlbase import UIControlBaseTaskConfig
-from streamtasks.message import MediaMessage
+from streamtasks.message.types import MediaMessage
 from streamtasks.system.task import MetadataFields, Task, TaskHost
 from streamtasks.client import Client
 from streamtasks.utils import wait_with_dependencies

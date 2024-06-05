@@ -1,5 +1,4 @@
-from streamtasks.net.message.data import RawData
-
+from streamtasks.net.serialization import RawData
 
 def get_timestamp_from_message(data: RawData) -> int:
   content = data.data

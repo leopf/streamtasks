@@ -7,9 +7,9 @@ from streamtasks.env import DEBUG_MEDIA
 from streamtasks.media.audio import AudioCodecInfo
 from streamtasks.media.container import AVInputStream, InputContainer
 from streamtasks.media.video import VideoCodecInfo
-from streamtasks.net.message.data import RawData
+from streamtasks.net.serialization import RawData
 from streamtasks.system.configurators import EditorFields, IOTypes, multitrackio_configurator, static_configurator
-from streamtasks.message import MediaMessage
+from streamtasks.message.types import MediaMessage
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 from streamtasks.system.tasks.media.utils import MediaEditorFields

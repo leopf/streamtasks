@@ -2,9 +2,9 @@ from enum import Enum
 import itertools
 from typing import Any
 import unittest
-from streamtasks.net.message.data import RawData
-from streamtasks.message import NumberMessage
-from streamtasks.net.message.types import TopicControlData
+from streamtasks.net.serialization import RawData
+from streamtasks.message.types import NumberMessage
+from streamtasks.net.messages import TopicControlData
 from streamtasks.system.tasks.gate import GateConfig, GateState, GateTask, GateFailMode
 import asyncio
 from tests.shared import full_test

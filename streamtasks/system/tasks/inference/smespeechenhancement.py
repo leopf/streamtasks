@@ -5,9 +5,9 @@ import numpy as np
 from pydantic import BaseModel, ValidationError
 from streamtasks.media.audio import audio_buffer_to_ndarray
 from streamtasks.media.util import AudioSmoother, PaddedAudioChunker
-from streamtasks.net.message.data import RawData
-from streamtasks.message import TimestampChuckMessage
-from streamtasks.net.message.types import TopicControlData
+from streamtasks.net.serialization import RawData
+from streamtasks.message.types import TimestampChuckMessage
+from streamtasks.net.messages import TopicControlData
 from streamtasks.system.configurators import EditorFields, static_configurator
 from streamtasks.system.task import SyncTask, TaskHost
 from streamtasks.client import Client

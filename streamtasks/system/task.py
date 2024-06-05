@@ -14,8 +14,8 @@ from streamtasks.client.fetch import FetchError, FetchErrorStatusCode, FetchRequ
 from streamtasks.client.signal import SignalServer, send_signal
 from streamtasks.client.topic import OutTopic
 from streamtasks.net import DAddress, EndpointOrAddress, Link, TopicRemappingLink, create_queue_connection
-from streamtasks.net.message.data import RawData
-from streamtasks.net.message.types import Message, TopicDataMessage
+from streamtasks.net.serialization import RawData
+from streamtasks.net.messages import Message, TopicDataMessage
 from streamtasks.services.protocols import AddressNames, WorkerTopics
 from streamtasks.env import DEBUG, NODE_NAME
 from streamtasks.utils import get_node_name_id

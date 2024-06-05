@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from streamtasks.net.message.data import RawData
-from streamtasks.net.message.types import AddressedMessage, Message, TopicControlData, TopicControlMessage, TopicDataMessage, TopicMessage
+from streamtasks.net.serialization import RawData
+from streamtasks.net.messages import AddressedMessage, Message, TopicControlData, TopicControlMessage, TopicDataMessage, TopicMessage
 from typing import Iterable, Optional, TYPE_CHECKING
 import asyncio
 

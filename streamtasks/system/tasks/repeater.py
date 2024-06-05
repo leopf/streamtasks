@@ -1,9 +1,9 @@
 import asyncio
 from typing import Any
 from pydantic import BaseModel
-from streamtasks.net.message.data import RawData
-from streamtasks.net.message.types import TopicControlData
-from streamtasks.net.message.utils import get_timestamp_from_message, set_timestamp_on_message
+from streamtasks.net.serialization import RawData
+from streamtasks.net.messages import TopicControlData
+from streamtasks.message.utils import get_timestamp_from_message, set_timestamp_on_message
 from streamtasks.system.configurators import EditorFields, static_configurator
 from streamtasks.utils import TimeSynchronizer
 from streamtasks.system.task import Task, TaskHost

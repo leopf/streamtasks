@@ -3,9 +3,9 @@ import queue
 from typing import Any
 import numpy as np
 from pydantic import BaseModel, ValidationError
-from streamtasks.net.message.data import RawData
-from streamtasks.message import TextMessage, TimestampChuckMessage
-from streamtasks.net.message.types import TopicControlData
+from streamtasks.net.serialization import RawData
+from streamtasks.message.types import TextMessage, TimestampChuckMessage
+from streamtasks.net.messages import TopicControlData
 from streamtasks.system.configurators import EditorFields, static_configurator
 from streamtasks.system.task import SyncTask, TaskHost
 from streamtasks.client import Client

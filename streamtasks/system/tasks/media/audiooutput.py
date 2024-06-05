@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 import queue
 from typing import Any
 from pydantic import BaseModel, ValidationError
-from streamtasks.message import TimestampChuckMessage
+from streamtasks.message.types import TimestampChuckMessage
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
 from streamtasks.system.task import SyncTask, TaskHost
 from streamtasks.client import Client

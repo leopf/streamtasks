@@ -4,10 +4,10 @@ from streamtasks.client.discovery import request_addresses
 from streamtasks.client.receiver import Receiver, TopicsReceiver
 from streamtasks.client.topic import InTopic, InTopicSynchronizer, OutTopic, InTopicsContext, OutTopicsContext, SynchronizedInTopic
 from streamtasks.utils import IdGenerator, IdTracker, AwaitableIdTracker
-from streamtasks.net.message.data import RawData
+from streamtasks.net.serialization import RawData
 from streamtasks.net import Endpoint, EndpointOrAddress, Link, endpoint_or_address_to_endpoint
 from streamtasks.net.helpers import ids_to_priced_ids
-from streamtasks.net.message.types import AddressedMessage, AddressesChangedMessage, InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicDataMessage, TopicMessage
+from streamtasks.net.messages import AddressedMessage, AddressesChangedMessage, InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicDataMessage, TopicMessage
 from streamtasks.services.protocols import GenerateTopicsRequestBody, GenerateTopicsResponseBody, ResolveAddressRequestBody, ResolveAddressResonseBody, WorkerAddresses, WorkerRequestDescriptors, WorkerPorts
 from streamtasks.client.fetch import FetchError, FetchReponseReceiver, FetchRequestMessage, FetchResponseMessage
 

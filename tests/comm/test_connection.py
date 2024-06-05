@@ -6,8 +6,8 @@ from streamtasks.client import Client
 from streamtasks.client.receiver import AddressReceiver
 from streamtasks.connection import UnixSocketServer, connect_unix_socket
 from streamtasks.net import ConnectionClosedError, create_queue_connection
-from streamtasks.net.message.data import RawData
-from streamtasks.message import TextMessage
+from streamtasks.net.serialization import RawData
+from streamtasks.message.types import TextMessage
 
 
 class TestSync(unittest.IsolatedAsyncioTestCase):

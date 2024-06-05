@@ -7,7 +7,7 @@ from streamtasks.client.discovery import wait_for_topic_signal
 from streamtasks.client.fetch import FetchRequest, FetchRequestReceiver
 from streamtasks.client.receiver import AddressReceiver, TopicsReceiver
 from streamtasks.client.signal import SignalRequestReceiver, SignalServer, send_signal
-from streamtasks.net.message.data import RawData
+from streamtasks.net.serialization import RawData
 from streamtasks.net import ConnectionClosedError, Switch, create_queue_connection
 from streamtasks.services.discovery import DiscoveryWorker
 from streamtasks.services.protocols import WorkerPorts, WorkerTopics

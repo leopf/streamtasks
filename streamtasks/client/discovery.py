@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING, Optional
 from pydantic import ValidationError
 from streamtasks.client.receiver import Receiver
 from streamtasks.client.signal import send_signal
-from streamtasks.net.message.data import RawData
-from streamtasks.net.message.types import Message, TopicDataMessage, TopicMessage
+from streamtasks.net.serialization import RawData
+from streamtasks.net.messages import Message, TopicDataMessage, TopicMessage
 from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, RegisterAddressRequestBody, RegisterTopicSpaceRequestMessage, TopicSpaceRequestMessage, TopicSpaceResponseMessage, TopicSpaceTranslationRequestMessage, TopicSpaceTranslationResponseMessage, WorkerAddresses, WorkerRequestDescriptors, WorkerTopics
 import asyncio
 if TYPE_CHECKING:

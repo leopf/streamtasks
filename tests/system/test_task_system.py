@@ -4,7 +4,7 @@ import httpx
 from streamtasks.asgi import ASGIProxyApp
 from streamtasks.client.discovery import register_topic_space, wait_for_topic_signal
 from streamtasks.net import ConnectionClosedError, Link, Switch
-from streamtasks.net.message.data import RawData
+from streamtasks.net.serialization import RawData
 from streamtasks.services.protocols import AddressNames, WorkerTopics
 from streamtasks.system.task import Task, TaskHost, TaskHostRegistrationList, TaskManager, TaskManagerClient, TaskStatus
 from streamtasks.system.task_web import TaskWebBackend

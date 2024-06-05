@@ -5,8 +5,8 @@ from streamtasks.client import Client
 from streamtasks.client.fetch import FetchRequest, FetchRequestReceiver, new_fetch_body_bad_request, new_fetch_body_general_error
 from streamtasks.client.receiver import Receiver
 from streamtasks.net import EndpointOrAddress, endpoint_or_address_to_endpoint
-from streamtasks.net.message.data import RawData
-from streamtasks.net.message.types import Message, TopicDataMessage
+from streamtasks.net.serialization import RawData
+from streamtasks.net.messages import Message, TopicDataMessage
 from streamtasks.services.protocols import WorkerPorts
 
 class BroadcastingServer:

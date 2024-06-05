@@ -11,8 +11,8 @@ from streamtasks.client import Client
 from streamtasks.client.topic import InTopic, OutTopic, SequentialInTopicSynchronizer
 from streamtasks.connection import AutoReconnector, connect
 from streamtasks.net import EndpointOrAddress, Link, Switch
-from streamtasks.net.message.data import RawData
-from streamtasks.message import NumberMessage, TextMessage, TimestampChuckMessage
+from streamtasks.net.serialization import RawData
+from streamtasks.message.types import NumberMessage, TextMessage, TimestampChuckMessage
 from streamtasks.services.protocols import AddressNames
 from streamtasks.system.configurators import EditorFields, key_to_label, static_configurator
 from streamtasks.system.task import MetadataDict, Task, TaskHost, task_host_id_from_name

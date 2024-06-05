@@ -1,8 +1,8 @@
 from contextlib import asynccontextmanager
 from typing import Any
 from pydantic import BaseModel, field_validator
-from streamtasks.net.message.data import RawData
-from streamtasks.message import TimestampChuckMessage
+from streamtasks.net.serialization import RawData
+from streamtasks.message.types import TimestampChuckMessage
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
 from streamtasks.system.task import SyncTask, TaskHost
 from streamtasks.client import Client

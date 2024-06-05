@@ -2,8 +2,8 @@ from streamtasks.client.receiver import Receiver
 from streamtasks.client.fetch import FetchRequestReceiver, FetchRequest, new_fetch_body_bad_request, new_fetch_body_general_error
 from streamtasks.utils import AsyncTaskManager
 from streamtasks.net import Endpoint, EndpointOrAddress, Link, endpoint_or_address_to_endpoint
-from streamtasks.net.message.types import AddressedMessage, Message
-from streamtasks.net.message.data import RawData
+from streamtasks.net.messages import AddressedMessage, Message
+from streamtasks.net.serialization import RawData
 from pydantic import BaseModel, ValidationError
 from abc import ABC
 from dataclasses import dataclass

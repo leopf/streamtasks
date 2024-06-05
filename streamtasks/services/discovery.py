@@ -5,8 +5,8 @@ from streamtasks.services.protocols import AddressNameAssignmentMessage, Generat
 from streamtasks.worker import Worker
 from streamtasks.client import Client
 from streamtasks.client.fetch import FetchRequest, FetchServer, new_fetch_body_bad_request, new_fetch_body_not_found
-from streamtasks.net.message.data import RawData
-from streamtasks.net.message.types import TopicControlData
+from streamtasks.net.serialization import RawData
+from streamtasks.net.messages import TopicControlData
 from streamtasks.net import Link
 import pydantic
 import logging

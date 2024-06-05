@@ -1,11 +1,11 @@
 import contextlib
 from typing import Any
 from pydantic import BaseModel
-from streamtasks.net.message.data import RawData
+from streamtasks.net.serialization import RawData
 from streamtasks.system.configurators import EditorFields, multitrackio_configurator, static_configurator
 from streamtasks.system.tasks.ui.controlbase import UIControlBaseTask, UIControlBaseTaskConfig
 from streamtasks.utils import get_timestamp_ms
-from streamtasks.message import NumberMessage
+from streamtasks.message.types import NumberMessage
 from streamtasks.system.task import TaskHost
 from streamtasks.client import Client
 

@@ -2,8 +2,8 @@ from contextlib import asynccontextmanager
 from typing import Any
 from pydantic import BaseModel
 from streamtasks.media.audio import get_audio_bytes_per_time_sample
-from streamtasks.net.message.data import RawData
-from streamtasks.message import TimestampChuckMessage
+from streamtasks.net.serialization import RawData
+from streamtasks.message.types import TimestampChuckMessage
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
 from streamtasks.system.task import SyncTask, TaskHost
 from streamtasks.client import Client

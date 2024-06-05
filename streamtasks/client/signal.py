@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional
 from pydantic import BaseModel, ValidationError
 from streamtasks.client.receiver import Receiver
 from streamtasks.net import EndpointOrAddress, endpoint_or_address_to_endpoint
-from streamtasks.net.message.data import RawData
-from streamtasks.net.message.types import AddressedMessage, Message
+from streamtasks.net.serialization import RawData
+from streamtasks.net.messages import AddressedMessage, Message
 from streamtasks.services.protocols import WorkerPorts
 
 if TYPE_CHECKING:
