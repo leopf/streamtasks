@@ -16,8 +16,6 @@ Frontend:
 
 -----TASKS-----
 General:
-- switch
-- synchronizer
 - buffer
 - replay buffer
 
