@@ -102,6 +102,11 @@ export class SwitchConfigurator extends TaskCLSConfigurator {
         setter.addEdgeGenerator("outputs.0", subPath => {
             return [...Array(Math.floor(this.task.inputs.length / 2)).keys()].map(idx => `inputs.${idx * 2}.${subPath}`)
         });
+        this.task.inputs.forEach((input, idx) => {
+            if (typeof input.topic_id === "number") {
+                setter.addValidator(`inputs.${idx}`, (_, subPath) => compareIOIgnorePaths.has(subPath));
+            }
+        })
 
         return setter;
     }

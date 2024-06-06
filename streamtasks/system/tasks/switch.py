@@ -43,10 +43,10 @@ class SwitchTask(Task):
 
   async def _run_input_receiver(self, topic: InTopic, idx: int):
     while True:
-      data = await topic.recv_data()
+      data = await topic.recv_data_control()
       if self._get_selected_index() == idx:
         await self.out_topic.set_paused(topic.is_paused)
-        await self.out_topic.send(data)
+        if not isinstance(data, TopicControlData): await self.out_topic.send(data)
 
   async def _run_control_receiver(self, topic: InTopic, idx: int):
     while True:
