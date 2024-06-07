@@ -23,7 +23,7 @@ python examples/server.py --help
 
 ## Running a peer
 A peer must be connected to a network, that has the necessary components. By default it will connect to a locally running server.
-See [architecture](architecture.md "architecture") and [environment variables](env.md "environment variables") for more information.
+See [architecture](architecture.md) and [environment variables](env.md) for more information.
 
 ```bash
 DATA_DIR=.data python examples/peer.py

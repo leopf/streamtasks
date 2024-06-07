@@ -19,7 +19,7 @@ def adder(a: int, b: int) -> int: return a + b
 if __name__ == "__main__": adder.run_sync()
 ```
 
-When calling `run` or `run_sync` you can specify a link, a url or None. When specifying a link it will use the link as its connection. When providing a string, None or no argument it acts like creating a connection with `connect` (see [connection](connection.md "connection")).
+When calling `run` or `run_sync` you can specify a link, a url or None. When specifying a link it will use the link as its connection. When providing a string, None or no argument it acts like creating a connection with `connect` (see [connection](connection.md)).
 
 ### special arguments
 `timestamp: int` the timestamp of the newest input parameter

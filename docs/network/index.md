@@ -5,11 +5,11 @@ The streamtasks network is a host independent network that is used to communicat
 
 The network consists of connections. A connection is made up of two links.
 
-![connection](connection.svg "Connection")
+![Connection](connection.svg)
 
 The messages sent over links are distributed by switches. A Client can be used to simplify the usage of links.
 
-![switch](switch.svg "Switch")
+![Switch](switch.svg)
 
 ## Links
 ### Queue Link
@@ -25,7 +25,7 @@ module: `streamtasks.connection`
 
 A link sending data over a raw connection, like a TCP connection. 
 
-See [connection](../connection.md "Connection") for more information.
+See [Connection](../connection.md) for more information.
 
 ## Messages
 
@@ -86,4 +86,4 @@ remove: set[int]
 
 
 ## Client
-See [client](client.md "Client") for more information.
+See [Client](client.md) for more information.

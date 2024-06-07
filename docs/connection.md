@@ -10,7 +10,7 @@ It implements servers and clients for multiple connection methods.
 
 The easiest way to connect to a server is to call `connect` with a url. The connect function returns a link connected to the server. It best can be managed with the `AutoReconnector`.
 
-If no url is specified a connection will be made to the unix socket corresponding to the current node name. See [environment variables](env.md "environment variables") for more information about the node name.
+If no url is specified a connection will be made to the unix socket corresponding to the current node name. See [environment variables](env.md) for more information about the node name.
 
 The following url schemes are supported:
 * `unix:///[some path]` - specify a path to a unix socket

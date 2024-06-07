@@ -1,3 +1,3 @@
 # Architecture
 
-![architecture](architecture.svg "Architecture")
+![Architecture](architecture.svg)
