@@ -59,13 +59,13 @@ class UIBaseTask(Task, Generic[C, V]):
     @router.get("/index.html")
     @http_context_handler
     async def _(ctx: HTTPContext):
-      with open(importlib.resources.files("streamtasks.system.tasks.ui.resources").joinpath("controlbase.html")) as fd:
+      with open(importlib.resources.files("streamtasks.system.tasks.ui").joinpath("resources/controlbase.html")) as fd:
         await ctx.respond_text(fd.read(), mime_type="text/html")
 
     @router.get("/main.js")
     @http_context_handler
     async def _(ctx: HTTPContext):
-      with open(importlib.resources.files("streamtasks.system.tasks.ui.resources").joinpath(self._script_name)) as fd:
+      with open(importlib.resources.files("streamtasks.system.tasks.ui").joinpath("resources/" + self._script_name)) as fd:
         await ctx.respond_text(fd.read(), mime_type="application/javascript")
 
     @router.get("/value")

@@ -51,7 +51,7 @@ class VideoViewerTask(Task):
     @router.get("/index.html")
     @http_context_handler
     async def _(ctx: HTTPContext):
-      with open(importlib.resources.files("streamtasks.system.tasks.ui.resources").joinpath("videoviewer.html")) as fd:
+      with open(importlib.resources.files("streamtasks.system.tasks.ui").joinpath("resources/videoviewer.html")) as fd:
         await ctx.respond_text(fd.read(), mime_type="text/html")
 
     @router.websocket_route("/video")
