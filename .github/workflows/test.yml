@@ -12,7 +12,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       matrix:
-        python-version: [3.11, 3.12]
+        python-version: [3.11]
 
     steps:
     - name: Checkout code
@@ -20,8 +20,8 @@ jobs:
 
     - name: Install system dependencies
       run: |
-        apt update -y
-        apt install portaudio19-dev ffmpeg -y
+        sudo apt update -y
+        sudo apt install portaudio19-dev ffmpeg -y
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
@@ -38,8 +38,9 @@ jobs:
       env:
         FULL: 1
         DEBUG_SER: 1
+        DATA_DIR: .data
       run: |
-        python -m unittest discover tests/
+        python -m unittest discover tests/ -v
 
     - name: Run ruff linter
       run: |

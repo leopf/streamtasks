@@ -6,7 +6,7 @@ from typing import Iterator, Literal
 import av
 import av.codec
 import numpy as np
-from extra.debugging import ddebug_value
+from streamtasks.debugging import ddebug_value
 from streamtasks.env import DEBUG_MIXER
 from streamtasks.utils import strip_nones_from_dict
 

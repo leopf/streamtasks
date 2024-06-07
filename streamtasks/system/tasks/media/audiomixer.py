@@ -6,7 +6,7 @@ from typing import Any
 from jsonschema import ValidationError
 import numpy as np
 from pydantic import BaseModel, field_validator
-from extra.debugging import ddebug_value
+from streamtasks.debugging import ddebug_value
 from streamtasks.client.topic import InTopic, SequentialInTopicSynchronizer
 from streamtasks.env import DEBUG_MIXER
 from streamtasks.media.audio import audio_buffer_to_ndarray

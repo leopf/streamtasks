@@ -177,7 +177,7 @@ class UnixSocketServer(StreamServerBase):
 
 def get_node_socket_path(node_name: str | None):
   if node_name is None: node_name = NODE_NAME()
-  return os.path.join(tempfile.gettempdir(), f"{__name__.split(".")[0]}-{node_name}.sock")
+  return os.path.join(tempfile.gettempdir(), f"{__name__.split('.')[0]}-{node_name}.sock")
 
 class NodeServer(UnixSocketServer):
   def __init__(self, link: Link, node_name: str | None = None):

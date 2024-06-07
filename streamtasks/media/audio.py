@@ -4,7 +4,7 @@ from typing_extensions import Buffer
 import av.audio
 import av.audio.codeccontext
 import av.codec
-from extra.debugging import ddebug_value
+from streamtasks.debugging import ddebug_value
 from streamtasks.env import DEBUG_MEDIA
 from streamtasks.media.codec import CodecInfo, Frame, Reformatter
 import numpy as np

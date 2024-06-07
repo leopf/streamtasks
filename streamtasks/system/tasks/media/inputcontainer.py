@@ -1,7 +1,7 @@
 import asyncio
 from fractions import Fraction
 from typing import Any
-from extra.debugging import ddebug_value
+from streamtasks.debugging import ddebug_value
 from pydantic import BaseModel
 from streamtasks.env import DEBUG_MEDIA
 from streamtasks.media.audio import AudioCodecInfo
