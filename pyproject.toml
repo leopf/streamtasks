@@ -40,3 +40,7 @@ web = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["streamtasks*"]
+
+[tool.setuptools.package-data]
+"streamtasks.system.assets" = ["*"]
+"streamtasks.system.tasks.ui.resources" = ["*"]
