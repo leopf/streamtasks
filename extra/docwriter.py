@@ -62,21 +62,21 @@ This is the last information you will be able to give to the reader. Express eve
 
 def to_markdown(output: dict[str, str]):
   return f"""
-# {output["label"]}
+# {output['label']}
 
 ## Inputs
-{output.pop("inputs")}
+{output.pop('inputs')}
 
 ## Outputs
-{output.pop("outputs")}
+{output.pop('outputs')}
 
 ## Configuration
-{output.pop("config")}
+{output.pop('config')}
 
 ## Description
-{output.pop("description")}
+{output.pop('description')}
 
-{output.pop("description2")}
+{output.pop('description2')}
   """.strip()
 
 model = Llama(model_path=os.getenv("MODEL_PATH"), n_gpu_layers=20, n_ctx=5048, verbose=True)
@@ -107,5 +107,5 @@ for task_host in get_all_task_hosts():
 
   out_filename = os.path.join("docs/autogen/tasks", module_sub_path[:-2] + "md")
   pathlib.Path(out_filename).parent.mkdir(parents=True, exist_ok=True)
-  text = f"---\n{'\n'.join(k + ": " + v for k, v in output.items())}\n---\n{md_text}"
+  text = f"---\n{'\n'.join(k + ': ' + v for k, v in output.items())}\n---\n{md_text}"
   with open(out_filename, "w") as fd: fd.write(text)

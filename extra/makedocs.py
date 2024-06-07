@@ -33,7 +33,7 @@ for docs_file in README_FILES:
       prefix = content[:m.start()]
       suffix = content[m.end():]
 
-      content = prefix + f"[{m.group(1)}]({os.path.relpath(os.path.join(dirname, m.group(2)), "./")})" + suffix
+      content = prefix + f"[{m.group(1)}]({os.path.relpath(os.path.join(dirname, m.group(2)), './')})" + suffix
       pos = len(content) - len(suffix)
 
     README_PARTS.append(content)
