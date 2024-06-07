@@ -1,0 +1,2 @@
+recursive-include streamtasks/system/assets *
+recursive-include streamtasks/system/tasks/ui/resources *

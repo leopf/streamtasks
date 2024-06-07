@@ -449,7 +449,7 @@ class TaskWebBackend(Worker):
           return await ctx.delegate(ASGIProxyApp(self.client, reg.endpoint), { **ctx.scope, "path": ctx.path[len(reg.path) - 1:] })
       await ctx.next()
 
-    router.add_handler(static_files_handler(importlib.resources.files("streamtasks.system.assets").joinpath("public/"), ["index.html"]))
+    router.add_handler(static_files_handler(importlib.resources.files("streamtasks.system").joinpath("assets/public/"), ["index.html"]))
 
     await ASGIAppRunner(self.client, app).run()
 
