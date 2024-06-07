@@ -1,15 +1,14 @@
 from streamtasks.client.receiver import Receiver
 from streamtasks.client.fetch import FetchRequestReceiver, FetchRequest, new_fetch_body_bad_request, new_fetch_body_general_error
 from streamtasks.utils import AsyncTaskManager
-from streamtasks.net import Endpoint, EndpointOrAddress, Link, Switch, endpoint_or_address_to_endpoint
-from streamtasks.net.message.types import AddressedMessage, Message
-from streamtasks.net.message.data import MessagePackData
+from streamtasks.net import Endpoint, EndpointOrAddress, Link, endpoint_or_address_to_endpoint
+from streamtasks.net.messages import AddressedMessage, Message
+from streamtasks.net.serialization import RawData
 from pydantic import BaseModel, ValidationError
 from abc import ABC
 from dataclasses import dataclass
 import asyncio
 import logging
-import uvicorn
 from typing import TYPE_CHECKING, Any, Awaitable, Optional, Callable, ClassVar
 
 from streamtasks.services.protocols import WorkerPorts
@@ -116,7 +115,7 @@ class ASGIEventReceiver(Receiver):
     if not isinstance(message, AddressedMessage): return
     a_message: AddressedMessage = message
     if a_message.address != self._own_address or a_message.port != self._own_port: return
-    if not isinstance(a_message.data, MessagePackData): return
+    if not isinstance(a_message.data, RawData): return
     try:
       self._recv_queue.put_nowait(ASGIEventMessage.model_validate(a_message.data.data))
     except ValidationError: pass
@@ -131,7 +130,7 @@ class ASGIEventSender:
     await self._send(events=[], closed=True)
   async def _send(self, events: list[dict], closed: Optional[bool] = None):
     events = [MessagePackValueTransformer.annotate_value(event) for event in events]
-    await self._client.send_to(self._remote_endpoint, MessagePackData(ASGIEventMessage(events=events, closed=closed).model_dump()))
+    await self._client.send_to(self._remote_endpoint, RawData(ASGIEventMessage(events=events, closed=closed).model_dump()))
 
 
 class ASGIAppRunner:
@@ -148,7 +147,7 @@ class ASGIAppRunner:
     try:
       async with self._init_receiver:
         while True:
-          raw_request: FetchRequest = await self._init_receiver.recv()
+          raw_request: FetchRequest = await self._init_receiver.get()
           try:
             init_request = ASGIInitRequest.model_validate(raw_request.body)
 
@@ -178,7 +177,7 @@ class ASGIAppRunner:
 
     async def receive() -> dict:
       while recv_queue.empty() and not stop_signal.is_set():
-        data = await receiver.recv()
+        data = await receiver.get()
         for event in data.events:
           event = MessagePackValueTransformer.deannotate_value(event)
           await recv_queue.put(event)
@@ -231,7 +230,7 @@ class ASGIProxyApp:
     async def send_loop():
       while not closed_event.is_set():
         await asyncio.sleep(0)
-        data = await receiver.recv()
+        data = await receiver.get()
         for event in data.events: await send(MessagePackValueTransformer.deannotate_value(event))
         if data.closed: closed_event.set()
 
@@ -243,8 +242,8 @@ class ASGIProxyApp:
     send_task.cancel()
 
 class HTTPServerOverASGI(Worker):
-  def __init__(self, node_link: Link, http_endpoint: tuple[str, int], asgi_endpoint: EndpointOrAddress, http_config: dict[str, Any] = {}, switch: Switch | None = None):
-    super().__init__(node_link, switch)
+  def __init__(self, link: Link, http_endpoint: tuple[str, int], asgi_endpoint: EndpointOrAddress, http_config: dict[str, Any] = {}):
+    super().__init__(link)
     self.asgi_endpoint = endpoint_or_address_to_endpoint(asgi_endpoint, WorkerPorts.ASGI)
     self.http_endpoint = http_endpoint
     self.http_config = http_config
@@ -255,6 +254,7 @@ class HTTPServerOverASGI(Worker):
       client.start()
       await client.request_address()
       app = ASGIProxyApp(client, self.asgi_endpoint)
+      import uvicorn
       server_config = uvicorn.Config(app, host=self.http_endpoint[0], port=self.http_endpoint[1], **self.http_config)
       server = uvicorn.Server(server_config)
       logging.info(f"Serving [{self.asgi_endpoint[0]}, {self.asgi_endpoint[1]}] on http://{self.http_endpoint[0]}:{self.http_endpoint[1]}/")

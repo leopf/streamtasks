@@ -14,7 +14,8 @@
             "justMyCode": true,
             "purpose": ["debug-test"],
             "env": {
-                "PYTHONPATH": "${workspaceFolder}"
+                "PYTHONPATH": "${workspaceFolder}",
+                "FULL": "1"
             },
         },
         {
@@ -26,7 +27,7 @@
             "cwd": "${workspaceFolder}",
             "justMyCode": false,
             "env": {
-                "PYTHONPATH": "${workspaceFolder}"
+                "PYTHONPATH": "${workspaceFolder}",
             },
         }
     ]

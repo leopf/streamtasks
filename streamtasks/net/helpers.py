@@ -1,5 +1,5 @@
 from typing import Iterable
-from streamtasks.net.message.types import PricedId
+from streamtasks.net.messages import PricedId
 from itertools import chain
 
 

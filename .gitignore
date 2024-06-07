@@ -1,4 +1,8 @@
 playground/
+.data
+node_modules/
+
+*.prof
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

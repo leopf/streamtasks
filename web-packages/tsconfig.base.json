@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "es2017",
+    "lib": ["DOM", "ESNext", "ES2015"],
+    "moduleResolution": "Node",
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "noEmit": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowImportingTsExtensions": true,
+    "experimentalDecorators": false,
+    "strict": true,
+  }
+}

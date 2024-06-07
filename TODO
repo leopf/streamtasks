@@ -1,22 +1,61 @@
----MY TODOS
+# MY TODOS
 
-Refactor:
-- better imports, find a unified way of doing this
+move the following tasks to threads:
+- audiomixer
+- audiovolumescaler
+- audiofrequencydisplay
 
+- output container needs to be able to stop and restart based on inputs. Also: chunkung
+- better solution for flow detector
+- llama context length fix
+
+Frontend:
+- merge master
+
+- use ffmpeg where we can
+
+-----TASKS-----
+General:
+- buffer
+- replay buffer
+
+
+-----SOON-----
 Testing:
-- topic control data
+- write more tests for utils
+- testing web task backend
 
-Add task with:
-https://github.com/cloudflare/stpyv8
+Infra:
+- set message queue size to 1
+- secret manager
+- dependency manager
+- topic id efficient broadcasting server (optimization)
+- video viewer restructuring, move the websocket stream closer to the task web backend
 
-Questions:
-How do i solve topic remapping?
+Frontend:
+- list raw task instances
+- allow pruge tasks
+- ws task updates
+- suggest fixes for io mismatch
 
-Media:
-time bases
-transcode framerate change
-use video reformatter
-check bitrate  in compatible_with
+Network:
+- Better topic control data (more maintainable).
 
-IDEAS:
+IO:
+- keyboard input
+
+ML:
+- whisper/other asr
+- VAD
+
+-----Later-----
+- casting
+
+Network:
+- link set cost
+- ping pong message for bandwidth tests
 - topic relabeling on the switch level to allow for traffic to be rerouted
+
+----- MAYBE------
+- system audio recorder
+- virtual audio input

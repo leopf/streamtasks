@@ -1,74 +1,60 @@
 import unittest
-from streamtasks.media.video import VideoCodecInfo, VideoFrame
+
+import av
+from streamtasks.media.packet import MediaPacket
+from streamtasks.media.video import VideoCodecInfo, copy_av_video_frame
 import numpy as np
-
-from streamtasks.net.message.structures import MediaPacket
-
+from tests.media import decode_video_packets, encode_all_frames, generate_frames, generate_media_frames
 
 class TestVideoCodec(unittest.IsolatedAsyncioTestCase):
   w = 480
   h = 360
+  frame_count = 100
 
-  def generate_frames(self, frame_count):
-    h = self.h
-    w = self.w
-    for i in range(frame_count):
-      arr = np.zeros((h, w, 3), dtype=np.uint8)
-      # draw 40x40 square at (i, i)
-      y = i % (h - 40)
-      x = i % (w - 40)
-      arr[y:y + 40, x:x + 40] = 255
-      yield arr
+  def test_copy_frame(self):
+    arr = next(generate_frames(1280, 720, 1))
+    frame = av.VideoFrame.from_ndarray(arr)
+    c_frame = copy_av_video_frame(frame)
 
-  def get_video_codec(self, crf, codec='h264', pixel_format='yuv420p'):
-    return VideoCodecInfo(self.w, self.h, 1, crf=crf, codec=codec, pixel_format=pixel_format)
+    self.assertEqual(len(frame.planes), len(c_frame.planes))
+    for a, b in zip(frame.planes, c_frame.planes):
+      self.assertNotEqual(a.buffer_ptr, b.buffer_ptr)
 
-  def normalize_video_frame(self, frame: VideoFrame):
-    np_frame = frame.to_rgb().to_ndarray()
-    # remove alpha channel from argb
-    np_frame = np_frame[:, :, :3]
-    # round frame to 0 or 255
-    np_frame = np.where(np_frame > 127, 255, 0)
-    return np_frame
+    self.assertTrue(np.array_equal(frame.to_ndarray(), c_frame.to_ndarray()))
 
   async def test_inverse_transcoder(self):
-    frame_count = 100
+    codec = VideoCodecInfo(self.w, self.h, 1, codec="h264", pixel_format="yuv420p")
+    frames, in_frames = generate_media_frames(codec, self.frame_count)
+    packets = await encode_all_frames(codec.get_encoder(), frames)
+    out_frames = await decode_video_packets(codec, packets)
+    self.assertGreater(len(out_frames), 0)
+    for a, b in zip(in_frames, out_frames): self.assertTrue(np.array_equal(a, b))
 
-    codec = self.get_video_codec(crf=0)
-    encoder = codec.get_encoder()
-    decoder = codec.get_decoder()
+  async def test_transcoder_h264_2_vp9_1(self):
+    codec1 = VideoCodecInfo(self.w, self.h, 1, codec="h264", pixel_format="yuv420p")
+    codec2 = VideoCodecInfo(self.w, self.h, 1, codec="libvpx-vp9", pixel_format="yuv420p")
+    await self._test_transcoder(codec1, codec2)
 
-    created_frames = []
-    for frame in self.generate_frames(frame_count):
-      created_frames.append(frame)
-      encoded = await encoder.encode(VideoFrame.from_ndarray(frame, 'rgb24'))
-      for p in encoded:
-        decoded: list[VideoFrame] = await decoder.decode(p)
-        for d in decoded:
-          self.assertTrue(np.array_equal(self.normalize_video_frame(d), created_frames.pop(0)))
-    self.assertLess(len(created_frames), frame_count) # make sure we actually tested something
+  async def test_transcoder_h264_2_vp9_2(self):
+    codec1 = VideoCodecInfo(self.w, self.h, 2, codec="h264", pixel_format="yuv420p")
+    codec2 = VideoCodecInfo(self.w, self.h, 1, codec="libvpx-vp9", pixel_format="yuv420p")
+    await self._test_transcoder(codec1, codec2)
 
-  async def test_transcoder(self):
-    frame_count = 100
-    codec1 = self.get_video_codec(crf=0)
-    codec2 = self.get_video_codec(crf=0, codec='libvpx-vp9', pixel_format='yuv420p')
+  async def _test_transcoder(self, codec1: VideoCodecInfo, codec2: VideoCodecInfo):
     transcoder = codec1.get_transcoder(codec2)
-    encoder = codec1.get_encoder()
-    decoder = codec2.get_decoder()
+    frames, in_frames = generate_media_frames(codec1, self.frame_count)
+    packets = await encode_all_frames(codec1.get_encoder(), frames)
 
-    created_frames = []
-    for frame in self.generate_frames(frame_count):
-      created_frames.append(frame)
-      e_packets: list[MediaPacket] = await encoder.encode(VideoFrame.from_ndarray(frame, 'rgb24'))
-      for e_p in e_packets:
-        t_packets: list[MediaPacket] = await transcoder.transcode(e_p)
-        for t_p in t_packets:
-          decoded: list[VideoFrame] = await decoder.decode(t_p)
-          for d in decoded:
-            decoded_frame = self.normalize_video_frame(d)
-            self.assertTrue(np.array_equal(decoded_frame, created_frames.pop(0)))
-    self.assertLess(len(created_frames), frame_count) # make sure we actually tested something
+    t_packets: list[MediaPacket] = []
+    for packet in packets: t_packets.extend(await transcoder.transcode(packet))
+    t_packets.extend(await transcoder.flush())
 
+    out_frames = await decode_video_packets(codec2, t_packets)
+    self.assertLessEqual(len(out_frames), (codec1.rate / codec2.rate) * len(in_frames), "resampling not working")
+
+    self.assertGreater(len(out_frames), 0)
+    if codec1.rate == codec2.rate: # TODO write a time independent test
+      for a, b in zip(in_frames, out_frames): self.assertTrue(np.array_equal(a, b))
 
 if __name__ == '__main__':
   unittest.main()

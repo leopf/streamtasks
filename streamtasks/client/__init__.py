@@ -4,12 +4,11 @@ from streamtasks.client.discovery import request_addresses
 from streamtasks.client.receiver import Receiver, TopicsReceiver
 from streamtasks.client.topic import InTopic, InTopicSynchronizer, OutTopic, InTopicsContext, OutTopicsContext, SynchronizedInTopic
 from streamtasks.utils import IdGenerator, IdTracker, AwaitableIdTracker
-from streamtasks.net.message.data import MessagePackData, SerializableData, SerializationType, Serializer
+from streamtasks.net.serialization import RawData
 from streamtasks.net import Endpoint, EndpointOrAddress, Link, endpoint_or_address_to_endpoint
 from streamtasks.net.helpers import ids_to_priced_ids
-from streamtasks.net.message.types import AddressedMessage, AddressesChangedMessage, DataMessage, InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicDataMessage, TopicMessage
+from streamtasks.net.messages import AddressedMessage, AddressesChangedMessage, InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicDataMessage, TopicMessage
 from streamtasks.services.protocols import GenerateTopicsRequestBody, GenerateTopicsResponseBody, ResolveAddressRequestBody, ResolveAddressResonseBody, WorkerAddresses, WorkerRequestDescriptors, WorkerPorts
-from streamtasks.net.message.serializers import get_core_serializers
 from streamtasks.client.fetch import FetchError, FetchReponseReceiver, FetchRequestMessage, FetchResponseMessage
 
 
@@ -21,7 +20,6 @@ class Client:
     self._receive_task: Optional[asyncio.Task] = None
     self._address: Optional[int] = None
     self._address_resolver_cache: dict[str, int] = {}
-    self._custom_serializers = get_core_serializers()
     self._port_generator = IdGenerator(WorkerPorts.DYNAMIC_START, 0xffffffffffffffff)
 
     self._subscribed_provided_topics = AwaitableIdTracker()
@@ -37,22 +35,23 @@ class Client:
   def sync_in_topic(self, topic: int, sync: InTopicSynchronizer): return SynchronizedInTopic(self, topic, sync)
 
   def start(self): self._started_event.set()
-  def stop(self): self._started_event.clear()
-
-  def add_serializer(self, serializer: Serializer):
-    if serializer.content_id not in self._custom_serializers: self._custom_serializers[serializer.content_id] = serializer
-  def remove_serializer(self, content_id: int): self._custom_serializers.pop(content_id, None)
+  async def stop_wait(self):
+    self._started_event.clear()
+    if self._receive_task is not None:
+      self._receive_task.cancel("stopped receiving!")
+      try: await self._receive_task
+      except asyncio.CancelledError: pass
 
   def get_free_port(self): return self._port_generator.next()
 
-  async def send_to(self, endpoint: Endpoint, data: SerializableData):
+  async def send_to(self, endpoint: Endpoint, data: RawData):
     await self._link.send(AddressedMessage(
       await self._get_address(endpoint[0]),
       endpoint[1],
       data
     ))
   async def send_stream_control(self, topic: int, control_data: TopicControlData): await self._link.send(control_data.to_message(topic))
-  async def send_stream_data(self, topic: int, data: SerializableData): await self._link.send(TopicDataMessage(topic, data))
+  async def send_stream_data(self, topic: int, data: RawData): await self._link.send(TopicDataMessage(topic, data))
   async def resolve_address_name(self, name: str) -> Optional[int]:
     if name in self._address_resolver_cache: return self._address_resolver_cache[name]
     raw_res = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.RESOLVE_ADDRESS, ResolveAddressRequestBody(address_name=name).model_dump())
@@ -103,13 +102,13 @@ class Client:
     if self.address is None: raise Exception("No local address")
     return_port = self.get_free_port()
     async with FetchReponseReceiver(self, return_port) as receiver:
-      await self.send_to(endpoint_or_address_to_endpoint(endpoint, WorkerPorts.FETCH), MessagePackData(FetchRequestMessage(
+      await self.send_to(endpoint_or_address_to_endpoint(endpoint, WorkerPorts.FETCH), RawData(FetchRequestMessage(
         return_address=self.address,
         return_port=return_port,
         descriptor=descriptor,
         body=body).model_dump()))
-      response_data: FetchResponseMessage = await receiver.recv()
-    if response_data.error: 
+      response_data: FetchResponseMessage = await receiver.get()
+    if response_data.error:
       raise FetchError(response_data.body)
     return response_data.body
 
@@ -137,7 +136,6 @@ class Client:
         await self._started_event.wait()
         if isinstance(message, InTopicsChangedMessage): self._subscribed_provided_topics.change_many(message.add, message.remove)
         if isinstance(message, TopicMessage) and message.topic not in self._in_topics: continue
-        if isinstance(message, DataMessage) and message.data.type == SerializationType.CUSTOM: message.data.serializer = self._custom_serializers.get(message.data.content_id, None)
         for receiver in self._receivers:
           receiver.on_message(message)
     finally:

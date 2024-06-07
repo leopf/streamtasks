@@ -1,0 +1,1 @@
+export type Topic = { topicSpaceId?: number, topicId: number }

@@ -1,16 +1,15 @@
 import asyncio
 import contextlib
-from dataclasses import dataclass
 import functools
 from streamtasks.client import Client
-from streamtasks.client.topic import InTopic, InTopicSynchronizer
-from streamtasks.utils import AsyncObservable, AsyncObservableDict, TimeSynchronizer
-from streamtasks.net.message.data import MessagePackData
-from streamtasks.net.message.structures import NumberMessage
-from streamtasks.net.message.types import TopicControlData
-from streamtasks.system.task import Task
-from pydantic import BaseModel
-from typing import Optional
+from streamtasks.client.topic import InTopic, SequentialInTopicSynchronizer
+from streamtasks.system.configurators import EditorFields, multitrackio_configurator, static_configurator
+from streamtasks.net.serialization import RawData
+from streamtasks.message.types import NumberMessage
+from streamtasks.net.messages import TopicControlData
+from streamtasks.system.task import Task, TaskHost
+from pydantic import BaseModel, ValidationError, model_validator
+from typing import Any
 import math
 from lark import Lark, ParseTree, Transformer
 import re
@@ -54,7 +53,7 @@ start: expr
     | "+" atom -> pos
     | "!" atom -> not
     | "(" expr ")" -> group
-    | NAME "(" expr ")" -> func
+    | NAME "(" [expr ("," expr)*]  ")" -> func
 
 %import common.CNAME -> NAME
 %import common.NUMBER
@@ -116,7 +115,7 @@ class CalculatorEvalTransformer(Transformer):
   def pos(self, args): return args[0]
   def not_(self, args): return 0.0 if args[0] > 0.5 else 1.0
   def group(self, args): return args[0]
-  def func(self, args): return getattr(self.context, args[0])(args[1])
+  def func(self, args): return getattr(self.context, args[0])(*args[1:])
   def add(self, args): return args[0] + args[1]
   def sub(self, args): return args[0] - args[1]
   def mul(self, args): return args[0] * args[1]
@@ -145,32 +144,26 @@ class CalculatorNameExtractor(Transformer):
   def variable(self, args): self.var_names.add(args[0])
   def func(self, args): self.func_names.add(args[0])
 
+class CalculatorVariableConfigBase(BaseModel):
+  name: str = "a"
+  default_value: float = 0
 
-class CalculatorInputConfig(BaseModel):
-  name: str
-  fallback_value: Optional[float] = None
+class CalculatorVariableConfig(CalculatorVariableConfigBase):
+  in_topic: int
 
-
-@dataclass
-class CalculatorInputVarConfig:
-  topic_id: int
-  name: str
-  default_value: float
-
-
-@dataclass(frozen=True)
-class CalculatorConfig:
-  input_vars: list[CalculatorInputVarConfig]
-  out_topic: int
-  formula: str
+class CalculatorConfigBase(BaseModel):
+  variable_tracks: list[CalculatorVariableConfig] = []
+  formula: str = "1"
   synchronized: bool = True
 
   @functools.cached_property
   def formula_ast(self): return CalculatorGrammar.parse(self.formula)
 
-  def validate(self):
+  @model_validator(mode='after')
+  def validate_ast(self):
     ast = self.formula_ast
-    CalculatorConfig.validate_formula(ast, set(input_var.name for input_var in self.input_vars))
+    CalculatorConfig.validate_formula(ast, set(input_var.name for input_var in self.variable_tracks))
+    return self
 
   @staticmethod
   def validate_formula(ast: ParseTree, input_vars: set[str]):
@@ -194,80 +187,83 @@ class CalculatorConfig:
     if name in CalculatorEvalContext.default_input_map: return False
     return True
 
-
-class CalculatorInputState(AsyncObservable):
-  def __init__(self, default_value: float) -> None:
-    super().__init__()
-    self.value: float = default_value
-    self.is_paused: bool = False
-    self.errored: bool = False
-
-  def get_value(self, default_value: float):
-    if self.is_paused: return default_value
-    else: return self._value
-
+class CalculatorConfig(CalculatorConfigBase):
+  out_topic: int
 
 class CalculatorTask(Task):
   def __init__(self, client: Client, config: CalculatorConfig):
     super().__init__(client)
-    config.validate()
-    self.time_sync = TimeSynchronizer()
     self.formula_ast = config.formula_ast
     self.out_topic = self.client.out_topic(config.out_topic)
-    self.var_values = AsyncObservableDict({
-      input_var.name: input_var.default_value
-      for input_var in config.input_vars
-    })
+    self.var_values = { input_var.name: input_var.default_value for input_var in config.variable_tracks }
+
     if config.synchronized:
-      sync = InTopicSynchronizer()
+      sync = SequentialInTopicSynchronizer()
       self.in_topics = [
-        (client.sync_in_topic(input_var.topic_id, sync), input_var.name, input_var.default_value)
-        for input_var in config.input_vars
+        (client.sync_in_topic(input_var.in_topic, sync), input_var.name, input_var.default_value)
+        for input_var in config.variable_tracks
       ]
     else:
       self.in_topics = [
-        (client.in_topic(input_var.topic_id), input_var.name, input_var.default_value)
-        for input_var in config.input_vars
+        (client.in_topic(input_var.in_topic), input_var.name, input_var.default_value)
+        for input_var in config.variable_tracks
       ]
+
   async def run(self):
     tasks: list[asyncio.Task] = []
     try:
       async with contextlib.AsyncExitStack() as exit_stack:
-        exit_stack.enter_async_context(self.out_topic)
-        exit_stack.enter_async_context(self.out_topic.RegisterContext())
+        await exit_stack.enter_async_context(self.out_topic)
+        await exit_stack.enter_async_context(self.out_topic.RegisterContext())
         for in_topic, var_name, default_value in self.in_topics:
           await exit_stack.enter_async_context(in_topic)
           await exit_stack.enter_async_context(in_topic.RegisterContext())
-          state = CalculatorInputState(default_value)
-          tasks.append(asyncio.create_task(self.run_input_receiver(in_topic, state)))
-          tasks.append(asyncio.create_task(self.run_input_updater(state, var_name, default_value)))
-      await asyncio.gather(*tasks)
+          tasks.append(asyncio.create_task(self.run_input(in_topic, var_name, default_value)))
+        self.client.start()
+        await asyncio.gather(*tasks)
     finally:
       for task in tasks: task.cancel()
-  async def run_output_updater(self):
-    while True:
-      await self.var_values.wait_change()
-      result: float = CalculatorEvalTransformer(CalculatorEvalContext(self.var_values._data)) \
-        .transform(self.formula_ast)
-      await self.out_topic.send(MessagePackData(NumberMessage(
-        timestamp=self.time_sync.time,
-        value=result
-      )))
 
-  async def run_input_updater(self, state: CalculatorInputState, var_name: str, default_value: float):
+  async def run_input(self, in_topic: InTopic, var_name: str, default_value: float):
     while True:
-      await state.wait_change()
-      self.var_values[var_name] = state.get_value(default_value)
-
-  async def run_input_receiver(self, in_topic: InTopic, state: CalculatorInputState):
-    while True:
-      data = in_topic.recv_data_control()
-      if isinstance(data, TopicControlData): state.is_paused = data.paused
+      data = await in_topic.recv_data_control()
+      if isinstance(data, TopicControlData): self.var_values[var_name] = default_value
       else:
         try:
-          msg = NumberMessage.model_validate(data.data)
-          self.time_sync.update(msg.timestamp)
-          state.value = msg.value
-          state.errored = False
-        except ValueError:
-          state.errored = True
+          message = NumberMessage.model_validate(data.data)
+          self.var_values[var_name] = message.value
+          await self.send_value(message.timestamp)
+        except ValidationError: pass
+
+  async def send_value(self, timestamp: int):
+    result: float = CalculatorEvalTransformer(CalculatorEvalContext(self.var_values)).transform(self.formula_ast)
+    await self.out_topic.send(RawData(NumberMessage(timestamp=timestamp,value=result).model_dump()))
+
+class CalculatorTaskHost(TaskHost):
+  @property
+  def metadata(self): return {
+    **static_configurator(
+      label="calculator",
+      default_config=CalculatorConfigBase().model_dump(),
+      outputs=[{ "label": "output", "type": "ts", "content": "number", "key": "out_topic" }],
+      config_to_output_map=[{ "formula": "label" }],
+      editor_fields=[
+        EditorFields.text(key="formula", label="formula"),
+        EditorFields.boolean("synchronized"),
+    ]),
+    **multitrackio_configurator(is_input=True, track_configs=[
+      {
+        "key": "variable",
+        "multiLabel": "variables",
+        "defaultConfig": CalculatorVariableConfigBase().model_dump(),
+        "defaultIO": { "type": "ts", "content": "number" },
+        "ioMap": { "name": "label" },
+        "editorFields": [
+          EditorFields.text(key="name"),
+          EditorFields.number(key="default_value"),
+        ]
+      }
+    ])
+  }
+  async def create_task(self, config: Any, topic_space_id: int | None):
+    return CalculatorTask(await self.create_client(topic_space_id), CalculatorConfig.model_validate(config))

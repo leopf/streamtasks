@@ -1,11 +1,13 @@
 from enum import Enum
+import itertools
 from typing import Any
 import unittest
-from streamtasks.net.message.data import MessagePackData
-from streamtasks.net.message.structures import NumberMessage
-from streamtasks.net.message.types import TopicControlData
+from streamtasks.net.serialization import RawData
+from streamtasks.message.types import NumberMessage
+from streamtasks.net.messages import TopicControlData
 from streamtasks.system.tasks.gate import GateConfig, GateState, GateTask, GateFailMode
 import asyncio
+from tests.shared import full_test
 from tests.sim import Simulator
 from .shared import TaskTestBase, run_task
 
@@ -22,7 +24,7 @@ class GateSimEvent(Enum):
 class GateSim(Simulator):
   def __init__(self, fail_mode: GateFailMode) -> None:
     super().__init__()
-    self.state = GateState()
+    self.state = GateState(True)
     self.fail_mode = fail_mode
     self.expect_receive_data = False
 
@@ -43,17 +45,17 @@ class GateSim(Simulator):
     if event == GateSimEvent.SEND_DATA:
       self.expect_receive_data = self.state.get_open(self.fail_mode)
     elif event == GateSimEvent.SET_GATE_CLOSED:
-      self.state.gate_value = False
-      self.state.gate_errored = False
+      self.state.control = False
+      self.state.control_errored = False
     elif event == GateSimEvent.SET_GATE_OPEN:
-      self.state.gate_value = True
-      self.state.gate_errored = False
+      self.state.control = True
+      self.state.control_errored = False
     elif event == GateSimEvent.SET_GATE_INVALID:
-      self.state.gate_errored = True
+      self.state.control_errored = True
     elif event == GateSimEvent.SET_GATE_PAUSED:
-      self.state.gate_paused = True
+      self.state.control_paused = True
     elif event == GateSimEvent.SET_GATE_UNPAUSED:
-      self.state.gate_paused = False
+      self.state.control_paused = False
 
 
 class TestGate(TaskTestBase):
@@ -68,24 +70,25 @@ class TestGate(TaskTestBase):
     task = GateTask(self.worker_client, GateConfig(
       fail_mode=fail_mode,
       in_topic=self.in_topic.topic,
-      gate_topic=self.gate_topic.topic,
+      control_topic=self.gate_topic.topic,
       out_topic=self.out_topic.topic,
-      synchronized=False
+      synchronized=False,
+      initial_control=True
     ))
     self.tasks.append(asyncio.create_task(run_task(task)))
     return task
 
   async def send_input_data(self, value: float):
     self.timestamp += 1
-    await self.in_topic.send(MessagePackData(NumberMessage(timestamp=self.timestamp, value=value).model_dump()))
+    await self.in_topic.send(RawData(NumberMessage(timestamp=self.timestamp, value=value).model_dump()))
 
   async def send_gate_data(self, value: float):
     self.timestamp += 1
-    await self.gate_topic.send(MessagePackData(NumberMessage(timestamp=self.timestamp, value=value).model_dump()))
+    await self.gate_topic.send(RawData(NumberMessage(timestamp=self.timestamp, value=value).model_dump()))
 
   async def send_gate_invalid(self):
     self.timestamp += 1
-    await self.gate_topic.send(MessagePackData({
+    await self.gate_topic.send(RawData({
       "timestamp": self.timestamp
     }))
 
@@ -96,6 +99,8 @@ class TestGate(TaskTestBase):
   async def send_input_pause(self, paused: bool):
     self.timestamp += 1
     await self.in_topic.set_paused(paused)
+
+  def generate_events(self): return itertools.islice(Simulator.generate_events(list(GateSimEvent)), 100)
 
   async def _test_fail_mode(self, fail_mode: GateFailMode):
     async with asyncio.timeout(100), self.in_topic, self.gate_topic, self.out_topic:
@@ -109,7 +114,8 @@ class TestGate(TaskTestBase):
 
       sim = GateSim(fail_mode)
       sim.eout_changed() # init last eout
-      for event in Simulator.generate_events(list(GateSimEvent)):
+
+      for event in self.generate_events():
         assert event in GateSimEvent
         if event == GateSimEvent.SEND_DATA: await self.send_input_data(1337)
         if event == GateSimEvent.SET_GATE_CLOSED: await self.send_gate_data(0)
@@ -129,6 +135,9 @@ class TestGate(TaskTestBase):
   async def test_gate_fail_open(self): await self._test_fail_mode(GateFailMode.OPEN)
   async def test_gate_fail_closed(self): await self._test_fail_mode(GateFailMode.CLOSED)
 
+@full_test
+class TestGateFull(TestGate):
+  def generate_events(self): return Simulator.generate_events(list(GateSimEvent))
 
 if __name__ == "__main__":
   unittest.main()

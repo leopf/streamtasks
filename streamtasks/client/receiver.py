@@ -1,9 +1,7 @@
 from abc import ABC, abstractmethod
-from pydantic import ValidationError
-from streamtasks.net.message.data import MessagePackData, SerializableData
-from streamtasks.net.message.types import AddressedMessage, Message, TopicControlData, TopicControlMessage, TopicDataMessage, TopicMessage
+from streamtasks.net.serialization import RawData
+from streamtasks.net.messages import AddressedMessage, Message, TopicControlData, TopicControlMessage, TopicDataMessage, TopicMessage
 from typing import Iterable, Optional, TYPE_CHECKING
-from streamtasks.services.protocols import GenerateAddressesResponseMessage, WorkerTopics
 import asyncio
 
 if TYPE_CHECKING:
@@ -53,7 +51,7 @@ class Receiver(ABC):
 class AddressReceiver(Receiver):
   def __init__(self, client: 'Client', address: int, port: int):
     super().__init__(client)
-    self._recv_queue: asyncio.Queue[tuple[int, SerializableData]]
+    self._recv_queue: asyncio.Queue[tuple[int, RawData]]
     self._address = address
     self._port = port
 
@@ -70,7 +68,7 @@ class TopicsReceiver(Receiver):
     self._topics: set[int] = set(topics)
     self._control_data: dict[int, TopicControlData] = {}
     self._subscribe = subscribe
-    self._recv_queue: asyncio.Queue[tuple[int, Optional[SerializableData], Optional[TopicControlData]]]
+    self._recv_queue: asyncio.Queue[tuple[int, Optional[RawData], Optional[TopicControlData]]]
 
   def get_control_data(self, topic: int): return self._control_data.get(topic, None)
 

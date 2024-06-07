@@ -1,103 +1,189 @@
-from streamtasks.media.config import DEFAULT_TIME_BASE_TO_MS
-from streamtasks.media.helpers import av_packet_to_media_packat
-from streamtasks.net.message import MediaPacket
-from streamtasks.media.codec import CodecInfo, Transcoder, EmptyTranscoder, AVTranscoder, Decoder, CodecOptions, apply_codec_options
-from typing import AsyncIterable
+import dataclasses
+from fractions import Fraction
+import functools
+from typing import BinaryIO
+import av.container
+import av.stream
 import av
 import asyncio
-import time
+from streamtasks.debugging import ddebug_value
+from streamtasks.env import DEBUG_MEDIA
+from streamtasks.media.audio import AudioCodecInfo
+from streamtasks.media.codec import AVTranscoder, CodecInfo, Decoder
+from streamtasks.media.packet import MediaPacket
+from streamtasks.media.video import VideoCodecInfo
+from streamtasks.utils import AsyncConsumer, AsyncMPProducer, AsyncProducer, AsyncTrigger
 
+class _StreamContext:
+  def __init__(self) -> None:
+    self.lock = asyncio.Lock()
+    self._sync_update_trigger = AsyncTrigger()
+    self._sync_channels: dict[int, Fraction] = {}
+
+  def create_sync_channel(self):
+    channel_id = len(self._sync_channels)
+    self._sync_channels[channel_id] = 0
+    return channel_id
+
+  def is_min(self, channel: int): return self._sync_channels[channel] == min(self._sync_channels.values())
+
+  async def sync_wait_channel_min(self, channel: int):
+    while not self.is_min(channel):
+      await self._sync_update_trigger.wait()
+
+  def set_sync_channel_time(self, channel: int, time: Fraction):
+    self._sync_channels[channel] = max(self._sync_channels[channel], time)
+    self._sync_update_trigger.trigger()
+
+class _Demuxer(AsyncMPProducer[av.Packet]):
+  def __init__(self, container: av.container.InputContainer) -> None:
+    super().__init__()
+    self.container = container
+
+  def run_sync(self):
+    demux_iter = self.container.demux()
+    while True:
+      try:
+        av_packet = next(demux_iter)
+        if av_packet.size == 0 and av_packet.dts is None and av_packet.pts is None: raise EOFError()
+        assert av_packet.dts <= av_packet.pts, "dts must be lower than pts while demuxing"
+        self.send_message(av_packet)
+      except StopIteration: raise EOFError()
+      except TimeoutError: pass
+      if self.stop_event.is_set(): return
+
+class StreamConsumer(AsyncConsumer[av.Packet]):
+  def __init__(self, producer: AsyncProducer, stream_index: int) -> None:
+    super().__init__(producer)
+    self._stream_index = stream_index
+  def test_message(self, message: av.Packet) -> bool: return self._stream_index == message.stream_index
+
+class AVInputStream:
+  def __init__(self, demuxer: _Demuxer, stream: av.stream.Stream, target_codec: CodecInfo, force_transcode: bool) -> None:
+    self._stream = stream
+    self._transcoder: None | AVTranscoder = None
+    self._consumer = StreamConsumer(demuxer, stream.index)
+    self._consumer.register()
+    self.out_time_base = target_codec.time_base
+    self.stream_time_base = self.out_time_base
+    try:
+      codec_info = CodecInfo.from_codec_context(stream.codec_context)
+      if force_transcode or not target_codec.compatible_with(codec_info):
+        self._transcoder = AVTranscoder(Decoder(codec_info, codec_context=stream.codec_context), target_codec.get_encoder())
+        self.stream_time_base = self._transcoder.decoder.time_base
+    except TypeError: pass # NOTE: some contexts dont have all the codec info
+
+  @property
+  def codec_info(self) -> CodecInfo: return CodecInfo.from_codec_context(self._stream.codec_context)
+
+  def convert_position(self, position: int, target_time: Fraction): return int((self.out_time_base * position) / target_time)
+
+  async def demux(self) -> list[MediaPacket]:
+    try:
+      av_packet = await self._consumer.get()
+      packet = MediaPacket.from_av_packet(av_packet, self.stream_time_base)
+      if self._transcoder is not None: return await self._transcoder.transcode(packet)
+      else: return [ packet ]
+    except EOFError:
+      if self._transcoder is None or self._transcoder.flushed: raise
+      return await self._transcoder.flush()
 
 class InputContainer:
-  _container: av.container.InputContainer
-  _transcoder_map: dict[int, Transcoder]
-  _stream_index_map: dict[int, int]
-  _t0: int
+  def __init__(self, container: av.container.InputContainer):
+    self._container = container
+    self._demuxer = _Demuxer(container)
 
-  def __init__(self, url: str, topic_encodings: list[tuple[int, CodecInfo]], codec_options: CodecOptions = {}, **kwargs):
-    self._container = av.open(url, "r", **kwargs)
-    stream_codec_infos = [ (stream.index, CodecInfo.from_codec_context(stream.codec_context)) for stream in self._container.streams if stream.codec_context is not None ]
-    # find compatible streams
-    self._stream_index_map = {}
-    self._transcoder_map = {}
-    self._t0 = 0
+  def __del__(self): self._container.close()
 
-    # assing streams to topics and create transcoders
+  def get_video_stream(self, idx: int, target_codec: VideoCodecInfo, force_transcode: bool = False):
+    av_stream = self._container.streams.video[idx]
+    stream = AVInputStream(self._demuxer, av_stream, target_codec, force_transcode)
+    return stream
 
-    for topic, codec_info in topic_encodings:
-      if topic in self._transcoder_map: continue
-      for stream_index in range(len(stream_codec_infos)):
-        if stream_index in self._stream_index_map: continue
-        if codec_info.compatible_with(stream_codec_infos[stream_index][1]):
-          self._stream_index_map[stream_index] = topic
-          self._transcoder_map[topic] = EmptyTranscoder()
-          break
+  def get_audio_stream(self, idx: int, target_codec: AudioCodecInfo, force_transcode: bool = False):
+    av_stream = self._container.streams.audio[idx]
+    return AVInputStream(self._demuxer, av_stream, target_codec, force_transcode)
 
-    for topic, codec_info in topic_encodings:
-      if topic in self._transcoder_map: continue
-      for stream_index, stream_codec_info in stream_codec_infos:
-        if stream_index in self._stream_index_map: continue
-        if codec_info.type == stream_codec_info.type:
-          self._stream_index_map[stream_index] = topic
-
-          in_codec_context = self._container.streams[stream_index].codec_context
-          apply_codec_options(in_codec_context, codec_options)
-          self._transcoder_map[topic] = AVTranscoder(Decoder(in_codec_context), codec_info.get_encoder())
-          break
-
-    # check is all topics have been assigned
-    for topic, codec_info in topic_encodings:
-      if topic not in self._transcoder_map: raise Exception(f"Could not find a compatible stream for topic {topic} with codec {codec_info.codec}")
-
-  async def demux(self) -> AsyncIterable[tuple[int, MediaPacket]]:
-    loop = asyncio.get_running_loop()
-    packet_iter = await loop.run_in_executor(None, self._container.demux)
-    while True:
-      av_packet = await loop.run_in_executor(None, packet_iter.__next__)
-      if av_packet is None: break
-
-      if av_packet.stream_index not in self._stream_index_map: continue
-
-      topic = self._stream_index_map[av_packet.stream_index]
-      transcoder = self._transcoder_map[topic]
-
-      if self._t0 == 0 and av_packet.pts is not None: self._t0 = int(time.time() * 1000 - (av_packet.pts / DEFAULT_TIME_BASE_TO_MS))
-      packet = av_packet_to_media_packat(av_packet, self._t0)
-
-      for t_packet in await transcoder.transcode(packet):
-        yield (topic, t_packet)
-
-  def close(self):
+  async def close(self):
+    await self._demuxer.close()
     self._container.close()
 
+  @staticmethod
+  async def open(url_or_path: str, **kwargs):
+    loop = asyncio.get_running_loop()
+    container: av.container.InputContainer = await loop.run_in_executor(None, functools.partial(av.open, url_or_path, "r", **kwargs, timeout=(None, 0.1)))
+    container.flags |= av.container.Flags.NOBUFFER
+    return InputContainer(container)
+
+class AVOutputStream:
+  def __init__(self, ctx: _StreamContext, time_base: Fraction, stream: av.stream.Stream) -> None:
+    self._stream = stream
+    self._ctx = ctx
+    self._time_base = time_base
+    self._dts_counter = 0
+    self._sync_channel = ctx.create_sync_channel()
+  @property
+  def duration(self): return self._time_base * self._dts_counter
+
+  @duration.setter
+  def duration(self, duration: Fraction):
+    if DEBUG_MEDIA(): ddebug_value("out stream tb dur.", self._stream.type, float(duration / self._time_base))
+    self._dts_counter = max(self._dts_counter, int(duration / self._time_base))
+    self._ctx.set_sync_channel_time(self._sync_channel, self.duration)
+
+  @property
+  def ready_for_packet(self): return self._ctx.is_min(self._sync_channel)
+
+  async def mux(self, packet: MediaPacket):
+    packet = dataclasses.replace(packet)
+    packet.dts = self._dts_counter
+    av_packet = packet.to_av_packet(self._time_base)
+    av_packet.stream = self._stream
+
+    if DEBUG_MEDIA():
+      ddebug_value("mux", self._stream.type, (self._sync_channel, { k: float(v) for k, v in  self._ctx._sync_channels.items() }))
+      ddebug_value("mux wait", self._stream.type, True)
+    await self._ctx.sync_wait_channel_min(self._sync_channel)
+    if DEBUG_MEDIA():
+      ddebug_value("mux wait", self._stream.type, False)
+
+    loop = asyncio.get_running_loop()
+    async with self._ctx.lock:
+      assert av_packet.dts <= av_packet.pts, "dts must be lower than pts before muxing"
+      await loop.run_in_executor(None, self._stream.container.mux, av_packet)
+      assert av_packet.dts <= av_packet.pts, "dts must be lower than pts after muxing"
+      if self._stream.type == "audio":
+        self._dts_counter += int(self._stream.codec_context.frame_size)
+      else:
+        self._dts_counter += 1
+      self._ctx.set_sync_channel_time(self._sync_channel, self._time_base * self._dts_counter)
 
 class OutputContainer:
-  _container: av.container.OutputContainer
-  _stream_index_map: dict[int, int]
+  def __init__(self, container: av.container.OutputContainer):
+    self._container: av.OutputContainer = container
+    self._ctx = _StreamContext()
 
-  def __init__(self, url_or_path: str, topic_encodings: list[tuple[int, CodecInfo]], codec_options: CodecOptions = {}, **kwargs):
-    self._stream_index_map = {}
-    self._container = av.open(url_or_path, "w", **kwargs)
-    for topic, codec_info in topic_encodings:
-      stream_idx = len(self._container.streams)
-      self._stream_index_map[topic] = stream_idx
-      self._container.add_stream(codec_name=codec_info.codec, rate=codec_info.framerate)
-      apply_codec_options(self._container.streams[stream_idx].codec_context, codec_options)
+  def __del__(self): self._container.close()
 
-  def __del__(self):
-    self.close()
-
-  def close(self):
+  async def close(self):
+    await self._ctx.lock.acquire()
     self._container.close()
 
-  async def mux(self, packets: list[tuple[int, MediaPacket]]):
-    av_packets = []
-    for topic, packet in packets:
-      av_packet = packet.to_av_packet()
-      av_packet.stream = self._container.streams[self._stream_index_map[topic]]
-      av_packets.append(av_packet)
+  def add_video_stream(self, codec_info: VideoCodecInfo):
+    time_base = codec_info.time_base
+    if time_base is None: raise ValueError("time_base must not be None")
+    stream = self._container.add_stream(codec_name=codec_info.codec, rate=codec_info.frame_rate, width=codec_info.width, height=codec_info.height, format=codec_info.to_av_format(), options=codec_info.options)
+    return AVOutputStream(self._ctx, time_base, stream)
 
+  def add_audio_stream(self, codec_info: AudioCodecInfo):
+    time_base = codec_info.time_base
+    if time_base is None: raise ValueError("time_base must not be None")
+    stream = self._container.add_stream(codec_name=codec_info.codec, rate=codec_info.sample_rate, channels=codec_info.channels, format=codec_info.to_av_format(), options=codec_info.options)
+    return AVOutputStream(self._ctx, time_base, stream)
+
+  @staticmethod
+  async def open(file: str | BinaryIO, **kwargs):
     loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, self._mux, av_packets)
-
-  def _mux(self, packets: list[av.Packet]): self._container.mux(packets)
+    container: av.OutputContainer = await loop.run_in_executor(None, functools.partial(av.open, file, "w", **kwargs))
+    container.flags |= av.container.Flags.NOBUFFER
+    return OutputContainer(container)

@@ -1,13 +1,13 @@
 from abc import abstractmethod
 import asyncio
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any, Coroutine, Iterable, Optional
+from typing import TYPE_CHECKING, Any, Iterable, Optional
 from streamtasks.client.receiver import Receiver
-from streamtasks.utils import AsyncBool
-from streamtasks.net.message.data import SerializableData
-from streamtasks.net.message.utils import get_timestamp_from_message
+from streamtasks.utils import AsyncBool, AsyncTrigger
+from streamtasks.net.serialization import RawData
+from streamtasks.message.utils import get_timestamp_from_message
 from streamtasks.net import Message
-from streamtasks.net.message.types import InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicControlMessage, TopicDataMessage
+from streamtasks.net.messages import InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicControlMessage, TopicDataMessage
 
 if TYPE_CHECKING:
   from streamtasks.client import Client
@@ -57,11 +57,10 @@ class _InTopicAction(Enum):
 
 
 class _InTopicReceiver(Receiver):
-  _recv_queue: asyncio.Queue[(_InTopicAction, Any)]
-
   def __init__(self, client: 'Client', topic: int):
     super().__init__(client)
     self._topic = topic
+    self._recv_queue: asyncio.Queue[(_InTopicAction, Any)]
 
   def _put_msg(self, action: _InTopicAction, data: Any):
     self._recv_queue.put_nowait((action, data))
@@ -95,77 +94,99 @@ class InTopic(_TopicBase):
   async def start(self): await self._receiver.start_recv()
   async def stop(self): await self._receiver.stop_recv()
   async def wait_paused(self, value: bool = True): return await self._a_is_paused.wait(value)
-  async def recv_data(self) -> SerializableData:
+  async def recv_data(self) -> RawData:
     while True:
       data = await self.recv_data_control()
       if not isinstance(data, TopicControlData): return data
 
-  async def recv_data_control(self):
+  async def recv_data_control(self) -> TopicControlData | RawData:
     while True:
-      action, data = await self._receiver.recv()
+      action, data = await self._receiver.get()
       if action == _InTopicAction.DATA: return data
       if action == _InTopicAction.SET_CONTROL:
         assert isinstance(data, TopicControlData)
         self._a_is_paused.set(data.paused)
         return data
       if action == _InTopicAction.SET_COST: self._cost = data
-
   async def _set_registered(self, registered: bool):
     if registered: await self._client.register_in_topics([ self._topic ])
     else: await self._client.unregister_in_topics([ self._topic ])
 
-
 class InTopicSynchronizer:
+  @abstractmethod
+  async def wait_for(self, topic_id: int, timestamp: int) -> bool: pass
+  @abstractmethod
+  async def set_paused(self, topic_id: int, paused: bool): pass
+  def start_receive(self, topic_id: int): pass
+
+class SequentialInTopicSynchronizer(InTopicSynchronizer):
   def __init__(self) -> None:
+    super().__init__()
     self._topic_timestamps: dict[int, int] = {}
-    self._timestamp_waiters: dict[int, asyncio.Future] = {}
+    self._timestamp_trigger = AsyncTrigger()
 
   @property
-  def current_timestamp(self): return 0 if len(self._topic_timestamps) == 0 else min(self._topic_timestamps.values())
+  def min_timestamp(self): return 0 if len(self._topic_timestamps) == 0 else min(self._topic_timestamps.values())
 
-  def set_paused(self, topic_id: int, paused: bool):
-    if paused:
-      self._topic_timestamps.pop(topic_id, None)
-      self._update_waiters()
-    else: self._topic_timestamps[topic_id] = self.current_timestamp
+  async def wait_for(self, topic_id: int, timestamp: int) -> bool:
+    if timestamp < self._topic_timestamps.get(topic_id, 0): return False # NOTE: drop the past
+    self._set_topic_timestamp(topic_id, timestamp)
+    while self._is_waiting(topic_id, timestamp): await self._timestamp_trigger.wait()
+    return True
 
-  async def topic_wait_timstamp(self, topic_id: int, timestamp: int):
-    self._topic_timestamps[topic_id] = timestamp
-    fut = asyncio.Future()
-    self._timestamp_waiters[timestamp] = fut
-    self._update_waiters()
-    return await fut
+  async def set_paused(self, topic_id: int, paused: bool):
+    if paused: self._set_topic_timestamp(topic_id, None)
+    else: self._set_topic_timestamp(topic_id, self.min_timestamp)
 
-  def _update_waiters(self):
-    current_timestamp = self.current_timestamp
-    resolve_timestamps = [ timestamp for timestamp in self._timestamp_waiters if timestamp <= current_timestamp ]
-    resolve_timestamps.sort() # make sure early timestamps are resolved first
-    for timestamp in resolve_timestamps:
-      fut = self._timestamp_waiters.pop(timestamp)
-      assert fut is not None, "the selected timestamps should be present in the set when popping."
-      fut.set_result(None)
+  def _is_waiting(self, topic_id: int, timestamp: int): return self.min_timestamp < timestamp
+  def _set_topic_timestamp(self, topic_id: int, timestamp: int | None):
+    if timestamp is None: self._topic_timestamps.pop(topic_id, None)
+    else: self._topic_timestamps[topic_id] = timestamp
+    self._timestamp_trigger.trigger()
 
+class PrioritizedSequentialInTopicSynchronizer(SequentialInTopicSynchronizer):
+  def __init__(self) -> None:
+    super().__init__()
+    self._topic_priorities: dict[int, int] = {}
+    self._done_topics = set()
+
+  async def wait_for(self, topic_id: int, timestamp: int) -> bool:
+    if topic_id is self._done_topics: self._done_topics.remove(topic_id)
+    return await super().wait_for(topic_id, timestamp)
+
+  def start_receive(self, topic_id: int):
+    self._done_topics.add(topic_id)
+    self._timestamp_trigger.trigger()
+    return super().start_receive(topic_id)
+
+  def set_priority(self, topic_id: int, priority: int):
+    self._topic_priorities[topic_id] = priority
+
+  def _is_waiting(self, topic_id: int, timestamp: int):
+    min_timestamp = self.min_timestamp
+    if min_timestamp < timestamp: return True
+    if len(self._topic_priorities) == 0: return False
+    priority = self._topic_priorities.get(topic_id, 0)
+    return any(True for tid, timestamp in self._topic_timestamps.items() if tid != topic_id and timestamp == min_timestamp and tid not in self._done_topics and self._topic_priorities.get(tid, 0) > priority)
 
 class _SynchronizedInTopicReceiver(_InTopicReceiver):
   def __init__(self, client: 'Client', topic: int, sync: InTopicSynchronizer):
     super().__init__(client, topic)
     self._sync = sync
 
-  async def recv(self) -> Coroutine[Any, Any, Any]:
+  async def get(self):
     while True:
-      action, data = await super().recv()
+      self._sync.start_receive(self._topic)
+      action, data = await super().get()
       if action == _InTopicAction.SET_CONTROL:
         assert isinstance(data, TopicControlData)
-        self._sync.set_paused(self._topic, data.paused)
-        return data
+        await self._sync.set_paused(self._topic, data.paused)
+        return (action, data)
       elif action == _InTopicAction.DATA:
         try:
           timestamp = get_timestamp_from_message(data)
-          if timestamp < self._sync.current_timestamp: continue # NOTE drop the past
-          await self._sync.topic_wait_timstamp(self._topic, timestamp)
+          if await self._sync.wait_for(self._topic, timestamp): return (action, data)
         except ValueError: pass
-      return (action, data)
-
 
 class SynchronizedInTopic(InTopic):
   def __init__(self, client: 'Client', topic: int, sync: InTopicSynchronizer) -> None:
@@ -215,7 +236,7 @@ class OutTopic(_TopicBase):
 
   async def wait_requested(self, value: bool = True): return await self._a_is_requested.wait(value)
 
-  async def send(self, data: SerializableData): await self._client.send_stream_data(self._topic, data)
+  async def send(self, data: RawData): await self._client.send_stream_data(self._topic, data)
   async def set_paused(self, paused: bool):
     if paused != self._is_paused:
       self._is_paused = paused
@@ -226,7 +247,7 @@ class OutTopic(_TopicBase):
     else: await self._client.unregister_out_topics([ self._topic ])
   async def _run_receiver(self):
     while True:
-      action, data = await self._receiver.recv()
+      action, data = await self._receiver.get()
       if action == _OutTopicAction.SET_REQUESTED:
         self._a_is_requested.set(data)
 

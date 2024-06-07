@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>video viewer</title>
+    <script src="https://www.unpkg.com/mpegts.js@1.7.3/dist/mpegts.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #videoElement {
+            display: block;
+            box-sizing: border-box;
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <video id="videoElement"></video>
+    <script>
+        console.log("FEATURES", mpegts.getFeatureList())
+        let wsUrl = location.href;
+        wsUrl = "ws:" + wsUrl.substring(wsUrl.indexOf(":") + 1) // replace http(s): with ws:
+        wsUrl = wsUrl.substring(0, wsUrl.lastIndexOf("/"))
+        wsUrl += "/video"
+
+        player = window.mpegts.createPlayer({
+            type: 'mse',
+            isLive: true,
+            url: wsUrl
+        })
+        player.attachMediaElement(document.getElementById("videoElement"));
+        player.load();
+        player.play();
+    </script>
+</body>
+</html>

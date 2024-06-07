@@ -1,41 +1,14 @@
-from setuptools import setup
+import platform
+import re
+from setuptools import setup, Extension
+import pybind11
+import glob
 
-setup(
-    name="streamtasks",
-    version="0.1.0",
-    packages=[
-        "streamtasks",
-        "streamtasks.bin",
-        "streamtasks.comm",
-        "streamtasks.media",
-        "streamtasks.client",
-        "streamtasks.worker",
-        "streamtasks.system",
-        "streamtasks.tasks",
-        "streamtasks.net.message",
-    ],
-    author="leopf",
-    description="A task orchestrator for Python",
-    license="MIT",
-    install_requires=[
-        "typing_extensions",
-        "av",
-        "msgpack",
-        "pydantic",
-        "fastavro",
-        "numpy",
-        "uvicorn",
-        "httpx",
-        "fastapi",
-        "scipy",
-        "lark",
-        "tinydb",
-    ],
-    extras_require={
-        "dev": [
-          "matplotlib",
-          "simpleaudio",
-          "opencv-python",
-        ]
-    }
-)
+ext_kwargs = { "include_dirs": [ pybind11.get_include()], "language": "c++" }
+ext_modules = [ Extension(re.sub(r"[\/\\\\]", ".", p)[:-8], sources=[p], **ext_kwargs) for p in glob.glob("streamtasks/**/*_all.cpp", recursive=True)]
+
+p = platform.system().lower()
+if p == "linux":
+  ext_modules.append(Extension("streamtasks.media.v4l2", sources=[ "streamtasks/media/v4l2.cpp" ], **ext_kwargs))
+
+setup(ext_modules=ext_modules)

@@ -1,94 +1,51 @@
 import unittest
-from streamtasks.media.audio import AudioCodecInfo, AudioFrame
-import numpy as np
-import scipy
-
+from streamtasks.media.audio import AudioCodecInfo
+from streamtasks.media.packet import MediaPacket
+from tests.media import audio_frames_to_s16_samples, decode_audio_packets, encode_all_frames, generate_audio_media_track, get_freq_similarity, get_spectrum
 
 class TestAudioCodec(unittest.IsolatedAsyncioTestCase):
-  sample_rate = 44100
-  freq_count = 3
-
-  def setUp(self):
-    self.resampler = self.get_audio_codec("pcm_s16le", "s16").get_resampler()
-
-  def create_samples(self, freq: int, duration: float) -> bytes:
-    return np.sin(2 * np.pi * np.arange(int(self.sample_rate * duration)) * freq / self.sample_rate)
-
-  def create_track(self, duration: float = 1):
-    samples = self.create_samples(420, duration) + self.create_samples(69, duration) + self.create_samples(111, duration)
-    return (samples * 10000).astype(np.int16)
-
-  def get_audio_codec(self, codec: str, pixel_format: str):
-    return AudioCodecInfo(
-      codec=codec,
-      channels=1,
-      sample_rate=self.sample_rate,
-      sample_format=pixel_format,
-    )
-
-  def resample_audio_frame(self, frame: AudioFrame):
-    return self.resampler.resample(frame)
-
-  def get_spectum(self, samples: np.ndarray):
-    freqs = scipy.fft.fft(samples)
-    freqs = freqs[range(int(len(freqs) / 2))] # keep only first half
-    freqs = abs(freqs) # get magnitude
-    freqs = freqs / freqs.sum() # normalize
-    return freqs
-
-  def get_freq_similarity(self, a: np.ndarray, b: np.ndarray):
-    a_freqs = np.argsort(a)[-self.freq_count:]
-    b_freqs = np.argsort(b)[-self.freq_count:]
-    a_freqs.sort()
-    b_freqs.sort()
-    return np.abs(a_freqs - b_freqs).sum()
+  sample_rates = [44100,32000,16000]
+  duration = 5
 
   async def test_inverse_transcoder(self):
-    in_samples = self.create_track()
-    codec_info = self.get_audio_codec("aac", "fltp")
-    encoder = codec_info.get_encoder()
-    decoder = codec_info.get_decoder()
+    codec = AudioCodecInfo(codec="aac", channels=1, sample_rate=self.sample_rates[0], sample_format="fltp")
+    frames, in_samples = await generate_audio_media_track(codec, self.duration)
+    packets = await encode_all_frames(codec.get_encoder(), frames)
+    out_samples = await decode_audio_packets(codec, packets)
+    similarity = get_freq_similarity(get_spectrum(in_samples), get_spectrum(out_samples)) # lower is better
+    self.assertLess(similarity, 35)
 
-    frame = AudioFrame.from_ndarray(in_samples[np.newaxis, :], "s16", 1, self.sample_rate)
-    encoded_packets = await encoder.encode(frame)
-    out_samples = []
-    for packet in encoded_packets:
-      new_frames = await decoder.decode(packet)
-      for new_frame in new_frames:
-        for r_frame in await self.resample_audio_frame(new_frame):
-          out_samples.append(r_frame.to_ndarray())
+  async def test_transcoder_aac_ac3_1(self):
+    codec1 = AudioCodecInfo(codec="aac", channels=1, sample_rate=self.sample_rates[0], sample_format="fltp")
+    codec2 = AudioCodecInfo(codec="ac3", channels=1, sample_rate=self.sample_rates[0], sample_format="fltp")
+    await self._test_transcoder(codec1, codec2)
 
-    out_samples = np.concatenate(out_samples, axis=1)[0]
+  async def test_transcoder_aac_ac3_resample(self):
+    codec1 = AudioCodecInfo(codec="aac", channels=1, sample_rate=self.sample_rates[1], sample_format="fltp")
+    codec2 = AudioCodecInfo(codec="aac", channels=1, sample_rate=self.sample_rates[2], sample_format="fltp")
+    await self._test_transcoder(codec1, codec2)
 
-    in_freqs = self.get_spectum(in_samples)
-    out_freqs = self.get_spectum(out_samples)
-    similarity = self.get_freq_similarity(in_freqs, out_freqs) # lower is better
-    self.assertLess(similarity, 20)
+  async def _test_transcoder(self, codec1: AudioCodecInfo, codec2: AudioCodecInfo):
+    transcoder = codec1.get_transcoder(codec2)
+    frames, _ = await generate_audio_media_track(codec1, self.duration)
+    encoder1 = codec1.get_encoder()
+    packets = await encode_all_frames(encoder1, frames)
+    packet_size = encoder1.codec_context.frame_size
 
-  async def test_transcoder(self):
-    in_samples = self.create_track(5)
-    codec_info1 = self.get_audio_codec("aac", "fltp")
-    codec_info2 = self.get_audio_codec("ac3", "fltp")
-    transcoder = codec_info1.get_transcoder(codec_info2)
-    encoder = codec_info1.get_encoder()
-    decoder = codec_info2.get_decoder()
+    t_packets: list[MediaPacket] = []
+    for idx, packet in enumerate(packets):
+      packet.pts = packet_size * idx # add timestamps to packets
+      t_packets.extend(await transcoder.transcode(packet))
+    t_packets.extend(await transcoder.flush())
 
-    frame = AudioFrame.from_ndarray(in_samples[np.newaxis, :], "s16", 1, self.sample_rate)
-    out_samples = []
-    for packet in await encoder.encode(frame):
-      t_packets = await transcoder.transcode(packet)
-      for t_packet in t_packets:
-        for r_frame in await decoder.decode(t_packet):
-          for rs_frame in await self.resample_audio_frame(r_frame):
-            out_samples.append(rs_frame.to_ndarray())
+    # self.assertEqual(packets[0].pts, t_packets[0].pts)
+    self.assertLessEqual(int(t_packets[-1].pts * codec2.time_base), self.duration)
 
-    out_samples = np.concatenate(out_samples, axis=1)[0]
-
-    in_freqs = self.get_spectum(in_samples)
-    out_freqs = self.get_spectum(out_samples)
-    similarity = self.get_freq_similarity(in_freqs, out_freqs)
-    self.assertLess(similarity, 40)
-
+    in_samples = await audio_frames_to_s16_samples(frames, codec1)
+    out_samples = await decode_audio_packets(codec2, t_packets)
+    self.assertLessEqual(out_samples.size - codec2.sample_rate / 2, (codec2.sample_rate / codec1.sample_rate) * in_samples.size, "resampling not working")
+    similarity = get_freq_similarity(get_spectrum(in_samples, codec1.sample_rate), get_spectrum(out_samples, codec2.sample_rate)) # lower is better
+    self.assertLess(similarity, 35)
 
 if __name__ == '__main__':
   unittest.main()

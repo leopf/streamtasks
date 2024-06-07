@@ -1,23 +1,33 @@
-from typing import Union
+from typing import Any, Callable, Union
+from streamtasks.env import DEBUG_SER
 from streamtasks.net.helpers import PricedIdTracker
-from streamtasks.net.message.serialize import serialize_message, deserialize_message
+from streamtasks.net.serialization import RawData
+from streamtasks.net.serialization import serialize_message, deserialize_message
 from streamtasks.utils import IdTracker
 from abc import ABC, abstractmethod
 import logging
 import asyncio
 
-from streamtasks.net.message.types import AddressedMessage, AddressesChangedMessage, AddressesChangedRecvMessage, InTopicsChangedMessage, Message, OutTopicsChangedMessage, OutTopicsChangedRecvMessage, PricedId, TopicControlData, TopicControlMessage, TopicMessage
+from streamtasks.net.messages import AddressedMessage, AddressesChangedMessage, AddressesChangedRecvMessage, DataMessage, InTopicsChangedMessage, Message, OutTopicsChangedMessage, OutTopicsChangedRecvMessage, PricedId, TopicControlData, TopicControlMessage, TopicDataMessage, TopicMessage
 
 DAddress = Union[str, int] # dynamic address, which allows names or ints
 Endpoint = tuple[DAddress, int]
 EndpointOrAddress = DAddress | Endpoint
 
 def endpoint_or_address_to_endpoint(ep: EndpointOrAddress, default_port: int):
-  return (ep, default_port) if isinstance(ep, str) or isinstance(ep, int) else ep 
+  return (ep, default_port) if isinstance(ep, (str, int)) else ep
 
 class ConnectionClosedError(Exception):
-  def __init__(self, message: str = "Connection closed"): super().__init__(message)
+  def __init__(self, message: str = "Connection closed", origin: BaseException | None = None):
+    if origin: super().__init__(message + "\nOrigin: " + str(origin))
+    else: super().__init__(message)
 
+if DEBUG_SER():
+  def _transform_message(message: Message):
+    try: return deserialize_message(serialize_message(message))
+    except KeyError: return message
+else:
+  def _transform_message(message: Message): return message
 
 class Link(ABC):
   def __init__(self, cost: int = 1):
@@ -25,14 +35,27 @@ class Link(ABC):
     self.recv_topics: set[int] = set()
     self.out_topics: dict[int, int] = dict()
     self.addresses: dict[int, int] = dict()
+    self.on_closed: list[Callable[[], Any]] = []
 
-    self.closed = asyncio.Event()
+    self._closed = False
+    self._receiver: asyncio.Task[Message] | None = None
 
     if cost == 0: raise ValueError("Cost must be greater than 0")
-    self.cost: int = cost
+    self._cost = cost
 
   def __del__(self): self.close()
-  def close(self): self.closed.set()
+
+  @property
+  def closed(self): return self._closed
+
+  def close(self):
+    if self._closed: return
+    self._closed = True
+    if self._receiver is not None:
+      try: self._receiver.cancel(ConnectionClosedError())
+      except asyncio.InvalidStateError: pass
+    for handler in self.on_closed: handler()
+    self.on_closed.clear()
 
   def get_priced_out_topics(self, topics: set[int] = None) -> set[PricedId]:
     if topics is None:
@@ -47,47 +70,40 @@ class Link(ABC):
       return set(PricedId(address, self.addresses[address]) for address in addresses if address in self.addresses)
 
   async def send(self, message: Message):
+    if self._closed: raise ConnectionClosedError()
+    assert not isinstance(message, DataMessage) or isinstance(message.data, RawData), "The message data must be of type raw data!"
+    message = _transform_message(message)
     if isinstance(message, InTopicsChangedMessage):
       itc_message: InTopicsChangedMessage = message
       self.recv_topics = self.recv_topics.union(itc_message.add).difference(itc_message.remove)
     elif isinstance(message, OutTopicsChangedMessage):
       otc_message: OutTopicsChangedMessage = message
-      message = OutTopicsChangedMessage(set(PricedId(pt.id, pt.cost + self.cost) for pt in otc_message.add), otc_message.remove)
+      message = OutTopicsChangedMessage(set(PricedId(pt.id, pt.cost + self._cost) for pt in otc_message.add), otc_message.remove)
     elif isinstance(message, AddressesChangedMessage):
       ac_message: AddressesChangedMessage = message
-      message = AddressesChangedMessage(set(PricedId(pa.id, pa.cost + self.cost) for pa in ac_message.add), ac_message.remove)
+      message = AddressesChangedMessage(set(PricedId(pa.id, pa.cost + self._cost) for pa in ac_message.add), ac_message.remove)
     await self._send(message)
 
   async def recv(self) -> Message:
+    if self._closed: raise ConnectionClosedError()
     message = None
     while message is None:
-      message = await self._recv_one()
-      message = self._process_recv_message(message)
+      self._receiver = asyncio.create_task(self._recv())
+      try:
+        message = await self._receiver
+        message = _transform_message(message)
+        message = self._process_recv_message(message)
+      except asyncio.CancelledError as e:
+        if len(e.args) > 0 and isinstance(e.args[0], ConnectionClosedError): raise e.args[0]
+        else: raise e
+      finally: self._receiver = None
     return message
 
-  async def _recv_one(self):
-    tasks = [
-      asyncio.create_task(self._wait_closed()),
-      asyncio.create_task(self._recv())
-    ]
-    try:
-      done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-      results = [ task.result() for task in done ]
-      assert len(results) > 0, "Invalid state"
-      if len(results) > 1 or not isinstance(results[0], Message): raise ConnectionClosedError()
-      return results[0]
-    finally:
-      for task in tasks: task.cancel()
-
-  async def _wait_closed(self): await self.closed.wait()
+  @abstractmethod
+  async def _send(self, message: Message): pass
 
   @abstractmethod
-  async def _send(self, message: Message):
-    pass
-
-  @abstractmethod
-  async def _recv(self) -> Message:
-    pass
+  async def _recv(self) -> Message: pass
 
   def _process_recv_message(self, message: Message) -> Message:
     if isinstance(message, InTopicsChangedMessage):
@@ -101,7 +117,7 @@ class Link(ABC):
     elif isinstance(message, OutTopicsChangedMessage):
       otc_message: OutTopicsChangedMessage = message
       message = OutTopicsChangedRecvMessage(
-        set(PricedId(pt.id, pt.cost + self.cost) for pt in otc_message.add),
+        set(PricedId(pt.id, pt.cost + self._cost) for pt in otc_message.add),
         set(PricedId(t, self.out_topics[t]) for t in otc_message.remove if t in self.out_topics))
       for address in otc_message.remove: self.out_topics.pop(address, None)
       for pt in message.add: self.out_topics[pt.id] = pt.cost
@@ -109,77 +125,72 @@ class Link(ABC):
     elif isinstance(message, AddressesChangedMessage):
       ac_message: AddressesChangedMessage = message
       message = AddressesChangedRecvMessage(
-        set(PricedId(pa.id, pa.cost + self.cost) for pa in ac_message.add),
+        set(PricedId(pa.id, pa.cost + self._cost) for pa in ac_message.add),
         set(PricedId(a, self.addresses[a]) for a in ac_message.remove if a in self.addresses))
       for address in ac_message.remove: self.addresses.pop(address, None)
       for pa in message.add: self.addresses[pa.id] = pa.cost
 
     return message
 
+class TopicRemappingLink(Link): # NOTE: maybe this should just inherit a specific link...
+  def __init__(self, link: Link, topic_id_map: dict[int, int]):
+    super().__init__()
+    self.on_closed.append(link.close)
+    link.on_closed.append(self.close)
+    self._link = link
+    self._topic_id_map = topic_id_map # internal -> external
+    self._rev_topic_id_map = {v:k for k, v in topic_id_map.items() } # external -> internal
+
+  async def _recv(self) -> Message: return self._remap_message(await self._link.recv(), self._rev_topic_id_map)
+  async def _send(self, message: Message): await self._link.send(self._remap_message(message, self._topic_id_map))
+
+  def _remap_message(self, message: Message, topic_id_map: dict[int, int]):
+    if isinstance(message, TopicDataMessage):
+      message = TopicDataMessage(topic_id_map.get(message.topic, message.topic), message.data)
+    elif isinstance(message, TopicControlMessage):
+      message = TopicControlMessage(topic_id_map.get(message.topic, message.topic), message.paused)
+    elif isinstance(message, InTopicsChangedMessage):
+      message = InTopicsChangedMessage(self._remap_id_set(message.add, topic_id_map), self._remap_id_set(message.remove, topic_id_map))
+    elif isinstance(message, OutTopicsChangedRecvMessage):
+      message = OutTopicsChangedRecvMessage(self._remap_priced_id_set(message.add, topic_id_map), self._remap_priced_id_set(message.remove, topic_id_map))
+    elif isinstance(message, OutTopicsChangedMessage):
+      message = OutTopicsChangedMessage(self._remap_priced_id_set(message.add, topic_id_map), self._remap_id_set(message.remove, topic_id_map))
+    return message
+
+  def _remap_id_set(self, ids: set[int], topic_id_map: dict[int, int]): return set(topic_id_map.get(t, t) for t in ids)
+  def _remap_priced_id_set(self, ids: set[PricedId], topic_id_map: dict[int, int]): return set(PricedId(topic_id_map.get(t.id, t.id), t.cost) for t in ids)
+
 
 class QueueLink(Link):
-  out_messages: asyncio.Queue[Message]
-  in_messages: asyncio.Queue[Message]
-  close_signal: asyncio.Event
-
-  def __init__(self, close_signal: asyncio.Event, out_messages: asyncio.Queue, in_messages: asyncio.Queue):
+  def __init__(self, out_messages: asyncio.Queue[Message], in_messages: asyncio.Queue[Message]):
     super().__init__()
     self.out_messages = out_messages
     self.in_messages = in_messages
-    self.close_signal = close_signal
 
-  def close(self):
-    super().close()
-    if not self.close_signal.is_set(): self.close_signal.set()
-
-  async def _send(self, message: Message):
-    self._validate_open()
-    await self.out_messages.put(message)
-
-  async def _wait_closed(self):
-    await asyncio.wait([
-      asyncio.create_task(super()._wait_closed()),
-      asyncio.create_task(self._wait_closed_external())
-    ], return_when=asyncio.FIRST_COMPLETED)
-
+  async def _send(self, message: Message): await self.out_messages.put(message)
   async def _recv(self) -> Message:
-    self._validate_open()
-    return await self.in_messages.get()
+    result = await self.in_messages.get()
+    self.in_messages.task_done()
+    return result
 
-  async def _wait_closed_external(self):
-    await self.close_signal.wait()
-    self.close()
-
-  def _validate_open(self):
-    if self.close_signal.is_set():
-      if not self.closed.is_set(): self.close()
-      raise ConnectionClosedError()
-
-
-class RawQueuelink(QueueLink):
-  out_messages: asyncio.Queue[bytes]
-  in_messages: asyncio.Queue[bytes]
-
-  async def _send(self, message: Message):
-    self._validate_open()
-    await self.out_messages.put(serialize_message(message))
-
+class RawQueueLink(QueueLink):
+  async def _send(self, message: Message): await self.out_messages.put(serialize_message(message))
   async def _recv(self) -> Message:
-    self._validate_open()
-    return deserialize_message(await self.in_messages.get())
-
+    result = await self.in_messages.get()
+    self.in_messages.task_done()
+    return deserialize_message(result)
 
 def create_queue_connection(raw: bool = False) -> tuple[Link, Link]:
-  close_signal = asyncio.Event()
-  messages_a, messages_b = asyncio.Queue(), asyncio.Queue()
-  if raw:
-    return RawQueuelink(close_signal, messages_a, messages_b), RawQueuelink(close_signal, messages_b, messages_a)
-  else:
-    return QueueLink(close_signal, messages_a, messages_b), QueueLink(close_signal, messages_b, messages_a)
+  queue_a, queue_b = asyncio.Queue(), asyncio.Queue()
+  if raw: link_a, link_b = RawQueueLink(queue_a, queue_b), RawQueueLink(queue_b, queue_a)
+  else: link_a, link_b = QueueLink(queue_a, queue_b), QueueLink(queue_b, queue_a)
+  link_a.on_closed.append(link_b.close)
+  link_b.on_closed.append(link_a.close)
+  return link_a, link_b
 
 
 class LinkManager:
-  def __init__(self): self._link_recv_tasks = {}
+  def __init__(self): self._link_recv_tasks: dict[Link, asyncio.Task] = {}
   @property
   def links(self): return self._link_recv_tasks.keys()
   def has_link(self, link: Link): return link in self._link_recv_tasks
