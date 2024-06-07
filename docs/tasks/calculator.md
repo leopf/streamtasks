@@ -1,5 +1,26 @@
-Math Engine User Manual
------------------------
+---
+module: streamtasks.system.tasks.calculator
+label: calculator
+---
+# calculator
+
+## Inputs
+The Calculator has a configurable amout of inputs. A veriable name is assigned to each input, that can be used in the formula to calculate the output.
+
+## Outputs
+* **output** - the output value calculated with the formula.
+
+## Configuration
+Global:
+* **formula** - The mathematical formula to calculate the output
+* **synchronized** - Whether the inputs should be synchronized.
+
+Per Input:
+* **default value** - the default value of the input variable
+* **variable name** - the name of the variable assigned to this input
+
+## Description
+The Calculator Task is a mathematical processing task that evaluates a given formula using input values and produces an output value.
 
 The Math Engine is a simple calculator language that allows you to evaluate mathematical expressions. It supports a wide range of arithmetic operations, comparison operators, logical operators, and built-in mathematical functions. This user manual provides an overview of the math syntax and how to use it effectively.
 

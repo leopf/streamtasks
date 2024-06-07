@@ -1,2 +1,2 @@
 ln -s .env.example .env
-python setup.py develop
+pip install -e .[dev,media,testing,web]

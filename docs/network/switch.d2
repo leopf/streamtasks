@@ -1,0 +1,20 @@
+direction: left
+
+s: Switch {
+    l: Link {
+        style {
+            multiple: true
+        }
+    }
+}
+
+c: Client {
+    l: Link
+
+    style {
+        multiple: true
+    }
+}
+
+"c"."l" -> "s"."l": send/recv
+"s"."l" -> "c"."l": recv/send

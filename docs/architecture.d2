@@ -1,0 +1,58 @@
+direction: down
+
+discovery: Discovery Service
+task_host: Task Host {
+    web_server: web server (optional)
+
+    task: Task {
+        web_server: web server (optional)
+
+        style {
+            multiple: true
+        }
+    }
+
+    style {
+        multiple: true
+    }
+}
+
+task_manager: Task Manager {
+    description: |md
+        Manages tasks and task hosts. It also broadcasts task status reports to its subscribers. 
+    |
+}
+task_manager_web: Task Manager Web
+web_server: Web Server
+web_dashboard: Web Dashboard
+connection_manager: Connection Manager {
+    servers: Servers {
+        style.multiple: true
+    }
+    connections: Connection {
+        style.multiple: true
+    }
+}
+
+connection_manager -> task_manager_web: registers path
+task_manager_web -> discovery: registers topic spaces
+task_manager_web -> discovery: registers address name "task_manager_web"
+task_manager -> discovery: registers address name "task_manager"
+task_host.task -> discovery: requests topic space to translate topics
+
+web_dashboard -> web_server: sends requests to web server
+web_server -> task_manager_web: sends http requests over asgi
+
+task_host -> task_manager: "[registers/unregister] task host"
+task_host.task -> task_manager: "report task status"
+
+task_manager -> task_host: sends start commands to task host
+# task_manager -> task_manager_web: broadcasting task status reports 
+
+task_manager_web -> task_manager: "[get/schedule/start/cancel] task"
+task_manager_web -> task_manager: "[get/list] task hosts"
+task_manager_web -> task_host.web_server: "forwarding requests on /task-host/{id}"
+task_manager_web -> task_host.task.web_server: "forwarding requests on /task/{id}"
+
+
+# "Task Host" -> "Task Host".Task: starts tasks
