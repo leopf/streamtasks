@@ -113,5 +113,7 @@ class UIControlBaseTask(UIBaseTask[C2, V]):
   async def run_other(self) -> AsyncContextManager:
     while True:
       await self.send_value(self._value)
-      try: await asyncio.wait_for(self.wait_value_changed(), self.config.repeat_interval)
+      try:
+        if self.config.repeat_interval > 0: await asyncio.wait_for(self.wait_value_changed(), self.config.repeat_interval)
+        else: await self.wait_value_changed()
       except asyncio.TimeoutError: pass
