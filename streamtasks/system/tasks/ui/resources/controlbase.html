@@ -110,6 +110,19 @@
         };
         socket.onclose = () => rootEl.remove();
     </script>
+    <script>
+        function inIframe () {
+            try {
+                return window.self !== window.top;
+            } catch (e) {
+                return true;
+            }
+        }
+        if (!inIframe()) {
+            document.getElementById("root").style.padding = "1rem";
+            document.body.style.backgroundColor = "#000";
+        }
+    </script>
 </body>
 
 </html>

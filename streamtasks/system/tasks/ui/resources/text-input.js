@@ -9,7 +9,7 @@ const textFieldRef = createRef();
 export function renderUI(value, config, setValue) {
     return html`
     <div>
-        <md-filled-text-field ${ref(textFieldRef)} style="width: 100%" label="Text" type="textarea"></md-filled-text-field>
+        <md-filled-text-field ${ref(textFieldRef)} style="width: 100%;resize: vertical;" label="Text" type="textarea"></md-filled-text-field>
         <div class="height-spacer"></div>
         <div class="flex-row flex-row--center">
             <div class="flex-spacer"></div>
