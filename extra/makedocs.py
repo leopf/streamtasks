@@ -22,7 +22,7 @@ Read the [Documentation](docs/overview.md).
 """
 ]
 
-link_regex = re.compile("\[([^\]]*)\]\(([^\)]*)\)", re.IGNORECASE)
+link_regex = re.compile(r"\[([^\]]*)\]\(([^\)]*)\)", re.IGNORECASE)
 
 for docs_file in README_FILES:
   with open(docs_file, "r") as fd:

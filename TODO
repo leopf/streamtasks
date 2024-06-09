@@ -8,10 +8,6 @@ move the following tasks to threads:
 - output container needs to be able to stop and restart based on inputs. Also: chunkung
 - better solution for flow detector
 - llama context length fix
-
-Frontend:
-- merge master
-
 - use ffmpeg where we can
 
 -----TASKS-----

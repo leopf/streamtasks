@@ -37,6 +37,9 @@ web = [
   "uvicorn>=0.29.0,<1.0.0",
 ]
 
+[project.scripts]
+streamtasks = "streamtasks.bin:main_cli"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["streamtasks*"]
