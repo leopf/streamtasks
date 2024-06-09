@@ -1,5 +1,3 @@
-![](screenshot.png)
-
 # Overview
 
 Streamtasks aims to simplify software integration for data pipelines.

@@ -15,6 +15,10 @@ README_FILES = [
 README_PARTS = [
 """
 # streamtasks
+
+![](docs/screenshot.png)
+
+Read the [Documentation](docs/overview.md).
 """
 ]
 
