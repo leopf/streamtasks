@@ -22,12 +22,13 @@ Read the [Documentation](docs/overview.md).
 """
 ]
 
-link_regex = re.compile(r"\[([^\]]*)\]\(([^\)]*)\)", re.IGNORECASE)
+link_regex = re.compile(r"\[([^\]]*)\]\(([^\)]*)\)", re.I)
+header_regex = re.compile(r"^#", re.I | re.M)
 
 for docs_file in README_FILES:
   with open(docs_file, "r") as fd:
     content = fd.read()
-    content = content.replace("# ", "## ")
+    content = header_regex.sub("##", content)
     dirname = os.path.dirname(docs_file)
 
     pos = 0
