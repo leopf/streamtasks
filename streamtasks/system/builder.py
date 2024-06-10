@@ -66,7 +66,7 @@ class SystemBuilder:
 
   async def start_user_endpoint(self, port: int, webview: bool):
     await self._wait_discovery()
-    self._add_task(HTTPServerOverASGI(await self.switch.add_local_connection(), ("localhost", port), AddressNames.TASK_MANAGER).run())
+    self._add_task(HTTPServerOverASGI(await self.switch.add_local_connection(), ("localhost", port), AddressNames.TASK_MANAGER_WEB).run())
     if webview: self._add_task(run_webview(port))
 
   async def start_task_hosts(self):
