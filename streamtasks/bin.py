@@ -9,7 +9,7 @@ async def main(args: list[str] | None = None):
   parser.add_argument("--core", "-C", action="store_true", help="Flag indicating whether to run the core components (only allowed to be run once per system, by default).")
   parser.add_argument("--connect", action="append", help="Urls to connect to.")
   parser.add_argument("--serve", action="append", help="Urls to serve on.")
-  parser.add_argument("--web-port", "-P", type=int, default=8080, help="Port to serve the web dashboard on.")
+  parser.add_argument("--web-port", "-P", type=int, default=9006, help="Port to serve the web dashboard on.")
   parser.add_argument("--web-view", "-V", action="store_true", help="Flag indicating whether to show the web view.")
 
   parser.add_argument("--log-level", "-L", help="Log level.", default="DEBUG")

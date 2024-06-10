@@ -7,14 +7,15 @@ import time
 from uuid import UUID
 import requests
 
+
 parser = argparse.ArgumentParser(description="Profiling options")
-parser.add_argument("-D", "--deployment-id", type=UUID)
-parser.add_argument("-P", "--web-port", default=8080, type=int)
+parser.add_argument("-D", "--deployment-id", type=UUID, required=True)
+parser.add_argument("-P", "--web-port", default=9006, type=int)
 parser.add_argument("-d", "--duration", default=60, type=int)
 parser.add_argument("-o", "--outfile", default=".data/server.prof", type=str)
 args, remaining_args = parser.parse_known_args()
 
-def run(): cProfile.run("main_cli(remaining_args)", args.outfile)
+def run(): cProfile.run("from streamtasks.bin import main_cli\nmain_cli(remaining_args)", args.outfile)
 
 server = multiprocessing.Process(target=run)
 server.start()
