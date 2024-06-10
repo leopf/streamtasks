@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import logging
 import queue
 from typing import Any
 from pydantic import BaseModel, ValidationError
@@ -49,16 +50,30 @@ class LLamaCppChatTask(SyncTask):
     model = Llama(model_path=self.config.model_path, n_gpu_layers=-1 if self.config.use_gpu else 0, verbose=bool(__debug__), n_ctx=self.config.context_length)
     messages: list[ChatCompletionRequestMessage] = []
     if self.config.system_message: messages.append({ "role": "system", "content": self.config.system_message })
+    messages_start_index = len(messages)
 
     while not self.stop_event.is_set():
       try:
         message = self.message_queue.get(timeout=0.5)
         messages.append({ "role": "user", "content": message.value })
-        result = model.create_chat_completion(messages, max_tokens=self.config.max_tokens or None)
-        if len(result["choices"]) > 0:
-          amessage = result["choices"][0]["message"]
-          messages.append(amessage)
-          self.send_data(self.out_topic, RawData(TextMessage(timestamp=message.timestamp, value=amessage["content"]).model_dump()))
+
+        while True:
+          end_of_context = False
+          result = None
+          try:
+            result = model.create_chat_completion(messages, max_tokens=self.config.max_tokens or None)
+            end_of_context = result["usage"]["total_tokens"] == model.n_ctx()
+          except ValueError: end_of_context = True
+
+          if end_of_context and len(messages) > (messages_start_index + 1):
+            messages.pop(messages_start_index)
+            logging.info("llama.cpp: Removed message from context, to make room for more.")
+          elif result is not None:
+            amessage = result["choices"][0]["message"]
+            messages.append(amessage)
+            self.send_data(self.out_topic, RawData(TextMessage(timestamp=message.timestamp, value=amessage["content"]).model_dump()))
+            break
+          else: raise ValueError("Failed to create response.")
       except queue.Empty: pass
 
 class LLamaCppChatTaskHost(TaskHost):
