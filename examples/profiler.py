@@ -7,7 +7,6 @@ import time
 from uuid import UUID
 import requests
 
-
 parser = argparse.ArgumentParser(description="Profiling options")
 parser.add_argument("-D", "--deployment-id", type=UUID, required=True)
 parser.add_argument("-P", "--web-port", default=9006, type=int)
@@ -27,7 +26,7 @@ while True:
     break
   except: time.sleep(1)
 
-signal.signal(signal.SIGALRM, lambda *args: os.kill(server.pid, signal.SIGINT))
-signal.alarm(args.duration)
+time.sleep(args.duration)
+os.kill(server.pid, signal.SIGINT)
 server.join()
 print("written to: ", args.outfile)
