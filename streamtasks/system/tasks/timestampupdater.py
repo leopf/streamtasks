@@ -8,7 +8,7 @@ from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 
 class TimestampUpdaterConfigBase(BaseModel):
-  time_reference: Literal["message", "time"] = "time"
+  time_reference: Literal["message", "clock"] = "clock"
   time_offset: int = 0
   fail_closed: bool = True
 
@@ -21,9 +21,7 @@ class TimestampUpdaterTask(Task):
     super().__init__(client)
     self.out_topic = self.client.out_topic(config.out_topic)
     self.in_topic = self.client.in_topic(config.in_topic)
-    self.time_reference: Literal["message", "time"] = config.time_reference
-    self.offset = config.time_offset
-    self.fail_closed = config.fail_closed
+    self.config = config
 
   async def run(self):
     async with self.out_topic, self.out_topic.RegisterContext(), self.in_topic, self.in_topic.RegisterContext():
@@ -34,13 +32,13 @@ class TimestampUpdaterTask(Task):
           await self.out_topic.set_paused(data.paused)
         else:
           try:
-            if self.time_reference == "message": ref_time = get_timestamp_from_message(data)
+            if self.config.time_reference == "message": ref_time = get_timestamp_from_message(data)
             else: ref_time = get_timestamp_ms()
             data = data.copy()
-            set_timestamp_on_message(data, ref_time + self.offset)
+            set_timestamp_on_message(data, ref_time + self.config.time_offset)
             await self.out_topic.send(data)
           except (ValueError, KeyError):
-            if not self.fail_closed: await self.out_topic.send(data)
+            if not self.config.fail_closed: await self.out_topic.send(data)
 
 class TimestampUpdaterTaskHost(TaskHost):
   @property
@@ -51,7 +49,7 @@ class TimestampUpdaterTaskHost(TaskHost):
     default_config=TimestampUpdaterConfigBase().model_dump(),
     io_mirror=[("in_topic", 0)],
     editor_fields=[
-      EditorFields.select(key="time_reference", items=[("time", "time"), ("message", "message")]),
+      EditorFields.select(key="time_reference", items=[("clock", "system time"), ("message", "message")]),
       EditorFields.integer(key="time_offset", label="time offset from reference", unit="ms"),
       EditorFields.boolean(key="fail_closed"),
     ]
