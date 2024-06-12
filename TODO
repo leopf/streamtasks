@@ -1,19 +1,11 @@
 # MY TODOS
 
-move the following tasks to threads:
-- audiomixer
-- audiovolumescaler
-- audiofrequencydisplay
-
-- output container needs to be able to stop and restart based on inputs. Also: chunkung
 - better solution for flow detector
-- use more ffmpeg for media tasks
 
 -----TASKS-----
 General:
 - buffer
 - replay buffer
-
 
 -----SOON-----
 Testing:
@@ -43,6 +35,9 @@ ML:
 - whisper/other asr
 - VAD
 
+Media:
+- output container needs to be able to stop and restart based on inputs. Also: chunkung
+- use more ffmpeg for media tasks
 -----Later-----
 - casting
 
