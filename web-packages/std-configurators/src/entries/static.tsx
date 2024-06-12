@@ -204,13 +204,14 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
     private makeIOMirrorGraph(setter: GraphSetter<Task>) {
         // if (String(this.taskHost.metadata["cfg:label"]).startsWith("timestamp")) debugger;
         const data = parseMetadataField(this.taskHost.metadata, "cfg:iomirror", IOMirrorDataModel) ?? [];
+        const freeInputs = new Set(parseMetadataField(this.taskHost.metadata, "cfg:freeinputs", z.array(z.string())) ?? []);
 
         const effectedInputs = new Set(data.map(e => e[0]));
         const effectedOutputs = new Set(data.map(e => e[1]));
         const baseInputs = parseInputs(this.taskHost.metadata).map(input => [this.getInput(input.key, true)[1], input] as [number, TaskPartialInput]).filter(([_, input]) => effectedInputs.has(input.key));
         const baseOutputs = parseOutputs(this.taskHost.metadata).map((output, idx) => [idx, output] as [number, Metadata]).filter(([idx, _]) => effectedOutputs.has(idx));
 
-        this.inputs.map((input, idx) => [input, idx] as [TaskInput, number]).filter(([input, _]) => !effectedInputs.has(input.key))
+        this.inputs.map((input, idx) => [input, idx] as [TaskInput, number]).filter(([input, _]) => !effectedInputs.has(input.key) && !freeInputs.has(input.key))
             .forEach(([input, idx]) => setter.addValidator(`inputs.${idx}`, (_, subPath) => compareIOIgnorePaths.has(subPath) || objectPath.has(input, subPath)))
 
         const inputKeyToIndexMap = Object.fromEntries(baseInputs.map(([idx, input]) => [input.key, idx]));
