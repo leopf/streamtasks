@@ -270,7 +270,7 @@ async def wait_with_dependencies(main: Awaitable, deps: Iterable[asyncio.Future]
   if not main.done(): main.cancel()
   return main.result()
 
-def get_timestamp_ms(): return int(time.time() * 1000)
+def get_timestamp_ms(): return time.time_ns() // 1000_000
 
 def get_node_name_id(name: str):
   id_hash = hashlib.sha256()
@@ -279,8 +279,7 @@ def get_node_name_id(name: str):
   return id_hash.hexdigest()[:16]
 
 class TimeSynchronizer:
-  def __init__(self):
-    self._time_offset = 0
+  def __init__(self): self._time_offset = 0
   @property
   def time(self) -> int: return get_timestamp_ms() + self._time_offset
   def update(self, timestamp: int): self._time_offset = timestamp - get_timestamp_ms()

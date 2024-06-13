@@ -69,7 +69,6 @@ class VideoViewerTask(Task):
           while ctx.connected:
             try:
               data: RawData = await wait_with_dependencies(in_topic.recv_data(), [receive_disconnect_task])
-              if not ctx.connected: break
               message = MediaMessage.model_validate(data.data)
               await video_stream.mux(message.packet)
               if buffer.tell() > 0:

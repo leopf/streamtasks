@@ -90,8 +90,7 @@ class UIBaseTask(Task, Generic[C, V]):
         receive_disconnect_task = asyncio.create_task(ctx.receive_disconnect())
         while ctx.connected:
           await wait_with_dependencies(self.wait_value_changed(), [receive_disconnect_task])
-          if ctx.connected:
-            await ctx.send_message(self._value.model_dump_json())
+          await ctx.send_message(self._value.model_dump_json())
       finally:
         receive_disconnect_task.cancel()
         await ctx.close()

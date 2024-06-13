@@ -192,12 +192,12 @@ class ConnectionManager(TaskWebPathHandler):
     async def _ws_server_change_handler(ctx: WebsocketContext, receive_disconnect_task: asyncio.Task):
       while ctx.connected:
         await wait_with_dependencies(self._change_trigger_servers.wait(), [receive_disconnect_task])
-        if ctx.connected: await ctx.send_message("server")
+        await ctx.send_message("server")
 
     async def _ws_connection_change_handler(ctx: WebsocketContext, receive_disconnect_task: asyncio.Task):
       while ctx.connected:
         await wait_with_dependencies(self._change_trigger_connections.wait(), [receive_disconnect_task])
-        if ctx.connected: await ctx.send_message("connection")
+        await ctx.send_message("connection")
 
     @router.websocket_route("/on-change")
     @websocket_context_handler

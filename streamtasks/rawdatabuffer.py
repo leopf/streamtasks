@@ -1,4 +1,5 @@
 import dbm
+import os
 import tempfile
 from streamtasks.net.serialization import RawData
 
@@ -8,6 +9,10 @@ class RawDataBuffer:
     self._db_file = tempfile.mktemp(".db")
     self._db = dbm.open(self._db_file, "c")
     self._index_map: list[str] = []
+
+  def __del__(self):
+    self._db.close()
+    os.remove(self._db_file)
 
   def clear(self):
     self._db.clear()
