@@ -16,12 +16,11 @@ class SignalMessage(BaseModel):
   body: Any
 
 
-class SignalServer(Receiver):
+class SignalServer(Receiver[tuple[str, Any]]):
   def __init__(self, client: 'Client', port: int = WorkerPorts.SIGNAL):
     super().__init__(client)
     self._descriptor_mapping: dict[str, Callable[[Any], Awaitable[Any]]] = {}
     self._port = port
-    self._recv_queue: asyncio.Queue[tuple[str, Any]]
 
   def add_route(self, descriptor: str, func: Callable[[Any], Awaitable[Any]]): self._descriptor_mapping[descriptor] = func
   def remove_route(self, descriptor: str): self._descriptor_mapping.pop(descriptor, None)
@@ -53,13 +52,12 @@ class SignalServer(Receiver):
           except BaseException as e: logging.debug(e, data, descriptor)
 
 
-class SignalRequestReceiver(Receiver):
+class SignalRequestReceiver(Receiver[Any]):
   def __init__(self, client: 'Client', descriptor: str, address: Optional[int] = None, port: int = WorkerPorts.SIGNAL):
     super().__init__(client)
     self._descriptor = descriptor
     self._address = address
     self._port = port
-    self._recv_queue: asyncio.Queue[Any]
 
   def on_message(self, message: Message):
     if not isinstance(message, AddressedMessage): return

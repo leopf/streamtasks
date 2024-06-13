@@ -1,7 +1,7 @@
 from typing import Iterable, Optional, Any, Union
 import asyncio
 from streamtasks.client.discovery import request_addresses
-from streamtasks.client.receiver import Receiver, TopicsReceiver
+from streamtasks.client.receiver import Receiver, TopicsReceiver as TopicsReceiver
 from streamtasks.client.topic import InTopic, InTopicSynchronizer, OutTopic, InTopicsContext, OutTopicsContext, SynchronizedInTopic
 from streamtasks.utils import IdGenerator, IdTracker, AwaitableIdTracker
 from streamtasks.net.serialization import RawData
@@ -29,7 +29,6 @@ class Client:
   @property
   def address(self): return self._address
 
-  def get_topics_receiver(self, topics: Iterable[int], subscribe: bool = True): return TopicsReceiver(self, set(topics), subscribe)
   def out_topic(self, topic: int): return OutTopic(self, topic)
   def in_topic(self, topic: int): return InTopic(self, topic)
   def sync_in_topic(self, topic: int, sync: InTopicSynchronizer): return SynchronizedInTopic(self, topic, sync)

@@ -62,10 +62,10 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
       await self.a.send_stream_data(2, RawData("Hello 2"))
 
       recv_data = await b_recv.get()
-      self.assertEqual((recv_data[0], recv_data[1].data, recv_data[2]), (1, "Hello 1", None))
+      self.assertEqual((recv_data[0], recv_data[1].data), (1, "Hello 1"))
 
       recv_data = await b_recv.get()
-      self.assertEqual((recv_data[0], recv_data[1].data, recv_data[2]), (2, "Hello 2", None))
+      self.assertEqual((recv_data[0], recv_data[1].data), (2, "Hello 2"))
 
       await self.b.unregister_in_topics([ 1 ])
 
@@ -73,7 +73,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
       await self.a.send_stream_data(2, RawData("Hello 2"))
 
       recv_data = await b_recv.get()
-      self.assertEqual((recv_data[0], recv_data[1].data, recv_data[2]), (2, "Hello 2", None))
+      self.assertEqual((recv_data[0], recv_data[1].data), (2, "Hello 2"))
 
   @async_timeout(1)
   async def test_address(self):

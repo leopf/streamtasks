@@ -39,13 +39,12 @@ class BroadcastingServer:
       self.namespaces = {}
 
 
-class BroadcastReceiver(Receiver):
+class BroadcastReceiver(Receiver[tuple[str, RawData]]):
   def __init__(self, client: 'Client', namespaces: Iterable[str], endpoint: EndpointOrAddress):
     super().__init__(client)
     self._namespaces = set(namespaces)
     self._endpoint = endpoint_or_address_to_endpoint(endpoint, WorkerPorts.BROADCAST)
     self._topics_ns_map: dict[int, str] = {}
-    self._recv_queue: asyncio.Queue[tuple[str, RawData]]
 
   async def _on_start_recv(self):
     ns_topic_map: dict[int, str] = await self._client.fetch(self._endpoint, "gettopics", list(self._namespaces))

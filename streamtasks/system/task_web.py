@@ -381,10 +381,9 @@ class TaskWebBackend(Worker):
         receive_disconnect_task = asyncio.create_task(ctx.receive_disconnect())
         async with TopicsReceiver(self.client, [ topic_id ]) as recv:
           while ctx.connected:
-            _, data, _ = await wait_with_dependencies(recv.get(), [receive_disconnect_task])
-            data: RawData | None
+            _, data = await wait_with_dependencies(recv.get(), [receive_disconnect_task])
             try:
-              if data is not None: await ctx.send_message(f'{{ "data": {json.dumps(make_json_serializable(data.data), allow_nan=False)} }}')
+              if isinstance(data, RawData): await ctx.send_message(f'{{ "data": {json.dumps(make_json_serializable(data.data), allow_nan=False)} }}')
             except BaseException as e: logging.warning("Failed to send message ", e)
       except asyncio.CancelledError: pass
       finally:
