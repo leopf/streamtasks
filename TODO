@@ -1,10 +1,4 @@
 # MY TODOS
-
------TASKS-----
-General:
-- replay buffer
-
------SOON-----
 Testing:
 - write more tests for utils
 - testing web task backend
