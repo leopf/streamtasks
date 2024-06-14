@@ -23,6 +23,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install toml build
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'pnpm'
+
+      - name: Build dependencies
+        run: pnpm install && pnpm -r build:prod
+
       - name: Extract version from pyproject.toml
         id: extract_version
         run: echo "version=$(python -c 'import toml; print(toml.load("pyproject.toml")["project"]["version"])')" >> $GITHUB_OUTPUT
