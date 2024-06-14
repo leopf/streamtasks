@@ -5,6 +5,8 @@ on:
 
 jobs:
   build-and-publish:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
