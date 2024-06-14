@@ -103,9 +103,7 @@ class MessagePackValueTransformer(ValueTransformer):
   supported_types = [str, int, float, bool, bytes, bytearray, list, dict]
 
 
-class ASGIEventReceiver(Receiver):
-  _recv_queue: asyncio.Queue[ASGIEventMessage]
-
+class ASGIEventReceiver(Receiver[ASGIEventMessage]):
   def __init__(self, client: 'Client', own_address: int, own_port: int):
     super().__init__(client)
     self._own_address = own_address
@@ -113,13 +111,10 @@ class ASGIEventReceiver(Receiver):
 
   def on_message(self, message: Message):
     if not isinstance(message, AddressedMessage): return
-    a_message: AddressedMessage = message
-    if a_message.address != self._own_address or a_message.port != self._own_port: return
-    if not isinstance(a_message.data, RawData): return
-    try:
-      self._recv_queue.put_nowait(ASGIEventMessage.model_validate(a_message.data.data))
+    if message.address != self._own_address or message.port != self._own_port: return
+    if not isinstance(message.data, RawData): return
+    try: self._recv_queue.put_nowait(ASGIEventMessage.model_validate(message.data.data))
     except ValidationError: pass
-
 
 class ASGIEventSender:
   def __init__(self, client: 'Client', remote_endpoint: Endpoint):

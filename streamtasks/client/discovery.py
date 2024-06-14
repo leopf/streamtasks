@@ -29,24 +29,20 @@ class TopicSignalReceiver(Receiver):
     if message.topic != self._topic: return
     self._signal_event.set()
 
-
-class AddressNameAssignedReceiver(Receiver):
-  _recv_queue: asyncio.Queue[AddressNameAssignmentMessage]
+class AddressNameAssignedReceiver(Receiver[AddressNameAssignmentMessage]):
   async def _on_start_recv(self): await self._client.register_in_topics([WorkerTopics.ADDRESS_NAME_ASSIGNED])
   async def _on_stop_recv(self): await self._client.unregister_in_topics([WorkerTopics.ADDRESS_NAME_ASSIGNED])
   def on_message(self, message: Message):
     if not isinstance(message, TopicDataMessage): return
     if message.topic != WorkerTopics.ADDRESS_NAME_ASSIGNED: return
     if not isinstance(message.data, RawData): return
-    try:
-      self._recv_queue.put_nowait(AddressNameAssignmentMessage.model_validate(message.data.data))
+    try: self._recv_queue.put_nowait(AddressNameAssignmentMessage.model_validate(message.data.data))
     except ValidationError: pass
 
-class ResolveAddressesReceiver(Receiver):
+class ResolveAddressesReceiver(Receiver[GenerateAddressesResponseMessage]):
   def __init__(self, client: 'Client', request_id: int):
     super().__init__(client)
     self._request_id = request_id
-    self._recv_queue: asyncio.Queue[GenerateAddressesResponseMessage]
 
   async def _on_start_recv(self): await self._client.register_in_topics([WorkerTopics.ADDRESSES_CREATED])
   async def _on_stop_recv(self): await self._client.unregister_in_topics([WorkerTopics.ADDRESSES_CREATED])
@@ -111,7 +107,6 @@ async def address_name_context(client: 'Client', name: str, address: int):
     yield None
   finally:
     await unregister_address_name(client, name)
-
 
 async def wait_for_topic_signal(client: 'Client', topic: int): return await TopicSignalReceiver(client, topic).wait()
 

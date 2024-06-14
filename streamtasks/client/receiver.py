@@ -1,16 +1,17 @@
 from abc import ABC, abstractmethod
 from streamtasks.net.serialization import RawData
 from streamtasks.net.messages import AddressedMessage, Message, TopicControlData, TopicControlMessage, TopicDataMessage, TopicMessage
-from typing import Iterable, Optional, TYPE_CHECKING
+from typing import Generic, Iterable, TYPE_CHECKING, TypeVar
 import asyncio
 
 if TYPE_CHECKING:
   from streamtasks.client import Client
 
+T = TypeVar("T")
 
-class Receiver(ABC):
+class Receiver(ABC, Generic[T]):
   def __init__(self, client: 'Client'):
-    self._recv_queue = asyncio.Queue()
+    self._recv_queue: asyncio.Queue[T] = asyncio.Queue()
     self._client: 'Client' = client
     self._receiving_count: int = 0
 
@@ -47,11 +48,9 @@ class Receiver(ABC):
     async with self:
       return await self._recv_queue.get()
 
-
-class AddressReceiver(Receiver):
+class AddressReceiver(Receiver[tuple[int, RawData]]):
   def __init__(self, client: 'Client', address: int, port: int):
     super().__init__(client)
-    self._recv_queue: asyncio.Queue[tuple[int, RawData]]
     self._address = address
     self._port = port
 
@@ -62,15 +61,11 @@ class AddressReceiver(Receiver):
       self._recv_queue.put_nowait((a_message.address, a_message.data))
 
 
-class TopicsReceiver(Receiver):
+class TopicsReceiver(Receiver[tuple[int, RawData | TopicControlData]]):
   def __init__(self, client: 'Client', topics: Iterable[int], subscribe: bool = True):
     super().__init__(client)
     self._topics: set[int] = set(topics)
-    self._control_data: dict[int, TopicControlData] = {}
     self._subscribe = subscribe
-    self._recv_queue: asyncio.Queue[tuple[int, Optional[RawData], Optional[TopicControlData]]]
-
-  def get_control_data(self, topic: int): return self._control_data.get(topic, None)
 
   async def _on_start_recv(self):
     if self._subscribe and len(self._topics) > 0: await self._client.register_in_topics(self._topics)
@@ -79,10 +74,5 @@ class TopicsReceiver(Receiver):
 
   def on_message(self, message: Message):
     if isinstance(message, TopicMessage) and message.topic in self._topics:
-      if isinstance(message, TopicDataMessage):
-        sd_message: TopicDataMessage = message
-        self._recv_queue.put_nowait((sd_message.topic, sd_message.data, None))
-      elif isinstance(message, TopicControlMessage):
-        sc_message: TopicControlMessage = message
-        self._control_data[sc_message.topic] = control_data = sc_message.to_data()
-        self._recv_queue.put_nowait((sc_message.topic, None, control_data))
+      if isinstance(message, TopicDataMessage): self._recv_queue.put_nowait((message.topic, message.data))
+      elif isinstance(message, TopicControlMessage): self._recv_queue.put_nowait((message.topic, message.to_data()))

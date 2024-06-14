@@ -1,13 +1,13 @@
 from abc import abstractmethod
 import asyncio
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any, Iterable, Optional
+from typing import TYPE_CHECKING, Iterable, Optional
 from streamtasks.client.receiver import Receiver
 from streamtasks.utils import AsyncBool, AsyncTrigger
 from streamtasks.net.serialization import RawData
 from streamtasks.message.utils import get_timestamp_from_message
 from streamtasks.net import Message
-from streamtasks.net.messages import InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicControlMessage, TopicDataMessage
+from streamtasks.net.messages import InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicControlMessage, TopicDataMessage, TopicMessage
 
 if TYPE_CHECKING:
   from streamtasks.client import Client
@@ -56,28 +56,23 @@ class _InTopicAction(Enum):
   DATA = auto()
 
 
-class _InTopicReceiver(Receiver):
+class _InTopicReceiver(Receiver[tuple[_InTopicAction, None | int | TopicControlData | RawData]]):
   def __init__(self, client: 'Client', topic: int):
     super().__init__(client)
     self._topic = topic
-    self._recv_queue: asyncio.Queue[(_InTopicAction, Any)]
 
-  def _put_msg(self, action: _InTopicAction, data: Any):
-    self._recv_queue.put_nowait((action, data))
+  def _put_msg(self, action: _InTopicAction, data: None | int | TopicControlData | RawData): self._recv_queue.put_nowait((action, data))
 
   def on_message(self, message: Message):
     if isinstance(message, OutTopicsChangedMessage):
       if self._topic in message.remove: self._put_msg(_InTopicAction.SET_COST, None)
       else:
-        topic_price_map = { pid.id: pid.cost for pid in message.add }
-        if self._topic in topic_price_map: self._put_msg(_InTopicAction.SET_COST, topic_price_map[self._topic])
+        new_cost = next((pid.cost for pid in message.add if pid.id == self._topic), None)
+        if new_cost is not None: self._put_msg(_InTopicAction.SET_COST, new_cost)
 
-    if isinstance(message, TopicControlMessage) and message.topic == self._topic:
-      self._put_msg(_InTopicAction.SET_CONTROL, message.to_data())
-
-    if isinstance(message, TopicDataMessage) and message.topic == self._topic:
-      self._put_msg(_InTopicAction.DATA, message.data)
-
+    if isinstance(message, TopicMessage) and message.topic == self._topic:
+      if isinstance(message, TopicControlMessage): self._put_msg(_InTopicAction.SET_CONTROL, message.to_data())
+      if isinstance(message, TopicDataMessage): self._put_msg(_InTopicAction.DATA, message.data)
 
 class InTopic(_TopicBase):
   def __init__(self, client: 'Client', topic: int, receiver: Optional[_InTopicReceiver] = None) -> None:
@@ -196,15 +191,12 @@ class _OutTopicAction(Enum):
   SET_REQUESTED = auto()
 
 
-class _OutTopicReceiver(Receiver):
+class _OutTopicReceiver(Receiver[tuple[_OutTopicAction, bool]]):
   def __init__(self, client: 'Client', topic: int):
     super().__init__(client)
     self._topic = topic
-    self._recv_queue: asyncio.Queue[(_OutTopicAction, Any)]
 
-  def _put_msg(self, action: _OutTopicAction, data: Any):
-    self._recv_queue.put_nowait((action, data))
-
+  def _put_msg(self, action: _OutTopicAction, data: bool): self._recv_queue.put_nowait((action, data))
   def on_message(self, message: Message):
     if isinstance(message, InTopicsChangedMessage):
       if self._topic in message.add: self._put_msg(_OutTopicAction.SET_REQUESTED, True)

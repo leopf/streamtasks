@@ -12,18 +12,15 @@ from streamtasks.services.protocols import WorkerPorts
 if TYPE_CHECKING:
   from streamtasks.client import Client
 
-
 class FetchRequestMessage(BaseModel):
   return_address: int
   return_port: int
   descriptor: str
   body: Any
 
-
 class FetchResponseMessage(BaseModel):
   body: Any
   error: bool = False
-
 
 class FetchRequest:
   def __init__(self, client: 'Client', return_endpoint: Endpoint, body: Any):
@@ -62,28 +59,23 @@ class FetchError(BaseException):
       return f"<FetchError {FetchErrorStatusCode(self.body[0])}: {self.body[1]}>"
     return f"<FetchError {self.body}>"
 
-class FetchReponseReceiver(Receiver):
+class FetchReponseReceiver(Receiver[FetchResponseMessage]):
   def __init__(self, client: 'Client', return_port: int):
     super().__init__(client)
-    self._recv_queue: asyncio.Queue[FetchResponseMessage]
     self._return_port = return_port
 
   def on_message(self, message: Message):
     if not isinstance(message, AddressedMessage): return
     a_message: AddressedMessage = message
     if not a_message.port == self._return_port or not isinstance(a_message.data, RawData): return
-    try:
-      fr_message = FetchResponseMessage.model_validate(a_message.data.data)
-      self._recv_queue.put_nowait(fr_message)
+    try: self._recv_queue.put_nowait(FetchResponseMessage.model_validate(a_message.data.data))
     except ValidationError: pass
 
-
-class FetchServer(Receiver):
+class FetchServer(Receiver[tuple[str, FetchRequest]]):
   def __init__(self, client: 'Client', port: int = WorkerPorts.FETCH):
     super().__init__(client)
     self._descriptor_mapping: dict[str, Callable[[FetchRequest], Awaitable[Any]]] = {}
     self._port = port
-    self._recv_queue: asyncio.Queue[tuple[str, FetchRequest]]
 
   def add_route(self, descriptor: str, func: Callable[[FetchRequest], Awaitable[Any]]): self._descriptor_mapping[descriptor] = func
   def remove_route(self, descriptor: str): self._descriptor_mapping.pop(descriptor, None)
@@ -107,9 +99,7 @@ class FetchServer(Receiver):
   async def run(self):
     async with self:
       while True:
-        req_message: tuple[str, FetchRequest] = await self.get()
-        descriptor, fr = req_message
-
+        descriptor, fr = await self.get()
         if descriptor in self._descriptor_mapping:
           try:
             await self._descriptor_mapping[descriptor](fr)
@@ -120,14 +110,12 @@ class FetchServer(Receiver):
             if not fr.response_sent: await fr.respond_error(new_fetch_body_general_error(str(e)))
             logging.debug(e, fr, descriptor)
 
-
-class FetchRequestReceiver(Receiver):
+class FetchRequestReceiver(Receiver[FetchRequest]):
   def __init__(self, client: 'Client', descriptor: str, address: Optional[int] = None, port: int = WorkerPorts.FETCH):
     super().__init__(client)
     self._descriptor = descriptor
     self._address = address
     self._port = port
-    self._recv_queue: asyncio.Queue[FetchRequest]
 
   def on_message(self, message: Message):
     if not isinstance(message, AddressedMessage): return
