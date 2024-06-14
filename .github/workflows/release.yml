@@ -1,12 +1,14 @@
 name: Release
 
-on:
-  workflow_dispatch:
+on: workflow_dispatch
 
 jobs:
   build-and-publish:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    if: github.ref == 'refs/heads/main'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -23,23 +25,15 @@ jobs:
 
       - name: Extract version from pyproject.toml
         id: extract_version
-        run: echo "::set-output name=version::$(python -c 'import toml; print(toml.load("pyproject.toml")["project"]["version"])')"
+        run: echo "version=$(python -c 'import toml; print(toml.load("pyproject.toml")["project"]["version"])')" >> $GITHUB_OUTPUT
 
       - name: Build the package
         run: python -m build
 
-      - name: Find built files
-        id: find_files
-        run: |
-          ls dist/*.tar.gz dist/*.whl > /tmp/files.txt
-          cat /tmp/files.txt
-          echo "VERSION: ${{ steps.extract_version.outputs.version }}"
-
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            $(cat /tmp/files.txt)
+          files: dist/*
           tag_name: ${{ steps.extract_version.outputs.version }}
           name: Release ${{ steps.extract_version.outputs.version }}
           body: Release ${{ steps.extract_version.outputs.version }}
