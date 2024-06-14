@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag from pyproject.toml'
+        required: true
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.11
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install toml build
+
+      - name: Extract version from pyproject.toml
+        id: extract_version
+        run: echo "::set-output name=version::$(python -c 'import toml; print(toml.load("pyproject.toml")["project"]["version"])')"
+
+      - name: Build the package
+        run: python -m build
+
+      - name: Find built files
+        id: find_files
+        run: |
+          ls dist/*.tar.gz dist/*.whl > /tmp/files.txt
+          cat /tmp/files.txt
+          echo "VERSION: ${{ steps.extract_version.outputs.version }}"
+
+      - name: Upload Release Asset
+        if: steps.check_version.outcome == 'success'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            $(cat /tmp/files.txt)
+          tag_name: ${{ steps.extract_version.outputs.version }}
+          name: Release ${{ steps.extract_version.outputs.version }}
+          body: Release ${{ steps.extract_version.outputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
