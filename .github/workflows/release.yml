@@ -2,10 +2,6 @@ name: Release
 
 on:
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Version tag from pyproject.toml'
-        required: true
 
 jobs:
   build-and-publish:
@@ -40,7 +36,6 @@ jobs:
           echo "VERSION: ${{ steps.extract_version.outputs.version }}"
 
       - name: Upload Release Asset
-        if: steps.check_version.outcome == 'success'
         uses: softprops/action-gh-release@v2
         with:
           files: |
