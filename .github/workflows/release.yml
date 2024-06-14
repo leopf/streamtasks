@@ -27,13 +27,14 @@ jobs:
         uses: pnpm/action-setup@v4
         with:
           version: 9
+
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'pnpm'
 
-      - name: Build dependencies
+      - name: Build web assets
         run: pnpm install && pnpm -r build:prod
 
       - name: Extract version from pyproject.toml
