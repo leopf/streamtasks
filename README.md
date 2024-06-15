@@ -19,7 +19,7 @@ Streamtasks is built on an internal network that distributes messages. The netwo
 ```bash
 git clone https://github.com/leopf/streamtasks.git
 cd streamtasks
-pip install .[media,web] # see pyproject.toml for more optional packages
+pip install .[media] # see pyproject.toml for more optional packages
 ```
 
 ### Running an instance
@@ -48,6 +48,7 @@ For example:
 streamtasks --connect tcp://127.0.0.1:9002
 ```
 
+See [connection](docs/connection.md) for more information.
 ## custom tasks
 
 To create a custom task you should know about [IO Metdata](docs/io-metadata.md).

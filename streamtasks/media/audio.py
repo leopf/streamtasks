@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from functools import cached_property
-from typing_extensions import Buffer
+from typing import ByteString
 import av.audio
 import av.audio.codeccontext
 import av.codec
@@ -31,12 +31,12 @@ def get_audio_bytes_per_time_sample(sample_format: str, channels: int): # time s
   if sample_format not in _SAMPLE_FORMAT_NP_2_AV_INFO: raise ValueError("Invalid sample format!")
   return _SAMPLE_FORMAT_NP_2_AV_INFO[sample_format][1]().itemsize * channels
 
-def audio_buffer_to_ndarray(buf: Buffer, sample_format: str): # TODO: endianness
+def audio_buffer_to_ndarray(buf: ByteString, sample_format: str): # TODO: endianness
   if sample_format not in _SAMPLE_FORMAT_NP_2_AV_INFO: raise ValueError("Invalid sample format!")
   is_planar, dtype = _SAMPLE_FORMAT_NP_2_AV_INFO[sample_format]
   return np.frombuffer(buf, dtype=dtype), is_planar
 
-def audio_buffer_to_samples(buf: Buffer, sample_format: str, channels: int):
+def audio_buffer_to_samples(buf: ByteString, sample_format: str, channels: int):
   arr, is_planar = audio_buffer_to_ndarray(buf, sample_format)
   return arr.reshape((channels, -1) if is_planar else (-1, channels))
 
@@ -57,7 +57,7 @@ class AudioFrame(Frame[av.AudioFrame]):
     return AudioFrame(av_frame)
 
   @staticmethod
-  def from_buffer(buf: Buffer, sample_format: str, channels: int, sample_rate: int):
+  def from_buffer(buf: ByteString, sample_format: str, channels: int, sample_rate: int):
     arr, is_planar = audio_buffer_to_ndarray(buf, sample_format)
     if is_planar: arr = arr.reshape((channels, -1))
     else: arr = arr.reshape((1, -1))

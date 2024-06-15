@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from fractions import Fraction
-from typing import Any, Iterable, Literal, Self, TypeVar, Generic
-from typing_extensions import Buffer
+from typing import Any, ByteString, Iterable, Literal, Self, TypeVar, Generic
 import av.codec
 import av.frame
 import av.video
@@ -27,7 +26,7 @@ class Frame(ABC, Generic[T]):
     self.frame.pts = ts
 
   @abstractmethod
-  def to_bytes(self) -> Buffer: pass
+  def to_bytes(self) -> ByteString: pass
 
   @staticmethod
   def from_av_frame(av_frame: Any) -> 'Frame[T]':

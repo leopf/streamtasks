@@ -4,7 +4,7 @@
 ```bash
 git clone https://github.com/leopf/streamtasks.git
 cd streamtasks
-pip install .[media,web] # see pyproject.toml for more optional packages
+pip install .[media] # see pyproject.toml for more optional packages
 ```
 
 ## Running an instance

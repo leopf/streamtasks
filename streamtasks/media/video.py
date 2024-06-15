@@ -2,9 +2,8 @@ import ctypes
 from dataclasses import dataclass
 from fractions import Fraction
 from functools import cached_property
-from typing import Any, Literal
+from typing import Any, ByteString, Literal
 import av.video.reformatter
-from typing_extensions import Buffer
 import av
 import av.codec
 import av.video
@@ -14,7 +13,7 @@ from streamtasks.media.codec import CodecInfo, Frame, Reformatter
 from streamtasks.media.util import options_from_codec_context
 
 # TODO: endianness
-def video_buffer_to_ndarray(buf: Buffer, width: int, height: int):
+def video_buffer_to_ndarray(buf: ByteString, width: int, height: int):
   bitmap = np.frombuffer(buf, dtype=np.uint8).reshape((height, width, -1))
   if bitmap.shape[-1] == 1: bitmap = bitmap.squeeze()
   return bitmap
@@ -40,7 +39,7 @@ class VideoFrame(Frame[av.VideoFrame]):
   def from_ndarray(array: np.ndarray, format: str): return VideoFrame(av.VideoFrame.from_ndarray(array, format))
 
   @staticmethod
-  def from_buffer(buf: Buffer, width: int, height: int, format: str): return VideoFrame.from_ndarray(video_buffer_to_ndarray(buf, width, height), format)
+  def from_buffer(buf: ByteString, width: int, height: int, format: str): return VideoFrame.from_ndarray(video_buffer_to_ndarray(buf, width, height), format)
 
 @dataclass
 class VideoReformatterInfo:
