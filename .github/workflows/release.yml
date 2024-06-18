@@ -89,7 +89,7 @@ jobs:
           name: appimage
           path: dist
 
-  build-and-publish:
+  publish:
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -103,15 +103,15 @@ jobs:
           name: pypackage
           path: dist
 
+      - name: Extract version from pyproject.toml
+        id: extract_version
+        run: echo "version=$(find dist/streamtasks*.tar.gz | sed -E 's/.*streamtasks-([0-9\.]+)\.tar\.gz/\1/')" >> $GITHUB_OUTPUT
+
       - name: Download AppImage artifact
         uses: actions/download-artifact@v4
         with:
           name: appimage
           path: dist
-
-      - name: Extract version from pyproject.toml
-        id: extract_version
-        run: echo "version=$(find dist/streamtasks*.tar.gz | sed -E 's/.*streamtasks-([0-9\.]+)\.tar\.gz/\1/')" >> $GITHUB_OUTPUT
 
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
