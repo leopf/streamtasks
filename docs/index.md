@@ -1,9 +1,7 @@
 
 # streamtasks
 
-![](docs/screenshot.png)
-
-Read the [Documentation](https://leopf.github.io/streamtasks).
+![](./screenshot.png)
 
 ## Overview
 
@@ -47,4 +45,4 @@ For example:
 streamtasks --connect tcp://127.0.0.1:9002
 ```
 
-See [connection](docs/connection.md) for more information.
+See [connection](connection.md) for more information.

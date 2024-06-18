@@ -1,4 +1,8 @@
-# custom tasks
+---
+title: Custom tasks
+---
+
+# Custom tasks
 
 To create a custom task you should know about [IO Metdata](io-metadata.md).
 

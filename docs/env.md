@@ -1,3 +1,7 @@
+---
+title: Environment Variables 
+---
+
 # Environment Variables
 `NODE_NAME` (optional, default: hostname) - node name. It is used to set up a unix socket on the machine that other processes can connect to. It also is used for deterministic ID generation. 
 

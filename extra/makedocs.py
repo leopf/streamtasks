@@ -7,9 +7,7 @@ for d2_file in glob.glob("docs/**/*.d2", recursive=True):
   subprocess.run(["d2", d2_file, d2_file[:-2] + "svg"], env={ "D2_THEME": "200" })
 
 README_FILES = [
-  "docs/overview.md",
-  "docs/getting-started.md",
-  "docs/custom-task.md",
+  "docs/_readme.md",
 ]
 
 README_PARTS = [
@@ -18,17 +16,24 @@ README_PARTS = [
 
 ![](docs/screenshot.png)
 
-Read the [Documentation](docs/overview.md).
+Read the [Documentation](https://leopf.github.io/streamtasks).
+"""
+]
+
+INDEX_PARTS = [
+"""
+# streamtasks
+
+![](./screenshot.png)
 """
 ]
 
 link_regex = re.compile(r"\[([^\]]*)\]\(([^\)]*)\)", re.I)
-header_regex = re.compile(r"^#", re.I | re.M)
 
 for docs_file in README_FILES:
   with open(docs_file, "r") as fd:
     content = fd.read()
-    content = header_regex.sub("##", content)
+    INDEX_PARTS.append(content)
     dirname = os.path.dirname(docs_file)
 
     pos = 0
@@ -44,3 +49,4 @@ for docs_file in README_FILES:
     README_PARTS.append(content)
 
 with open("README.md", "w") as fd: fd.write("\n".join(README_PARTS))
+with open("docs/index.md", "w") as fd: fd.write("\n".join(INDEX_PARTS))

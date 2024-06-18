@@ -1,20 +1,27 @@
-# Getting started
+## Overview
 
-## Installation
+Streamtasks aims to simplify software integration for data pipelines.
+
+### How it works
+Streamtasks is built on an internal network that distributes messages. The network is host agnostic. It uses the same network to communicate with services running in the same process as it does to communicate with services on a remote machine.
+
+## Getting started
+
+### Installation
 ```bash
 git clone https://github.com/leopf/streamtasks.git
 cd streamtasks
 pip install .[media] # see pyproject.toml for more optional packages
 ```
 
-## Running an instance
+### Running an instance
 You can run an instance of the streamtasks system with `streamtasks -C` or `python -m streamtasks -C`.
 
 The flag `-C` indicates that the core components should be started as well.
 
 Use `streamtasks --help` for more options.
 
-## Connecting two instances
+### Connecting two instances
 When connecting two instances you need to have one main instance running the core components (using `-C`).
 
 To create a connection endpoint (server), you can use the Connection Manager in the UI or you can specify a url to host a server on as a command line flag.
