@@ -9,6 +9,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
+      - name: Install system dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install portaudio19-dev ffmpeg -y
+
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
@@ -24,29 +29,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: appimage
-          path: dist
-
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.11
-
-      - name: Install dependencies
-        run: pip install .[media] cx_Freeze
-
-      - name: Build AppImage
-        run: python extra/buildexe.py
-
-      - name: Upload AppImage artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: msi
           path: dist
 
   build-and-publish:
@@ -95,12 +77,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: appimage
-          path: dist
-
-      - name: Download MSI artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: msi
           path: dist
 
       - name: Upload Release Asset
