@@ -43,6 +43,12 @@ jobs:
         with:
           name: pypackage
           path: dist
+      
+      - name: Upload web assets artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: webassets
+          path: streamtasks/system/assets
     
   build-appimage:
     runs-on: ubuntu-latest
@@ -63,17 +69,16 @@ jobs:
         with:
           python-version: 3.11
 
-      - name: Download AppImage artifact
+      - name: Download web assets artifact
         uses: actions/download-artifact@v4
         with:
-          name: pypackage
-          path: pkg
+          name: webassets
+          path: streamtasks/system/assets
 
       - name: Install dependencies
         run: |
-          cp $(find pkg/streamtasks*.tar.gz) pkg/streamtasks.tar.gz
           python -m pip install --upgrade pip
-          pip install dist/streamtasks.tar.gz[media] cx_Freeze
+          pip install .[media] cx_Freeze
 
       - name: Build AppImage
         run: python extra/buildexe.py

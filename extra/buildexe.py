@@ -1,7 +1,7 @@
 import platform
 import subprocess
 
-SCRIPT_NAME = "examples/gui.py"
+SCRIPT_NAME = "examples/server.py"
 CMD_PREFIX = ["python", "-m", "cx_Freeze"]
 packages = ["streamtasks", "uvicorn"]
 subprocess.run(CMD_PREFIX + ["--script", SCRIPT_NAME, "--packages=" + ",".join(packages)])
