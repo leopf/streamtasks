@@ -1,5 +1,5 @@
 import streamtasks.net.messages as messages
-from typing import Any
+from typing import Any, ByteString
 import msgpack
 
 MESSAGES: list[type[messages.Message]] = [
@@ -26,7 +26,7 @@ if __debug__:
     return isinstance(data, (str, int, float, bytes, bytearray, memoryview, bool, dict, list, tuple, datetime, msgpack.ext.ExtType, msgpack.ext.Timestamp))
 
 class RawData:
-  def __init__(self, data: memoryview | bytes | bytearray | Any):
+  def __init__(self, data: ByteString | Any):
     assert data is not None, "None not allowed as RawData!"
     self._data, self._raw = (data, None) if not isinstance(data, (memoryview, bytes, bytearray)) else (None, data)
     assert _debug_is_msgpack_compatible(self._data), "Message pack data is not serializable"

@@ -1,7 +1,6 @@
 from dataclasses import dataclass
-from typing import Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING, Self
 from abc import ABC
-from typing_extensions import Self
 
 if TYPE_CHECKING:
   from streamtasks.net.serialization import RawData
