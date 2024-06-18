@@ -1,4 +1,7 @@
-
+---
+title: Home
+nav_order: 0
+---
 # streamtasks
 
 ![](./screenshot.png)

@@ -1,3 +1,8 @@
+---
+parent: Network
+title: Client
+---
+
 # Client
 module: `streamtasks.client`
 

@@ -1,6 +1,7 @@
 ---
 module: streamtasks.system.tasks.calculator
-label: calculator
+title: Calculator
+parent: Tasks
 ---
 # calculator
 
