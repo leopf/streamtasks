@@ -1,6 +1,8 @@
 name: unit tests and linting
 
 on:
+  push:
+    branches: [ main ]
   pull_request:
     branches: [ main ]
 
