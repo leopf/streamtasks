@@ -1,10 +1,15 @@
 name: unit tests and linting
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main ]
+    paths:
+      - '**/*.py'
   pull_request:
     branches: [ main ]
+    paths:
+      - '**/*.py'
 
 jobs:
   test-and-lint:
@@ -27,7 +32,6 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
-
 
     - name: Install dependencies
       run: |
