@@ -18,18 +18,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Cache apt packages
-      id: cache-apt
-      uses: actions/cache@v3
-      with:
-        expire-after: 7d
-        path: /var/cache/apt/archives
-        key: ${{ runner.os }}-apt-${{ hashFiles('apt-dependencies.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-apt-
-
     - name: Install system dependencies
-      if: steps.cache-apt.outputs.cache-hit != 'true'
       run: |
         sudo apt update -y
         sudo apt install portaudio19-dev ffmpeg -y
