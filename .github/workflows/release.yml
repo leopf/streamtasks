@@ -36,7 +36,7 @@ jobs:
         run: pnpm install && pnpm -r build:prod
 
       - name: Build the package
-        run: python -m build
+        run: python -m build -s
         
       - name: Upload Python package artifact
         uses: actions/upload-artifact@v4
