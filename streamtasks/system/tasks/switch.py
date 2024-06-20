@@ -1,6 +1,7 @@
 import asyncio
 from contextlib import AsyncExitStack
-from typing import Any, TypedDict
+from typing import Any
+from typing_extensions import TypedDict
 from pydantic import BaseModel, ValidationError
 from streamtasks.client.topic import InTopic, SequentialInTopicSynchronizer
 from streamtasks.message.types import NumberMessage

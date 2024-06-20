@@ -7,7 +7,8 @@ import mimetypes
 import os
 import re
 import shelve
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal
+from typing_extensions import TypedDict
 from uuid import UUID, uuid4
 from pydantic import UUID4, BaseModel, Field, TypeAdapter, ValidationError, field_serializer, field_validator
 from streamtasks.asgi import ASGIAppRunner, ASGIProxyApp

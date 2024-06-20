@@ -1,6 +1,7 @@
 from itertools import zip_longest
 import json
-from typing import Any, Literal, NotRequired, TypedDict
+from typing import Any, Literal, NotRequired
+from typing_extensions import TypedDict
 from streamtasks.system.task import MetadataDict
 from streamtasks.utils import strip_nones_from_dict
 

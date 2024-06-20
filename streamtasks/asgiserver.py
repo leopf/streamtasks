@@ -7,7 +7,8 @@ import mimetypes
 import os
 import pathlib
 import re
-from typing import Any, Awaitable, Callable, Iterable, Literal, NotRequired, TypedDict
+from typing import Any, Awaitable, Callable, Iterable, Literal, NotRequired
+from typing_extensions import TypedDict
 from collections.abc import ByteString
 from urllib.parse import unquote_plus
 
