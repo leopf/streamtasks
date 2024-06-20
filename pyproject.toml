@@ -14,8 +14,9 @@ dependencies = [
   "numpy>=1.26.4,<2.0.0",
   "uvicorn>=0.29.0,<1.0.0"
 ]
+readme = {file = "README.md", content-type = "text/markdown"}
 description = "A python task orchestrator to simplify real-time, static data pipelines."
-license = {text = "MIT"}
+license = {file = "LICENSE"}
 name = "streamtasks"
 version = "0.1.0"
 
