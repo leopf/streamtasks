@@ -15,6 +15,7 @@ from streamtasks.system.task_web import TaskWebBackend
 async def run_webview(port: int):
   import webview
   import multiprocessing
+  loop = asyncio.get_running_loop()
 
   def _run():
     webview.create_window("Streamtasks Dashboard", f"http://localhost:{port}")
@@ -23,9 +24,9 @@ async def run_webview(port: int):
   p = multiprocessing.Process(target=_run)
   try:
     p.start()
-    await asyncio.Future()
+    await loop.run_in_executor(None, p.join)
   finally:
-    p.kill()
+    if p.exitcode is None: p.kill()
     p.join(1)
 
 class SystemBuilder:
@@ -74,8 +75,9 @@ class SystemBuilder:
       self._add_task(TaskHostCls(await self.switch.add_local_connection(), register_endpoits=[AddressNames.TASK_MANAGER]).run())
 
   async def wait_done(self):
-    await asyncio.wait(self.tasks, return_when="FIRST_EXCEPTION")
+    await asyncio.wait(self.tasks, return_when="FIRST_COMPLETED")
     for task in self.tasks:
+      if not task.done(): task.cancel("Other task completed!")
       try: await task
       except asyncio.CancelledError: pass
 
