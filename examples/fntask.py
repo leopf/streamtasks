@@ -1,4 +1,4 @@
-from streamtasks.system.fntask import fn_task
+from streamtasks.system.fntask import fntask
 from dataclasses import dataclass
 from typing import Annotated
 import numpy as np
@@ -13,7 +13,7 @@ class BGR24RedShifterConfig:
 io_map = ["rate", "width", "height"]
 default_io = { "content": "video", "pixel_format": "bgr24", "codec": "raw" }
 
-@fn_task(thread_safe=True)
+@fntask(thread_safe=True)
 def bgr24_red_shifter(image: Annotated[bytes, default_io, io_map], config: BGR24RedShifterConfig) -> Annotated[bytes, default_io, io_map]:
   arr = np.frombuffer(image, dtype=np.uint8).reshape((-1, 3)).astype(np.float32)
   filter = np.array([ 1, 1, config.scale ], dtype=np.float32)

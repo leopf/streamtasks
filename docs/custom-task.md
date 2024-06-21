@@ -15,9 +15,9 @@ This can NOT do everything that can be done with tasks.
 
 example:
 ```python
-from streamtasks.system.fntask import fn_task
+from streamtasks.system.fntask import fntask
 
-@fn_task()
+@fntask()
 def adder(a: int, b: int) -> int: return a + b
 
 if __name__ == "__main__": adder.run_sync()
@@ -35,7 +35,7 @@ When calling `run` or `run_sync` you can specify a link, a url or None. When spe
 Full example:
 
 ```python
-from streamtasks.system.fntask import fn_task
+from streamtasks.system.fntask import fntask
 
 from dataclasses import dataclass
 
@@ -47,7 +47,7 @@ class State:
 class Config:
     step: int = 1
 
-@fn_task()
+@fntask()
 def demo2(a: int, state: State, config: Config) -> int:
     state.count += config.step
     return a + state.count 
@@ -55,13 +55,13 @@ def demo2(a: int, state: State, config: Config) -> int:
 if __name__ == "__main__": demo2.run_sync()
 ```
 
-You can also specify arguments for the `fn_task` decorator:
+You can also specify arguments for the `fntask` decorator:
 
 `label` - specify a label for the task
 
 `thread_safe` - if the function is thread safe. Used to run synchronous functions in seperate threads.
 
-You can annotate the return type(s) and input types with the `Annotated` type. This allows setting the IO metadata and allowing the mapping of config values to the IO metadata. See [IO Metdata](io-metadata.md) or `examples/fn_task.py` for more information.
+You can annotate the return type(s) and input types with the `Annotated` type. This allows setting the IO metadata and allowing the mapping of config values to the IO metadata. See [IO Metdata](io-metadata.md) or `examples/fntask.py` for more information.
 
 ## Full Tasks
 You can implement anything that can be implemented with tasks by creating a class inheriting `streamtasks.system.task.Task`.

@@ -153,7 +153,7 @@ class _FnTaskHost(TaskHost):
   def __init__(self, config: 'FnTaskConfig', link: Link, register_endpoits: list[EndpointOrAddress] = []):
     super().__init__(link=link, register_endpoits=register_endpoits)
     self.config = config
-    self.id = task_host_id_from_name(f"fn_task_{config.name}")
+    self.id = task_host_id_from_name(f"fntask_{config.name}")
 
   @property
   def metadata(self): return static_configurator(
@@ -380,6 +380,6 @@ class FnTaskContext:
   def run_sync(self, to: Link | str | None = None, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER]):
     asyncio.run(self.run(to, register_endpoits=register_endpoits))
 
-def fn_task(**kwargs):
+def fntask(**kwargs):
   def decorator(fn: Callable): return FnTaskContext(FnTaskConfig.from_function(fn, kwargs))
   return decorator

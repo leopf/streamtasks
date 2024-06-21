@@ -48,4 +48,4 @@ The `type` is the actual python type like `int`.
 
 `io_map` is the same thing as `output_config_map_entry`, a dict mapping config fields to input/output fields.
 
-See examples/fn_task.py for more information.
+See examples/fntask.py for more information.
