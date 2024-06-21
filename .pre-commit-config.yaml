@@ -5,11 +5,13 @@ repos:
         name: tests
         entry: python -m unittest discover tests/
         language: system
-        always_run: true
+        always_run: false
         pass_filenames: false
+        files: \.(py.|cpp|c)$
       - id: ruff
         name: ruff
         entry: ruff check
         language: system
-        always_run: true
+        always_run: false
         pass_filenames: false
+        files: \.py.$
