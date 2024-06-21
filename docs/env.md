@@ -7,7 +7,7 @@ title: Environment Variables
 
 Example: the generation of TaskHost IDs, which must always be the same in order to maintain data consistancy accross restarts, but must also differ between machines in order to be able to create multiple tasks of the same type, running on different machines.
 
-`DATA_DIR` (required) - The directory to store data like user data and external dependencies.
+`DATA_DIR` (optional, default to the user app data directory) - The directory to store data like user data and external dependencies.
 
 ## Debugging
 `DEBUG_MEDIA` - Debugging media timing and synchronization.
