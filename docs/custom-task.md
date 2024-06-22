@@ -36,7 +36,6 @@ Full example:
 
 ```python
 from streamtasks.system.fntask import fntask
-
 from dataclasses import dataclass
 
 @dataclass
