@@ -1,8 +1,6 @@
 import asyncio
 from typing import Iterable
 import numpy as np
-import scipy.fft
-
 from streamtasks.media.audio import AudioCodecInfo, AudioFrame
 from streamtasks.media.codec import Decoder, Encoder
 from streamtasks.media.container import AVInputStream, AVOutputStream
@@ -95,7 +93,7 @@ def normalize_video_frame(frame: VideoFrame):
 
 def get_spectrum(samples: np.ndarray, sample_rate: int | None = None):
   sample_rate = sample_rate or samples.size
-  raw_spec = scipy.fft.rfft(samples)
+  raw_spec = np.fft.rfft(samples)
   raw_spec = abs(raw_spec)
   spec = np.zeros((sample_rate // 2))
   sum_size = raw_spec.size / spec.size

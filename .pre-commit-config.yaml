@@ -7,11 +7,11 @@ repos:
         language: system
         always_run: false
         pass_filenames: false
-        files: \.(py.|cpp|c)$
+        files: \.(py([xi]?)|cpp|c)$
       - id: ruff
         name: ruff
         entry: ruff check
         language: system
         always_run: false
         pass_filenames: false
-        files: \.py.$
+        files: \.py([xi]?)$
