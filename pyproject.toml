@@ -47,3 +47,28 @@ streamtasks = "streamtasks.bin:main_cli"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["streamtasks*"]
+
+[tool.ruff]
+line-length = 150
+indent-width = 2
+target-version = "py311"
+preview = true
+
+lint.select = [
+    "F",
+    "W293",
+    "W291",
+    "W191",
+    "W292",
+    "W391",
+    "E703",
+    "E999"
+]
+
+include = [
+    "streamtasks/*.py",
+    "tests/**.py",
+    "extra/**.py",
+    "examples/**.py",
+    "setup.py"
+]
