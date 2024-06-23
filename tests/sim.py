@@ -2,8 +2,6 @@ from abc import abstractmethod
 import asyncio
 import itertools
 from typing import Any, Optional
-import pandas as pd
-
 
 class PrefixMap:
   def __init__(self, length: int) -> None:
@@ -107,7 +105,7 @@ class Simulator:
     changed = self.last_eout != new_eout
     self.last_eout = new_eout
     return changed
-  def log_to_string(self): return f"Event count: {self.event_count}\n\n{pd.DataFrame(self.events).to_string()}"
+  def log_to_string(self): return f"Event count: {self.event_count}" # TODO show the events in a table
   async def wait_or_fail(self, fut: asyncio.Future, timeout: float = 1):
     try:
       return await asyncio.wait_for(fut, timeout)
