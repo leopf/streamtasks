@@ -11,7 +11,6 @@ from streamtasks.system.task import SyncTask, TaskHost
 from streamtasks.client import Client
 from speechbrain.inference.TTS import FastSpeech2
 from speechbrain.inference.vocoders import HIFIGAN
-
 from streamtasks.system.tasks.inference.utils import get_model_data_dir
 from streamtasks.utils import context_task
 

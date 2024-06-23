@@ -10,12 +10,11 @@ from streamtasks.message.types import TimestampChuckMessage
 from streamtasks.net.messages import TopicControlData
 from streamtasks.system.configurators import EditorFields, static_configurator
 from streamtasks.system.task import SyncTask, TaskHost
+from streamtasks.system.tasks.inference.utils import get_model_data_dir
+from streamtasks.utils import context_task
 from streamtasks.client import Client
 from speechbrain.inference.enhancement import WaveformEnhancement
 import torch
-
-from streamtasks.system.tasks.inference.utils import get_model_data_dir
-from streamtasks.utils import context_task
 
 _SAMPLE_RATE = 16000
 
