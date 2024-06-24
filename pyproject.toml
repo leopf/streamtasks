@@ -11,9 +11,6 @@ authors = [
 description = "A python task orchestrator to simplify real-time, static data pipelines."
 readme = {file = "README.md", content-type = "text/markdown"}
 license = {file = "LICENSE"}
-homepage = "https://github.com/leopf/streamtasks"
-documentation = "https://leopf.github.io/streamtasks/"
-repository = "https://github.com/leopf/streamtasks"
 dependencies = [
   "typing_extensions>=4.0.0,<5.0.0",
   "lark>=1.1.9,<2.0.0",
@@ -22,6 +19,11 @@ dependencies = [
   "numpy>=1.26.4,<2.0.0",
   "uvicorn[standard]>=0.29.0,<1.0.0"
 ]
+
+[project.urls]
+Homepage = "https://github.com/leopf/streamtasks"
+Documentation = "https://leopf.github.io/streamtasks/"
+Repository = "https://github.com/leopf/streamtasks"
 
 [project.optional-dependencies]
 dev = [
