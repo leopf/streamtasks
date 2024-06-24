@@ -3,9 +3,14 @@ build-backend = "setuptools.build_meta"
 requires = ["setuptools", "wheel", "pybind11"]
 
 [project]
+name = "streamtasks"
+version = "0.1.1"
 authors = [
   {name = "leopf"},
 ]
+description = "A python task orchestrator to simplify real-time, static data pipelines."
+readme = {file = "README.md", content-type = "text/markdown"}
+license = {file = "LICENSE"}
 dependencies = [
   "typing_extensions>=4.0.0,<5.0.0",
   "lark>=1.1.9,<2.0.0",
@@ -14,11 +19,6 @@ dependencies = [
   "numpy>=1.26.4,<2.0.0",
   "uvicorn>=0.29.0,<1.0.0"
 ]
-readme = {file = "README.md", content-type = "text/markdown"}
-description = "A python task orchestrator to simplify real-time, static data pipelines."
-license = {file = "LICENSE"}
-name = "streamtasks"
-version = "0.1.1"
 
 [project.optional-dependencies]
 dev = [
