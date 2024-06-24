@@ -32,7 +32,8 @@ dev = [
 media = [
   "av>=12.0.0,<13.0.0",
   "opencv_python>=4.9.0.80,<5.0.0",
-  "PyAudio>=0.2.14,<1.0.0"
+  "PyAudio>=0.2.14,<1.0.0",
+  "mss>=9.0.0,<10.0.0"
 ]
 inference = [
   "speechbrain>=1.0.0,<2.0.0",
