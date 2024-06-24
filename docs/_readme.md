@@ -19,7 +19,7 @@ pip install streamtasks[media,inference] # see pyproject.toml for more optional 
 
 #### Hardware encoders and decoders
 To use hardware encoders and decoders you must have ffmpeg installed on your system.
-Verify that you system installtion of ffmpeg has the hardware encoders/decoder with:
+Verify that you system installation of ffmpeg has the hardware encoders/decoder with:
 ```bash
 # list decoders
 ffmpeg -decoders
@@ -30,7 +30,7 @@ Install streamtasks without `av` binaries.
 ```bash
 pip install streamtasks[media,inference] --no-binary av
 ```
-If you have already installed streamtasks (and av), you can reinstall av with:
+If you have already installed streamtasks (and `av`), you can reinstall `av` with:
 ```bash
 pip install av --no-binary av --ignore-installed
 ```
