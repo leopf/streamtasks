@@ -6,9 +6,9 @@
 Read the [Documentation](https://leopf.github.io/streamtasks).
 
 ## Demos
-- [llama.cpp chatbot](docs/https:/x.com/leopfff/status/1805094491100971056)
-- [playing sound effects](docs/https:/x.com/leopfff/status/1805128606839931044)
-- [llama.cpp + tts](docs/https:/x.com/leopfff/status/1805138123187224636)
+- [llama.cpp chatbot](https://x.com/leopfff/status/1805094491100971056)
+- [playing sound effects](https://x.com/leopfff/status/1805128606839931044)
+- [llama.cpp + tts](https://x.com/leopfff/status/1805138123187224636)
 
 ## Overview
 
@@ -26,7 +26,7 @@ pip install streamtasks[media,inference] # see pyproject.toml for more optional 
 
 #### Hardware encoders and decoders
 To use hardware encoders and decoders you must have ffmpeg installed on your system.
-Verify that you system installtion of ffmpeg has the hardware encoders/decoder with:
+Verify that you system installation of ffmpeg has the hardware encoders/decoder with:
 ```bash
 # list decoders
 ffmpeg -decoders
@@ -37,12 +37,12 @@ Install streamtasks without `av` binaries.
 ```bash
 pip install streamtasks[media,inference] --no-binary av
 ```
-If you have already installed streamtasks (and av), you can reinstall av with:
+If you have already installed streamtasks (and `av`), you can reinstall `av` with:
 ```bash
 pip install av --no-binary av --ignore-installed
 ```
 
-See [the pyav documentation](docs/https:/pyav.org/docs/develop/overview/installation.html) for more information.
+See [the pyav documentation](https://pyav.org/docs/develop/overview/installation.html) for more information.
 
 #### llama.cpp with GPU
 To install llama.cpp with GPU support you can either install streamtasks with:
@@ -55,7 +55,7 @@ or you can reinstall llama-cpp-python with:
 ```bash 
 CMAKE_ARGS="-DLLAMA_CUBLAS=on" FORCE_CMAKE=1 pip install llama-cpp-python --ignore-installed
 ```
-See [the llama-cpp-python documentation](docs/https:/github.com/abetlen/llama-cpp-python) for more information.
+See [the llama-cpp-python documentation](https://github.com/abetlen/llama-cpp-python) for more information.
 
 
 ### Running an instance

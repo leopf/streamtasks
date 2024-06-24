@@ -45,8 +45,10 @@ for docs_file in README_FILES:
       if m is None: break
       prefix = content[:m.start()]
       suffix = content[m.end():]
+      new_path = os.path.relpath(os.path.join(dirname, m.group(2)), './')
+      if os.path.exists(new_path): content = prefix + f"[{m.group(1)}]({new_path})" + suffix
+      else: content = prefix + content[m.start():m.end()] + suffix
 
-      content = prefix + f"[{m.group(1)}]({os.path.relpath(os.path.join(dirname, m.group(2)), './')})" + suffix
       pos = len(content) - len(suffix)
 
     README_PARTS.append(content)
