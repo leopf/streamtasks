@@ -3,9 +3,8 @@ from contextlib import AsyncExitStack
 from dataclasses import dataclass
 from fractions import Fraction
 from typing import Any
-from jsonschema import ValidationError
 import numpy as np
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, ValidationError
 from streamtasks.debugging import ddebug_value
 from streamtasks.client.topic import InTopic, SequentialInTopicSynchronizer
 from streamtasks.env import DEBUG_MIXER
