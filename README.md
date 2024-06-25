@@ -9,6 +9,9 @@ Read the [Documentation](https://leopf.github.io/streamtasks).
 - [llama.cpp chatbot](https://x.com/leopfff/status/1805094491100971056)
 - [playing sound effects](https://x.com/leopfff/status/1805128606839931044)
 - [llama.cpp + tts](https://x.com/leopfff/status/1805138123187224636)
+- [video layout and video viewer](https://x.com/leopfff/status/1805205696624906694)
+- [audio switching](https://x.com/leopfff/status/1805502946357940703)
+- [audio mixing and scaling](https://x.com/leopfff/status/1805508727832780978)
 
 ## Overview
 
