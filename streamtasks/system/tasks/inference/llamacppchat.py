@@ -13,7 +13,7 @@ from streamtasks.utils import context_task
 from llama_cpp import ChatCompletionRequestMessage, Llama
 
 class LLamaCppChatConfigBase(BaseModel):
-  model_path: str = ""
+  src_model: str = ""
   use_gpu: bool = False
   context_length: int = 512
   max_tokens: int = 0
@@ -46,7 +46,7 @@ class LLamaCppChatTask(SyncTask):
       except (ValidationError, ValueError): pass
 
   def run_sync(self):
-    model = Llama(model_path=self.config.model_path, n_gpu_layers=-1 if self.config.use_gpu else 0, verbose=bool(__debug__), n_ctx=self.config.context_length)
+    model = Llama(model_path=self.config.src_model, n_gpu_layers=-1 if self.config.use_gpu else 0, verbose=bool(__debug__), n_ctx=self.config.context_length)
     messages: list[ChatCompletionRequestMessage] = []
     if self.config.system_message: messages.append({ "role": "system", "content": self.config.system_message })
     messages_start_index = len(messages)
@@ -83,7 +83,7 @@ class LLamaCppChatTaskHost(TaskHost):
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "content": "text" }],
     default_config=LLamaCppChatConfigBase().model_dump(),
     editor_fields=[
-      EditorFields.text(key="model_path"),
+      EditorFields.text(key="src_model", label="Model path"),
       EditorFields.multiline_text(key="system_message"),
       EditorFields.integer(key="context_length", min_value=0),
       EditorFields.integer(key="max_tokens", min_value=0),
