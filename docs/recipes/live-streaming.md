@@ -10,3 +10,6 @@ You can publish and consume live streams. This is supported by using the [input 
 You can enter a RTMP/RTSP and other urls as the source or destination. Make sure to set the correct **format** in the container options. 
 
 For further information look at the [ffmpeg streaming guide](https://trac.ffmpeg.org/wiki/StreamingGuide).
+
+## Demos
+- [publishing a livestream](https://x.com/leopfff/status/1805941200802758943)

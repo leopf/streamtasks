@@ -5,6 +5,7 @@
 - [video layout and video viewer](https://x.com/leopfff/status/1805205696624906694)
 - [audio switching](https://x.com/leopfff/status/1805502946357940703)
 - [audio mixing and scaling](https://x.com/leopfff/status/1805508727832780978)
+- [publishing a livestream](https://x.com/leopfff/status/1805941200802758943)
 
 ## Overview
 
