@@ -6,6 +6,8 @@ title: Custom tasks
 
 To create a custom task you should know about [IO Metdata](io-metadata.md).
 
+There is a demo: [(shitty) custom face detection](https://x.com/leopfff/status/1806295254238142942).
+
 ## functional tasks
 module: `streamtasks.system.fntask`
 
