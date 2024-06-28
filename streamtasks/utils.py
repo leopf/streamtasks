@@ -1,6 +1,7 @@
 from abc import abstractmethod
 from collections import deque
 from contextlib import asynccontextmanager
+from fractions import Fraction
 import hashlib
 import math
 import threading
@@ -319,3 +320,5 @@ def make_json_serializable(v: Any):
   if isinstance(v, dict): return { make_json_serializable(k): make_json_serializable(v) for k, v in v.items() }
   if isinstance(v, list): return [ make_json_serializable(v) for v in v ]
   return repr(v)
+
+def hertz_to_fintervall(f: int | float): return Fraction(1, int(f)) if int(f) == f else Fraction(1 / f)

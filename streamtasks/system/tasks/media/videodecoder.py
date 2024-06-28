@@ -1,4 +1,3 @@
-from fractions import Fraction
 from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.media.video import VideoCodecInfo, VideoFrame
@@ -8,6 +7,7 @@ from streamtasks.system.configurators import EditorFields, IOTypes, static_confi
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 from streamtasks.system.tasks.media.utils import MediaEditorFields
+from streamtasks.utils import hertz_to_fintervall
 
 class VideoDecoderConfigBase(BaseModel):
   in_pixel_format: IOTypes.PixelFormat = "yuv420p"
@@ -30,7 +30,7 @@ class VideoDecoderTask(Task):
     self.in_topic = self.client.in_topic(config.in_topic)
     self.config = config
 
-    self.time_base = Fraction(1, config.rate) if int(config.rate) == config.rate else Fraction(1 / config.rate)
+    self.time_base = hertz_to_fintervall(config.rate)
     self.t0: int | None = None
 
     codec_info = VideoCodecInfo(

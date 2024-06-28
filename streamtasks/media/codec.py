@@ -8,6 +8,8 @@ from streamtasks.media.packet import MediaPacket
 import av
 import asyncio
 
+from streamtasks.utils import hertz_to_fintervall
+
 T = TypeVar('T', bound=av.frame.Frame)
 
 class Frame(ABC, Generic[T]):
@@ -138,7 +140,7 @@ class CodecInfo(ABC, Generic[F]):
   def rate(self) -> float | int: pass
 
   @property
-  def time_base(self): return Fraction(1, int(self.rate)) if self.rate == int(self.rate) else Fraction(1/self.rate)
+  def time_base(self): return hertz_to_fintervall(self.rate)
 
   @abstractmethod
   def compatible_with(self, other: 'CodecInfo') -> bool: pass

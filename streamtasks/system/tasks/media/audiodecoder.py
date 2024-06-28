@@ -1,4 +1,3 @@
-from fractions import Fraction
 from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.debugging import ddebug_value
@@ -10,6 +9,7 @@ from streamtasks.system.configurators import EditorFields, IOTypes, static_confi
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 from streamtasks.system.tasks.media.utils import MediaEditorFields
+from streamtasks.utils import hertz_to_fintervall
 
 class AudioDecoderConfigBase(BaseModel):
   in_sample_format: IOTypes.SampleFormat = "fltp"
@@ -31,7 +31,7 @@ class AudioDecoderTask(Task):
     self.in_topic = self.client.in_topic(config.in_topic)
     self.config = config
 
-    self.time_base = Fraction(1, config.rate)
+    self.time_base = hertz_to_fintervall(config.rate)
     self.t0: int | None = None
 
     out_codec_info = AudioCodecInfo(codec=config.decoder, sample_rate=config.rate, sample_format=config.out_sample_format, channels=config.channels, options=config.codec_options)

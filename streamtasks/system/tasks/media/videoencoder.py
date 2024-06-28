@@ -11,7 +11,7 @@ from streamtasks.system.task import SyncTask, TaskHost
 from streamtasks.client import Client
 import queue
 
-from streamtasks.utils import context_task
+from streamtasks.utils import context_task, hertz_to_fintervall
 
 class VideoEncoderConfigBase(BaseModel):
   in_pixel_format: IOTypes.PixelFormat = "bgr24"
@@ -34,7 +34,7 @@ class VideoEncoderTask(SyncTask):
     self.in_topic = self.client.in_topic(config.in_topic)
     self.config = config
 
-    self.time_base = Fraction(1, config.rate) if int(config.rate) == config.rate else Fraction(1 / config.rate)
+    self.time_base = hertz_to_fintervall(config.rate)
     self.t0: int | None = None
 
     codec_info = VideoCodecInfo(

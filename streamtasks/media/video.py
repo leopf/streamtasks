@@ -11,6 +11,7 @@ import av.video.codeccontext
 import numpy as np
 from streamtasks.media.codec import CodecInfo, Frame, Reformatter
 from streamtasks.media.util import options_from_codec_context
+from streamtasks.utils import hertz_to_fintervall
 
 # TODO: endianness
 def video_buffer_to_ndarray(buf: ByteString, width: int, height: int):
@@ -49,7 +50,7 @@ class VideoReformatterInfo:
   height: int
 
   @property
-  def time_base(self): return Fraction(1, int(self.frame_rate)) if int(self.frame_rate) == self.frame_rate else Fraction(1 / self.frame_rate)
+  def time_base(self): return hertz_to_fintervall(self.frame_rate)
 
   def to_av_format(self) -> av.VideoFormat:
     return av.VideoFormat(self.pixel_format, self.width, self.height)

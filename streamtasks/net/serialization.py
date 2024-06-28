@@ -42,6 +42,7 @@ class RawData:
     self.deserialize()
     self._raw = None
   def copy(self): return RawData(memoryview(self.serialize()))
+  def shallow_copy(self): return RawData({ **self.data })
 
 def to_raw_data(data: Any) -> RawData:
   if isinstance(data, RawData): return data
