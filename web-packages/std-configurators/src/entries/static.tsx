@@ -204,7 +204,9 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
     private makeIOMirrorGraph(setter: GraphSetter<Task>) {
         // if (String(this.taskHost.metadata["cfg:label"]).startsWith("timestamp")) debugger;
         const data = parseMetadataField(this.taskHost.metadata, "cfg:iomirror", IOMirrorDataModel) ?? [];
+        const ignoreFields = new Set(parseMetadataField(this.taskHost.metadata, "cfg:iomirrorignore", z.array(z.string())) ?? []);
         const freeInputs = new Set(parseMetadataField(this.taskHost.metadata, "cfg:freeinputs", z.array(z.string())) ?? []);
+        ignoreFields.add("topic_id")
 
         const effectedInputs = new Set(data.map(e => e[0]));
         const effectedOutputs = new Set(data.map(e => e[1]));
@@ -220,7 +222,7 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
             ...baseOutputs.map(([idx, _]) => [`outputs.${idx}`, data.filter(([_, outputIdx]) => outputIdx === idx).map(([inputKey, _]) => `inputs.${inputKeyToIndexMap[inputKey]}`)] as [string, string[]]),
         ].forEach(([path, connectedPaths]) => {
             setter.addEdgeGenerator(path, (subPath) => {
-                if (!subPath || subPath === "topic_id") return [];
+                if (!subPath || ignoreFields.has(subPath)) return [];
                 return connectedPaths.map(p => `${p}.${subPath}`);
             });
         })

@@ -32,7 +32,7 @@ def static_configurator(label: str, description: str | None = None, inputs: list
                         outputs: list[MetadataDict] = [], default_config: dict[str, Any] | None = None,
                         editor_fields: list[dict] | None = None, config_to_output_map: list[dict[str, str] | None] = None,
                         config_to_input_map: dict[str, dict[str, str]] | None = None,
-                        io_mirror: list[tuple[str, int]] | None = None, free_inputs: list[str] | None = None):
+                        io_mirror: list[tuple[str, int]] | None = None, free_inputs: list[str] | None = None, io_mirror_ignore: list[str] | None = None):
   if default_config is not None:
     if config_to_output_map is not None:
       for output, cfg_map in zip_longest(outputs, config_to_output_map[:len(outputs)], fillvalue=None):
@@ -55,6 +55,7 @@ def static_configurator(label: str, description: str | None = None, inputs: list
   if config_to_input_map is not None: metadata["cfg:config2inputmap"] = json.dumps(config_to_input_map)
   if config_to_output_map is not None: metadata["cfg:config2outputmap"] = json.dumps(config_to_output_map)
   if io_mirror is not None: metadata["cfg:iomirror"] = json.dumps(io_mirror)
+  if io_mirror_ignore is not None: metadata["cfg:iomirrorignore"] = json.dumps(io_mirror_ignore)
   if free_inputs is not None: metadata["cfg:freeinputs"] = json.dumps(free_inputs)
   return metadata
 
