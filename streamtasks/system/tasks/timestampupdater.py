@@ -34,7 +34,7 @@ class TimestampUpdaterTask(Task):
           try:
             if self.config.time_reference == "message": ref_time = get_timestamp_from_message(data)
             else: ref_time = get_timestamp_ms()
-            data = data.copy()
+            data = data.shallow_copy()
             set_timestamp_on_message(data, ref_time + self.config.time_offset)
             await self.out_topic.send(data)
           except (ValueError, KeyError):

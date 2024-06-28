@@ -63,7 +63,7 @@ class ReplayBufferTask(Task):
     while True:
       time_offset: int | None = None
       for data in self.buffer:
-        data = data.copy()
+        data = data.shallow_copy()
         try:
           ts = get_timestamp_from_message(data)
           if time_offset is None: time_offset = self.sync.time - ts
