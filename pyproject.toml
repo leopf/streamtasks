@@ -69,7 +69,6 @@ lint.select = [
     "W292",
     "W391",
     "E703",
-    "E999"
 ]
 
 include = [
