@@ -110,6 +110,9 @@ DEFAULT_COLORS = [
 
 class EditorFields:
   @staticmethod
+  def color(key: str, label: str | None = None): return EditorFields.text(key, label=label)
+
+  @staticmethod
   def select(key: str, items: list[tuple[bool | str | float | int, str]], label: str | None = None):
     return strip_nones_from_dict({ "type": "select", "key": key, "label": label or key_to_label(key), "items": [ { "value": value, "label": label } for value, label in items ] })
 

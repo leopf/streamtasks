@@ -30,7 +30,6 @@ class VideoActivityMeterTask(SyncTask):
     self.out_topic = self.client.out_topic(config.out_topic)
     self.in_topic = self.client.in_topic(config.in_topic)
     self.config = config
-    self.sync = TimeSynchronizer()
     self.message_queue: queue.Queue[TimestampChuckMessage] = queue.Queue()
 
   @asynccontextmanager
