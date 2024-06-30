@@ -278,10 +278,13 @@ class TaskWebBackend(Worker):
       topic_space_id, _ = await register_topic_space(self.client, topic_ids)
       running_deployment = RunningDeployment(id=deployment_id, topic_space_id=topic_space_id, task_instances={}, task_instance_configs={})
       self.store.set_running_deployment(running_deployment)
-      for task in tasks:
+
+      async def schedule_task(task: FullTask):
         task_instance = await self.tm_client.schedule_task(task.task_host_id, topic_space_id)
         running_deployment.task_instances[task.id] = task_instance
         running_deployment.task_instance_configs[task_instance.id] = task.config
+      await asyncio.gather(*(schedule_task(task) for task in tasks))
+
       self.deployment_task_listeners[deployment_id] = asyncio.create_task(self.run_deployment_task_listener(running_deployment))
       await ctx.respond_json_string((await self.store.get_deployment(deployment_id)).model_dump_json())
 
@@ -290,9 +293,12 @@ class TaskWebBackend(Worker):
     async def _(ctx: HTTPContext):
       deployment_id = UUID(ctx.params.get("id", ""))
       running_deployment = self.store.get_running_deployment(deployment_id)
-      for (task_id, task_instance) in running_deployment.task_instances.items():
+
+      async def start_task(task_id: UUID, task_instance: TaskInstance):
         new_task_instance = await self.tm_client.start_task(task_instance.id, running_deployment.task_instance_configs.get(task_instance.id, None))
         running_deployment.task_instances[task_id] = new_task_instance
+      await asyncio.gather(*(start_task(task_id, task_instance) for (task_id, task_instance) in running_deployment.task_instances.items()))
+
       running_deployment.task_instance_configs = None
       await ctx.respond_json_string((await self.store.get_deployment(deployment_id)).model_dump_json())
 
@@ -302,9 +308,11 @@ class TaskWebBackend(Worker):
       deployment_id = UUID(ctx.params.get("id", ""))
       running_deployment = self.store.get_running_deployment(deployment_id)
 
-      for task_instance in running_deployment.task_instances.values():
+      async def stop_task(task_instance: TaskInstance):
         try: await self.tm_client.cancel_task_wait(task_instance.id)
         except TaskNotFoundError: pass
+      await asyncio.gather(*(stop_task(task_instance) for task_instance in running_deployment.task_instances.values()))
+
       await delete_topic_space(self.client, running_deployment.topic_space_id)
 
       if (listener_task := self.deployment_task_listeners.pop(deployment_id, None)) is not None: listener_task.cancel()
