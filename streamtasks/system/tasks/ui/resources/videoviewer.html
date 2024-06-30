@@ -28,14 +28,25 @@
         wsUrl = wsUrl.substring(0, wsUrl.lastIndexOf("/"))
         wsUrl += "/video"
 
-        player = window.mpegts.createPlayer({
-            type: 'mse',
-            isLive: true,
-            url: wsUrl
-        })
-        player.attachMediaElement(document.getElementById("videoElement"));
-        player.load();
-        player.play();
+        const videoElement = document.getElementById("videoElement");
+        let player;
+        function createPlayer() {
+            player = window.mpegts.createPlayer({
+                type: 'mse',
+                isLive: true,
+                url: wsUrl
+            })
+            player.attachMediaElement(videoElement);
+            player.load();
+            return player.play();
+        }
+        function restartPlayer() {
+            console.log("RESTARTING PLAYER")
+            player.destroy();
+            createPlayer().catch(restartPlayer);
+        }
+        createPlayer().catch(restartPlayer);
+        videoElement.addEventListener("ended", restartPlayer);
     </script>
 </body>
 </html>
