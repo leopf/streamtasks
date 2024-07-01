@@ -4,7 +4,7 @@ import React from "react";
 
 export function PageLayout(props: React.PropsWithChildren<{ headerContent?: React.ReactNode }>) {
     return (
-        <Stack direction="column" alignItems="stretch" sx={{ width: "100vw", height: "100vh" }}>
+        <Stack direction="column" alignItems="stretch" sx={{ width: "100vw", height: "100vh", overflowY: "auto" }}>
             <Header>{props.headerContent}</Header>
             <Box flex={1} bgcolor="#2a2a2a" color={theme => theme.palette.text.primary}>
                 {props.children}
