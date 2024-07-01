@@ -7,7 +7,7 @@ from typing import Any
 import numpy as np
 from pydantic import BaseModel, ValidationError, field_validator
 from streamtasks.client.topic import InTopic, SequentialInTopicSynchronizer
-from streamtasks.media.video import TRANSPARENT_PXL_FORMATS
+from streamtasks.media.util import TRANSPARENT_PXL_FORMATS
 from streamtasks.net.serialization import RawData
 from streamtasks.message.types import TimestampChuckMessage
 from streamtasks.net.messages import TopicControlData

@@ -2,6 +2,7 @@ import ctypes
 import ctypes.util
 from dataclasses import dataclass
 from fractions import Fraction
+import functools
 from typing import Iterator, Literal
 import av
 import av.codec
@@ -44,6 +45,27 @@ def list_sample_formats() -> list[str]:
     format_idx += 1
   names.sort()
   return names
+
+TRANSPARENT_PXL_FORMATS = { "rgba", "bgra", "abgr", "argb" }
+
+def pixel_format_to_pil_mode(pixel_format: str):
+  match pixel_format.lower():
+    case "rgba": return "RGBA"
+    case "rgb24": return "RGB"
+    case "rgb": return "RGB"
+    case "gray": return "L"
+    case "monob": return "1"
+    case _: raise ValueError("Invalid pixel format!")
+
+@functools.lru_cache()
+def list_pil_pixel_formats():
+  result = []
+  for fmt in list_pixel_formats():
+    try:
+      pixel_format_to_pil_mode(fmt)
+      result.append(fmt)
+    except ValueError: pass
+  return result
 
 @dataclass
 class CodecInfo:

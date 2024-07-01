@@ -19,16 +19,6 @@ def video_buffer_to_ndarray(buf: ByteString, width: int, height: int):
   if bitmap.shape[-1] == 1: bitmap = bitmap.squeeze()
   return bitmap
 
-TRANSPARENT_PXL_FORMATS = { "rgba", "bgra", "abgr", "argb" }
-
-def pixel_format_to_pil_mode(pixel_format: str):
-  match pixel_format.lower():
-    case "rgba": return "RGBA"
-    case "rgb24": return "RGB"
-    case "rgb": return "RGB"
-    case "gray": return "L"
-    case _: raise ValueError("Invalid pixel format!")
-
 class VideoFrame(Frame[av.VideoFrame]):
   def to_rgb(self):
     return VideoFrame(self.frame.to_rgb())

@@ -5,7 +5,7 @@ import platform
 import queue
 from typing import Any
 from pydantic import BaseModel, ValidationError, field_validator
-from streamtasks.media.video import pixel_format_to_pil_mode
+from streamtasks.media.util import list_pil_pixel_formats, pixel_format_to_pil_mode
 from streamtasks.message.types import TextMessage, TimestampChuckMessage
 from streamtasks.net.messages import TopicControlData
 from streamtasks.net.serialization import RawData
@@ -97,7 +97,7 @@ class TextRendererTaskHost(TaskHost):
     default_config=TextRendererConfigBase().model_dump(),
     config_to_output_map=[ { v: v for v in [ "width", "height", "pixel_format" ] } ],
     editor_fields=[
-      MediaEditorFields.pixel_format(allowed_values = { "rgba" }),
+      MediaEditorFields.pixel_format(allowed_values = list_pil_pixel_formats()),
       MediaEditorFields.pixel_size("width"),
       MediaEditorFields.pixel_size("height"),
       MediaEditorFields.pixel_size("x"),
