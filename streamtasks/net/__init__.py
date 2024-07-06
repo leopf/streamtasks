@@ -78,10 +78,10 @@ class Link(ABC):
       self.recv_topics = self.recv_topics.union(itc_message.add).difference(itc_message.remove)
     elif isinstance(message, OutTopicsChangedMessage):
       otc_message: OutTopicsChangedMessage = message
-      message = OutTopicsChangedMessage(set(PricedId(pt.id, pt.cost + self._cost) for pt in otc_message.add), otc_message.remove)
+      message = OutTopicsChangedMessage(set(PricedId(pt.id, pt.cost) for pt in otc_message.add), otc_message.remove)
     elif isinstance(message, AddressesChangedMessage):
       ac_message: AddressesChangedMessage = message
-      message = AddressesChangedMessage(set(PricedId(pa.id, pa.cost + self._cost) for pa in ac_message.add), ac_message.remove)
+      message = AddressesChangedMessage(set(PricedId(pa.id, pa.cost) for pa in ac_message.add), ac_message.remove)
     await self._send(message)
 
   async def recv(self) -> Message:

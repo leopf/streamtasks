@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 import asyncio
 import functools
-import json
 import logging
 import os
 import struct
@@ -15,6 +14,7 @@ from importlib.metadata import version
 import urllib.parse
 from streamtasks.utils import AsyncBool, AsyncTrigger
 from streamtasks.worker import Worker
+import msgpack
 
 def _get_version_specifier(): return ".".join(version(__name__.split(".", maxsplit=1)[0]).split(".")[:2]) # NOTE: major.minor during alpha
 
@@ -27,8 +27,8 @@ class RawConnection(ABC):
   async def handshake(self, extra_data: dict):
     try:
       data = { **extra_data, "version": _get_version_specifier() }
-      await self.send(json.dumps(data).encode("utf-8"))
-      other_data = json.loads((await self.recv()).decode("utf-8"))
+      await self.send(msgpack.packb(data))
+      other_data = msgpack.unpackb(await self.recv())
       if not isinstance(other_data, dict): raise ValueError()
       self.validate_handshake(other_data)
     except BaseException as e:
