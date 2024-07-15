@@ -41,6 +41,7 @@ class WorkerRequestDescriptors:
 class AddressNames:
   TASK_MANAGER = "task_manager"
   TASK_MANAGER_WEB = "task_manager_web"
+  NAMED_TOPIC_MANAGER = "named_topic_manager"
 
 class TopicSpaceRequestMessage(BaseModel):
   id: int

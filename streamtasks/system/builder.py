@@ -9,6 +9,7 @@ from streamtasks.services.discovery import DiscoveryWorker
 from streamtasks.services.protocols import AddressNames, WorkerTopics
 from streamtasks.system.connection_manager import ConnectionManager
 from streamtasks.system.helpers import get_all_task_hosts
+from streamtasks.system.named_topic_manager import NamedTopicManager
 from streamtasks.system.task import TaskManager
 from streamtasks.system.task_web import TaskWebBackend
 
@@ -43,6 +44,7 @@ class SystemBuilder:
 
   async def start_core(self):
     await self.start_discovery()
+    await self.start_named_topic_manager()
     await self.start_task_system()
 
   async def start_discovery(self): self._add_task(DiscoveryWorker(await self.switch.add_local_connection()).run())
@@ -56,6 +58,10 @@ class SystemBuilder:
     await self._wait_discovery()
     self._add_task(TaskManager(await self.switch.add_local_connection()).run())
     self._add_task(TaskWebBackend(await self.switch.add_local_connection()).run())
+
+  async def start_named_topic_manager(self):
+    await self._wait_discovery()
+    self._add_task(NamedTopicManager(await self.switch.add_local_connection()).run())
 
   async def start_connection_manager(self):
     await self._wait_discovery()
