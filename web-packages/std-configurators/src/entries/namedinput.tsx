@@ -1,8 +1,21 @@
 import { ThemeProvider } from "@mui/material";
-import { GraphSetter, StaticEditor, Task, TaskCLSConfigurator, TaskCLSReactRendererMixin, TaskConfiguratorContext, createCLSConfigurator, extractObjectPathValues, parseMetadataField, theme } from "@streamtasks/core";
+import { EditorField, GraphSetter, StaticEditor, Task, TaskCLSConfigurator, TaskCLSReactRendererMixin, TaskConfiguratorContext, compareIOIgnorePaths, createCLSConfigurator, extractObjectPathValues, parseMetadataField, theme } from "@streamtasks/core";
 import { ReactNode } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
+
+const editorFields: EditorField[] = [
+    {
+        type: "text",
+        key: "name",
+        label: "topic name",
+    },
+    {
+        type: "kvoptions",
+        key: "metadata",
+        label: "Metadata"
+    }
+];
 
 export class NamedInputConfigurator extends TaskCLSReactRendererMixin(TaskCLSConfigurator) {
     constructor(context: TaskConfiguratorContext, task?: Task) {
@@ -10,9 +23,9 @@ export class NamedInputConfigurator extends TaskCLSReactRendererMixin(TaskCLSCon
             id: uuidv4(),
             task_host_id: context.taskHost.id,
             label: parseMetadataField(context.taskHost.metadata, "cfg:label", z.string(), true),
-            config: { name: "named topic" },
+            config: { name: "named topic", out_topic: context.idGenerator() },
             inputs: [],
-            outputs: [ { key: "out_topic", topic_id: context.idGenerator() } ]
+            outputs: [{ key: "out_topic", topic_id: 0 }]
         });
         if (task === undefined) {
             this.applyConfig();
@@ -22,10 +35,10 @@ export class NamedInputConfigurator extends TaskCLSReactRendererMixin(TaskCLSCon
     public rrenderEditor(onUpdate: () => void): ReactNode {
         return (
             <ThemeProvider theme={theme}>
-                <StaticEditor data={this.config} fields={[ { type: "text", key: "name", label: "name" } ]} onUpdated={() => {
+                <StaticEditor data={this.config} fields={editorFields} onUpdated={() => {
                     this.applyConfig();
                     onUpdate();
-                }}/>
+                }} />
             </ThemeProvider>
         );
     }
@@ -37,6 +50,10 @@ export class NamedInputConfigurator extends TaskCLSReactRendererMixin(TaskCLSCon
         for (const [k, v] of pathValues.entries()) {
             setter.set(k, v);
         }
+        for (const key of Object.keys(this.outputs[0]).filter(k => !compareIOIgnorePaths.has(k) && !pathValues.has("config.metadata." + k))) {
+            setter.set(`config.metadata.${key}`, this.config.metadata[key]);
+        }
+
         setter.apply();
     }
 
@@ -45,6 +62,10 @@ export class NamedInputConfigurator extends TaskCLSReactRendererMixin(TaskCLSCon
 
         setter.addEdge("outputs.0.label", "config.name");
         setter.addEdge("outputs.0.topic_id", "config.out_topic");
+        setter.addEdgeGenerator("config.metadata", (subPath) => {
+            if (compareIOIgnorePaths.has(subPath)) return [];
+            return [`outputs.0.${subPath}`];
+        });
 
         return setter;
     }
