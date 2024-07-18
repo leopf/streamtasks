@@ -54,6 +54,10 @@ class FetchError(BaseException):
   @property
   def status_code(self): return FetchErrorStatusCode(self.body[0]) if self.body[0] in FetchErrorStatusCode._value2member_map_ else None
 
+  def __str__(self) -> str:
+    if isinstance(self.body, tuple) and len(self.body) == 2 and self.body[0] in FetchErrorStatusCode._value2member_map_:
+      return f"FetchError {FetchErrorStatusCode(self.body[0])}: {self.body[1]}"
+    return f"FetchError: {self.body}"
   def __repr__(self) -> str:
     if isinstance(self.body, tuple) and len(self.body) == 2 and self.body[0] in FetchErrorStatusCode._value2member_map_:
       return f"<FetchError {FetchErrorStatusCode(self.body[0])}: {self.body[1]}>"

@@ -1,5 +1,5 @@
 from typing import Any
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from streamtasks.net.messages import TopicControlData
 from streamtasks.services.protocols import AddressNames
 from streamtasks.system.named_topic_manager import NamedTopicModel, NamedTopicRequestModel, NamedTopicResolvedResponseModel
@@ -11,6 +11,12 @@ class NamedOutputConfig(BaseModel):
   metadata: MetadataDict
   in_topic: int
 
+  @field_validator("name")
+  @classmethod
+  def validate_name(cls, name: str):
+    if name == "named topic": raise ValueError("'named topic' is not allowed as a topic name!")
+    return name
+
 class NamedOutputTask(Task):
   def __init__(self, client: Client, config: NamedOutputConfig):
     super().__init__(client)
@@ -19,7 +25,7 @@ class NamedOutputTask(Task):
 
   async def run(self):
     self.client.start()
-
+    await self.client.request_address()
     await self.client.fetch(AddressNames.NAMED_TOPIC_MANAGER, "put_named_topic", NamedTopicModel(name=self.config.name, metadata=self.config.metadata).model_dump())
     response = await self.client.fetch(AddressNames.NAMED_TOPIC_MANAGER, "resolve_named_topic", NamedTopicRequestModel(name=self.config.name).model_dump())
     out_topic = self.client.out_topic(NamedTopicResolvedResponseModel.model_validate(response).topic)
@@ -34,7 +40,7 @@ class NamedOutputTaskHost(TaskHost):
   @property
   def metadata(self): return {
     "js:configurator": "std:namedoutput",
-    "cfg:label": "Named Input"
+    "cfg:label": "Named Output"
   }
   async def create_task(self, config: Any, topic_space_id: int | None):
     return NamedOutputTask(await self.create_client(topic_space_id), NamedOutputConfig.model_validate(config))

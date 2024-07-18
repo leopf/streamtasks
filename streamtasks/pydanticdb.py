@@ -16,9 +16,9 @@ class PydanticDB(Generic[T]):
   def entries(self): return copy.deepcopy(self._entries)
 
   def save(self):
-    with open(self._filename, "w") as fd: fd.write(self._list_model.dump_json(self._entries))
+    with open(self._filename, "wb") as fd: fd.write(self._list_model.dump_json(self._entries))
 
   def load(self):
-    with open(self._filename, "r") as fd: self._entries = self._list_model.validate_json(fd.read())
+    with open(self._filename, "rb") as fd: self._entries = self._list_model.validate_json(fd.read())
 
   def update(self, entries: Iterable[T]): self._entries = list(entries)

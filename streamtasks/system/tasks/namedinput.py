@@ -18,6 +18,7 @@ class NamedInputTask(Task):
 
   async def run(self):
     self.client.start()
+    await self.client.request_address()
     response = await self.client.fetch(AddressNames.NAMED_TOPIC_MANAGER, "resolve_named_topic", NamedTopicRequestModel(name=self.config.name))
     in_topic = self.client.in_topic(NamedTopicResolvedResponseModel.model_validate(response).topic)
 

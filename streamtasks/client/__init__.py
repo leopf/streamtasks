@@ -65,7 +65,7 @@ class Client:
     await self.set_address(new_address)
     return new_address
 
-  async def request_topic_ids(self, count: int, apply: bool = False) -> set[int]:
+  async def request_topic_ids(self, count: int, apply: bool = False) -> list[int]:
     raw_res = await self.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REQUEST_TOPICS, GenerateTopicsRequestBody(count=count).model_dump())
     res = GenerateTopicsResponseBody.model_validate(raw_res)
     if len(res.topics) != count: raise Exception("The fetch request returned an invalid number of topics")

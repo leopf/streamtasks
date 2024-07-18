@@ -67,7 +67,7 @@ class NamedTopicManager(TaskWebPathHandler):
     async def _(req: FetchRequest):
       data = NamedTopicRequestModel.model_validate(req.body)
       if next((1 for e in self.db.entries if e.name == data.name), None) is None: self.db.update(self.db.entries + [ NamedTopicModel(name=data.name, metadata={}) ])
-      if data.name not in self.topic_map: self.topic_map[data.name] = next(await self.client.request_topic_ids(1))
+      if data.name not in self.topic_map: self.topic_map[data.name] = (await self.client.request_topic_ids(1))[0]
       await req.respond(NamedTopicResolvedResponseModel(topic=self.topic_map[data.name]).model_dump())
 
     await server.run()
