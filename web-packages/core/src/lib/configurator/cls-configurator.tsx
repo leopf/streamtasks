@@ -47,7 +47,7 @@ export abstract class TaskCLSConfigurator {
         this.context = context; 
     }
 
-    public abstract connect(key: string, output?: TaskOutput): void | Promise<void>;
+    public connect(key: string, output?: TaskOutput): void | Promise<void> {}
     public renderEditor(element: HTMLElement): void {}
     public renderDisplay(element: HTMLElement, options: TaskDisplayOptions): void {}
     public update(task: Task, context: TaskConfiguratorContext) {

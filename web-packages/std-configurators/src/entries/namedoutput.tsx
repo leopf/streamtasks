@@ -1,7 +1,7 @@
-import { TextField, ThemeProvider } from "@mui/material";
-import { GraphSetter, Metadata, StaticEditor, Task, TaskCLSConfigurator, TaskCLSReactRendererMixin, TaskConfiguratorContext, TaskOutput, compareIOIgnorePaths, createCLSConfigurator, extractObjectPathValues, getObjectDiffPaths, parseMetadataField, theme } from "@streamtasks/core";
+import { ThemeProvider } from "@mui/material";
+import { GraphSetter, StaticEditor, Task, TaskCLSConfigurator, TaskCLSReactRendererMixin, TaskConfiguratorContext, TaskOutput, compareIOIgnorePaths, createCLSConfigurator, extractObjectPathValues, getObjectDiffPaths, parseMetadataField, theme } from "@streamtasks/core";
 import objectPath from "object-path";
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 

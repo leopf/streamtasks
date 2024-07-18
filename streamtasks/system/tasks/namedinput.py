@@ -1,5 +1,5 @@
 from typing import Any
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from streamtasks.net.messages import TopicControlData
 from streamtasks.services.protocols import AddressNames
 from streamtasks.system.named_topic_manager import NamedTopicRequestModel, NamedTopicResolvedResponseModel
@@ -9,6 +9,12 @@ from streamtasks.client import Client
 class NamedInputConfig(BaseModel):
   name: str
   out_topic: int
+
+  @field_validator("name")
+  @classmethod
+  def validate_name(cls, name: str):
+    if name == "named topic": raise ValueError("'named topic' is not allowed as a topic name!")
+    return name
 
 class NamedInputTask(Task):
   def __init__(self, client: Client, config: NamedInputConfig):
