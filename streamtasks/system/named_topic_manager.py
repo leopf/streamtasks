@@ -1,5 +1,6 @@
 import asyncio
 import os
+from urllib.parse import unquote
 from pydantic import BaseModel, TypeAdapter
 from streamtasks.asgi import ASGIAppRunner
 from streamtasks.asgiserver import ASGIRouter, ASGIServer, HTTPContext, http_context_handler
@@ -94,17 +95,20 @@ class NamedTopicManager(TaskWebPathHandler):
       self.db.save()
       await ctx.respond_json(data.model_dump())
 
-    @router.get("/api/named-topics/{name}")
-    @http_context_handler
-    async def _(ctx: HTTPContext):
-      try: await ctx.respond_json(next(e for e in self.db.entries if e.name == ctx.params["name"]).model_dump())
-      except KeyError: await ctx.respond_status(404)
-
-    @router.delete("/api/named-topics/{name}")
+    @router.get("/api/named-topic/{name}")
     @http_context_handler
     async def _(ctx: HTTPContext):
       try:
-        self.db.update(e for e in self.db.entries if e.name != ctx.params["name"])
+        name = unquote(ctx.params["name"])
+        await ctx.respond_json(next(e for e in self.db.entries if e.name == name).model_dump())
+      except KeyError: await ctx.respond_status(404)
+
+    @router.delete("/api/named-topic/{name}")
+    @http_context_handler
+    async def _(ctx: HTTPContext):
+      try:
+        name = unquote(ctx.params["name"])
+        self.db.update(e for e in self.db.entries if e.name != name)
         self.db.save()
         await ctx.respond_status(200)
       except KeyError: await ctx.respond_status(404)

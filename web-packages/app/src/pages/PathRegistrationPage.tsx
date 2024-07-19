@@ -4,6 +4,7 @@ import { useRootStore } from "../state/root-store";
 import { PageLayout } from "../Layout";
 import urlJoin from "url-join";
 import { ConnectionManager } from "../components/path-regisrations/ConnectionManager";
+import { NamedTopicManager } from "../components/path-regisrations/NamedTopicManager";
 
 export const PathRegistrationPage = observer(() => {
     const params = useParams();
@@ -22,6 +23,9 @@ export const PathRegistrationPage = observer(() => {
     if (state.dashboard.frontend.path.startsWith("std:")) {
         if (state.dashboard.frontend.path === "std:connectionmanager") {
             innerContent = <ConnectionManager pathRegistration={state.dashboard}/>;
+        }
+        if (state.dashboard.frontend.path === "std:namedtopicmanager") {
+            innerContent = <NamedTopicManager pathRegistration={state.dashboard}/>;
         }
     }
     else {

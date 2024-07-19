@@ -71,7 +71,7 @@ export class NamedOutputConfigurator extends TaskCLSReactRendererMixin(TaskCLSCo
     }
 
     private async apiUpdateNamedTopic() {
-        const url = new URL("/named-topics/api/named-topic", location.href);
+        const url = new URL("./named-topics/api/named-topic", location.href);
 
         await fetch(url, { 
             method: "PUT", 
