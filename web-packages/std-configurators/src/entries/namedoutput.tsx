@@ -35,9 +35,6 @@ export class NamedOutputConfigurator extends TaskCLSReactRendererMixin(TaskCLSCo
             }
             try {
                 setter.apply();
-                if (diffs.length > 0) {
-                    this.apiUpdateNamedTopic();
-                }
             }
             catch {
                 if (input.topic_id === output.topic_id) {
@@ -68,16 +65,6 @@ export class NamedOutputConfigurator extends TaskCLSReactRendererMixin(TaskCLSCo
             setter.set(k, v);
         }
         setter.apply();
-    }
-
-    private async apiUpdateNamedTopic() {
-        const url = new URL("./named-topics/api/named-topic", location.href);
-
-        await fetch(url, { 
-            method: "PUT", 
-            body: JSON.stringify({ name: this.config.name, metadata: this.config.metadata }), 
-            headers: { "content-type": "application/json" } 
-        });
     }
 
     private getGraph() {

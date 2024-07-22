@@ -1,19 +1,61 @@
 import importlib
 import os
 import pathlib
-from llama_cpp import ChatCompletionRequestMessage, Llama
 from streamtasks.system.helpers import get_all_task_hosts
 import streamtasks.system.tasks as tasks
+import ollama
 
-SYSTEM_MESSAGE = """
-Your job is to write documentation for a system called streamtasks.
-The system is a operating system for tasks, which are basically programs. The tasks work by subscribing and providing (both also referred to as registering) topics.
+def remove_frontmatter(md_string: str):
+  lines = md_string.splitlines()
+  if not lines[0].startswith("---"): return md_string
+  end_index = next((i for i, line in enumerate(lines) if line.startswith("---") and i != 0), None)
+  if end_index is None: return md_string
+  return '\n'.join(lines[end_index + 1:])
+
+def get_messages(context: dict[str, str]) -> list[ollama.Message]:
+  return [
+    {
+      "role": "user",
+      "content": f"Write documentation for the task {context['module_name']}. Write a short description, describe the inputs and outputs as well as anything else important to know for the user. Try to not describe the code but focus on the interface and the internal function. Keep it short! Here is the code:\n" + context["code"]
+    }
+  ]
+
+tasks_dir = os.path.dirname(tasks.__file__)
+
+contexts: list[dict[str, str]] = []
+
+for task_host in get_all_task_hosts():
+  module_name = task_host.__module__
+  module_path = importlib.import_module(module_name).__file__
+  module_sub_path = os.path.relpath(module_path, tasks_dir)
+  docs_sub_path = module_sub_path[:-2] + "md"
+  docs_path = os.path.join("docs/tasks", docs_sub_path)
+  out_path = os.path.join("docs/autogen/tasks", docs_sub_path)
+  with open(module_path, "r") as fd: code = fd.read()
+
+  contexts.append({
+    "code": code,
+    "module_name": module_name,
+    "module_path": module_path,
+    "out_path": out_path,
+    "doc_path": docs_path if os.path.exists(docs_path) else None,
+    "rewrite": os.path.exists(out_path)
+  })
+
+contexts = sorted(contexts, key=lambda c: c["rewrite"])
+
+pre_prompt: list[ollama.Message] = [
+  {
+    "role": "system",
+    "content": """
+Your are an assistant writing documentation for a system called streamtasks.
+The system is a operating system for tasks. The tasks work by subscribing and providing (both also referred to as registering) topics.
 The data is distributed as message pack serializable data, wrapped in "RawData" objects. Topics can be paused.
 
 You will be writing the documentation for the individual tasks.
 
 Each tasks consists of 2 parts. A host and the task iteself. The task host is responsible for starting tasks.
-It also registers all the information needed to configure tasks in a node based frontend (sort of like the blender node editor).
+It also registers all the information needed to configure tasks in a node based frontend.
 
 An important part of the task host metadata are the editor fields. The editor fields try to make defining a UI as simple as possible.
 Labels for the fields are generated from the configuration key they set by replacing underscores with spaces. Refer to the editor fields by their label.
@@ -25,87 +67,24 @@ The answers you provide will be printed directly in the documentation.
 - Be precise but short
 - Only reference variable names when necessary
 - The code may have documentation strings. Always include this information.
-""".strip()
+    """.strip()
+  }
+]
 
-MODULE_NAME_MESSAGE = "Here is the name of the python module:\n"
-PRE_CODE_MESSAGE = "Here is the code for a task and its task host:\n"
-REGEN_PROMT = """
-The following is the documentation generated from your answers.
-Rewrite the documentation. Remove duplicate information and reorganize it. You may change anything but the headers and the order of the headers.
-Only answer with the new documentation in markdown, nothing else.
-""".strip()
+for context in contexts:
+  if context["doc_path"] is None: continue
+  with open(context["doc_path"]) as fd: doc_text = remove_frontmatter(fd.read())
+  pre_prompt.extend(get_messages(context))
+  pre_prompt.append({
+    "role": "assistant",
+    "content": doc_text
+  })
 
-QUESTIONS = {
-  "label": "What is the label of the task? Only write the label!",
-  "description": """
-Describe what the task generally does and how it works. Do NOT list configuration fields, inputs or outputs individually.
-You will get the chance to list them and give short descriptions after the next questions.
-""".strip(),
-  "inputs": """
-List the inputs as found in the TaskHost. Name them by their label.
-The input key specifies in what config field the topic, which the input is connected to, is saved. So key in_topic means it is saved in the config field in_topic.
-Give short descriptions of what the input is for. If you can not identify any inputs, write "None".
-""".strip(),
-  "outputs": """
-List the outputs as found in the TaskHost. Name them by their label.
-The outputs key specifies in what config field the topic of the output is saved. So key out_topic means it is saved in the config field out_topic.
-Give short descriptions of what the output is for. If you can not identify any outputs, write "None".
-""".strip(),
-  "config": """
-List the configuration fields as found in the TaskHost. Refer to them by their label ("default_value" becomes "default value" etc.).
-The key specifies what config field the value is saved to.
-""".strip(),
-  "description2": """
-This is the last information you will be able to give to the reader. Express everything the reader must know, which has not been said yet in the previous answers.
-""".strip()
-}
-
-def to_markdown(output: dict[str, str]):
-  return f"""
-# {output['label']}
-
-## Inputs
-{output.pop('inputs')}
-
-## Outputs
-{output.pop('outputs')}
-
-## Configuration
-{output.pop('config')}
-
-## Description
-{output.pop('description')}
-
-{output.pop('description2')}
-  """.strip()
-
-model = Llama(model_path=os.getenv("MODEL_PATH"), n_gpu_layers=20, n_ctx=5048, verbose=True)
-tasks_dir = os.path.dirname(tasks.__file__)
-
-for task_host in get_all_task_hosts():
-  module_name = task_host.__module__
-  module_path = importlib.import_module(module_name).__file__
-  module_sub_path = os.path.relpath(module_path, tasks_dir)
-  if os.path.exists(os.path.join("docs/tasks", module_sub_path)): continue
-
-  messages: list[ChatCompletionRequestMessage] = [
-    { "role": "system", "content": SYSTEM_MESSAGE },
-    { "role": "user", "content": MODULE_NAME_MESSAGE + module_name }
-  ]
-
-  with open(module_path, "rt") as fd: messages.append({ "role": "user", "content": PRE_CODE_MESSAGE + fd.read() })
-  output = { "module": module_name }
-  for k, prompt in QUESTIONS.items():
-    print("Working on field", k, "for module", module_name)
-    messages.append({ "role": "user", "content": prompt })
-    output[k] = model.create_chat_completion(messages, temperature=0)["choices"][0]["message"]["content"]
-
-  md_text = to_markdown(output)
-  messages.append({ "role": "user", "content": REGEN_PROMT })
-  messages.append({ "role": "user", "content": md_text })
-  md_text = model.create_chat_completion(messages, temperature=0)["choices"][0]["message"]["content"]
-
-  out_filename = os.path.join("docs/autogen/tasks", module_sub_path[:-2] + "md")
-  pathlib.Path(out_filename).parent.mkdir(parents=True, exist_ok=True)
-  text = f"---\n{'\n'.join(k + ': ' + v for k, v in output.items())}\n---\n{md_text}"
-  with open(out_filename, "w") as fd: fd.write(text)
+for context in contexts:
+  if context["doc_path"] is not None: continue
+  print("Writing docs for:", context["module_name"])
+  result = ollama.chat(os.getenv("MODEL"), pre_prompt + get_messages(context))
+  doc_text = result["message"]["content"]
+  print("doc_text (:-500)", doc_text[:-500])
+  pathlib.Path(context["out_path"]).parent.mkdir(parents=True, exist_ok=True)
+  with open(context["out_path"], "w") as fd: fd.write("---\n" + "\n".join(k + ": " + v for k, v in context.items() if isinstance(v, str) and "\n" not in v) + "\n---\n" + doc_text)
