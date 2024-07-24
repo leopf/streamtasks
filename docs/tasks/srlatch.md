@@ -10,7 +10,7 @@ parent: Tasks
 * **reset**: Reset the latch value low.
 
 ## Outputs
-* **output**: The current state of the latch (high or low).
+* **output**: The current state of the latch (1 or 0).
 
 ## Configuration
 The task can be configured using the following fields:
