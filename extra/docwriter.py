@@ -67,25 +67,24 @@ pre_prompt: list[ollama.Message] = [
   {
     "role": "system",
     "content": """
-Your are an assistant writing documentation for a system called streamtasks.
-The system is a operating system for tasks. The tasks work by subscribing and providing (both also referred to as registering) topics.
-The data is distributed as message pack serializable data, wrapped in "RawData" objects. Topics can be paused.
+You are an assistant writing documentation for the `Task` component of the
+StreamTasks system.
 
-You will be writing the documentation for the individual tasks.
+The `Task` is composed of two parts: a `Host` responsible for starting tasks and
+registering configuration data, and a `Task` itself that defines inputs, outputs,
+and editor fields.
 
-Each tasks consists of 2 parts. A host and the task iteself. The task host is responsible for starting tasks.
-It also registers all the information needed to configure tasks in a node based frontend.
+Please provide the details of each task, including its inputs, outputs, and any
+relevant metadata.
 
-An important part of the task host metadata are the editor fields. The editor fields try to make defining a UI as simple as possible.
-Labels for the fields are generated from the configuration key they set by replacing underscores with spaces. Refer to the editor fields by their label.
-
-The inputs and output are defined in the task host. Use the label to refer to them. Tasks using the static configurator only have the inputs and outputs listed there.
-
-The answers you provide will be printed directly in the documentation.
-- ONLY output the information you were asked for
-- Be precise but short
-- Only reference variable names when necessary
-- The code may have documentation strings. Always include this information.
+The outline should be:
+- title
+- inputs
+- outputs
+- configuration
+- description
+  - example uses (optional)
+  - notes (optional)
     """.strip()
   }
 ]
@@ -100,9 +99,12 @@ for context in contexts:
   })
 
 for context in contexts:
-  if context["doc_path"] is not None: continue
-  print("Writing docs for:", context["module_name"])
-  result = ollama.chat(os.getenv("MODEL"), pre_prompt + get_messages(context))
-  context["doc_text"] = result["message"]["content"]
-  print("doc_text (:-500)", context["doc_text"][:-500])
-  write_docs(context)
+  try:
+    if context["doc_path"] is not None: continue
+    print("Writing docs for:", context["module_name"])
+    result = ollama.chat(os.getenv("MODEL"), pre_prompt + get_messages(context), options={ "temperature": 0 })
+    context["doc_text"] = result["message"]["content"]
+    print("doc_text (:-500)", context["doc_text"][:-500])
+    write_docs(context)
+  except KeyboardInterrupt: raise
+  except BaseException as e: print(e)
