@@ -26,7 +26,7 @@ grand_parent: Tasks
 	+ **sample rate**
 	+ **channel count**
 
-## Description
+### Description
 The task is a media output container that takes in a set of video and audio tracks and combines them into a single output container. 
 
 It is based on [ffmpeg](https://ffmpeg.org/ffmpeg.html) containers. The codec and container options correspond to those in [ffmpeg](https://ffmpeg.org/ffmpeg.html).

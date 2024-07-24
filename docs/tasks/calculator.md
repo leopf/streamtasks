@@ -1,9 +1,8 @@
 ---
-module: streamtasks.system.tasks.calculator
 title: Calculator
 parent: Tasks
 ---
-# calculator
+# Calculator
 
 ## Inputs
 The Calculator has a configurable amout of inputs. A veriable name is assigned to each input, that can be used in the formula to calculate the output.
