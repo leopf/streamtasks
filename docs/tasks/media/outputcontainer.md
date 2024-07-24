@@ -4,7 +4,7 @@ title: Output Container
 parent: Media Tasks
 grand_parent: Tasks
 ---
-# output container
+# Output Container
 
 ## Inputs
 * destination: specifies the path or URL where the output container will be saved.
