@@ -3,3 +3,4 @@ remote_theme: just-the-docs/just-the-docs
 
 exclude:
   - _readme.md
+  - autogen
