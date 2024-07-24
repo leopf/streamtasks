@@ -12,6 +12,25 @@ def remove_frontmatter(md_string: str):
   if end_index is None: return md_string
   return '\n'.join(lines[end_index + 1:])
 
+def make_frontmatter(context: dict[str, str]):
+  result: dict[str, str] = { "module": context["module_name"] }
+  title = context["doc_text"]
+  title = title[title.index("#") + 1:]
+  title = title[:title.index("\n")].strip()
+  result["title"] = title
+
+  if context["module_name"].startswith("streamtasks.system.tasks.inference"): result.update({ "grand_parent": "Tasks", "parent": "Inference Tasks" })
+  elif context["module_name"].startswith("streamtasks.system.tasks.ui"): result.update({ "grand_parent": "Tasks", "parent": "UI Tasks" })
+  elif context["module_name"].startswith("streamtasks.system.tasks.media"): result.update({ "grand_parent": "Tasks", "parent": "Media Tasks" })
+  else: result.update({ "parent": "Tasks" })
+
+  return result
+
+def write_docs(context: dict[str, str]):
+  frontmatter = make_frontmatter(context)
+  pathlib.Path(context["out_path"]).parent.mkdir(parents=True, exist_ok=True)
+  with open(context["out_path"], "w") as fd: fd.write("---\n" + "\n".join(k + ": " + v for k, v in frontmatter.items()) + "\n---\n" + context["doc_text"])
+
 def get_messages(context: dict[str, str]) -> list[ollama.Message]:
   return [
     {
@@ -84,7 +103,6 @@ for context in contexts:
   if context["doc_path"] is not None: continue
   print("Writing docs for:", context["module_name"])
   result = ollama.chat(os.getenv("MODEL"), pre_prompt + get_messages(context))
-  doc_text = result["message"]["content"]
-  print("doc_text (:-500)", doc_text[:-500])
-  pathlib.Path(context["out_path"]).parent.mkdir(parents=True, exist_ok=True)
-  with open(context["out_path"], "w") as fd: fd.write("---\n" + "\n".join(k + ": " + v for k, v in context.items() if isinstance(v, str) and "\n" not in v) + "\n---\n" + doc_text)
+  context["doc_text"] = result["message"]["content"]
+  print("doc_text (:-500)", context["doc_text"][:-500])
+  write_docs(context)
