@@ -79,7 +79,7 @@ class RepeaterTaskHost(TaskHost):
     io_mirror=[("in_topic", 0)],
     io_mirror_ignore=["rate"],
     editor_fields=[
-      EditorFields.number(key="rate", min_value=0, unit="hz"),
+      EditorFields.number(key="rate", min_value=0.001, unit="hz"),
       EditorFields.boolean(key="fail_closed"),
     ]
   )
