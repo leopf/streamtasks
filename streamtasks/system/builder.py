@@ -13,32 +13,16 @@ from streamtasks.system.named_topic_manager import NamedTopicManager
 from streamtasks.system.task import TaskManager
 from streamtasks.system.task_web import TaskWebBackend
 
-async def run_webview(port: int):
-  import webview
-  import multiprocessing
-  loop = asyncio.get_running_loop()
-
-  def _run():
-    webview.create_window("Streamtasks Dashboard", f"http://localhost:{port}")
-    webview.start()
-
-  p = multiprocessing.Process(target=_run)
-  try:
-    p.start()
-    await loop.run_in_executor(None, p.join)
-  finally:
-    if p.exitcode is None: p.kill()
-    p.join(1)
-
 class SystemBuilder:
   def __init__(self):
     self.switch = Switch()
     self.tasks: list[asyncio.Future] = []
+    self.http_servers: list[HTTPServerOverASGI] = []
     self.disovery_ready = False
 
-  async def start_system(self, ui_port: int, ui_webview: bool):
+  async def start_system(self, ui_port: int):
     await self.start_connection_manager()
-    await self.start_user_endpoint(ui_port, ui_webview)
+    await self.start_user_endpoint(ui_port)
     await self.start_node_server()
     await self.start_task_hosts()
 
@@ -71,10 +55,11 @@ class SystemBuilder:
     await self._wait_discovery()
     self._add_task(NodeServer(await self.switch.add_local_connection()).run())
 
-  async def start_user_endpoint(self, port: int, webview: bool):
+  async def start_user_endpoint(self, port: int):
     await self._wait_discovery()
-    self._add_task(HTTPServerOverASGI(await self.switch.add_local_connection(), ("localhost", port), AddressNames.TASK_MANAGER_WEB).run())
-    if webview: self._add_task(run_webview(port))
+    worker = HTTPServerOverASGI(await self.switch.add_local_connection(), ("localhost", port), AddressNames.TASK_MANAGER_WEB)
+    self.http_servers.append(worker)
+    self._add_task(worker.run())
 
   async def start_task_hosts(self):
     for TaskHostCls in get_all_task_hosts():
