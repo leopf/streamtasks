@@ -1,0 +1,132 @@
+# This project was generated with 0.3.19 using template: https://github.com/beeware/briefcase-template@v0.3.19
+[tool.briefcase]
+project_name = "streamtasks-ui"
+bundle = "com.streamtasks-ui"
+version = "0.0.1"
+url = "https://github.com/leopf/streamtasks"
+license.file = "LICENSE"
+author = "leopf"
+author_email = "l.pfob@3-klicks.de"
+
+[tool.briefcase.app.streamtasksui]
+formal_name = "Streamtasks UI"
+description = "A python task orchestrator to simplify real-time, static data pipelines."
+long_description = """"""
+sources = [
+    "src/streamtasksui",
+]
+requires = [
+    "streamtasks[media,inference]"
+]
+
+[tool.briefcase.app.streamtasksui.macOS]
+universal_build = true
+requires = [
+    "toga-cocoa~=0.4.5",
+    "std-nslog~=1.0.0",
+]
+
+[tool.briefcase.app.streamtasksui.linux]
+requires = [
+    "toga-gtk~=0.4.5",
+]
+
+[tool.briefcase.app.streamtasksui.linux.system.debian]
+system_requires = [
+    "libcairo2-dev",
+    "libgirepository1.0-dev",
+]
+
+system_runtime_requires = [
+    "gir1.2-gtk-3.0",
+    "libgirepository-1.0-1",
+    "libcanberra-gtk3-module",
+]
+
+[tool.briefcase.app.streamtasksui.linux.system.rhel]
+system_requires = [
+    "cairo-gobject-devel",
+    "gobject-introspection-devel",
+]
+
+system_runtime_requires = [
+    "gobject-introspection",
+    "gtk3",
+    "libcanberra-gtk3",
+]
+
+[tool.briefcase.app.streamtasksui.linux.system.suse]
+system_requires = [
+    "cairo-devel",
+    "gobject-introspection-devel",
+]
+
+system_runtime_requires = [
+    "gtk3",
+    "gobject-introspection", "typelib(Gtk) = 3.0",
+    "libcanberra-gtk3-module",
+]
+
+[tool.briefcase.app.streamtasksui.linux.system.arch]
+system_requires = [
+    "cairo",
+    "gobject-introspection",
+    "gtk3",
+    "libcanberra",
+]
+
+system_runtime_requires = [
+    "gtk3",
+    "gobject-introspection-runtime",
+    "libcanberra",
+]
+
+[tool.briefcase.app.streamtasksui.linux.appimage]
+manylinux = "manylinux_2_28"
+
+system_requires = [
+    "cairo-gobject-devel",
+    "gobject-introspection-devel",
+    "gtk3-devel",
+    "libcanberra-gtk3",
+    "PackageKit-gtk3-module",
+    "gvfs-client",
+]
+
+linuxdeploy_plugins = [
+    "DEPLOY_GTK_VERSION=3 gtk",
+]
+
+[tool.briefcase.app.streamtasksui.linux.flatpak]
+flatpak_runtime = "org.gnome.Platform"
+flatpak_runtime_version = "45"
+flatpak_sdk = "org.gnome.Sdk"
+
+[tool.briefcase.app.streamtasksui.windows]
+requires = [
+    "toga-winforms~=0.4.5",
+]
+
+[tool.briefcase.app.streamtasksui.iOS]
+requires = [
+    "toga-iOS~=0.4.5",
+    "std-nslog~=1.0.0",
+]
+
+[tool.briefcase.app.streamtasksui.android]
+requires = [
+    "toga-android~=0.4.5",
+]
+
+base_theme = "Theme.MaterialComponents.Light.DarkActionBar"
+
+build_gradle_dependencies = [
+    "com.google.android.material:material:1.11.0",
+]
+
+[tool.briefcase.app.streamtasksui.web]
+requires = [
+    "toga-web~=0.4.5",
+]
+style_framework = "Shoelace v2.3"
+
