@@ -239,6 +239,8 @@ class ASGIProxyApp:
 class HTTPServerOverASGI(Worker):
   def __init__(self, link: Link, http_endpoint: tuple[str, int], asgi_endpoint: EndpointOrAddress, http_config: dict[str, Any] = {}):
     super().__init__(link)
+    import uvicorn
+    self.server: uvicorn.Server | None = None
     self.asgi_endpoint = endpoint_or_address_to_endpoint(asgi_endpoint, WorkerPorts.ASGI)
     self.http_endpoint = http_endpoint
     self.http_config = http_config
@@ -251,9 +253,9 @@ class HTTPServerOverASGI(Worker):
       app = ASGIProxyApp(client, self.asgi_endpoint)
       import uvicorn
       server_config = uvicorn.Config(app, host=self.http_endpoint[0], port=self.http_endpoint[1], **self.http_config)
-      server = uvicorn.Server(server_config)
+      self.server = uvicorn.Server(server_config)
       logging.info(f"Serving [{self.asgi_endpoint[0]}, {self.asgi_endpoint[1]}] on http://{self.http_endpoint[0]}:{self.http_endpoint[1]}/")
-      await server.serve()
+      await self.server.serve()
     finally:
       await self.shutdown()
 
