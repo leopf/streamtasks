@@ -88,7 +88,7 @@ jobs:
       - name: Download wheelhouse artifact
         uses: actions/download-artifact@v4
         with:
-          name: 'cibw-wheels-*'
+          pattern: 'cibw-wheels-*'
           path: dist
       - name: Upload Python package artifact
         uses: actions/upload-artifact@v4
