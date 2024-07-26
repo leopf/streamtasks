@@ -89,7 +89,9 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: 'cibw-wheels-*'
-          path: dist
+          path: wheelhouse
+      - name: move wheels
+        run: find wheelhouse/ -type f -name "*.whl" -exec cp {} ./dist \;
       - name: Upload Python package artifact
         uses: actions/upload-artifact@v4
         with:
