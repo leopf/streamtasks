@@ -41,7 +41,7 @@ jobs:
       - name: Upload sdist artifact
         uses: actions/upload-artifact@v4
         with:
-          name: py-sdist
+          name: pypackage
           path: dist
       
       - name: Upload web assets artifact
@@ -72,35 +72,14 @@ jobs:
         run: python -m cibuildwheel --output-dir wheelhouse
       - uses: actions/upload-artifact@v4
         with:
-          name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
-          path: ./wheelhouse/*.whl
-
-  merge-pypackage:
-    name: Merge package data
-    needs: [build-sdist, build-wheels]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download sdist artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: py-sdist
-          path: dist
-      - name: Download wheelhouse artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: cibw-wheels-*
-          path: dist
-      - name: Upload Python package artifact
-        uses: actions/upload-artifact@v4
-        with:
           name: pypackage
-          path: dist
+          path: ./wheelhouse/*.whl
 
   publish-release:
     permissions:
       contents: write
     runs-on: ubuntu-latest
-    needs: [merge-pypackage]
+    needs: [build-sdist, build-wheels]
     timeout-minutes: 20
     if: github.ref == 'refs/heads/main'
     steps:
@@ -124,20 +103,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   
-  publish-to-pypi:
-    name: publish python distribution to PyPI
-    needs: [merge-pypackage]
-    runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/streamtasks
-    permissions:
-      id-token: write
-    steps:
-    - name: Download Python package artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: pypackage
-        path: dist/
-    - name: Publish distribution 📦 to PyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
+  # publish-to-pypi:
+  #   name: publish python distribution to PyPI
+  #   needs: [merge-pypackage]
+  #   runs-on: ubuntu-latest
+  #   environment:
+  #     name: pypi
+  #     url: https://pypi.org/p/streamtasks
+  #   permissions:
+  #     id-token: write
+  #   steps:
+  #   - name: Download Python package artifact
+  #     uses: actions/download-artifact@v4
+  #     with:
+  #       name: pypackage
+  #       path: dist/
+  #   - name: Publish distribution 📦 to PyPI
+  #     uses: pypa/gh-action-pypi-publish@release/v1
