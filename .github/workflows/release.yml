@@ -91,7 +91,7 @@ jobs:
           pattern: 'cibw-wheels-*'
           path: wheelhouse
       - name: move wheels
-        run: find wheelhouse/ -type f -name "*.whl" -exec cp {} ./dist \;
+        run: find wheelhouse/ -type f -name "streamtasks*.whl" -exec cp {} ./dist \;
       - name: Upload Python package artifact
         uses: actions/upload-artifact@v4
         with:
@@ -126,20 +126,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   
-  # publish-to-pypi:
-  #   name: publish python distribution to PyPI
-  #   needs: [build-sdist]
-  #   runs-on: ubuntu-latest
-  #   environment:
-  #     name: pypi
-  #     url: https://pypi.org/p/streamtasks
-  #   permissions:
-  #     id-token: write
-  #   steps:
-  #   - name: Download Python package artifact
-  #     uses: actions/download-artifact@v4
-  #     with:
-  #       name: pypackage
-  #       path: dist/
-  #   - name: Publish distribution 📦 to PyPI
-  #     uses: pypa/gh-action-pypi-publish@release/v1
+  publish-to-pypi:
+    name: publish python distribution to PyPI
+    needs: [merge-pypackage]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/streamtasks
+    permissions:
+      id-token: write
+    steps:
+    - name: Download Python package artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: pypackage
+        path: dist/
+    - name: Publish distribution 📦 to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
