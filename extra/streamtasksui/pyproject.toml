@@ -1,7 +1,7 @@
 # This project was generated with 0.3.19 using template: https://github.com/beeware/briefcase-template@v0.3.19
 [tool.briefcase]
-project_name = "streamtasks-ui"
-bundle = "com.streamtasks-ui"
+project_name = "streamtasksui"
+bundle = "com.streamtasksui"
 version = "0.0.1"
 url = "https://github.com/leopf/streamtasks"
 license.file = "LICENSE"
@@ -16,7 +16,7 @@ sources = [
     "src/streamtasksui",
 ]
 requires = [
-    "streamtasks[media,inference]"
+    "streamtasks"
 ]
 
 [tool.briefcase.app.streamtasksui.macOS]
