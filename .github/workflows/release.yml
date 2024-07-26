@@ -126,7 +126,7 @@ jobs:
   
   publish-to-pypi:
     name: publish python distribution to PyPI
-    needs: [build-sdist]
+    needs: [merge-pypackage]
     runs-on: ubuntu-latest
     environment:
       name: pypi
