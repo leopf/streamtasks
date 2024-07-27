@@ -3,10 +3,12 @@ import asyncio
 import functools
 import logging
 import os
+import platform
 import struct
 import tempfile
 from typing import Awaitable, Callable
 from streamtasks.env import NODE_NAME
+from streamtasks.error import PlatformNotSupportedError
 from streamtasks.net import ConnectionClosedError, Link
 from streamtasks.net.serialization import deserialize_message, serialize_message
 from streamtasks.net.messages import Message
@@ -181,6 +183,7 @@ def get_node_socket_path(node_name: str | None):
 
 class NodeServer(UnixSocketServer):
   def __init__(self, link: Link, node_name: str | None = None):
+    if platform.system() == "Windows": raise PlatformNotSupportedError("Windows not supported!")
     super().__init__(link, get_node_socket_path(node_name), DEFAULT_COSTS.NODE)
 
 async def connect_tcp_socket(host: str, port: int, cost: int = DEFAULT_COSTS.TCP, handshake_data: dict = {}):

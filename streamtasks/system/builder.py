@@ -1,9 +1,11 @@
 import asyncio
 import functools
+import logging
 from streamtasks.asgi import HTTPServerOverASGI
 from streamtasks.client import Client
 from streamtasks.client.discovery import wait_for_topic_signal
 from streamtasks.connection import AutoReconnector, NodeServer, connect, get_server
+from streamtasks.error import PlatformNotSupportedError
 from streamtasks.net import Switch
 from streamtasks.services.discovery import DiscoveryWorker
 from streamtasks.services.protocols import AddressNames, WorkerTopics
@@ -53,7 +55,10 @@ class SystemBuilder:
 
   async def start_node_server(self):
     await self._wait_discovery()
-    self._add_task(NodeServer(await self.switch.add_local_connection()).run())
+    try:
+      self._add_task(NodeServer(await self.switch.add_local_connection()).run())
+    except PlatformNotSupportedError as e:
+      logging.warning("Failed to start node server. Platform not supported: ", e)
 
   async def start_user_endpoint(self, port: int):
     await self._wait_discovery()
