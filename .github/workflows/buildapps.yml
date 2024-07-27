@@ -48,8 +48,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: 'apps-*'
-          path: dist
-
+          path: apps
+      - name: flatten data
+        run: 
+          mkdir dist
+          find apps -type f -exec mv -i '{}' dist/ ';'
       - name: Extract version from pyproject.toml
         id: extract_version
         run: echo "version=$(grep -oP '(?<=version = ")[^"]+' pyproject.toml | head -1)" >> $GITHUB_OUTPUT
