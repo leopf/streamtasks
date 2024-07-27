@@ -9,7 +9,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -21,9 +21,14 @@ jobs:
         run: |
           pip install -r requirements.txt
           python scripts/makeicons.py
-      - name: Build App
+      - name: Build App (linux)
         working-directory: ./extra/streamtasksui
-        run: python -m briefcase package
+        if: matrix.os == 'ubuntu-latest'
+        run: python -m briefcase package linux system
+      - name: Build App (windows)
+        working-directory: ./extra/streamtasksui
+        if: matrix.os == 'windows-latest'
+        run: python -m briefcase package windows system
       - uses: actions/upload-artifact@v4
         with:
           name: apps-${{ matrix.os }}-${{ strategy.job-index }}
