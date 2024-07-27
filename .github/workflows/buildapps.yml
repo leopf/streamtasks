@@ -51,7 +51,7 @@ jobs:
 
       - name: Extract version from pyproject.toml
         id: extract_version
-        run: echo "version=$(find dist/streamtasks*.tar.gz | sed -E 's/.*streamtasks-([0-9\.]+)\.tar\.gz/\1/')" >> $GITHUB_OUTPUT
+        run: grep -oP '(?<=version = ")[^"]+' pyproject.toml | head -1 >> $GITHUB_OUTPUT
 
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
