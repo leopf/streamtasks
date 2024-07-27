@@ -13,14 +13,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
+        with:
+          python-version: 3.11 
       - name: Install libgirepository1.0 (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt install -y libgirepository1.0-dev
-      - name: Prepare and install
+      - name: install python dependencies
         working-directory: ./extra/streamtasksui
-        run: |
-          pip install -r requirements.txt
-          python scripts/makeicons.py
+        run: pip install -r requirements.txt
+      - name: make icons
+        working-directory: ./extra/streamtasksui
+        run: python scripts/makeicons.py
       - name: Build App (linux)
         working-directory: ./extra/streamtasksui
         if: matrix.os == 'ubuntu-latest'
