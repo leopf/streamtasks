@@ -2,6 +2,7 @@ import toga.style
 from streamtasks.system.builder import SystemBuilder
 import asyncio
 import toga
+import webbrowser
 
 PORT = 5350
 
@@ -54,10 +55,11 @@ SPLASHSCREEN = """
 </body>
 </html>
 """
+def open_docs(*args): webbrowser.open("https://leopf.github.io/streamtasks/")
 
 class streamtasksui(toga.App):
   def startup(self):
-    self.ready_event = asyncio.Event()
+    self.commands.add(toga.Command(open_docs, "Documentation", group=toga.Group.HELP))
 
     main_box = toga.Box()
     self.main_window = toga.MainWindow(title=self.formal_name)
