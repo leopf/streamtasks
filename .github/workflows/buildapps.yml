@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-python@v5
       - name: Install libgirepository1.0 (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
-        run: apt install -y libgirepository1.0-dev
+        run: sudo apt install -y libgirepository1.0-dev
       - name: Prepare and install
         working-directory: ./extra/streamtasksui
         run: |
