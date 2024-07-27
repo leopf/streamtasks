@@ -10,7 +10,7 @@ from streamtasks.client import Client
 from streamtasks.system.tasks.media.pa_utils import SAMPLE_FORMAT_2_PA_TYPE
 from streamtasks.system.tasks.media.utils import MediaEditorFields
 from streamtasks.utils import get_timestamp_ms
-import pyaudio
+import sounddevice
 
 class AudioInputConfigBase(BaseModel):
   sample_format: IOTypes.SampleFormat = "s16"
@@ -36,17 +36,25 @@ class AudioInputTask(SyncTask):
       yield
 
   def run_sync(self):
-    audio = pyaudio.PyAudio()
-    stream = audio.open(self.config.rate, self.config.channels, SAMPLE_FORMAT_2_PA_TYPE[self.config.sample_format], input=True,
-                        frames_per_buffer=self.config.buffer_size, input_device_index=None if self.config.input_id == -1 else self.config.input_id)
+    device_id = None if self.config.input_id == -1 else self.config.input_id
+    stream = sounddevice.RawInputStream(
+      samplerate=self.config.rate,
+      blocksize=self.config.buffer_size,
+      device=device_id,
+      channels=self.config.channels,
+      dtype=SAMPLE_FORMAT_2_PA_TYPE[self.config.sample_format])
+    stream.start()
     min_next_timestamp = 0
 
     while not self.stop_event.is_set():
-      data = stream.read(self.config.buffer_size)
+      data, _ = stream.read(self.config.buffer_size)
+      data = bytes(data)
       timestamp = max(get_timestamp_ms(), min_next_timestamp)
       frame_duration = len(data) * 1000 // self.bytes_per_second
       min_next_timestamp = timestamp + frame_duration
       self.send_data(self.out_topic, RawData(TimestampChuckMessage(timestamp=timestamp, data=data).model_dump()))
+
+    stream.close()
 
 class AudioInputTaskHost(TaskHost):
   @property

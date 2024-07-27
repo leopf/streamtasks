@@ -8,7 +8,7 @@ from streamtasks.system.task import SyncTask, TaskHost
 from streamtasks.client import Client
 from streamtasks.system.tasks.media.pa_utils import SAMPLE_FORMAT_2_PA_TYPE
 from streamtasks.system.tasks.media.utils import MediaEditorFields
-import pyaudio
+import sounddevice
 
 from streamtasks.utils import context_task
 
@@ -43,9 +43,14 @@ class AudioOutputTask(SyncTask):
       except ValidationError: pass
 
   def run_sync(self):
-    audio = pyaudio.PyAudio()
-    stream = audio.open(self.config.rate, self.config.channels, SAMPLE_FORMAT_2_PA_TYPE[self.config.sample_format], output=True,
-                        frames_per_buffer=self.config.buffer_size, output_device_index=None if self.config.output_id == -1 else self.config.output_id)
+    device_id = None if self.config.output_id == -1 else self.config.output_id
+    stream = sounddevice.RawOutputStream(
+      samplerate=self.config.rate,
+      blocksize=self.config.buffer_size,
+      device=device_id,
+      channels=self.config.channels,
+      dtype=SAMPLE_FORMAT_2_PA_TYPE[self.config.sample_format])
+    stream.start()
     try:
       while not self.stop_event.is_set():
         try:
