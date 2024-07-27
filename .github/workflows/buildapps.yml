@@ -50,7 +50,7 @@ jobs:
           pattern: 'apps-*'
           path: apps
       - name: flatten data
-        run: 
+        run: |
           mkdir dist
           find apps -type f -exec mv -i '{}' dist/ ';'
       - name: Extract version from pyproject.toml
