@@ -17,7 +17,7 @@ sources = [
     "src/streamtasksui",
 ]
 requires = [
-    "streamtasks"
+    "streamtasks[media]"
 ]
 
 [tool.briefcase.app.streamtasksui.macOS]
