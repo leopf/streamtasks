@@ -3,6 +3,8 @@ from fractions import Fraction
 from typing import Optional
 import av
 
+from streamtasks.message.types import TimestampMessage
+
 @dataclass
 class MediaPacket:
   data: bytes
@@ -39,3 +41,6 @@ class MediaPacket:
       rel_dts = int((packet.pts - packet.dts) * time_base_factor)
       pts = int(packet.pts * time_base_factor)
     return MediaPacket(bytes(packet), pts, packet.is_keyframe, rel_dts)
+
+class MediaMessage(TimestampMessage):
+  packet: MediaPacket

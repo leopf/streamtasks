@@ -4,7 +4,8 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.media.video import VideoCodecInfo, VideoFrame, video_buffer_to_ndarray
 from streamtasks.net.serialization import RawData
-from streamtasks.message.types import MediaMessage, TimestampChuckMessage
+from streamtasks.media.packet import MediaMessage
+from streamtasks.message.types import TimestampChuckMessage
 from streamtasks.system.tasks.media.utils import MediaEditorFields
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
 from streamtasks.system.task import SyncTask, TaskHost

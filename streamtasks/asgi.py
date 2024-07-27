@@ -10,7 +10,6 @@ from dataclasses import dataclass
 import asyncio
 import logging
 from typing import TYPE_CHECKING, Any, Awaitable, Optional, Callable, ClassVar
-
 from streamtasks.services.protocols import WorkerPorts
 from streamtasks.worker import Worker
 

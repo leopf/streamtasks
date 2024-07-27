@@ -3,7 +3,6 @@ import pathlib
 import platform
 import sys
 
-
 def NODE_NAME(): return os.getenv('NODE_NAME', platform.node())
 def DEBUG_MEDIA(): return int(os.getenv("DEBUG_MEDIA", "0"))
 def DEBUG_MIXER(): return int(os.getenv("DEBUG_MIXER", "0"))

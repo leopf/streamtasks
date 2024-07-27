@@ -4,7 +4,8 @@ from streamtasks.debugging import ddebug_value
 from streamtasks.env import DEBUG_MEDIA
 from streamtasks.media.audio import AudioCodecInfo, AudioFrame
 from streamtasks.net.serialization import RawData
-from streamtasks.message.types import MediaMessage, TimestampChuckMessage
+from streamtasks.message.types import TimestampChuckMessage
+from streamtasks.media.packet import MediaMessage
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client

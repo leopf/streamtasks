@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-from streamtasks.media.packet import MediaPacket
 
 class TimestampMessage(BaseModel):
   timestamp: int
@@ -20,6 +19,3 @@ class NumberMessage(TimestampMessage):
 class TextMessage(TimestampMessage):
   timestamp: int
   value: str
-
-class MediaMessage(TimestampMessage):
-  packet: MediaPacket

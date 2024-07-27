@@ -9,7 +9,6 @@ from types import CoroutineType
 from typing import Any, Awaitable, Generic, Iterable, Optional, TypeVar
 import asyncio
 import time
-
 from streamtasks.env import NODE_NAME
 
 class AsyncTaskManager:
