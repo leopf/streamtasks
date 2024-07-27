@@ -11,6 +11,7 @@ author_email = "l.pfob@3-klicks.de"
 [tool.briefcase.app.streamtasksui]
 formal_name = "Streamtasks UI"
 description = "A python task orchestrator to simplify real-time, static data pipelines."
+icon="src/streamtasksui/resources/icon"
 long_description = """"""
 sources = [
     "src/streamtasksui",
