@@ -1,0 +1,57 @@
+name: Build Apps
+
+on: workflow_dispatch
+
+jobs:
+  build-app:
+    name: Build app on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+      - name: Prepare and install
+        working-directory: ./extra/streamtasksui
+        run: |
+          pip install -r requirements.txt
+          python scripts/makeicons.py
+      - name: Build App
+        working-directory: ./extra/streamtasksui
+        run: python -m briefcase package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apps-${{ matrix.os }}-${{ strategy.job-index }}
+          path: ./extra/streamtasksui/dist/*
+
+  publish-release:
+    name: Publish apps
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    needs: [build-app]
+    timeout-minutes: 20
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Download Python package artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: 'apps-*'
+          path: dist
+
+      - name: Extract version from pyproject.toml
+        id: extract_version
+        run: echo "version=$(find dist/streamtasks*.tar.gz | sed -E 's/.*streamtasks-([0-9\.]+)\.tar\.gz/\1/')" >> $GITHUB_OUTPUT
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          tag_name: ${{ steps.extract_version.outputs.version }}
+          name: Release ${{ steps.extract_version.outputs.version }}
+          body: Release ${{ steps.extract_version.outputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  
