@@ -9,7 +9,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       matrix:
-        os: [windows-latest]
+        os: [windows-latest, ubuntu-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -17,7 +17,7 @@ jobs:
           python-version: 3.11 
       - name: Install libgirepository1.0 (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt install -y libgirepository1.0-dev
+        run: sudo apt install -y libgirepository1.0-dev flatpak flatpak-builder
       - name: install python dependencies
         working-directory: ./extra/streamtasksui
         run: pip install -r requirements.txt
@@ -27,7 +27,7 @@ jobs:
       - name: Build App (linux)
         working-directory: ./extra/streamtasksui
         if: matrix.os == 'ubuntu-latest'
-        run: python -m briefcase package linux system
+        run: python -m briefcase package linux flatpak
       - name: Build App (windows)
         working-directory: ./extra/streamtasksui
         if: matrix.os == 'windows-latest'
