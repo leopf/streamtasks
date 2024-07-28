@@ -67,7 +67,7 @@ class streamtasksui(toga.App):
     self.main_window.show()
 
     self.webview = toga.WebView()
-    self.webview.style = toga.style.Pack(flex=1) #toga.style.Pack(width=self.main_window.size.width, height=self.main_window.size.height)
+    self.webview.style = toga.style.Pack(flex=1)
     self.webview.set_content(f"http://127.0.0.1:{PORT}/", SPLASHSCREEN)
     main_box.add(self.webview)
 
