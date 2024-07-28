@@ -77,41 +77,19 @@ jobs:
           name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
           path: ./wheelhouse/*.whl
 
-  merge-pypackage:
-    name: Merge package data
-    needs: [build-sdist, build-wheels]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download sdist artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: py-sdist
-          path: dist
-      - name: Download wheelhouse artifact
-        uses: actions/download-artifact@v4
-        with:
-          pattern: 'cibw-wheels-*'
-          path: wheelhouse
-      - name: move wheels
-        run: find wheelhouse/ -type f -name "streamtasks*.whl" -exec cp {} ./dist \;
-      - name: Upload Python package artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: pypackage
-          path: dist
-
   publish-release:
     permissions:
       contents: write
     runs-on: ubuntu-latest
-    needs: [merge-pypackage]
+    needs: [build-sdist]
     timeout-minutes: 20
     if: github.ref == 'refs/heads/main'
     steps:
-      - name: Download Python package artifact
+      - uses: actions/checkout@v4
+      - name: Download sdist artifact
         uses: actions/download-artifact@v4
         with:
-          name: pypackage
+          name: py-sdist
           path: dist
 
       - name: Extract version from pyproject.toml
@@ -130,7 +108,7 @@ jobs:
   
   publish-to-pypi:
     name: publish python distribution to PyPI
-    needs: [merge-pypackage]
+    needs: [build-sdist, build-wheels]
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -138,10 +116,17 @@ jobs:
     permissions:
       id-token: write
     steps:
-    - name: Download Python package artifact
+    - name: Download sdist artifact
       uses: actions/download-artifact@v4
       with:
-        name: pypackage
-        path: dist/
+        name: py-sdist
+        path: dist
+    - name: Download wheelhouse artifact
+      uses: actions/download-artifact@v4
+      with:
+        pattern: 'cibw-wheels-*'
+        path: wheelhouse
+    - name: move wheels
+      run: find wheelhouse/ -type f -name "streamtasks*.whl" -exec cp {} ./dist \;
     - name: Publish distribution 📦 to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
