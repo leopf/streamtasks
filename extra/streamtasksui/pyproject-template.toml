@@ -13,6 +13,7 @@ formal_name = "Streamtasks UI"
 description = "A python task orchestrator to simplify real-time, static data pipelines."
 long_description = "A python task orchestrator to simplify real-time, static data pipelines."
 icon="src/streamtasksui/resources/icon"
+installer_icon="src/streamtasksui/resources/icon"
 sources = [
     "src/streamtasksui",
 ]

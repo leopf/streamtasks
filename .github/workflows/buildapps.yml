@@ -23,7 +23,7 @@ jobs:
         run: pip install -r requirements.txt
       - name: make icons
         working-directory: ./extra/streamtasksui
-        run: python scripts/makeicons.py
+        run: python scripts/prepare.py
       - name: Build App (linux)
         working-directory: ./extra/streamtasksui
         if: matrix.os == 'ubuntu-latest'
