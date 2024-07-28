@@ -6,7 +6,6 @@ import logging
 import mimetypes
 import os
 import re
-import shelve
 from typing import Any, Literal
 from typing_extensions import TypedDict
 from uuid import UUID, uuid4
@@ -22,6 +21,7 @@ from streamtasks.env import get_data_sub_dir
 from streamtasks.net import EndpointOrAddress, Link
 from streamtasks.net.serialization import RawData
 from streamtasks.net.utils import str_to_endpoint
+from streamtasks.pydanticdb import PydanticDB
 from streamtasks.services.protocols import AddressNames
 from streamtasks.system.task import TASK_CONSTANTS, MetadataDict, MetadataFields, ModelWithId, TaskHostRegistration, TaskHostRegistrationList, TaskInstance, TaskManagerClient, TaskNotFoundError
 from streamtasks.utils import get_node_name_id, make_json_serializable, wait_with_dependencies
@@ -135,52 +135,62 @@ class TaskWebBackendStore:
     self.running_deployments: dict[UUID4, RunningDeployment] = {}
 
     data_dir = get_data_sub_dir("user-data")
-    self.deployments: shelve.Shelf = shelve.open(os.path.join(data_dir, "deployments.db"))
-    self.tasks: shelve.Shelf = shelve.open(os.path.join(data_dir, "tasks.db"))
-    self.dashboards: shelve.Shelf = shelve.open(os.path.join(data_dir, "dashboards.db"))
-
-  def __del__(self):
-    self.deployments.close()
-    self.dashboards.close()
-    self.tasks.close()
+    self.deployments = PydanticDB(DeploymentBase, os.path.join(data_dir, "deployments.json"))
+    self.tasks = PydanticDB(StoredTask, os.path.join(data_dir, "tasks.json"))
+    self.dashboards = PydanticDB(DeploymentDashboard, os.path.join(data_dir, "dashboards.json"))
 
   def set_running_deployment(self, deployment: RunningDeployment): self.running_deployments[deployment.id] = deployment
   def get_running_deployment(self, deployment_id: UUID4): return self.running_deployments[deployment_id]
   def delete_running_deployment(self, deployment_id: UUID4): return self.running_deployments.pop(deployment_id)
 
-  async def all_dashboards(self) -> list[DeploymentDashboard]: return [DeploymentDashboard.model_validate_json(v) for v in self.dashboards.values()]
-  async def all_dashboards_in_deployment(self, deployment_id: UUID4) -> list[DeploymentDashboard]: return [ db for db in await self.all_dashboards() if db.deployment_id == deployment_id ]
-  async def get_dashboard(self, id: UUID4) -> DeploymentDashboard:  return DeploymentDashboard.model_validate_json(self.dashboards[str(id)])
-  async def create_or_update_dashboard(self, db: DeploymentDashboard) -> DeploymentDashboard: self.dashboards[str(db.id)] = db.model_dump_json()
-  async def delete_dashboard(self, id: UUID4): return self.dashboards.pop(str(id), None)
+  async def all_dashboards(self) -> list[DeploymentDashboard]: return self.dashboards.entries
+  async def all_dashboards_in_deployment(self, deployment_id: UUID4) -> list[DeploymentDashboard]: return [ db for db in self.dashboards.entries if db.deployment_id == deployment_id ]
+  async def get_dashboard(self, id: UUID4) -> DeploymentDashboard:
+    try: return next(d for d in self.dashboards.entries if d.id == id)
+    except StopIteration: raise ValueError("Invalid id!")
+  async def create_or_update_dashboard(self, db: DeploymentDashboard) -> DeploymentDashboard:
+    self.dashboards.update([d for d in self.dashboards.entries if d.id != db.id] + [db])
+    self.dashboards.save()
+  async def delete_dashboard(self, id: UUID4):
+    self.dashboards.update([d for d in self.dashboards.entries if d.id != id])
+    self.dashboards.save()
 
-  async def all_deployments(self) -> list[DeploymentBase]: return [ self.deployment_apply_running(FullDeployment.model_validate_json(d)) for d in self.deployments.values() ]
-  async def get_deployment(self, id: UUID4) -> DeploymentBase: return self.deployment_apply_running(FullDeployment.model_validate_json(self.deployments[str(id)]))
-  async def create_deployment(self, deployment: DeploymentBase) -> DeploymentBase:
-    if str(deployment.id) in self.deployments: raise ValueError("Deployment already exists!")
-    self.deployments[str(deployment.id)] = deployment.model_dump_json()
-  async def update_deployment(self, deployment: DeploymentBase) -> DeploymentBase:
+  async def all_deployments(self) -> list[FullDeployment]: return [ self.deployment_apply_running(FullDeployment.model_validate(d.model_dump())) for d in self.deployments.entries ]
+  async def get_deployment(self, id: UUID4) -> FullDeployment:
+    try: return self.deployment_apply_running(FullDeployment.model_validate(next(d for d in self.deployments.entries if d.id == id).model_dump()))
+    except StopIteration: raise ValueError("Invalid id!")
+  async def create_deployment(self, deployment: DeploymentBase):
+    if next((True for d in self.deployments.entries if d.id == deployment.id), None) is not None: raise ValueError("Deployment already exists!")
+    self.deployments.update(self.deployments.entries + [deployment])
+    self.deployments.save()
+  async def update_deployment(self, deployment: DeploymentBase):
     if deployment.id in self.running_deployments: raise ValueError("Deployment is running!")
-    if str(deployment.id) not in self.deployments: raise ValueError("Deployment does not exists!")
-    self.deployments[str(deployment.id)] = deployment.model_dump_json()
+    if next((True for d in self.deployments.entries if d.id == deployment.id), None) is None: raise ValueError("Deployment does not exists!")
+    self.deployments.update([d for d in self.deployments.entries if d.id != deployment.id] + [deployment])
+    self.deployments.save()
   async def delete_deployment(self, id: UUID4):
     if id in self.running_deployments: raise ValueError("Deployment is running!")
-    res = self.deployments.pop(str(id), None)
-    if res is None: raise ValueError("Deployment does not exist!")
+    self.deployments.update([d for d in self.deployments.entries if d.id != id])
+    self.deployments.save()
 
-  async def all_tasks(self) -> list[FullTask]: return [self.task_apply_instance(FullTask.model_validate_json(v)) for v in self.tasks.values()]
+  async def all_tasks(self) -> list[FullTask]: return [self.task_apply_instance(FullTask.model_validate(v.model_dump())) for v in self.tasks.entries]
   async def all_tasks_in_deployment(self, deployment_id: UUID4) -> list[FullTask]: return [ task for task in await self.all_tasks() if task.deployment_id == deployment_id ]
-  async def get_task(self, id: UUID4) -> FullTask:  return self.task_apply_instance(FullTask.model_validate_json(self.tasks[str(id)]))
+  async def get_task(self, id: UUID4) -> FullTask:
+    try: return self.task_apply_instance(FullTask.model_validate(next(t for t in self.tasks.entries if t.id == id).model_dump()))
+    except StopIteration: raise ValueError("Invalid id!")
   async def create_or_update_task(self, task: StoredTask) -> StoredTask:
     if task.deployment_id in self.running_deployments: raise ValueError("Deployment is running!")
-    if str(task.id) in self.tasks:
+    try:
       existing_task = await self.get_task(task.id)
       if existing_task.deployment_id in self.running_deployments: raise ValueError("Deployment is running!")
-    self.tasks[str(task.id)] = task.model_dump_json()
+      self.tasks.update([t for t in self.tasks.entries if t.id != task.id] + [task])
+    except: self.tasks.update(self.tasks.entries + [task])
+    self.tasks.save()
   async def delete_task(self, id: UUID4):
     task = await self.get_task(id)
     if task.deployment_id in self.running_deployments: raise ValueError("Deployment is running!")
-    self.tasks.pop(str(id), None)
+    self.tasks.update([t for t in self.tasks.entries if t.id != id])
+    self.tasks.save()
 
   def deployment_apply_running(self, deployment: FullDeployment):
     if (running_deployment := self.running_deployments.get(deployment.id, None)) is not None: deployment.status = "running" if running_deployment.started else "scheduled"
