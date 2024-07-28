@@ -13,8 +13,10 @@ from streamtasks.utils import strip_nones_from_dict
 
 # TODO: memory management
 
-libavutil = ctypes.CDLL(ctypes.util.find_library("avutil"))
-libavcodec = ctypes.CDLL(ctypes.util.find_library("avcodec"))
+try:
+  libavutil = ctypes.CDLL(ctypes.util.find_library("avutil"))
+  libavcodec = ctypes.CDLL(ctypes.util.find_library("avcodec"))
+except: raise ImportError("Failed to import av libs!")
 
 avcodec_get_name = libavcodec.avcodec_get_name
 avcodec_get_name.argtypes = [ctypes.c_int]

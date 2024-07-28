@@ -49,7 +49,7 @@ class SignalServer(Receiver[tuple[str, Any]]):
         if descriptor in self._descriptor_mapping:
           try: await self._descriptor_mapping[descriptor](data)
           except asyncio.CancelledError: raise
-          except BaseException as e: logging.debug(e, data, descriptor)
+          except BaseException as e: logging.debug(e, descriptor)
 
 
 class SignalRequestReceiver(Receiver[Any]):

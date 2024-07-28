@@ -58,7 +58,7 @@ class SystemBuilder:
     try:
       self._add_task(NodeServer(await self.switch.add_local_connection()).run())
     except PlatformNotSupportedError as e:
-      logging.warning("Failed to start node server. Platform not supported: ", e)
+      logging.warning("Failed to start node server. Platform not supported: ", str(e))
 
   async def start_user_endpoint(self, port: int):
     await self._wait_discovery()

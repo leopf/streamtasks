@@ -112,7 +112,7 @@ class FetchServer(Receiver[tuple[str, FetchRequest]]):
           except ValidationError as e: await fr.respond_error(new_fetch_body_bad_request(str(e)))
           except BaseException as e:
             if not fr.response_sent: await fr.respond_error(new_fetch_body_general_error(str(e)))
-            logging.debug(e, fr, descriptor)
+            logging.debug(e, descriptor)
 
 class FetchRequestReceiver(Receiver[FetchRequest]):
   def __init__(self, client: 'Client', descriptor: str, address: Optional[int] = None, port: int = WorkerPorts.FETCH):
