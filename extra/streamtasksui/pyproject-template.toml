@@ -33,102 +33,27 @@ requires = [
     "toga-gtk~=0.4.5",
 ]
 
-[tool.briefcase.app.streamtasksui.linux.system.debian]
-system_requires = [
-    "libcairo2-dev",
-    "libgirepository1.0-dev",
-]
-
-system_runtime_requires = [
-    "gir1.2-gtk-3.0",
-    "libgirepository-1.0-1",
-    "libcanberra-gtk3-module",
-]
-
-[tool.briefcase.app.streamtasksui.linux.system.rhel]
-system_requires = [
-    "cairo-gobject-devel",
-    "gobject-introspection-devel",
-]
-
-system_runtime_requires = [
-    "gobject-introspection",
-    "gtk3",
-    "libcanberra-gtk3",
-]
-
-[tool.briefcase.app.streamtasksui.linux.system.suse]
-system_requires = [
-    "cairo-devel",
-    "gobject-introspection-devel",
-]
-
-system_runtime_requires = [
-    "gtk3",
-    "gobject-introspection", "typelib(Gtk) = 3.0",
-    "libcanberra-gtk3-module",
-]
-
-[tool.briefcase.app.streamtasksui.linux.system.arch]
-system_requires = [
-    "cairo",
-    "gobject-introspection",
-    "gtk3",
-    "libcanberra",
-]
-
-system_runtime_requires = [
-    "gtk3",
-    "gobject-introspection-runtime",
-    "libcanberra",
-]
-
-[tool.briefcase.app.streamtasksui.linux.appimage]
-manylinux = "manylinux_2_28"
-
-system_requires = [
-    "cairo-gobject-devel",
-    "gobject-introspection-devel",
-    "gtk3-devel",
-    "libcanberra-gtk3",
-    "PackageKit-gtk3-module",
-    "gvfs-client",
-]
-
-linuxdeploy_plugins = [
-    "DEPLOY_GTK_VERSION=3 gtk",
-]
-
 [tool.briefcase.app.streamtasksui.linux.flatpak]
 flatpak_runtime = "org.gnome.Platform"
 flatpak_runtime_version = "45"
 flatpak_sdk = "org.gnome.Sdk"
+modules_extra_content = """
+  - name: portaudio
+    buildsystem: simple
+    build-commands:
+      - ./configure --prefix=$(pwd)/app && make install
+      - mkdir -p /app/{lib,include}/portaudio
+      - mv $(pwd)/app/lib/* /app/lib/portaudio
+      - mv $(pwd)/app/include/* /app/include/portaudio
+      - ln -s /app/lib/portaudio/libportaudio.so /app/lib/libportaudio.so
+    sources:
+      - type: git
+        url: https://github.com/PortAudio/portaudio.git
+"""
+
 
 [tool.briefcase.app.streamtasksui.windows]
 requires = [
     "toga-winforms~=0.4.5",
 ]
-
-[tool.briefcase.app.streamtasksui.iOS]
-requires = [
-    "toga-iOS~=0.4.5",
-    "std-nslog~=1.0.0",
-]
-
-[tool.briefcase.app.streamtasksui.android]
-requires = [
-    "toga-android~=0.4.5",
-]
-
-base_theme = "Theme.MaterialComponents.Light.DarkActionBar"
-
-build_gradle_dependencies = [
-    "com.google.android.material:material:1.11.0",
-]
-
-[tool.briefcase.app.streamtasksui.web]
-requires = [
-    "toga-web~=0.4.5",
-]
-style_framework = "Shoelace v2.3"
 
