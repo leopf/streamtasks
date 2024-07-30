@@ -25,6 +25,24 @@ Streamtasks is built on an internal network that distributes messages. The netwo
 ## Getting started
 
 ### Installation
+
+#### Simple
+
+##### Windows (with an MSI)
+
+Go to the [latest Release on Github](https://github.com/leopf/streamtasks/releases/latest) and Download the `.msi` file.
+Once downloaded, run it.
+
+Or watch the [demo](https://www.youtube.com/watch?v=MD4xsD691AE).
+
+##### Linux (with flatpak)
+
+Go to the [latest Release on Github](https://github.com/leopf/streamtasks/releases/latest) and Download the `.flatpak` file. If you have a GUI to manage flatpak packages installed, you can just double click the file. Otherwise run `flatpak install <the downloaded filename>`.
+
+Or watch the [demo](https://www.youtube.com/watch?v=7zoyVGFaogE).
+
+#### With pip
+
 ```bash
 pip install streamtasks[media,inference] # see pyproject.toml for more optional packages
 ```
