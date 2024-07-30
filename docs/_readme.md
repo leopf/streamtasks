@@ -1,11 +1,11 @@
 ## Demos
-- [llama.cpp chatbot](https://x.com/leopfff/status/1805094491100971056)
-- [playing sound effects](https://x.com/leopfff/status/1805128606839931044)
-- [llama.cpp + tts](https://x.com/leopfff/status/1805138123187224636)
-- [video layout and video viewer](https://x.com/leopfff/status/1805205696624906694)
-- [audio switching](https://x.com/leopfff/status/1805502946357940703)
-- [audio mixing and scaling](https://x.com/leopfff/status/1805508727832780978)
-- [publishing a livestream](https://x.com/leopfff/status/1805941200802758943)
+- [llama.cpp chatbot](https://www.youtube.com/watch?v=SK1uyyu2noU)
+- [playing sound effects](https://www.youtube.com/watch?v=S6cEn3XuzyM)
+- [llama.cpp + tts](https://www.youtube.com/watch?v=j6mSyNTFCM4)
+- [video layout and video viewer](https://www.youtube.com/watch?v=-XQbR8R6V-o)
+- [audio switching](https://www.youtube.com/watch?v=S7Nr7kXrsT8)
+- [audio mixing and scaling](https://www.youtube.com/watch?v=C5yIe2No228)
+- [publishing a livestream](https://www.youtube.com/watch?v=ZkH5p3I3e1M)
 
 ## Overview
 

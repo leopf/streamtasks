@@ -12,4 +12,4 @@ You can enter a RTMP/RTSP and other urls as the source or destination. Make sure
 For further information look at the [ffmpeg streaming guide](https://trac.ffmpeg.org/wiki/StreamingGuide).
 
 ## Demos
-- [publishing a livestream](https://x.com/leopfff/status/1805941200802758943)
+- [publishing a livestream](https://www.youtube.com/watch?v=ZkH5p3I3e1M)
