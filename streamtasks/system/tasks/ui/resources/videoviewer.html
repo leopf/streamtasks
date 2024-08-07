@@ -40,10 +40,16 @@
             player.load();
             return player.play();
         }
+        let reloading = false;
         function restartPlayer() {
-            console.log("RESTARTING PLAYER")
-            player.destroy();
-            createPlayer().catch(restartPlayer);
+            if (reloading) return;
+            reloading = true;
+            setTimeout(() => {
+                console.log("RESTARTING PLAYER")
+                player.destroy();
+                createPlayer().catch(restartPlayer);
+                reloading = false;
+            }, 100);
         }
         createPlayer().catch(restartPlayer);
         videoElement.addEventListener("ended", restartPlayer);
