@@ -402,7 +402,8 @@ class TaskWebBackend(Worker):
           while ctx.connected:
             _, data = await wait_with_dependencies(recv.get(), [receive_disconnect_task])
             try:
-              if isinstance(data, RawData): await ctx.send_message(f'{{ "data": {json.dumps(make_json_serializable(data.data), allow_nan=False)} }}')
+              if isinstance(data, RawData): await ctx.send_message(json.dumps({ "type": "data", "data": make_json_serializable(data.data) }, allow_nan=False))
+              else: await ctx.send_message(json.dumps({ "type": "control", "data": { "paused": data.paused } }))
             except BaseException as e: logging.warning("Failed to send message ", e)
       except asyncio.CancelledError: pass
       finally:

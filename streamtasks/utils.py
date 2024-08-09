@@ -264,7 +264,9 @@ class AsyncConsumer(Generic[T1]):
 
   def test_message(self, message: T1) -> bool: return True
 
-async def wait_with_dependencies(main: Awaitable, deps: Iterable[asyncio.Future]):
+RT = TypeVar('RT')
+
+async def wait_with_dependencies(main: Awaitable[RT], deps: Iterable[asyncio.Future]):
   main = asyncio.Task(main) if asyncio.iscoroutine(main) else main
   await asyncio.wait([main, *deps], return_when="FIRST_COMPLETED")
   if not main.done(): main.cancel()
