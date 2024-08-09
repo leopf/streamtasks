@@ -117,6 +117,10 @@ class EditorFields:
     return strip_nones_from_dict({ "type": "select", "key": key, "label": label or key_to_label(key), "items": [ { "value": value, "label": label } for value, label in items ] })
 
   @staticmethod
+  def dynamic_select(key: str, path: str, label: str | None = None):
+    return strip_nones_from_dict({ "type": "dynamicselect", "key": key, "label": label or key_to_label(key), "path": path })
+
+  @staticmethod
   def multiselect(items: list[dict[str, str | int | float]]): return { "type": "multiselect", "items": items }
 
   @staticmethod

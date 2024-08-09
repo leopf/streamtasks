@@ -343,6 +343,8 @@ class ASGINext:
 
 class ASGIHandlerStack:
   def __init__(self) -> None: self._handlers: list[ASGIHandler] = []
+  @property
+  def handler_count(self): return len(self._handlers)
   def add_handler(self, handler: ASGIHandler): self._handlers.append(handler)
   def handler(self, handler: ASGIHandler):
     self.add_handler(handler)

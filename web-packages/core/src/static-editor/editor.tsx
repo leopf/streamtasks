@@ -1,7 +1,9 @@
 import { Box, Checkbox, FormControl, FormControlLabel, Grid, IconButton, InputLabel, MenuItem, Select, Slider, SliderValueLabelProps, Stack, TextField, Tooltip, Typography } from "@mui/material";
-import { BooleanField, EditorField, KVOptionsField, MultiselectField, NumberField, SelectField, SliderField, TextField as STextField } from "./types";
+import { BooleanField, DynamicSelectField, EditorField, KVOptionsField, MultiselectField, NumberField, SelectField, SelectItem, SelectItemModel, SliderField, TextField as STextField } from "./types";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Add as AddIcon, Close as CloseIcon } from "@mui/icons-material";
+import { z } from "zod";
+import { useStaticEditorConfig } from "./config";
 
 function TextFieldEditor(props: { config: STextField, data: Record<string, any>, onUpdated: () => void, disabled?: boolean }) {
     const [value, setValue] = useState(String(props.data[props.config.key]) ?? "")
@@ -138,6 +140,56 @@ function SelectFieldEditor(props: { config: SelectField, data: Record<string, an
                 }}
             >
                 {props.config.items.map(item => <MenuItem value={item.value} key={item.value}>{item.label}</MenuItem>)}
+            </Select>
+        </FormControl>
+    );
+}
+
+const dynamicSelectItemCache = new Map<string, SelectItem[]>();
+
+function DynamicSelectFieldEditor(props: { config: DynamicSelectField, data: Record<string, any>, onUpdated: () => void, disabled?: boolean }) {
+    const [items, setItems] = useState<SelectItem[]>([]);
+    const editorConfig = useStaticEditorConfig();
+    const url = String(new URL(props.config.path, editorConfig.baseUrl));
+
+    const loadItems = async (controller: AbortController) => {
+        const items = await fetch(url, { signal: controller.signal })
+            .then(res => res.json())
+            .then(res => z.array(SelectItemModel).parse(res));
+
+        if (controller.signal.aborted) return;
+        dynamicSelectItemCache.set(url, items);
+        setItems(items);
+    };
+
+    useEffect(() => {
+        const cachedItems = dynamicSelectItemCache.get(url);
+        if (cachedItems) {
+            setItems(cachedItems);
+        }
+        else {
+            const controller = new AbortController();
+            loadItems(controller);
+            return () => controller.abort();
+        }
+    }, [url]);
+    
+    return (
+        <FormControl fullWidth variant="filled">
+            <InputLabel htmlFor={`select-field-${props.config.key}`}>{props.config.label}</InputLabel>
+            <Select
+                id={`select-field-${props.config.key}`}
+                label={props.config.label}
+                value={props.data[props.config.key] ?? undefined}
+                size="small"
+                disabled={props.disabled}
+                onOpen={() => loadItems(new AbortController())}
+                onChange={e => {
+                    props.data[props.config.key] = e.target.value;
+                    props.onUpdated();
+                }}
+            >
+                {items.map(item => <MenuItem value={item.value} key={item.value}>{item.label}</MenuItem>)}
             </Select>
         </FormControl>
     );
@@ -289,6 +341,9 @@ export function StaticEditor(props: { data: Record<string, any>, fields: EditorF
                 }
                 else if (field.type === "select") {
                     return <SelectFieldEditor disabled={disabledFields.has(field.key) || props.disableAll} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />
+                }
+                else if (field.type === "dynamicselect") {
+                    return <DynamicSelectFieldEditor disabled={disabledFields.has(field.key) || props.disableAll} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />
                 }
                 else if (field.type === "multiselect") {
                     return <MultiselectFieldEditor disabledFields={disabledFields} key={Object.keys(field.items[0]).join(";")} data={props.data} config={field} onUpdated={onUpdated} disableAll={!!props.disableAll}/>

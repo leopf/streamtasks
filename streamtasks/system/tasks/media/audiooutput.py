@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 import queue
 from typing import Any
 from pydantic import BaseModel, ValidationError
+from streamtasks.asgiserver import ASGIRouter, HTTPContext, http_context_handler
 from streamtasks.message.types import TimestampChuckMessage
 from streamtasks.system.configurators import EditorFields, IOTypes, static_configurator
 from streamtasks.system.task import SyncTask, TaskHost
@@ -16,8 +17,8 @@ class AudioOutputConfigBase(BaseModel):
   sample_format: IOTypes.SampleFormat = "s16"
   channels: IOTypes.Channels = 1
   rate: IOTypes.SampleRate = 32000
-  output_id: int = -1
-  buffer_size: int = 1024
+  device_index: int = -1
+  buffer_size: int = 4096
 
 class AudioOutputConfig(AudioOutputConfigBase):
   in_topic: int
@@ -43,11 +44,11 @@ class AudioOutputTask(SyncTask):
       except ValidationError: pass
 
   def run_sync(self):
-    device_id = None if self.config.output_id == -1 else self.config.output_id
+    device = None if self.config.device_index == -1 else self.config.device_index
     stream = sounddevice.RawOutputStream(
       samplerate=self.config.rate,
       blocksize=self.config.buffer_size,
-      device=device_id,
+      device=device,
       channels=self.config.channels,
       dtype=SAMPLE_FORMAT_2_PA_TYPE[self.config.sample_format])
     stream.start()
@@ -70,9 +71,17 @@ class AudioOutputTaskHost(TaskHost):
       MediaEditorFields.sample_format(allowed_values=set(SAMPLE_FORMAT_2_PA_TYPE.keys())),
       MediaEditorFields.channel_count(),
       MediaEditorFields.sample_rate(),
-      EditorFields.integer(key="output_id", label="id/index of the output device (-1 to automatically select)", min_value=-1),
+      EditorFields.dynamic_select(key="device_index", path="./devices", label="output device"),
       MediaEditorFields.audio_buffer_size()
     ]
   )
   async def create_task(self, config: Any, topic_space_id: int | None):
     return AudioOutputTask(await self.create_client(topic_space_id), AudioOutputConfig.model_validate(config))
+  async def register_routes(self, router: ASGIRouter):
+    @router.get("/devices")
+    @http_context_handler
+    async def _(ctx: HTTPContext):
+      default_index = sounddevice.default.device[1]
+      items = [ { "label": "default", "value": -1 } ]
+      items.extend({ "label": d["name"], "value": d["index"] } for d in sounddevice.query_devices() if d["max_output_channels"] > 0 and d["index"] != default_index)
+      await ctx.respond_json(items)

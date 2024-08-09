@@ -5,7 +5,7 @@ import objectPath from "object-path";
 import { Accordion, AccordionDetails, AccordionSummary, Box, Stack, ThemeProvider, Typography } from "@mui/material";
 import { ExpandMore as ExpandMoreIcon } from "@mui/icons-material";
 import urlJoin from "url-join";
-import { Metadata, parseMetadataField, TaskPartialInputModel, MetadataModel, Task, TaskInstance, TaskDisplayOptions, TaskInstanceStatus, StaticEditor, EditorField, TaskCLSConfigurator, TaskCLSReactRendererMixin, TaskConfiguratorContext, getObjectDiffPaths, compareIOIgnorePaths, extractObjectPathValues, GraphSetter, TaskPartialInput, TaskInput, createCLSConfigurator, EditorFieldsModel, getConfigModelByFields } from "@streamtasks/core";
+import { Metadata, parseMetadataField, TaskPartialInputModel, MetadataModel, Task, TaskInstance, TaskDisplayOptions, TaskInstanceStatus, StaticEditor, EditorField, TaskCLSConfigurator, TaskCLSReactRendererMixin, TaskConfiguratorContext, getObjectDiffPaths, compareIOIgnorePaths, extractObjectPathValues, GraphSetter, TaskPartialInput, TaskInput, createCLSConfigurator, EditorFieldsModel, getConfigModelByFields, StaticEditorConfigContext } from "@streamtasks/core";
 import { theme } from "@streamtasks/core";
 
 const IOMirrorDataModel = z.array(z.tuple([z.string(), z.number().int()]));
@@ -42,7 +42,9 @@ function TaskDisplay(props: { task: Task, taskInstance: TaskInstance, editorFiel
                         <Typography>config</Typography>
                     </AccordionSummary>
                     <AccordionDetails>
-                        <StaticEditor data={props.task.config} fields={props.editorFields} disableAll />
+                        <StaticEditorConfigContext.Provider value={{ baseUrl: String(new URL(`./task-host/${props.task.task_host_id}/`, location.href)) }}>
+                            <StaticEditor data={props.task.config} fields={props.editorFields} disableAll />
+                        </StaticEditorConfigContext.Provider>
                     </AccordionDetails>
                 </Accordion>
             )}
@@ -89,12 +91,14 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
         const cs = this.getGraph();
         return (
             <ThemeProvider theme={theme}>
-                <StaticEditor data={this.config} fields={this.editorFields} onUpdated={() => {
-                    try {
-                        this.applyConfig();
-                        onUpdate();
-                    } catch (e) { console.error(e) }
-                }} disabledFields={cs.getDisabledPaths("config", true)} />
+                <StaticEditorConfigContext.Provider value={{ baseUrl: String(new URL(`./task-host/${this.task.task_host_id}/`, location.href)) }}>
+                    <StaticEditor data={this.config} fields={this.editorFields} onUpdated={() => {
+                        try {
+                            this.applyConfig();
+                            onUpdate();
+                        } catch (e) { console.error(e) }
+                    }} disabledFields={cs.getDisabledPaths("config", true)} />
+                </StaticEditorConfigContext.Provider>
             </ThemeProvider>
         )
     }

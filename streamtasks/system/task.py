@@ -6,6 +6,8 @@ from typing import Any, AsyncContextManager, Iterable, Optional
 from uuid import uuid4
 from pydantic import UUID4, BaseModel, TypeAdapter, ValidationError, field_serializer
 from abc import ABC, abstractmethod
+from streamtasks.asgi import ASGIAppRunner
+from streamtasks.asgiserver import ASGIRouter, ASGIServer
 from streamtasks.client import Client
 import asyncio
 from streamtasks.client.broadcast import BroadcastReceiver, BroadcastingServer
@@ -16,7 +18,8 @@ from streamtasks.client.topic import OutTopic
 from streamtasks.net import DAddress, EndpointOrAddress, Link, TopicRemappingLink, create_queue_connection
 from streamtasks.net.serialization import RawData
 from streamtasks.net.messages import Message, TopicDataMessage
-from streamtasks.services.protocols import AddressNames, WorkerTopics
+from streamtasks.net.utils import endpoint_to_str
+from streamtasks.services.protocols import AddressNames, WorkerPorts, WorkerTopics
 from streamtasks.env import NODE_NAME
 from streamtasks.utils import get_node_name_id
 from streamtasks.worker import Worker
@@ -153,6 +156,7 @@ class TaskHost(Worker):
     self.ready = asyncio.Event()
     self.register_endpoits = list(register_endpoits)
     self.id = task_host_id_from_name(self.__class__.__name__)
+    self._base_metadata = { "nodename": NODE_NAME() }
 
   @property
   def metadata(self) -> MetadataDict: return {}
@@ -169,7 +173,7 @@ class TaskHost(Worker):
   async def register(self, endpoint: EndpointOrAddress) -> TaskHostRegistration:
     if not hasattr(self, "client"): raise ValueError("Client not created yet!")
     if self.client.address is None: raise ValueError("Client had no address!")
-    registration = TaskHostRegistration(id=self.id, address=self.client.address, metadata={ **self.metadata, "nodename": NODE_NAME() })
+    registration = TaskHostRegistration(id=self.id, address=self.client.address, metadata={ **self._base_metadata, **self.metadata })
     await self.client.fetch(endpoint, TASK_CONSTANTS.FD_REGISTER_TASK_HOST, registration.model_dump())
     # TODO store info for unregister
     return registration
@@ -185,9 +189,19 @@ class TaskHost(Worker):
       self.client.start()
       await wait_for_topic_signal(self.client, WorkerTopics.DISCOVERY_SIGNAL)
       await self.client.request_address()
+      futs: list[asyncio.Future] = []
+
+      asgi_router = ASGIRouter()
+      await self.register_routes(asgi_router)
+      if asgi_router.handler_count > 0:
+        app = ASGIServer()
+        app.add_handler(asgi_router)
+        self._base_metadata[MetadataFields.ASGISERVER] = endpoint_to_str((self.client.address, WorkerPorts.ASGI))
+        futs.append(ASGIAppRunner(self.client, app).run())
+
       self.ready.set()
       for register_ep in self.register_endpoits: await self.register(register_ep)
-      await asyncio.gather(self.run_api())
+      await asyncio.gather(self.run_api(), *futs)
     except asyncio.CancelledError: raise
     except BaseException as e:
       if logging.getLogger().isEnabledFor(logging.DEBUG):
@@ -201,6 +215,7 @@ class TaskHost(Worker):
       await self.shutdown()
       self.ready.clear()
 
+  async def register_routes(self, router: ASGIRouter): pass
   @abstractmethod
   async def create_task(self, config: Any, topic_space_id: int | None) -> Task: pass
   async def run_task(self, id: UUID4, task: Task, report_address: int):
