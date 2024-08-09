@@ -63,7 +63,7 @@ class AudioEncoderTask(SyncTask):
       try:
         message = self.frame_data_queue.get(timeout=timeout)
         if self.t0 is None: self.t0 = message.timestamp
-        frame = AudioFrame.from_buffer(message.data, self.config.out_sample_format, self.config.channels, self.config.rate)
+        frame = AudioFrame.from_buffer(message.data, self.config.in_sample_format, self.config.channels, self.config.rate)
         frame.set_ts(Fraction(message.timestamp - self.t0, 1000), self.time_base)
         packets = self.encoder.encode_sync(frame)
         for packet in packets:
