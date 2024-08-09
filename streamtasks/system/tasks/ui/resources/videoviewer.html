@@ -20,39 +20,80 @@
     </style>
 </head>
 <body>
-    <video id="videoElement"></video>
-    <script>
-        console.log("FEATURES", mpegts.getFeatureList())
-        let wsUrl = location.href;
-        wsUrl = "ws:" + wsUrl.substring(wsUrl.indexOf(":") + 1) // replace http(s): with ws:
-        wsUrl = wsUrl.substring(0, wsUrl.lastIndexOf("/"))
-        wsUrl += "/video"
+    <video id="videoElement" autoplay controls></video>
+    <script type="module">
+        import * as Mp4Muxer from 'https://cdn.jsdelivr.net/npm/mp4-muxer@4.3.3/+esm';
 
-        const videoElement = document.getElementById("videoElement");
-        let player;
-        function createPlayer() {
-            player = window.mpegts.createPlayer({
-                type: 'mse',
-                isLive: true,
-                url: wsUrl
-            })
-            player.attachMediaElement(videoElement);
-            player.load();
-            return player.play();
+        const videoCodec = "avc1.4d001e"; // 6016100
+        const videoElement = document.querySelector('#videoElement');
+        const configUrl = new URL("./config.json", location.href);
+        const videoUrl = new URL("./video", location.href);
+        videoUrl.protocol = "ws:";
+
+        const startPlaying = async () => {
+            const config = await fetch(configUrl).then(res => res.json());
+
+            let mediaSource = new MediaSource();
+            videoElement.src = URL.createObjectURL(mediaSource);
+            //videoElement.play();
+
+            await new Promise(resolve => mediaSource.onsourceopen = resolve);
+
+            let sourceBuffer = mediaSource.addSourceBuffer(`video/mp4; codecs="${videoCodec}"`);
+
+            const muxer = new Mp4Muxer.Muxer({
+                target: new Mp4Muxer.StreamTarget({
+                    onData: buffer => sourceBuffer.appendBuffer(buffer)
+                }),
+                video: {
+                    codec: 'avc',
+                    width: config.width,
+                    height: config.height,
+                    optimizeForLatency: true
+                },
+                fastStart: 'fragmented',
+                firstTimestampBehavior: 'strict'
+            });
+
+            const videoSocket = new WebSocket(videoUrl);
+            videoSocket.binaryType = "arraybuffer";
+
+            videoSocket.addEventListener("close", () => console.log("Closed video socket!"));
+            videoSocket.addEventListener("error", (e) => console.error("Error:", e));
+            videoSocket.addEventListener("open", (e) => console.log("Opened video socket!"));
+            videoSocket.addEventListener("message", (e) => {
+                if (!(e.data instanceof ArrayBuffer)) {
+                    console.error("Expected arraybuffer...");
+                    return;
+                }
+
+                const data = new Uint8Array(e.data);
+                const dataView = new DataView(e.data);
+                const isKeyframe = dataView.getUint8(0) != 0;
+                const uPts = Number(dataView.getBigUint64(1));
+                const uRelDts = dataView.getUint32(9);
+
+                //console.log(isKeyframe, uPts, uRelDts);
+                //console.log(data.subarray(13).map(x => x.toString(16).padStart(2, '0')).join(''))
+
+                muxer.addVideoChunkRaw(data.subarray(13), isKeyframe ? "key" : "delta", uPts, config.duration, {
+                    decoderConfig: {
+                        codec: videoCodec,
+                        codedHeight: config.height,
+                        codedWidth: config.width
+                    }
+                }, uRelDts);
+            });
+
+            mediaSource.addEventListener("sourceended", e => {
+                console.log("Media source ended!", e);
+                videoSocket.close();
+            });
+
         }
-        let reloading = false;
-        function restartPlayer() {
-            if (reloading) return;
-            reloading = true;
-            setTimeout(() => {
-                console.log("RESTARTING PLAYER")
-                player.destroy();
-                createPlayer().catch(restartPlayer);
-                reloading = false;
-            }, 100);
-        }
-        createPlayer().catch(restartPlayer);
-        videoElement.addEventListener("ended", restartPlayer);
+
+        startPlaying();
+
     </script>
 </body>
 </html>
