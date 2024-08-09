@@ -1,4 +1,3 @@
-
 from typing import Any
 from pydantic import BaseModel, ValidationError
 from streamtasks.client.topic import PrioritizedSequentialInTopicSynchronizer
@@ -10,16 +9,16 @@ from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 import asyncio
 
-class StringConcatinatorConfigBase(BaseModel):
+class StringConcatenatorConfigBase(BaseModel):
   synchronized: bool = True
 
-class StringConcatinatorConfig(StringConcatinatorConfigBase):
+class StringConcatenatorConfig(StringConcatenatorConfigBase):
   control_topic: int
   in_topic: int
   out_topic: int
 
-class StringConcatinatorTask(Task):
-  def __init__(self, client: Client, config: StringConcatinatorConfig):
+class StringConcatenatorTask(Task):
+  def __init__(self, client: Client, config: StringConcatenatorConfig):
     super().__init__(client)
     if config.synchronized:
       sync = PrioritizedSequentialInTopicSynchronizer()
@@ -62,14 +61,14 @@ class StringConcatinatorTask(Task):
         self.value += message.value
       except ValidationError: pass
 
-class StringConcatinatorTaskHost(TaskHost):
+class StringConcatenatorTaskHost(TaskHost):
   @property
   def metadata(self): return static_configurator(
-    label="String Concatinator",
+    label="String Concatenator",
     inputs=[{ "label": "input", "type": "ts", "key": "in_topic", "content": "text" }, { "label": "control", "type": "ts", "content": "number", "key": "control_topic" }],
     outputs=[{ "label": "output", "type": "ts", "key": "out_topic", "content": "text" }],
-    default_config=StringConcatinatorConfigBase().model_dump(),
+    default_config=StringConcatenatorConfigBase().model_dump(),
     editor_fields=[EditorFields.boolean(key="synchronized")]
   )
   async def create_task(self, config: Any, topic_space_id: int | None):
-    return StringConcatinatorTask(await self.create_client(topic_space_id), StringConcatinatorConfig.model_validate(config))
+    return StringConcatenatorTask(await self.create_client(topic_space_id), StringConcatenatorConfig.model_validate(config))
