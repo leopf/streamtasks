@@ -1,27 +1,20 @@
+from streamtasks.message.types import TimestampMessage
 from dataclasses import dataclass
 from fractions import Fraction
-from typing import Optional
 import av
-
-from streamtasks.message.types import TimestampMessage
 
 @dataclass
 class MediaPacket:
   data: bytes
-  pts: Optional[int]
+  pts: int
+  rel_dts: int
   is_keyframe: bool
-  rel_dts: Optional[int]
 
   @property
-  def dts(self): return self.pts - self.rel_dts if self.rel_dts is not None and self.pts is not None else None
+  def dts(self): return self.pts - self.rel_dts
 
   @dts.setter
-  def dts(self, v: int):
-    if self.pts is None:
-      self.pts = v
-      self.rel_dts = 0
-    if self.rel_dts is None: self.rel_dts = 0
-    self.pts = v + self.rel_dts
+  def dts(self, v: int): self.pts = v + self.rel_dts
 
   def to_av_packet(self, time_base: Fraction | None):
     packet = av.Packet(self.data)
@@ -33,14 +26,11 @@ class MediaPacket:
 
   @staticmethod
   def from_av_packet(packet: av.Packet, time_base: Fraction):
-    if packet.time_base is None or packet.pts is None:
-      rel_dts = None
-      pts = None
-    else:
-      time_base_factor = float(packet.time_base / time_base)
-      rel_dts = int((packet.pts - packet.dts) * time_base_factor)
-      pts = int(packet.pts * time_base_factor)
-    return MediaPacket(bytes(packet), pts, packet.is_keyframe, rel_dts)
+    if packet.time_base is None or packet.pts is None: raise ValueError("Expected time_base and pts on av.Packet!")
+    time_base_factor = float(packet.time_base / time_base)
+    rel_dts = int((packet.pts - (packet.dts or packet.pts)) * time_base_factor)
+    pts = int(packet.pts * time_base_factor)
+    return MediaPacket(bytes(packet), pts, rel_dts, packet.is_keyframe)
 
 class MediaMessage(TimestampMessage):
   packet: MediaPacket

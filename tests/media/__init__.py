@@ -62,6 +62,7 @@ async def generate_audio_media_track(codec: AudioCodecInfo, duration: float):
   audio_samples = generate_audio_track(duration, codec.sample_rate * codec.channels)
   audio_resampler = codec.get_resampler()
   audio_frame = AudioFrame.from_ndarray(audio_samples[np.newaxis,:], "s16", codec.channels, codec.sample_rate)
+  audio_frame.set_ts(0, codec.time_base)
   return await audio_resampler.reformat(audio_frame), audio_samples
 
 frame_box_size = (40, 40)
@@ -79,8 +80,10 @@ def generate_frames(w, h, frame_count):
 def generate_media_frames(codec: VideoCodecInfo, frame_count: int):
   raw_frames = list(generate_frames(codec.width, codec.height, frame_count))
   frames: list[VideoFrame] = []
-  for frame in raw_frames:
-    frames.append(VideoFrame.from_ndarray(frame, "rgb24").convert(pixel_format=codec.pixel_format))
+  for idx, raw_frame in enumerate(raw_frames):
+    frame = VideoFrame.from_ndarray(raw_frame, "rgb24").convert(pixel_format=codec.pixel_format)
+    frame.set_ts(codec.time_base * idx, codec.time_base)
+    frames.append(frame)
   return frames, raw_frames
 
 def normalize_video_frame(frame: VideoFrame):

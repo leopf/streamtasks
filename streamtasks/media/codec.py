@@ -21,6 +21,11 @@ class Frame(ABC, Generic[T]):
     if self.frame.time_base is None or self.frame.dts is None: return None
     else: return self.frame.time_base * self.frame.dts
 
+  @property
+  def ptime(self):
+    if self.frame.time_base is None or self.frame.pts is None: return None
+    else: return self.frame.time_base * self.frame.pts
+
   def set_ts(self, time: Fraction, time_base: Fraction):
     ts = int(time / time_base)
     self.frame.time_base = time_base
@@ -58,7 +63,10 @@ class Encoder(Generic[F]):
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, self.flush_sync)
 
-  def encode_sync(self, frame: F): return self._encode(frame)
+  def encode_sync(self, frame: F):
+    if frame.ptime is None: raise ValueError("Frame must have a ptime before encoding!")
+    return self._encode(frame)
+
   def flush_sync(self): return self._encode(None)
 
   def close(self): self.codec_context.close(strict=False)
