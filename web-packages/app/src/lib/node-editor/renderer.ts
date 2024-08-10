@@ -5,7 +5,8 @@ import { HTMLViewport } from '../html-viewport';
 import { Point, addPoints, pointDistance, scalarToPoint, subPoints } from '../point';
 import Color from "color";
 
-const streamCircleRadiusRem = 0.5;
+const streamCircleRadiusRem = 0.4;
+const padding = [0.75, 0.5];
 const nodeColor = "#000";
 const connectionColor = "#888";
 const outlineWidth = 1;
@@ -100,7 +101,7 @@ export class NodeRenderer {
         const element = this.connectorElements.get(id);
         if (!element) return undefined;
         const pos = this.calculateConnectionCirclePosition(element);
-        return addPoints(pos, { x: this.group.offsetLeft + outlineWidth, y: this.group.offsetTop  + outlineWidth});
+        return addPoints(pos, { x: this.group.offsetLeft, y: this.group.offsetTop });
     }
 
     public async connect(key: string, output?: OutputConnection) {
@@ -132,6 +133,7 @@ export class NodeRenderer {
         containerRect.style.position = "relative";
         containerRect.style.backgroundColor = this.fillColor;
         containerRect.style.borderRadius = `${streamCircleRadiusRem}rem`;
+        containerRect.style.borderWidth = "0px";
 
         this.group.appendChild(containerRect);
 
@@ -142,7 +144,7 @@ export class NodeRenderer {
         nodeLabel.style.whiteSpace = "nowrap";
         nodeLabel.style.width = "100%";
         nodeLabel.style.textAlign = "center";
-        nodeLabel.style.padding = "0.5rem 0.75rem 0 0.75rem";
+        nodeLabel.style.padding = `${padding[1]}rem ${padding[0]}rem 0 ${padding[0]}rem`;
         nodeLabel.style.boxSizing = "border-box";
         containerRect.appendChild(nodeLabel);
 
@@ -152,19 +154,20 @@ export class NodeRenderer {
         ioContainer.style.flexDirection = "row";
         ioContainer.style.alignItems = "stretch";
         ioContainer.style.width = "100%";
-        ioContainer.style.padding = "0.5rem 0";
+        ioContainer.style.padding = `${padding[1]}rem ${padding[0]}rem`;
+        ioContainer.style.boxSizing = "border-box";
         containerRect.appendChild(ioContainer);
 
         const ioSpacer = document.createElement("div");
-        ioSpacer.style.minWidth = "1.5rem";
+        ioSpacer.style.minWidth = `${padding[0]*2}rem`;
         ioSpacer.style.flex = "1";
 
         const inputsContainer = document.createElement("div");
         inputsContainer.style.display = "flex";
         inputsContainer.style.flexDirection = "column";
         inputsContainer.style.alignItems = "start";
-        inputsContainer.style.gap = "0.5rem";
-        inputsContainer.style.marginLeft = `calc(-${streamCircleRadiusRem}rem - ${outlineWidth / 2}px)`;
+        inputsContainer.style.gap = `${padding[1]}rem`;
+        // inputsContainer.style.marginLeft = `${streamCircleRadiusRem}rem`;
         ioContainer.appendChild(inputsContainer);
 
         ioContainer.appendChild(ioSpacer);
@@ -173,8 +176,8 @@ export class NodeRenderer {
         outputsContainer.style.display = "flex";
         outputsContainer.style.flexDirection = "column";
         outputsContainer.style.alignItems = "end";
-        outputsContainer.style.gap = "0.5rem";
-        outputsContainer.style.marginRight = `calc(-${streamCircleRadiusRem}rem - ${outlineWidth / 2}px)`;
+        outputsContainer.style.gap = `${padding[1]}rem`;
+        // outputsContainer.style.marginRight = `${streamCircleRadiusRem}rem`;
         ioContainer.appendChild(outputsContainer);
 
         for (const input of this.inputs) {
@@ -182,7 +185,7 @@ export class NodeRenderer {
             inputContainer.style.display = "flex";
             inputContainer.style.flexDirection = "row";
             inputContainer.style.alignItems = "center";
-            inputContainer.style.gap = "0.25rem";
+            inputContainer.style.gap = `${padding[0] * 0.75}rem`;
             inputsContainer.appendChild(inputContainer);
 
             const connectionCircle = this.createConnectionCircle(input);
@@ -196,7 +199,7 @@ export class NodeRenderer {
             outputContainer.style.display = "flex";
             outputContainer.style.flexDirection = "row";
             outputContainer.style.alignItems = "center";
-            outputContainer.style.gap = "0.25rem";
+            outputContainer.style.gap = `${padding[0] * 0.75}rem`;
             outputsContainer.appendChild(outputContainer);
 
             outputContainer.appendChild(this.createConnectionLabel(output.label ?? ""));
@@ -240,6 +243,12 @@ export class NodeRenderer {
                 currentElement = null;
             }
         }
+        if (pos.x > this.group.offsetWidth / 2) {
+            pos.x = this.group.offsetWidth;
+        }
+        else {
+            pos.x = 0;
+        }
         return pos;
     }
 
@@ -258,7 +267,8 @@ export class NodeRenderer {
         element.style.height = `${streamCircleRadiusRem * 2}rem`
         element.style.boxSizing = "border-box";
         element.style.cursor = "pointer";
-        element.style.backgroundImage = `radial-gradient(${getStreamColor(connection)}, ${this.fillColor})`;
+        element.style.backgroundColor = getStreamColor(connection);
+        element.style.borderWidth = "0px";
 
         element.addEventListener('pointerdown', async () => {
             await this.editor?.onSelectStartConnection(connection.id)
