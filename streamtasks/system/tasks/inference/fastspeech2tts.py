@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 import queue
+import re
 from typing import Any
 import numpy as np
 from pydantic import BaseModel, ValidationError
@@ -13,6 +14,24 @@ from speechbrain.inference.TTS import FastSpeech2
 from speechbrain.inference.vocoders import HIFIGAN
 from streamtasks.system.tasks.inference.utils import get_model_data_dir
 from streamtasks.utils import context_task
+
+_REGEX_SENTENCE_ENDINGS = re.compile(r'[.!?]\s+')
+
+def split_sentences(text: str, max_length: int):
+  sentences = _REGEX_SENTENCE_ENDINGS.split(text)
+  final_sentences: list[str] = []
+
+  for sentence in sentences:
+    while len(sentence) > max_length:
+      split_point = sentence.rfind(' ', 0, max_length)
+      if split_point == -1:
+        split_point = max_length
+
+      final_sentences.append(sentence[:split_point].strip())
+      sentence = sentence[split_point:].strip()
+    if sentence: final_sentences.append(sentence.strip())
+
+  return [ s for s in (s.rstrip(".!? \n\t") for s in final_sentences) if len(s) > 0 ]
 
 _SAMPLE_RATE = 22050
 
@@ -58,10 +77,13 @@ class FastSpeech2TTSTask(SyncTask):
     while not self.stop_event.is_set():
       try:
         message = self.message_queue.get(timeout=0.5)
-        mel_output, _, _, _ = fastspeech2.encode_text([message.value], pace=self.config.pace, pitch_rate=self.config.pitch, energy_rate=1.0)
-        samples: np.ndarray = hifi_gan.decode_batch(mel_output).cpu().numpy()
-        self.send_data(self.out_topic, RawData(TimestampChuckMessage(timestamp=message.timestamp, data=samples.tobytes("C")).model_dump()))
-      except queue.Empty: pass
+        current_timestamp = message.timestamp
+        for sentence in split_sentences(message.value, 200):
+          mel_output, _, _, _ = fastspeech2.encode_text([sentence], pace=self.config.pace, pitch_rate=self.config.pitch, energy_rate=1.0)
+          samples: np.ndarray = hifi_gan.decode_batch(mel_output).cpu().numpy().flatten()
+          self.send_data(self.out_topic, RawData(TimestampChuckMessage(timestamp=message.timestamp, data=samples.tobytes("C")).model_dump()))
+          current_timestamp += samples.size * 1000 / _SAMPLE_RATE
+      except (queue.Empty, RuntimeError): pass
 
 class FastSpeech2TTSTaskHost(TaskHost):
   @property
