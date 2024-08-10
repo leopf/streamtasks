@@ -138,16 +138,32 @@ export class NodeRenderer {
         this.group.appendChild(containerRect);
 
 
-        const nodeLabel = document.createElement("div");
-        nodeLabel.innerText = this.fixLabel(this.node.label);
-        nodeLabel.style.fontSize = "1rem";
-        nodeLabel.style.whiteSpace = "nowrap";
-        nodeLabel.style.width = "100%";
-        nodeLabel.style.textAlign = "center";
-        nodeLabel.style.padding = `${padding[1]}rem ${padding[0]}rem 0 ${padding[0]}rem`;
-        nodeLabel.style.boxSizing = "border-box";
-        containerRect.appendChild(nodeLabel);
+        const labelContainer = document.createElement("div");
+        labelContainer.style.width = "100%";
+        labelContainer.style.padding = `${padding[1]}rem ${padding[0]}rem`;
+        labelContainer.style.boxSizing = "border-box";
+        labelContainer.style.borderBottom = "1px solid #2a2a2a";
+        containerRect.appendChild(labelContainer);
 
+
+
+        const label = document.createElement("div");
+        label.innerText = this.fixLabel(this.node.label);
+        label.style.fontSize = "1rem";
+        label.style.whiteSpace = "nowrap";
+        labelContainer.appendChild(label);
+
+
+        if (this.node.host) {
+            const metadata = document.createElement("div");
+            metadata.innerText = this.node.host;
+            metadata.style.fontSize = "0.7rem";
+            metadata.style.color = "gray";
+            // metadata.style.textTransform = "uppercase";
+            metadata.style.whiteSpace = "nowrap";
+            metadata.style.padding = "0.1rem 0 0 0";
+            labelContainer.appendChild(metadata);
+        }
 
         const ioContainer = document.createElement("div")
         ioContainer.style.display = "flex";
