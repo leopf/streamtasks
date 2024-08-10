@@ -65,10 +65,10 @@ class AudioInputTaskHost(TaskHost):
     default_config=AudioInputConfigBase().model_dump(),
     config_to_output_map=[ { v: v for v in [ "rate", "channels", "sample_format" ] } ],
     editor_fields=[
+      EditorFields.dynamic_select(key="device_index", path="./devices", label="input device"),
       MediaEditorFields.sample_format(allowed_values=set(SAMPLE_FORMAT_2_PA_TYPE.keys())),
       MediaEditorFields.channel_count(),
       MediaEditorFields.sample_rate(),
-      EditorFields.dynamic_select(key="device_index", path="./devices", label="input device"),
       MediaEditorFields.audio_buffer_size()
     ]
   )
