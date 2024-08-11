@@ -31,7 +31,7 @@ export function parseMetadataField<O>(metadata: Metadata, key: string, model: z.
 export function extractObjectPathValues(data: any, prefix: string = "", result?: Map<string, any>) {
     result = result ?? new Map();
     // TODO: fix recursion
-    if (typeof data == "object") {
+    if (typeof data == "object" && data !== null) {
         if (Array.isArray(data)) {
             data.forEach((v, idx) => extractObjectPathValues(v, prefix + idx + ".", result));
         }

@@ -4,7 +4,7 @@ from io import BytesIO
 import os
 from typing import Any
 from pydantic import ValidationError
-from streamtasks.asgi import ASGIAppRunner
+from streamtasks.asgi import ASGIAppRunner, asgi_default_http_error_handler
 from streamtasks.asgiserver import ASGIRouter, ASGIServer, HTTPContext, WebsocketContext, http_context_handler, websocket_context_handler
 from streamtasks.media.container import OutputContainer
 from streamtasks.media.video import VideoCodecInfo
@@ -45,6 +45,7 @@ class VideoViewerTask(Task):
 
   async def run(self):
     app = ASGIServer()
+    app.add_handler(asgi_default_http_error_handler)
     router = ASGIRouter()
     app.add_handler(router)
 

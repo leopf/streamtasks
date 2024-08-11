@@ -1,9 +1,10 @@
 import { Box, Checkbox, FormControl, FormControlLabel, Grid, IconButton, InputLabel, MenuItem, Select, Slider, SliderValueLabelProps, Stack, TextField, Tooltip, Typography } from "@mui/material";
-import { BooleanField, DynamicSelectField, EditorField, KVOptionsField, MultiselectField, NumberField, SelectField, SelectItem, SelectItemModel, SliderField, TextField as STextField } from "./types";
+import { BooleanField, DynamicSelectField, EditorField, KVOptionsField, MultiselectField, NumberField, SecretField, SelectField, SelectItem, SelectItemModel, SliderField, TextField as STextField } from "./types";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Add as AddIcon, Close as CloseIcon } from "@mui/icons-material";
+import { Add as AddIcon, Check as CheckIcon, Clear as ClearIcon, Close as CloseIcon } from "@mui/icons-material";
 import { z } from "zod";
 import { useStaticEditorConfig } from "./config";
+import { v4 as uuidv4 } from "uuid";
 
 function TextFieldEditor(props: { config: STextField, data: Record<string, any>, onUpdated: () => void, disabled?: boolean }) {
     const [value, setValue] = useState(String(props.data[props.config.key]) ?? "")
@@ -25,6 +26,58 @@ function TextFieldEditor(props: { config: STextField, data: Record<string, any>,
             value={value}
             onInput={e => setValue((e.target as HTMLInputElement).value)}
             label={props.config.label} />
+    )
+}
+
+function SecretFieldEditor(props: { config: SecretField, data: Record<string, any>, onUpdated: () => void, disabled?: boolean }) {
+    const [newValue, setNewValue] = useState("");
+    const hasValue = !!props.data[props.config.key];
+    const editorConfig = useStaticEditorConfig();
+
+    const saveSecret = async () => {
+        const id = uuidv4();
+        const result = await fetch(new URL(`./secrets/api/secret`, editorConfig.DynamicSelect.baseUrl), { 
+            method: "put",
+            headers: {
+                "content-type": "application/json"
+            },
+            body: JSON.stringify({ id: id, value: newValue })
+        });
+
+        if (result.ok) {
+            props.data[props.config.key] = id;
+            props.onUpdated();
+            setNewValue("");
+        }
+    };
+    const deleteSecret = async () => {
+        const result = await fetch(new URL(`./secrets/api/secret/${props.data[props.config.key]}`, editorConfig.DynamicSelect.baseUrl), { method: "delete" });
+        if (result.ok) {
+            props.data[props.config.key] = null;
+            props.onUpdated();
+            setNewValue("");
+        }
+    };
+
+
+    return (
+        <Box position="relative">
+            <TextField
+                size="small"
+                fullWidth
+                variant="filled"
+                disabled={props.disabled || hasValue}
+                value={hasValue ? "*********" : newValue}
+                onInput={e => setNewValue((e.target as HTMLInputElement).value)}
+                label={props.config.label} />
+            <Stack position="absolute" right={0} top={0} height="100%" direction="row" alignItems="center" paddingRight={0.5}>
+                {hasValue ? (
+                    <IconButton size="small" disabled={props.disabled} onClick={() => deleteSecret()}><ClearIcon /></IconButton>
+                ) : (
+                    <IconButton size="small" disabled={props.disabled || !newValue} onClick={() => saveSecret()}><CheckIcon /></IconButton>
+                )}
+            </Stack>
+        </Box>
     )
 }
 
@@ -150,7 +203,7 @@ const dynamicSelectItemCache = new Map<string, SelectItem[]>();
 function DynamicSelectFieldEditor(props: { config: DynamicSelectField, data: Record<string, any>, onUpdated: () => void, disabled?: boolean }) {
     const [items, setItems] = useState<SelectItem[]>([]);
     const editorConfig = useStaticEditorConfig();
-    const url = String(new URL(props.config.path, editorConfig.baseUrl));
+    const url = String(new URL(props.config.path, editorConfig.DynamicSelect.baseUrl));
 
     const loadItems = async (controller: AbortController) => {
         const items = await fetch(url, { signal: controller.signal })
@@ -173,7 +226,7 @@ function DynamicSelectFieldEditor(props: { config: DynamicSelectField, data: Rec
             return () => controller.abort();
         }
     }, [url]);
-    
+
     return (
         <FormControl fullWidth variant="filled">
             <InputLabel htmlFor={`select-field-${props.config.key}`}>{props.config.label}</InputLabel>
@@ -346,13 +399,16 @@ export function StaticEditor(props: { data: Record<string, any>, fields: EditorF
                     return <DynamicSelectFieldEditor disabled={disabledFields.has(field.key) || props.disableAll} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />
                 }
                 else if (field.type === "multiselect") {
-                    return <MultiselectFieldEditor disabledFields={disabledFields} key={Object.keys(field.items[0]).join(";")} data={props.data} config={field} onUpdated={onUpdated} disableAll={!!props.disableAll}/>
+                    return <MultiselectFieldEditor disabledFields={disabledFields} key={Object.keys(field.items[0]).join(";")} data={props.data} config={field} onUpdated={onUpdated} disableAll={!!props.disableAll} />
                 }
                 else if (field.type === "boolean") {
                     return <BooleanFieldEditor disabled={disabledFields.has(field.key) || props.disableAll} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />
                 }
                 else if (field.type === "text") {
                     return <TextFieldEditor disabled={disabledFields.has(field.key) || props.disableAll} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />
+                }
+                else if (field.type === "secret") {
+                    return <SecretFieldEditor disabled={disabledFields.has(field.key) || props.disableAll} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />
                 }
                 else if (field.type === "kvoptions") {
                     return <KVOptionsFieldEditor disabled={disabledFields.has(field.key) || props.disableAll} key={field.key} data={props.data} config={field} onUpdated={onUpdated} />

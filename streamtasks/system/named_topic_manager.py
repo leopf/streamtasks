@@ -2,7 +2,7 @@ import asyncio
 import os
 from urllib.parse import unquote
 from pydantic import BaseModel, TypeAdapter
-from streamtasks.asgi import ASGIAppRunner
+from streamtasks.asgi import ASGIAppRunner, asgi_default_http_error_handler
 from streamtasks.asgiserver import ASGIRouter, ASGIServer, HTTPContext, http_context_handler
 from streamtasks.client.discovery import register_address_name
 from streamtasks.client.fetch import FetchRequest, FetchServer, new_fetch_body_not_found
@@ -46,16 +46,14 @@ class NamedTopicManager(TaskWebPathHandler):
       try:
         data = NamedTopicRequestModel.model_validate(req.body)
         await req.respond(next(e for e in self.db.entries if e.name == data.name).model_dump())
-      except KeyError: await req.respond_error(new_fetch_body_not_found("named topic not found!"))
+      except StopIteration: await req.respond_error(new_fetch_body_not_found("named topic not found!"))
 
     @server.route("put_named_topic")
     async def _(req: FetchRequest):
-      try:
-        data = NamedTopicModel.model_validate(req.body)
-        self.db.update([e for e in self.db.entries if e.name != data.name] + [data])
-        self.db.save()
-        await req.respond(data.model_dump())
-      except KeyError: await req.respond_error(new_fetch_body_not_found("named topic not found!"))
+      data = NamedTopicModel.model_validate(req.body)
+      self.db.update([e for e in self.db.entries if e.name != data.name] + [data])
+      self.db.save()
+      await req.respond(data.model_dump())
 
     @server.route("delete_named_topic")
     async def _(req: FetchRequest):
@@ -75,6 +73,8 @@ class NamedTopicManager(TaskWebPathHandler):
 
   async def run_web_server(self):
     app = ASGIServer()
+    app.add_handler(asgi_default_http_error_handler)
+
     router = ASGIRouter()
     app.add_handler(router)
 
@@ -101,16 +101,14 @@ class NamedTopicManager(TaskWebPathHandler):
       try:
         name = unquote(ctx.params["name"])
         await ctx.respond_json(next(e for e in self.db.entries if e.name == name).model_dump())
-      except KeyError: await ctx.respond_status(404)
+      except StopIteration: await ctx.respond_status(404)
 
     @router.delete("/api/named-topic/{name}")
     @http_context_handler
     async def _(ctx: HTTPContext):
-      try:
-        name = unquote(ctx.params["name"])
-        self.db.update(e for e in self.db.entries if e.name != name)
-        self.db.save()
-        await ctx.respond_status(200)
-      except KeyError: await ctx.respond_status(404)
+      name = unquote(ctx.params["name"])
+      self.db.update(e for e in self.db.entries if e.name != name)
+      self.db.save()
+      await ctx.respond_status(200)
 
     await ASGIAppRunner(self.client, app).run()

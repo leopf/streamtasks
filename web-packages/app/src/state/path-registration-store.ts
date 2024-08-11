@@ -5,7 +5,7 @@ export class PathRegistrationStore {
     public pathRegitrations: PathRegistration[] = [];
 
     public get frontendPathRegistrations() {
-        return this.pathRegitrations.filter(p => "frontend" in p) as PathRegistrationFrontend[];
+        return this.pathRegitrations.filter(p => (p as any).frontend) as PathRegistrationFrontend[];
     }
 
     constructor() {

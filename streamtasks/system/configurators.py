@@ -128,6 +128,10 @@ class EditorFields:
     return strip_nones_from_dict({ "type": "text", "key": key, "label": label or key_to_label(key), "multiline": multiline })
 
   @staticmethod
+  def secret(key: str, label: str | None = None):
+    return strip_nones_from_dict({ "type": "secret", "key": key, "label": label or key_to_label(key) })
+
+  @staticmethod
   def filepath(key: str, label: str | None = None): return EditorFields.text(key=key, label=label)
 
   @staticmethod

@@ -2,7 +2,7 @@ import asyncio
 from fractions import Fraction
 from typing import Any
 from streamtasks.debugging import ddebug_value
-from pydantic import BaseModel, ValidationError
+from pydantic import UUID4, BaseModel, ValidationError
 from streamtasks.client.topic import InTopicSynchronizer
 from streamtasks.env import DEBUG_MEDIA
 from streamtasks.media.audio import AudioCodecInfo
@@ -10,6 +10,7 @@ from streamtasks.media.container import AVOutputStream, OutputContainer
 from streamtasks.media.video import VideoCodecInfo
 from streamtasks.system.configurators import EditorFields, IOTypes, multitrackio_configurator, static_configurator
 from streamtasks.media.packet import MediaMessage
+from streamtasks.system.secret_manager import SecretManagerClient
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 from streamtasks.system.tasks.media.utils import MediaEditorFields
@@ -42,6 +43,7 @@ class ContainerAudioOutputConfig(ContainerAudioOutputConfigBase):
 
 class OutputContainerConfig(BaseModel):
   destination: str = ""
+  destination_secret: UUID4 | None = None
   video_tracks: list[ContainerVideoOutputConfig] = []
   audio_tracks: list[ContainerAudioOutputConfig] = []
   max_desync: int = 100
@@ -134,8 +136,16 @@ class OutputContainerTask(Task):
 
   async def run(self):
     try:
+      destination = self.config.destination
+      if self.config.destination_secret:
+        self.client.start()
+        await self.client.request_address()
+        secret_manager_client = SecretManagerClient(self.client)
+        destination += await secret_manager_client.resolve_secret(self.config.destination_secret)
+        await self.client.stop_wait()
+
       container = None
-      container = await OutputContainer.open(self.config.destination, **self.config.container_options)
+      container = await OutputContainer.open(destination, **self.config.container_options)
       streams: dict[int, AVOutputStream] = {}
       streams.update({ cfg.in_topic: container.add_video_stream(cfg.to_codec_info()) for cfg in self.config.video_tracks })
       streams.update({ cfg.in_topic: container.add_audio_stream(cfg.to_codec_info()) for cfg in self.config.audio_tracks })
@@ -157,7 +167,8 @@ class OutputContainerTaskHost(TaskHost):
       label="output container",
       default_config=OutputContainerConfig().model_dump(),
       editor_fields=[
-        EditorFields.text(key="destination", label="destination path or url"),
+        EditorFields.text(key="destination", label="destination"),
+        EditorFields.secret(key="destination_secret", label="destination (secret appendix)"),
         EditorFields.integer(key="max_desync", label="maximum desynchronization", min_value=0, unit="ms"),
         EditorFields.options("container_options"),
     ]),

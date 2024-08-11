@@ -3,7 +3,7 @@ import asyncio
 import importlib.resources
 from typing import Any, AsyncContextManager, Generic, TypeVar
 from pydantic import BaseModel
-from streamtasks.asgi import ASGIAppRunner
+from streamtasks.asgi import ASGIAppRunner, asgi_default_http_error_handler
 from streamtasks.asgiserver import ASGIRouter, ASGIServer, HTTPContext, WebsocketContext, http_context_handler, websocket_context_handler
 from streamtasks.client import Client
 from streamtasks.net.utils import endpoint_to_str
@@ -53,6 +53,7 @@ class UIBaseTask(Task, Generic[C, V]):
 
   async def _run_web_server(self):
     app = ASGIServer()
+    app.add_handler(asgi_default_http_error_handler)
     router = ASGIRouter()
     app.add_handler(router)
 

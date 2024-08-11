@@ -5,8 +5,7 @@ import objectPath from "object-path";
 import { Accordion, AccordionDetails, AccordionSummary, Box, Stack, ThemeProvider, Typography } from "@mui/material";
 import { ExpandMore as ExpandMoreIcon } from "@mui/icons-material";
 import urlJoin from "url-join";
-import { Metadata, parseMetadataField, TaskPartialInputModel, MetadataModel, Task, TaskInstance, TaskDisplayOptions, TaskInstanceStatus, StaticEditor, EditorField, TaskCLSConfigurator, TaskCLSReactRendererMixin, TaskConfiguratorContext, getObjectDiffPaths, compareIOIgnorePaths, extractObjectPathValues, GraphSetter, TaskPartialInput, TaskInput, createCLSConfigurator, EditorFieldsModel, getConfigModelByFields, StaticEditorConfigContext } from "@streamtasks/core";
-import { theme } from "@streamtasks/core";
+import { theme, Metadata, parseMetadataField, TaskPartialInputModel, StaticEditorConfigContext, StaticEditorConfig, MetadataModel, Task, TaskInstance, TaskDisplayOptions, TaskInstanceStatus, StaticEditor, EditorField, TaskCLSConfigurator, TaskCLSReactRendererMixin, TaskConfiguratorContext, getObjectDiffPaths, compareIOIgnorePaths, extractObjectPathValues, GraphSetter, TaskPartialInput, TaskInput, createCLSConfigurator, EditorFieldsModel, getConfigModelByFields } from "@streamtasks/core";
 
 const IOMirrorDataModel = z.array(z.tuple([z.string(), z.number().int()]));
 type IOMirrorData = z.infer<typeof IOMirrorDataModel>;
@@ -17,6 +16,12 @@ function parseInputs(metadata: Metadata) {
 
 function parseOutputs(metadata: Metadata) {
     return parseMetadataField(metadata, "cfg:outputs", z.array(MetadataModel)) ?? [];
+}
+
+function getStaticEditorConfig(task: Task): Partial<StaticEditorConfig> {
+    return {
+        DynamicSelect: { baseUrl: String(new URL(`./task-host/${task.task_host_id}/`, location.href)) }
+    }
 }
 
 function TaskDisplay(props: { task: Task, taskInstance: TaskInstance, editorFields: EditorField[], options: TaskDisplayOptions }) {
@@ -42,7 +47,7 @@ function TaskDisplay(props: { task: Task, taskInstance: TaskInstance, editorFiel
                         <Typography>config</Typography>
                     </AccordionSummary>
                     <AccordionDetails>
-                        <StaticEditorConfigContext.Provider value={{ baseUrl: String(new URL(`./task-host/${props.task.task_host_id}/`, location.href)) }}>
+                        <StaticEditorConfigContext.Provider value={getStaticEditorConfig(props.task)}>
                             <StaticEditor data={props.task.config} fields={props.editorFields} disableAll />
                         </StaticEditorConfigContext.Provider>
                     </AccordionDetails>
@@ -91,7 +96,7 @@ export class StaticCLSConfigurator extends TaskCLSReactRendererMixin(TaskCLSConf
         const cs = this.getGraph();
         return (
             <ThemeProvider theme={theme}>
-                <StaticEditorConfigContext.Provider value={{ baseUrl: String(new URL(`./task-host/${this.task.task_host_id}/`, location.href)) }}>
+                <StaticEditorConfigContext.Provider value={getStaticEditorConfig(this.task)}>
                     <StaticEditor data={this.config} fields={this.editorFields} onUpdated={() => {
                         try {
                             this.applyConfig();

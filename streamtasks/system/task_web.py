@@ -9,12 +9,12 @@ import re
 from typing import Any, Literal
 from typing_extensions import TypedDict
 from uuid import UUID, uuid4
-from pydantic import UUID4, BaseModel, Field, TypeAdapter, ValidationError, field_serializer, field_validator
-from streamtasks.asgi import ASGIAppRunner, ASGIProxyApp
+from pydantic import UUID4, BaseModel, Field, TypeAdapter, field_serializer, field_validator
+from streamtasks.asgi import ASGIAppRunner, ASGIProxyApp, asgi_default_http_error_handler
 from streamtasks.asgiserver import ASGIHandler, ASGIRouter, ASGIServer, HTTPContext, TransportContext, WebsocketContext, decode_data_uri, http_context_handler, path_rewrite_handler, static_content_handler, static_files_handler, transport_context_handler, websocket_context_handler
 from streamtasks.client import Client
 from streamtasks.client.discovery import delete_topic_space, get_topic_space_translation, register_address_name, register_topic_space, wait_for_address_name
-from streamtasks.client.fetch import FetchError, FetchErrorStatusCode, FetchRequest, FetchServer
+from streamtasks.client.fetch import FetchRequest, FetchServer
 from streamtasks.client.receiver import TopicsReceiver
 from streamtasks.client.signal import SignalServer
 from streamtasks.env import get_data_sub_dir
@@ -248,21 +248,7 @@ class TaskWebBackend(Worker):
 
   async def run_asgi_server(self):
     app = ASGIServer()
-
-    @app.handler
-    @http_context_handler
-    async def _error_handler(ctx: HTTPContext):
-      try:
-        await ctx.next()
-      except (ValidationError, ValueError) as e:
-        await ctx.respond_text(str(e), 400)
-      except KeyError as e: await ctx.respond_text(str(e), 404)
-      except FetchError as e:
-        if e.status_code == FetchErrorStatusCode.NOT_FOUND: await ctx.respond_text(str(e), 404)
-        if e.status_code == FetchErrorStatusCode.BAD_REQUEST: await ctx.respond_text(str(e), 400)
-        if e.status_code == FetchErrorStatusCode.GENERAL: await ctx.respond_text(str(e), 500)
-      except BaseException as e:
-        await ctx.respond_text(str(e), 500)
+    app.add_handler(asgi_default_http_error_handler)
 
     router = ASGIRouter()
     app.add_handler(router)

@@ -7,6 +7,11 @@ export const TextFieldModel = z.object({
     key: z.string(),
     multiline: z.boolean().optional()
 });
+export const SecretFieldModel = z.object({
+    type: z.literal("secret"),
+    label: z.string(),
+    key: z.string()
+});
 export const NumberFieldModel = z.object({
     type: z.literal("number"),
     label: z.string(),
@@ -57,11 +62,12 @@ export const KVOptionsFieldModel = z.object({
     suggestions: z.array(z.string()).optional()
 });
 
-export const EditorFieldModel = z.discriminatedUnion("type", [NumberFieldModel, SliderFieldModel, SelectFieldModel, DynamicSelectFieldModel, BooleanFieldModel, TextFieldModel, KVOptionsFieldModel, MultiselectFieldModel])
+export const EditorFieldModel = z.discriminatedUnion("type", [NumberFieldModel, SliderFieldModel, SelectFieldModel, DynamicSelectFieldModel, BooleanFieldModel, TextFieldModel, SecretFieldModel, KVOptionsFieldModel, MultiselectFieldModel])
 export const EditorFieldsModel = z.array(EditorFieldModel);
 
 export type SelectItem = z.infer<typeof SelectItemModel>;
 export type TextField = z.infer<typeof TextFieldModel>;
+export type SecretField = z.infer<typeof SecretFieldModel>;
 export type NumberField = z.infer<typeof NumberFieldModel>;
 export type SliderField = z.infer<typeof SliderFieldModel>;
 export type SelectField = z.infer<typeof SelectFieldModel>;

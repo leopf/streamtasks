@@ -1,5 +1,6 @@
+from streamtasks.asgiserver import HTTPContext, http_context_handler
 from streamtasks.client.receiver import Receiver
-from streamtasks.client.fetch import FetchRequestReceiver, FetchRequest, new_fetch_body_bad_request, new_fetch_body_general_error
+from streamtasks.client.fetch import FetchError, FetchErrorStatusCode, FetchRequestReceiver, FetchRequest, new_fetch_body_bad_request, new_fetch_body_general_error
 from streamtasks.utils import AsyncTaskManager
 from streamtasks.net import Endpoint, EndpointOrAddress, Link, endpoint_or_address_to_endpoint
 from streamtasks.net.messages import AddressedMessage, Message
@@ -261,3 +262,17 @@ class HTTPServerOverASGI(Worker):
 async def asgi_app_not_found(_scope, _receive, send):
   await send({"type": "http.response.start", "status": 404})
   await send({"type": "http.response.body", "body": b"404 Not Found"})
+
+@http_context_handler
+async def asgi_default_http_error_handler(ctx: HTTPContext):
+  try:
+    await ctx.next()
+  except (ValidationError, ValueError) as e:
+    await ctx.respond_text(str(e), 400)
+  except KeyError as e: await ctx.respond_text(str(e), 404)
+  except FetchError as e:
+    if e.status_code == FetchErrorStatusCode.NOT_FOUND: await ctx.respond_text(str(e), 404)
+    if e.status_code == FetchErrorStatusCode.BAD_REQUEST: await ctx.respond_text(str(e), 400)
+    if e.status_code == FetchErrorStatusCode.GENERAL: await ctx.respond_text(str(e), 500)
+  except BaseException as e:
+    await ctx.respond_text(str(e), 500)

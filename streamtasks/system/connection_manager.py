@@ -8,7 +8,7 @@ import os
 import re
 from typing import Generic, TypeVar
 from pydantic import BaseModel, TypeAdapter, ValidationError
-from streamtasks.asgi import ASGIAppRunner
+from streamtasks.asgi import ASGIAppRunner, asgi_default_http_error_handler
 from streamtasks.asgiserver import ASGIRouter, ASGIServer, HTTPContext, WebsocketContext, http_context_handler, websocket_context_handler
 from streamtasks.connection import AutoReconnector, ServerBase, connect, get_server
 from streamtasks.env import NODE_NAME, get_data_sub_dir
@@ -129,6 +129,8 @@ class ConnectionManager(TaskWebPathHandler):
 
   async def run_web_server(self):
     app = ASGIServer()
+    app.add_handler(asgi_default_http_error_handler)
+
     router = ASGIRouter()
     app.add_handler(router)
 

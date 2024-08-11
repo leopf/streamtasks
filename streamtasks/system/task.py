@@ -6,7 +6,7 @@ from typing import Any, AsyncContextManager, Iterable, Optional
 from uuid import uuid4
 from pydantic import UUID4, BaseModel, TypeAdapter, ValidationError, field_serializer
 from abc import ABC, abstractmethod
-from streamtasks.asgi import ASGIAppRunner
+from streamtasks.asgi import ASGIAppRunner, asgi_default_http_error_handler
 from streamtasks.asgiserver import ASGIRouter, ASGIServer
 from streamtasks.client import Client
 import asyncio
@@ -195,6 +195,7 @@ class TaskHost(Worker):
       await self.register_routes(asgi_router)
       if asgi_router.handler_count > 0:
         app = ASGIServer()
+        app.add_handler(asgi_default_http_error_handler)
         app.add_handler(asgi_router)
         self._base_metadata[MetadataFields.ASGISERVER] = endpoint_to_str((self.client.address, WorkerPorts.ASGI))
         futs.append(ASGIAppRunner(self.client, app).run())
