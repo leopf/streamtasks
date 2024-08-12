@@ -10,7 +10,7 @@ from streamtasks.media.codec import CodecInfo, Frame, Reformatter
 import numpy as np
 import asyncio
 import av
-from streamtasks.media.util import options_from_codec_context
+from streamtasks.media.util import apply_options_to_codec_context, options_from_codec_context
 
 _SAMPLE_FORMAT_NP_2_AV_INFO: dict[str, tuple[bool, type[np.dtype]]] = {
   "dbl": (False, np.float64),
@@ -120,14 +120,10 @@ class AudioCodecInfo(CodecInfo[AudioFrame]):
     ctx.format = self.to_av_format()
     ctx.channels = self.channels
     ctx.sample_rate = self.sample_rate
-    ctx.options.update(self.options)
 
-    if "threads" in self.options: ctx.thread_count = int(self.options["threads"])
-    if "bit_rate" in self.options: ctx.bit_rate = int(self.options["bit_rate"])
-    if "bit_rate_tolerance" in self.options: ctx.bit_rate_tolerance = int(self.options["bit_rate_tolerance"])
+    apply_options_to_codec_context(ctx, self.options)
 
-    if mode == 'w':
-      ctx.time_base = self.time_base
+    if mode == 'w': ctx.time_base = self.time_base
 
     return ctx
 

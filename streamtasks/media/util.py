@@ -92,6 +92,39 @@ def list_codec_formats(name: str, mode: Literal["r", "w"]):
   if c.type == "audio": return [ f.name for f in c.audio_formats ]
   if c.type == "video": return [ f.name for f in c.video_formats ]
 
+def apply_options_to_codec_context(ctx: av.codec.context.CodecContext, options: dict[str, str]):
+  int_castings = {
+    "thread_count": "thread_count",
+    "threads": "thread_count",
+    "bit_rate": "bit_rate",
+    "br": "bit_rate",
+    "bitrate": "bit_rate",
+    "bit_rate_tolerance": "bit_rate_tolerance",
+    "bitrate_tolerance": "bit_rate_tolerance",
+    "bitratetolerance": "bit_rate_tolerance",
+    "brt": "bit_rate_tolerance",
+    "max_bit_rate": "max_bit_rate",
+    "max_bitrate": "max_bit_rate",
+    "maxbitrate": "max_bit_rate",
+    "mbr": "max_bit_rate",
+  }
+
+  str_values = {
+    "thread_type": "thread_type",
+    "profile": "profile",
+    "p": "profile"
+  }
+
+  for k, attr_name in int_castings.items():
+    if value := options.pop(k, None) is not None:
+      setattr(ctx, attr_name, int(value))
+
+  for k, attr_name in str_values.items():
+    if value := options.pop(k, None) is not None:
+      setattr(ctx, attr_name, value)
+
+  ctx.options.update(options)
+
 def options_from_codec_context(ctx: av.codec.context.CodecContext) -> dict[str, str]:
     return strip_nones_from_dict({ "bit_rate": None if ctx.bit_rate is None else str(ctx.bit_rate), "bit_rate_tolerance": None if ctx.bit_rate_tolerance is None else str(ctx.bit_rate_tolerance)  })
 

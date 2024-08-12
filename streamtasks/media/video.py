@@ -10,7 +10,7 @@ import av.video
 import av.video.codeccontext
 import numpy as np
 from streamtasks.media.codec import CodecInfo, Frame, Reformatter
-from streamtasks.media.util import options_from_codec_context
+from streamtasks.media.util import apply_options_to_codec_context, options_from_codec_context
 from streamtasks.utils import hertz_to_fintervall
 
 # TODO: endianness
@@ -93,13 +93,11 @@ class VideoCodecInfo(CodecInfo[VideoFrame]):
     ctx: av.video.codeccontext.VideoCodecContext = av.video.codeccontext.VideoCodecContext.create(self.codec, mode)
     ctx.format = self.to_av_format()
     ctx.framerate = self.frame_rate
-    ctx.options.update(self.options)
 
-    ctx.thread_type = "FRAME"
-    if "threads" in self.options: ctx.thread_count = int(self.options["threads"])
-    if "bit_rate" in self.options: ctx.bit_rate = int(self.options["bit_rate"])
-    if "bit_rate_tolerance" in self.options: ctx.bit_rate_tolerance = int(self.options["bit_rate_tolerance"])
+    apply_options_to_codec_context(ctx, self.options)
+
     if mode == "w": ctx.time_base = self.time_base
+
     return ctx
 
   @staticmethod
