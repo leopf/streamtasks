@@ -268,11 +268,16 @@ async def asgi_default_http_error_handler(ctx: HTTPContext):
   try:
     await ctx.next()
   except (ValidationError, ValueError) as e:
-    await ctx.respond_text(str(e), 400)
-  except KeyError as e: await ctx.respond_text(str(e), 404)
+    logging.debug("ASGI request error (bad request): ", e)
+    await ctx.respond_status(400)
+  except KeyError as e:
+    logging.debug("ASGI request error (not found): ", e)
+    await ctx.respond_status(404)
   except FetchError as e:
-    if e.status_code == FetchErrorStatusCode.NOT_FOUND: await ctx.respond_text(str(e), 404)
-    if e.status_code == FetchErrorStatusCode.BAD_REQUEST: await ctx.respond_text(str(e), 400)
-    if e.status_code == FetchErrorStatusCode.GENERAL: await ctx.respond_text(str(e), 500)
+    logging.debug("ASGI request error (fetch error): ", e)
+    if e.status_code == FetchErrorStatusCode.NOT_FOUND: await ctx.respond_status(404)
+    if e.status_code == FetchErrorStatusCode.BAD_REQUEST: await ctx.respond_status(400)
+    if e.status_code == FetchErrorStatusCode.GENERAL: await ctx.respond_status(500)
   except BaseException as e:
-    await ctx.respond_text(str(e), 500)
+    logging.debug("ASGI request error (unknown): ", e)
+    await ctx.respond_status(500)
