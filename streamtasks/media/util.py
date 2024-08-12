@@ -116,11 +116,11 @@ def apply_options_to_codec_context(ctx: av.codec.context.CodecContext, options: 
   }
 
   for k, attr_name in int_castings.items():
-    if value := options.pop(k, None) is not None:
+    if (value := options.pop(k, None)) is not None:
       setattr(ctx, attr_name, int(value))
 
   for k, attr_name in str_values.items():
-    if value := options.pop(k, None) is not None:
+    if (value := options.pop(k, None)) is not None:
       setattr(ctx, attr_name, value)
 
   ctx.options.update(options)
