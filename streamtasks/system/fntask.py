@@ -168,7 +168,7 @@ class _FnTaskHost(TaskHost):
 
   async def create_task(self, config: Any, topic_space_id: int | None):
     pconfig = ParsedTaskConfig(
-      fn_config=self.config.config_type_adapter.validate_python(config),
+      fn_config={} if self.config.config_type_adapter is None else self.config.config_type_adapter.validate_python(config),
       std_config=_FnTaskStdConfig.model_validate(config),
       input_id_map={ i.name: config[i.input_key] for i in self.config.inputs },
       output_ids=[ config[o.output_key] for o in self.config.outputs ]
@@ -284,7 +284,7 @@ class FnTaskConfig:
   def default_config(self) -> dict:
     if self.config_type is None: return {}
     config = self.config_type()
-    data = self.config_type_adapter.dump_python(config)
+    data = {} if self.config_type_adapter is None else self.config_type_adapter.dump_python(config)
     if not isinstance(data, dict): raise ValueError("default config must be a dict!")
     return { **_FnTaskStdConfig().model_dump(), **data}
 
