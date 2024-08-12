@@ -144,7 +144,7 @@ class OutputContainerTask(Task):
         destination += await secret_manager_client.resolve_secret(self.config.destination_secret)
         await self.client.stop_wait()
 
-      container = None
+      container: OutputContainer | None = None
       container = await OutputContainer.open(destination, **self.config.container_options)
       streams: dict[int, AVOutputStream] = {}
       streams.update({ cfg.in_topic: container.add_video_stream(cfg.to_codec_info()) for cfg in self.config.video_tracks })

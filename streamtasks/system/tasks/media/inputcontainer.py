@@ -2,7 +2,7 @@ import asyncio
 from fractions import Fraction
 from typing import Any
 from streamtasks.debugging import ddebug_value
-from pydantic import BaseModel
+from pydantic import UUID4, BaseModel
 from streamtasks.env import DEBUG_MEDIA
 from streamtasks.media.audio import AudioCodecInfo
 from streamtasks.media.container import AVInputStream, InputContainer
@@ -10,6 +10,7 @@ from streamtasks.media.video import VideoCodecInfo
 from streamtasks.net.serialization import RawData
 from streamtasks.system.configurators import EditorFields, IOTypes, multitrackio_configurator, static_configurator
 from streamtasks.media.packet import MediaMessage
+from streamtasks.system.secret_manager import SecretManagerClient
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
 from streamtasks.system.tasks.media.utils import MediaEditorFields
@@ -46,6 +47,7 @@ class ContainerAudioInputConfig(ContainerAudioInputConfigBase):
 
 class InputContainerConfig(BaseModel):
   source: str = ""
+  source_secret: UUID4 | None = None
   real_time: bool = True
   video_tracks: list[ContainerVideoInputConfig] = []
   audio_tracks: list[ContainerAudioInputConfig] = []
@@ -80,9 +82,17 @@ class InputContainerTask(Task):
 
   async def run(self):
     try:
+      source = self.config.source
+      if self.config.source_secret:
+        self.client.start()
+        await self.client.request_address()
+        secret_manager_client = SecretManagerClient(self.client)
+        source += await secret_manager_client.resolve_secret(self.config.source_secret)
+        await self.client.stop_wait()
+
       container: InputContainer | None = None
       tasks: list[asyncio.Task] = []
-      container = await InputContainer.open(self.config.source, **self.config.container_options)
+      container = await InputContainer.open(source, **self.config.container_options)
       tasks = [
         *(asyncio.create_task(self._run_stream(container.get_video_stream(idx, cfg.to_codec_info(), cfg.force_transcode), cfg.out_topic)) for idx, cfg in enumerate(self.config.video_tracks)),
         *(asyncio.create_task(self._run_stream(container.get_audio_stream(idx, cfg.to_codec_info(), cfg.force_transcode), cfg.out_topic)) for idx, cfg in enumerate(self.config.audio_tracks)),
@@ -105,7 +115,8 @@ class InputContainerTaskHost(TaskHost):
     label="input container",
     default_config=InputContainerConfig().model_dump(),
     editor_fields=[
-      EditorFields.text(key="source", label="source path or url"),
+      EditorFields.text(key="source", label="source"),
+      EditorFields.secret(key="source_secret", label="source (secret appendix)"),
       EditorFields.boolean("real_time"),
       EditorFields.options("container_options"),
     ]),
