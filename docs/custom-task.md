@@ -8,7 +8,7 @@ To create a custom task you should know about [IO Metdata](io-metadata.md).
 
 There is are demos: 
 - [(shitty) custom face detection](https://www.youtube.com/watch?v=mjNnnnPvze4)
-- [ollama chat](https://www.youtube.com/watch?v=HFJwDP01kQk)
+- [ollama chat](https://www.youtube.com/watch?v=Mlzo5l5zjfY)
 
 ## functional tasks
 module: `streamtasks.system.fntask`

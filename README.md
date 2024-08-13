@@ -13,7 +13,7 @@ Read the [Documentation](https://leopf.github.io/streamtasks).
 - [audio switching](https://www.youtube.com/watch?v=S7Nr7kXrsT8)
 - [audio mixing and scaling](https://www.youtube.com/watch?v=C5yIe2No228)
 - [publishing a livestream](https://www.youtube.com/watch?v=ZkH5p3I3e1M)
-- [ollama chat (custom task)](https://www.youtube.com/watch?v=HFJwDP01kQk)
+- [ollama chat (custom task)](https://www.youtube.com/watch?v=Mlzo5l5zjfY)
 
 ## Overview
 
