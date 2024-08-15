@@ -5,7 +5,7 @@ from pathlib import Path
 from streamtasks.system.builder import SystemBuilder
 
 async def main(args: list[str] | None = None):
-  parser = ArgumentParser("Streamtasks")
+  parser = ArgumentParser("streamtasks")
   parser.add_argument("--core", "-C", action="store_true", help="Flag indicating whether to run the core components (only allowed to be run once per system, by default).")
   parser.add_argument("--connect", action="append", help="Urls to connect to.")
   parser.add_argument("--serve", action="append", help="Urls to serve on.")
