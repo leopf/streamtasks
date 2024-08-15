@@ -363,19 +363,21 @@ class FnTaskContext:
   def TaskHost(self, register_endpoits: list[EndpointOrAddress] = []): return _FnTaskHost(self.config, register_endpoits=register_endpoits)
 
   async def run(self, to: Link | str | None = None, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER]):
-    if isinstance(to, Link): await self.TaskHost(link=to, register_endpoits=register_endpoits).run()
+    switch = Switch()
+    task_host = self.TaskHost(register_endpoits=register_endpoits)
+    await switch.add_link(await task_host.create_link())
+
+    if isinstance(to, Link):
+      await switch.add_link(to)
+      await task_host.run()
     else:
       logging.info("connecting" + ("!" if to is None else " to " + to))
-      switch = Switch()
-
-      task_host = self.TaskHost(register_endpoits=register_endpoits)
       reconnector = AutoReconnector(functools.partial(connect, url=to))
-      await switch.add_link(await reconnector.create_link())
-      await switch.add_link(await task_host.create_link())
-
       reconnector_task = asyncio.create_task(reconnector.run())
       await reconnector.wait_connected()
       logging.info("connected" + ("!" if to is None else " to " + to))
+
+      await switch.add_link(await reconnector.create_link())
 
       await asyncio.gather(
         reconnector_task,
