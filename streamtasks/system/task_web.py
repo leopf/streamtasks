@@ -18,7 +18,7 @@ from streamtasks.client.fetch import FetchRequest, FetchServer
 from streamtasks.client.receiver import TopicsReceiver
 from streamtasks.client.signal import SignalServer
 from streamtasks.env import get_data_sub_dir
-from streamtasks.net import EndpointOrAddress, Link
+from streamtasks.net import EndpointOrAddress
 from streamtasks.net.serialization import RawData
 from streamtasks.net.utils import str_to_endpoint
 from streamtasks.pydanticdb import PydanticDB
@@ -106,8 +106,8 @@ FullTaskList = TypeAdapter(list[FullTask])
 DeploymentDashboardList = TypeAdapter(list[DeploymentDashboard])
 
 class TaskWebPathHandler(Worker):
-  def __init__(self, link: Link, path: str, frontend: PathRegistrationFrontend | None = None, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER_WEB]):
-    super().__init__(link)
+  def __init__(self, path: str, frontend: PathRegistrationFrontend | None = None, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER_WEB]):
+    super().__init__()
     self.register_endpoits = list(register_endpoits)
     self.path = path
     self.frontend = frontend
@@ -116,7 +116,6 @@ class TaskWebPathHandler(Worker):
 
   async def run(self):
     try:
-      await self.setup()
       self.client = await self.create_client()
       self.client.start()
       await self.client.request_address()
@@ -200,9 +199,9 @@ class TaskWebBackendStore:
     return task
 
 class TaskWebBackend(Worker):
-  def __init__(self, link: Link, address_name: str = AddressNames.TASK_MANAGER_WEB,
+  def __init__(self, address_name: str = AddressNames.TASK_MANAGER_WEB,
                task_manager_address_name: str = AddressNames.TASK_MANAGER):
-    super().__init__(link)
+    super().__init__()
     self.task_manager_address_name = task_manager_address_name
     self.address_name = address_name
     self.task_host_asgi_handlers: dict[str, ASGIHandler] = {}
@@ -215,7 +214,6 @@ class TaskWebBackend(Worker):
 
   async def run(self):
     try:
-      await self.setup()
       self.client = await self.create_client()
       self.client.start()
       await self.client.request_address()

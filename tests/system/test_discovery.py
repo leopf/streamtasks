@@ -13,7 +13,8 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
   async def asyncSetUp(self):
     self.tasks: list[asyncio.Task] = []
     self.switch = Switch()
-    self.discovery_worker = DiscoveryWorker(await self.create_link())
+    self.discovery_worker = DiscoveryWorker()
+    await self.switch.add_link(await self.discovery_worker.create_link())
     self.tasks.append(asyncio.create_task(self.discovery_worker.run()))
     await asyncio.sleep(0.001)
 

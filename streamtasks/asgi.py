@@ -2,7 +2,7 @@ from streamtasks.asgiserver import HTTPContext, http_context_handler
 from streamtasks.client.receiver import Receiver
 from streamtasks.client.fetch import FetchError, FetchErrorStatusCode, FetchRequestReceiver, FetchRequest, new_fetch_body_bad_request, new_fetch_body_general_error
 from streamtasks.utils import AsyncTaskManager
-from streamtasks.net import Endpoint, EndpointOrAddress, Link, endpoint_or_address_to_endpoint
+from streamtasks.net import Endpoint, EndpointOrAddress, endpoint_or_address_to_endpoint
 from streamtasks.net.messages import AddressedMessage, Message
 from streamtasks.net.serialization import RawData
 from pydantic import BaseModel, ValidationError
@@ -237,8 +237,8 @@ class ASGIProxyApp:
     send_task.cancel()
 
 class HTTPServerOverASGI(Worker):
-  def __init__(self, link: Link, http_endpoint: tuple[str, int], asgi_endpoint: EndpointOrAddress, http_config: dict[str, Any] = {}):
-    super().__init__(link)
+  def __init__(self, http_endpoint: tuple[str, int], asgi_endpoint: EndpointOrAddress, http_config: dict[str, Any] = {}):
+    super().__init__()
     import uvicorn
     self.server: uvicorn.Server | None = None
     self.asgi_endpoint = endpoint_or_address_to_endpoint(asgi_endpoint, WorkerPorts.ASGI)
@@ -246,7 +246,6 @@ class HTTPServerOverASGI(Worker):
     self.http_config = http_config
   async def run(self):
     try:
-      await self.setup()
       client = await self.create_client()
       client.start()
       await client.request_address()

@@ -8,7 +8,7 @@ from streamtasks.client import Client
 from streamtasks.client.discovery import register_address_name
 from streamtasks.client.fetch import FetchRequest, FetchServer, new_fetch_body_not_found
 from streamtasks.env import get_data_sub_dir
-from streamtasks.net import EndpointOrAddress, Link
+from streamtasks.net import EndpointOrAddress
 from streamtasks.pydanticdb import PydanticDB
 from streamtasks.services.protocols import AddressNames
 from streamtasks.system.task_web import TaskWebPathHandler
@@ -23,8 +23,8 @@ class SecretRequestModel(BaseModel):
 SecretModelListModel = TypeAdapter(list[SecretModel])
 
 class SecretManager(TaskWebPathHandler):
-  def __init__(self, link: Link, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER_WEB]):
-    super().__init__(link, "/secrets/", register_endpoits=register_endpoits)
+  def __init__(self, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER_WEB]):
+    super().__init__("/secrets/", register_endpoits=register_endpoits)
     self.db = PydanticDB(SecretModel, os.path.join(get_data_sub_dir("user-data"), "secrets.json"))
 
   async def run_inner(self):

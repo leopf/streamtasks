@@ -7,7 +7,7 @@ from streamtasks.asgiserver import ASGIRouter, ASGIServer, HTTPContext, http_con
 from streamtasks.client.discovery import register_address_name
 from streamtasks.client.fetch import FetchRequest, FetchServer, new_fetch_body_not_found
 from streamtasks.env import get_data_sub_dir
-from streamtasks.net import EndpointOrAddress, Link
+from streamtasks.net import EndpointOrAddress
 from streamtasks.pydanticdb import PydanticDB
 from streamtasks.services.protocols import AddressNames
 from streamtasks.system.task import MetadataDict
@@ -26,8 +26,8 @@ class NamedTopicResolvedResponseModel(BaseModel):
 NamedTopicListModel = TypeAdapter(list[NamedTopicModel])
 
 class NamedTopicManager(TaskWebPathHandler):
-  def __init__(self, link: Link, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER_WEB]):
-    super().__init__(link, "/named-topics/", PathRegistrationFrontend(path="std:namedtopicmanager", label="Named Topic Manager"), register_endpoits)
+  def __init__(self, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER_WEB]):
+    super().__init__("/named-topics/", PathRegistrationFrontend(path="std:namedtopicmanager", label="Named Topic Manager"), register_endpoits)
     self.db = PydanticDB(NamedTopicModel, os.path.join(get_data_sub_dir("user-data"), "named-topics.json"))
     self.topic_map: dict[str, int] = {}
 

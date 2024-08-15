@@ -54,8 +54,8 @@ class WebsocketConnectionData(NetworkConnectionData):
     return f"{scheme}://{self.hostname}:{self.port}"
 
 class AutoReconnector(Worker):
-  def __init__(self, link: Link, connect_fn: Callable[[], Awaitable[Link]], delay: float = 1):
-    super().__init__(link)
+  def __init__(self, connect_fn: Callable[[], Awaitable[Link]], delay: float = 1):
+    super().__init__()
     self.connect_fn = connect_fn
     self.delay = delay
     self._async_connected = AsyncBool()
@@ -65,7 +65,6 @@ class AutoReconnector(Worker):
 
   async def run(self):
     try:
-      await self.setup()
       while True:
         try:
           link = await self.connect_fn()
@@ -167,8 +166,8 @@ class RawConnectionLink(Link):
     except: raise ConnectionClosedError()
 
 class ServerBase(Worker):
-  def __init__(self, link: Link, cost: int, handshake_data: dict):
-    super().__init__(link)
+  def __init__(self, cost: int, handshake_data: dict):
+    super().__init__()
     self.cost = cost
     self.handshake_data = handshake_data
     self._running_event = asyncio.Event()
@@ -183,7 +182,6 @@ class ServerBase(Worker):
 
   async def run(self):
     try:
-      await self.setup()
       self._running_event.set()
       await self.run_server()
     finally:
@@ -236,8 +234,8 @@ class RawWebsocketConnection(RawConnection):
   def close(self): asyncio.create_task(self.socket.close())
 
 class WebsocketServer(ServerBase):
-  def __init__(self, link: Link, host: str, port: int, cost: int, handshake_data: dict):
-    super().__init__(link, cost, handshake_data)
+  def __init__(self, host: str, port: int, cost: int, handshake_data: dict):
+    super().__init__(cost, handshake_data)
     self.host = host
     self.port = port
 
@@ -256,8 +254,8 @@ class WebsocketServer(ServerBase):
       return await asyncio.Future()
 
 class TCPSocketServer(StreamServerBase):
-  def __init__(self, link: Link, host: str, port: int, cost: int, handshake_data: dict):
-    super().__init__(link, cost, handshake_data)
+  def __init__(self, host: str, port: int, cost: int, handshake_data: dict):
+    super().__init__(cost, handshake_data)
     self.host = host
     self.port = port
 
@@ -266,9 +264,9 @@ class TCPSocketServer(StreamServerBase):
     async with server: await server.serve_forever()
 
 class UnixSocketServer(StreamServerBase):
-  def __init__(self, link: Link, path: str, cost: int, handshake_data: dict):
+  def __init__(self, path: str, cost: int, handshake_data: dict):
     if platform.system() == "Windows": raise PlatformNotSupportedError("Windows not supported!")
-    super().__init__(link, cost, handshake_data)
+    super().__init__(cost, handshake_data)
     self.path = path
 
   async def run_server(self):
@@ -319,11 +317,11 @@ async def connect(url: str | None = None):
     await connection.handshake(data.handshake_data)
     return RawConnectionLink(connection, data.cost)
 
-def create_server(link: Link, url: str | None = None) -> ServerBase:
+def create_server(url: str | None = None) -> ServerBase:
   data = extract_connection_data_from_url(url)
   if isinstance(data, UnixConnectionData):
-    return UnixSocketServer(link, data.path, data.cost, data.handshake_data)
+    return UnixSocketServer(data.path, data.cost, data.handshake_data)
   elif isinstance(data, TCPConnectionData):
-    return TCPSocketServer(link, data.hostname, data.port, cost=data.cost, handshake_data=data.handshake_data)
+    return TCPSocketServer(data.hostname, data.port, cost=data.cost, handshake_data=data.handshake_data)
   elif isinstance(data, WebsocketConnectionData):
-    return WebsocketServer(link, data.hostname, data.port, data.cost, data.handshake_data)
+    return WebsocketServer(data.hostname, data.port, data.cost, data.handshake_data)

@@ -7,15 +7,14 @@ from streamtasks.client import Client
 from streamtasks.client.fetch import FetchRequest, FetchServer, new_fetch_body_bad_request, new_fetch_body_not_found
 from streamtasks.net.serialization import RawData
 from streamtasks.net.messages import TopicControlData
-from streamtasks.net import Link
 import pydantic
 import logging
 import asyncio
 
 
 class DiscoveryWorker(Worker):
-  def __init__(self, link: Link):
-    super().__init__(link)
+  def __init__(self):
+    super().__init__()
     self._address_counter = WorkerAddresses.COUNTER_INIT
     self._topics_counter = WorkerTopics.COUNTER_INIT
     self._topic_space_id_counter = 0
@@ -23,7 +22,6 @@ class DiscoveryWorker(Worker):
     self._topic_spaces: dict[int, dict[int, int]] = {}
 
   async def run(self):
-    await self.setup()
     client = await self.create_client()
     client.start()
     await client.set_address(WorkerAddresses.ID_DISCOVERY)

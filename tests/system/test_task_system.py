@@ -3,7 +3,7 @@ import unittest
 import httpx
 from streamtasks.asgi import ASGIProxyApp
 from streamtasks.client.discovery import register_topic_space, wait_for_topic_signal
-from streamtasks.net import ConnectionClosedError, Link, Switch
+from streamtasks.net import ConnectionClosedError, Switch
 from streamtasks.net.serialization import RawData
 from streamtasks.services.protocols import AddressNames, WorkerTopics
 from streamtasks.system.task import Task, TaskHost, TaskHostRegistrationList, TaskManager, TaskManagerClient, TaskStatus
@@ -25,8 +25,8 @@ class DemoTask(Task):
   async def shoot(self): await self.shoot_topic.send(RawData("BANG"))
 
 class DemoTaskHost(TaskHost):
-  def __init__(self, link: Link):
-    super().__init__(link)
+  def __init__(self):
+    super().__init__()
     self.stop_event = asyncio.Event()
     self.demo_tasks: list[DemoTask] = []
   @property
@@ -43,13 +43,20 @@ class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
     await TestTaskSystem.lock.acquire()
     self.tasks: list[asyncio.Task] = []
     self.switch = Switch()
-    self.discovery_worker = DiscoveryWorker(await self.switch.add_local_connection())
-    self.task_manager = TaskManager(await self.switch.add_local_connection())
-    self.task_manager_web = TaskWebBackend(await self.switch.add_local_connection())
-    self.demo_task_host = DemoTaskHost(await self.switch.add_local_connection())
+    self.discovery_worker = DiscoveryWorker()
+    self.task_manager = TaskManager()
+    self.task_manager_web = TaskWebBackend()
+    self.demo_task_host = DemoTaskHost()
+
+    await self.switch.add_link(await self.discovery_worker.create_link())
+    await self.switch.add_link(await self.demo_task_host.create_link())
+    await self.switch.add_link(await self.task_manager_web.create_link())
+    await self.switch.add_link(await self.task_manager.create_link())
+
     self.client = await self.create_client()
     self.client.start()
     self.tm_client = TaskManagerClient(self.client)
+
 
     self.tasks.append(asyncio.create_task(self.discovery_worker.run()))
     await wait_for_topic_signal(self.client, WorkerTopics.DISCOVERY_SIGNAL)

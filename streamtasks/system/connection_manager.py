@@ -12,7 +12,7 @@ from streamtasks.asgi import ASGIAppRunner, asgi_default_http_error_handler
 from streamtasks.asgiserver import ASGIRouter, ASGIServer, HTTPContext, WebsocketContext, http_context_handler, websocket_context_handler
 from streamtasks.connection import AutoReconnector, ServerBase, connect, create_server
 from streamtasks.env import NODE_NAME, get_data_sub_dir
-from streamtasks.net import EndpointOrAddress, Link
+from streamtasks.net import EndpointOrAddress
 from streamtasks.services.protocols import AddressNames
 from streamtasks.system.task_web import PathRegistrationFrontend, TaskWebPathHandler
 import dbm
@@ -94,8 +94,8 @@ class UrlCreateModel(BaseModel):
   url: str
 
 class ConnectionManager(TaskWebPathHandler):
-  def __init__(self, link: Link, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER_WEB]):
-    super().__init__(link, f"/connections/{get_url_node_name()}/", PathRegistrationFrontend(path="std:connectionmanager", label=f"Connections ({NODE_NAME()})"), register_endpoits)
+  def __init__(self, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER_WEB]):
+    super().__init__(f"/connections/{get_url_node_name()}/", PathRegistrationFrontend(path="std:connectionmanager", label=f"Connections ({NODE_NAME()})"), register_endpoits)
     self.db = dbm.open(os.path.join(get_data_sub_dir("user-data"), "connections.db"), flag="c")
     self._connection_url_data: list[ConnectionUrlData] = []
     self._server_url_data: list[ServerUrlData] = []
@@ -215,7 +215,11 @@ class ConnectionManager(TaskWebPathHandler):
     await ASGIAppRunner(self.client, app).run()
 
   async def create_connection_url_data(self, url: str):
-    return ConnectionUrlData(url=url, worker=AutoReconnector(link=await self.create_link(), connect_fn=functools.partial(connect, url=url)), change_trigger=self._change_trigger_connections)
+    w = AutoReconnector(connect_fn=functools.partial(connect, url=url))
+    await self.switch.add_link(await w.create_link())
+    return ConnectionUrlData(url=url, worker=w, change_trigger=self._change_trigger_connections)
 
   async def create_server_url_data(self, url: str):
-    return ServerUrlData(url=url, worker=create_server(link=await self.create_link(), url=url), change_trigger=self._change_trigger_servers)
+    w = create_server(url)
+    await self.switch.add_link(await w.create_link())
+    return ServerUrlData(url=url, worker=w, change_trigger=self._change_trigger_servers)

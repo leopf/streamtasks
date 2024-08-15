@@ -150,8 +150,8 @@ class _FnTask(Task):
 
 
 class _FnTaskHost(TaskHost):
-  def __init__(self, config: 'FnTaskConfig', link: Link, register_endpoits: list[EndpointOrAddress] = []):
-    super().__init__(link=link, register_endpoits=register_endpoits)
+  def __init__(self, config: 'FnTaskConfig', register_endpoits: list[EndpointOrAddress] = []):
+    super().__init__(register_endpoits=register_endpoits)
     self.config = config
     self.id = task_host_id_from_name(f"fntask_{config.name}")
 
@@ -360,21 +360,26 @@ class FnTaskContext:
   def __init__(self, config: FnTaskConfig) -> None:
     self.config = config
 
-  def TaskHost(self, link: Link, register_endpoits: list[EndpointOrAddress] = []):
-    return _FnTaskHost(self.config, link=link, register_endpoits=register_endpoits)
+  def TaskHost(self, register_endpoits: list[EndpointOrAddress] = []): return _FnTaskHost(self.config, register_endpoits=register_endpoits)
 
   async def run(self, to: Link | str | None = None, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER]):
     if isinstance(to, Link): await self.TaskHost(link=to, register_endpoits=register_endpoits).run()
     else:
       logging.info("connecting" + ("!" if to is None else " to " + to))
       switch = Switch()
-      reconnector = AutoReconnector(await switch.add_local_connection(), functools.partial(connect, url=to))
+
+      task_host = self.TaskHost(register_endpoits=register_endpoits)
+      reconnector = AutoReconnector(functools.partial(connect, url=to))
+      await switch.add_link(await reconnector.create_link())
+      await switch.add_link(await task_host.create_link())
+
       reconnector_task = asyncio.create_task(reconnector.run())
       await reconnector.wait_connected()
       logging.info("connected" + ("!" if to is None else " to " + to))
+
       await asyncio.gather(
         reconnector_task,
-        self.TaskHost(link=await switch.add_local_connection(), register_endpoits=register_endpoits).run()
+        task_host.run()
       )
 
   def run_sync(self, to: Link | str | None = None, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER]):

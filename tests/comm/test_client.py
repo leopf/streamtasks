@@ -154,9 +154,8 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
   @async_timeout(1)
   async def test_broadcast(self):
-    discovery_conn = create_queue_connection()
-    discovery_worker = DiscoveryWorker(discovery_conn[0])
-    await self.switch.add_link(discovery_conn[1])
+    discovery_worker = DiscoveryWorker()
+    await self.switch.add_link(await discovery_worker.create_link())
     self.tasks.append(asyncio.create_task(discovery_worker.run()))
 
     await self.a.set_address(100)
@@ -166,7 +165,6 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     await self.a.request_topic_ids(1)
 
     server = BroadcastingServer(self.a)
-
     self.tasks.append(asyncio.create_task(server.run()))
 
     receiver = BroadcastReceiver(self.b, [ "test/1" ], self.a.address)
