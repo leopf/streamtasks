@@ -1,14 +1,16 @@
 from abc import ABC, abstractmethod
-import asyncio
 from dataclasses import dataclass
+import asyncio
 import functools
 import logging
 import os
 import platform
 import struct
 import tempfile
-from typing import Any, Awaitable, Callable
+import websockets
+import websockets.connection
 from streamtasks.env import NODE_NAME
+from typing import Any, Awaitable, Callable
 from streamtasks.error import PlatformNotSupportedError
 from streamtasks.net import ConnectionClosedError, Link
 from streamtasks.net.serialization import deserialize_message, serialize_message
@@ -20,6 +22,7 @@ from streamtasks.worker import Worker
 import msgpack
 
 class DEFAULT_COSTS:
+  WEBSOCKET = 150
   TCP = 100
   UNIX = 50
   NODE = 25
@@ -33,11 +36,22 @@ class UnixConnectionData:
   handshake_data: dict[str, Any]
 
 @dataclass
-class TCPConnectionData:
+class NetworkConnectionData:
   hostname: str
   port: int
   cost: int
   handshake_data: dict[str, Any]
+
+class TCPConnectionData(NetworkConnectionData): pass
+
+@dataclass
+class WebsocketConnectionData(NetworkConnectionData):
+  secure: bool
+
+  @property
+  def uri(self):
+    scheme = "wss" if self.secure else "ws"
+    return f"{scheme}://{self.hostname}:{self.port}"
 
 class AutoReconnector(Worker):
   def __init__(self, link: Link, connect_fn: Callable[[], Awaitable[Link]], delay: float = 1):
@@ -153,7 +167,7 @@ class RawConnectionLink(Link):
     except: raise ConnectionClosedError()
 
 class ServerBase(Worker):
-  def __init__(self, link: Link, cost: int, handshake_data: dict = {}):
+  def __init__(self, link: Link, cost: int, handshake_data: dict):
     super().__init__(link)
     self.cost = cost
     self.handshake_data = handshake_data
@@ -200,6 +214,47 @@ class StreamServerBase(ServerBase):
       link.on_closed.append(self.on_disconnected)
     except BaseException as e: logging.warning(f"Failed to initialize connection. Error: {e}")
 
+class RawWebsocketConnection(RawConnection):
+  def __init__(self, socket: websockets.WebSocketCommonProtocol) -> None:
+    super().__init__()
+    self.socket = socket
+
+  async def send(self, data: bytes):
+    try: return await super().send(data)
+    except websockets.ConnectionClosed as e: raise ConnectionClosedError(origin=e)
+
+  async def recv(self):
+    try: await super().recv()
+    except websockets.ConnectionClosed as e: raise ConnectionClosedError(origin=e)
+
+  async def _send(self, data: bytes): await self.socket.send(data)
+  async def _recv(self) -> bytes:
+    data = None
+    while not isinstance(data, bytes): data = await self.socket.recv()
+    return data
+
+  def close(self): asyncio.create_task(self.socket.close())
+
+class WebsocketServer(ServerBase):
+  def __init__(self, link: Link, host: str, port: int, cost: int, handshake_data: dict):
+    super().__init__(link, cost, handshake_data)
+    self.host = host
+    self.port = port
+
+  async def on_connection(self, socket: websockets.WebSocketCommonProtocol):
+    try:
+      connection = RawWebsocketConnection(socket)
+      await connection.handshake(self.handshake_data)
+      link = RawConnectionLink(connection, self.cost)
+      await self.switch.add_link(link)
+      self.on_connected()
+      link.on_closed.append(self.on_disconnected)
+    except BaseException as e: logging.warning(f"Failed to initialize connection. Error: {e}")
+
+  async def run_server(self):
+    async with websockets.serve(self.on_connection, host=self.host, port=self.port):
+      return await asyncio.Future()
+
 class TCPSocketServer(StreamServerBase):
   def __init__(self, link: Link, host: str, port: int, cost: int, handshake_data: dict):
     super().__init__(link, cost, handshake_data)
@@ -224,7 +279,7 @@ def get_node_socket_path(node_name: str | None):
   if node_name is None: node_name = NODE_NAME()
   return os.path.join(tempfile.gettempdir(), f"{__name__.split('.')[0]}-{node_name}.sock")
 
-def extract_connection_data_from_url(url: str | None) -> UnixConnectionData | TCPConnectionData:
+def extract_connection_data_from_url(url: str | None):
   if url is None: return UnixConnectionData(get_node_socket_path(None), DEFAULT_COSTS.NODE, {})
 
   handshake_data = {}
@@ -242,6 +297,8 @@ def extract_connection_data_from_url(url: str | None) -> UnixConnectionData | TC
     case "node": return UnixConnectionData(get_node_socket_path(purl.hostname or None), cost or DEFAULT_COSTS.NODE, handshake_data)
     case "unix": return UnixConnectionData(purl.path, cost or DEFAULT_COSTS.UNIX, handshake_data)
     case "tcp": return TCPConnectionData(purl.hostname, purl.port, cost or DEFAULT_COSTS.TCP, handshake_data)
+    case "ws": return WebsocketConnectionData(purl.hostname, purl.port, cost or DEFAULT_COSTS.WEBSOCKET, handshake_data, False)
+    case "wss": return WebsocketConnectionData(purl.hostname, purl.port, cost or DEFAULT_COSTS.WEBSOCKET, handshake_data, True)
     case _: raise ValueError("Invalid url scheme!")
 
 async def connect(url: str | None = None):
@@ -256,6 +313,11 @@ async def connect(url: str | None = None):
     connection = RawStreamConnection(*rw)
     await connection.handshake(data.handshake_data)
     return RawConnectionLink(connection, data.cost)
+  elif isinstance(data, WebsocketConnectionData):
+    socket = await websockets.connect(data.uri)
+    connection = RawWebsocketConnection(socket)
+    await connection.handshake(data.handshake_data)
+    return RawConnectionLink(connection, data.cost)
 
 def create_server(link: Link, url: str | None = None) -> ServerBase:
   data = extract_connection_data_from_url(url)
@@ -263,3 +325,5 @@ def create_server(link: Link, url: str | None = None) -> ServerBase:
     return UnixSocketServer(link, data.path, data.cost, data.handshake_data)
   elif isinstance(data, TCPConnectionData):
     return TCPSocketServer(link, data.hostname, data.port, cost=data.cost, handshake_data=data.handshake_data)
+  elif isinstance(data, WebsocketConnectionData):
+    return WebsocketServer(link, data.hostname, data.port, data.cost, data.handshake_data)
