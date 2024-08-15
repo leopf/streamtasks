@@ -4,7 +4,7 @@ import logging
 from streamtasks.asgi import HTTPServerOverASGI
 from streamtasks.client import Client
 from streamtasks.client.discovery import wait_for_topic_signal
-from streamtasks.connection import AutoReconnector, NodeServer, connect, get_server
+from streamtasks.connection import AutoReconnector, connect, create_server
 from streamtasks.error import PlatformNotSupportedError
 from streamtasks.net import Switch
 from streamtasks.services.discovery import DiscoveryWorker
@@ -40,7 +40,7 @@ class SystemBuilder:
   async def start_connector(self, url: str | None = None):
     self._add_task(AutoReconnector(await self.switch.add_local_connection(), functools.partial(connect, url=url)).run())
 
-  async def start_server(self, url: str | None = None):  self._add_task(get_server(await self.switch.add_local_connection(), url).run())
+  async def start_server(self, url: str | None = None):  self._add_task(create_server(await self.switch.add_local_connection(), url).run())
 
   async def start_task_system(self):
     await self._wait_discovery()
@@ -62,7 +62,7 @@ class SystemBuilder:
   async def start_node_server(self):
     await self._wait_discovery()
     try:
-      self._add_task(NodeServer(await self.switch.add_local_connection()).run())
+      self._add_task(create_server(await self.switch.add_local_connection()).run())
     except PlatformNotSupportedError as e:
       logging.warning("Failed to start node server. Platform not supported: ", str(e))
 

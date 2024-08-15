@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from streamtasks.client import Client
 from streamtasks.client.receiver import AddressReceiver
-from streamtasks.connection import UnixSocketServer, connect_unix_socket
+from streamtasks.connection import connect, create_server
 from streamtasks.net import ConnectionClosedError, create_queue_connection
 from streamtasks.net.serialization import RawData
 from streamtasks.message.types import TextMessage
@@ -32,12 +32,14 @@ class TestSync(unittest.IsolatedAsyncioTestCase):
 
   async def test_unix_connection(self):
     sock_path = tempfile.mktemp(".sock")
-    server = UnixSocketServer(self.link ,sock_path)
+    unix_url = "unix://" + sock_path
+
+    server = create_server(self.link, unix_url)
     self.tasks.append(asyncio.create_task(server.run()))
 
     async with AddressReceiver(self.client, 1, 1) as recv:
       await server.wait_running()
-      client2 = Client(await connect_unix_socket(sock_path))
+      client2 = Client(await connect(unix_url))
       client2.start()
       while server.connection_count != 1: await server.wait_connections_changed()
       await asyncio.sleep(0.001) # ?? wait for address to be registered in link
@@ -48,7 +50,6 @@ class TestSync(unittest.IsolatedAsyncioTestCase):
 
       client2._link.close()
       while server.connection_count != 0: await server.wait_connections_changed()
-
 
     if os.path.exists(sock_path): os.unlink(sock_path)
 

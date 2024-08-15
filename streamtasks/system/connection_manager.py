@@ -10,7 +10,7 @@ from typing import Generic, TypeVar
 from pydantic import BaseModel, TypeAdapter, ValidationError
 from streamtasks.asgi import ASGIAppRunner, asgi_default_http_error_handler
 from streamtasks.asgiserver import ASGIRouter, ASGIServer, HTTPContext, WebsocketContext, http_context_handler, websocket_context_handler
-from streamtasks.connection import AutoReconnector, ServerBase, connect, get_server
+from streamtasks.connection import AutoReconnector, ServerBase, connect, create_server
 from streamtasks.env import NODE_NAME, get_data_sub_dir
 from streamtasks.net import EndpointOrAddress, Link
 from streamtasks.services.protocols import AddressNames
@@ -218,4 +218,4 @@ class ConnectionManager(TaskWebPathHandler):
     return ConnectionUrlData(url=url, worker=AutoReconnector(link=await self.create_link(), connect_fn=functools.partial(connect, url=url)), change_trigger=self._change_trigger_connections)
 
   async def create_server_url_data(self, url: str):
-    return ServerUrlData(url=url, worker=get_server(link=await self.create_link(), url=url), change_trigger=self._change_trigger_servers)
+    return ServerUrlData(url=url, worker=create_server(link=await self.create_link(), url=url), change_trigger=self._change_trigger_servers)
