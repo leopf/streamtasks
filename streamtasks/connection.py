@@ -163,7 +163,7 @@ class RawConnectionLink(Link):
   async def _recv(self) -> Message:
     try: return deserialize_message(await self._connection.recv())
     except asyncio.CancelledError: raise
-    except: raise ConnectionClosedError()
+    except BaseException as e: raise ConnectionClosedError(origin=e)
 
 class ServerBase(Worker):
   def __init__(self, cost: int, handshake_data: dict):
@@ -222,7 +222,7 @@ class RawWebsocketConnection(RawConnection):
     except websockets.ConnectionClosed as e: raise ConnectionClosedError(origin=e)
 
   async def recv(self):
-    try: await super().recv()
+    try: return await super().recv()
     except websockets.ConnectionClosed as e: raise ConnectionClosedError(origin=e)
 
   async def _send(self, data: bytes): await self.socket.send(data)
@@ -241,12 +241,15 @@ class WebsocketServer(ServerBase):
 
   async def on_connection(self, socket: websockets.WebSocketCommonProtocol):
     try:
+      close_event = asyncio.Event()
       connection = RawWebsocketConnection(socket)
       await connection.handshake(self.handshake_data)
       link = RawConnectionLink(connection, self.cost)
       await self.switch.add_link(link)
       self.on_connected()
       link.on_closed.append(self.on_disconnected)
+      link.on_closed.append(close_event.set)
+      await close_event.wait()
     except BaseException as e: logging.warning(f"Failed to initialize connection. Error: {e}")
 
   async def run_server(self):
@@ -316,6 +319,7 @@ async def connect(url: str | None = None):
     connection = RawWebsocketConnection(socket)
     await connection.handshake(data.handshake_data)
     return RawConnectionLink(connection, data.cost)
+  raise ValueError("Invalid connection data/url!")
 
 def create_server(url: str | None = None) -> ServerBase:
   data = extract_connection_data_from_url(url)

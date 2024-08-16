@@ -209,7 +209,6 @@ class TaskHost(Worker):
         logging.debug("Failed to register task host!", e, traceback.format_exc())
       raise e
     finally:
-      # TODO: unregister all
       for task in self.tasks.values(): task.cancel()
       if len(self.tasks) > 0: await asyncio.wait(self.tasks.values(), timeout=1) # NOTE: make configurable
       await self.shutdown()
