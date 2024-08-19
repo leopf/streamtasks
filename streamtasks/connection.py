@@ -30,17 +30,18 @@ class DEFAULT_COSTS:
 def _get_version_specifier(): return ".".join(version(__name__.split(".", maxsplit=1)[0]).split(".")[:2]) # NOTE: major.minor during alpha
 
 @dataclass
-class UnixConnectionData:
-  path: str
+class ConnectionData:
   cost: int
   handshake_data: dict[str, Any]
 
 @dataclass
-class NetworkConnectionData:
+class UnixConnectionData(ConnectionData):
+  path: str
+
+@dataclass
+class NetworkConnectionData(ConnectionData):
   hostname: str
   port: int
-  cost: int
-  handshake_data: dict[str, Any]
 
 class TCPConnectionData(NetworkConnectionData): pass
 
@@ -86,19 +87,30 @@ class RawConnection(ABC):
     self._send_lock = asyncio.Lock()
     self._recv_lock = asyncio.Lock()
 
-  async def handshake(self, extra_data: dict):
+  async def init_client(self, extra_data: dict):
     try:
-      data = { **extra_data, "version": _get_version_specifier() }
-      await self.send(msgpack.packb(data))
-      other_data = msgpack.unpackb(await self.recv())
-      if not isinstance(other_data, dict): raise ValueError()
-      await self.validate_handshake(other_data)
+      client_data = { **extra_data, "version": _get_version_specifier() }
+      await self.send(msgpack.packb(client_data))
+      server_data = msgpack.unpackb(await self.recv())
+      if not isinstance(server_data, dict): raise ValueError()
+      if server_data.get("version", None) != _get_version_specifier(): raise ConnectionError("Server version mismatch")
+      if server_data.get("accepted", False) != True: raise ConnectionError("Server rejected connection")
     except BaseException as e:
       self.close()
       raise e
 
-  async def validate_handshake(self, data: dict):
-    if data["version"] != _get_version_specifier(): raise ValueError("Version missmatch!")
+  async def init_server(self, extra_data: dict) -> dict:
+    try:
+      client_data = msgpack.unpackb(await self.recv())
+      if not isinstance(client_data, dict): raise ValueError()
+      server_auth = extra_data.pop("auth", None)
+      client_auth = client_data.get("auth", None)
+      accepted = client_data.get("version", None) == _get_version_specifier() and client_auth == server_auth
+      server_data = { **extra_data, "accepted": accepted, "version": _get_version_specifier() }
+      await self.send(msgpack.packb(server_data))
+    except BaseException as e:
+      self.close()
+      raise e
 
   @abstractmethod
   def close(self): pass
@@ -205,7 +217,7 @@ class StreamServerBase(ServerBase):
   async def on_connection(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     try:
       connection = RawStreamConnection(reader, writer)
-      await connection.handshake(self.handshake_data)
+      await connection.init_server(self.handshake_data)
       link = RawConnectionLink(connection, self.cost)
       await self.switch.add_link(link)
       self.on_connected()
@@ -243,7 +255,7 @@ class WebsocketServer(ServerBase):
     try:
       close_event = asyncio.Event()
       connection = RawWebsocketConnection(socket)
-      await connection.handshake(self.handshake_data)
+      await connection.init_server(self.handshake_data)
       link = RawConnectionLink(connection, self.cost)
       await self.switch.add_link(link)
       self.on_connected()
@@ -294,32 +306,29 @@ def extract_connection_data_from_url(url: str | None):
     if "cost" in qs_data and len(qs_data["cost"]) == 1 and qs_data["cost"][0].isdigit(): cost = int(qs_data.pop("cost")[0])
 
   match purl.scheme:
-    case "": return UnixConnectionData(get_node_socket_path(url), DEFAULT_COSTS.NODE, {})
-    case "node": return UnixConnectionData(get_node_socket_path(purl.hostname or None), cost or DEFAULT_COSTS.NODE, handshake_data)
-    case "unix": return UnixConnectionData(purl.path, cost or DEFAULT_COSTS.UNIX, handshake_data)
-    case "tcp": return TCPConnectionData(purl.hostname, purl.port, cost or DEFAULT_COSTS.TCP, handshake_data)
-    case "ws": return WebsocketConnectionData(purl.hostname, purl.port, cost or DEFAULT_COSTS.WEBSOCKET, handshake_data, False)
-    case "wss": return WebsocketConnectionData(purl.hostname, purl.port, cost or DEFAULT_COSTS.WEBSOCKET, handshake_data, True)
+    case "": return UnixConnectionData(path=get_node_socket_path(url), cost=DEFAULT_COSTS.NODE, handshake_data={})
+    case "node": return UnixConnectionData(path=get_node_socket_path(purl.hostname or None), cost=cost or DEFAULT_COSTS.NODE, handshake_data=handshake_data)
+    case "unix": return UnixConnectionData(path=purl.path, cost=cost or DEFAULT_COSTS.UNIX, handshake_data=handshake_data)
+    case "tcp": return TCPConnectionData(hostname=purl.hostname, port=purl.port, cost=cost or DEFAULT_COSTS.TCP, handshake_data=handshake_data)
+    case "ws": return WebsocketConnectionData(hostname=purl.hostname, port=purl.port, cost=cost or DEFAULT_COSTS.WEBSOCKET, handshake_data=handshake_data, secure=False)
+    case "wss": return WebsocketConnectionData(hostname=purl.hostname, port=purl.port, cost=cost or DEFAULT_COSTS.WEBSOCKET, handshake_data=handshake_data, secure=True)
     case _: raise ValueError("Invalid url scheme!")
 
 async def connect(url: str | None = None):
   data = extract_connection_data_from_url(url)
+  connection: RawConnection
   if isinstance(data, UnixConnectionData):
     rw = await asyncio.open_unix_connection(data.path)
     connection = RawStreamConnection(*rw)
-    await connection.handshake(data.handshake_data)
-    return RawConnectionLink(connection, data.cost)
   elif isinstance(data, TCPConnectionData):
     rw = await asyncio.open_connection(data.hostname, data.port)
     connection = RawStreamConnection(*rw)
-    await connection.handshake(data.handshake_data)
-    return RawConnectionLink(connection, data.cost)
   elif isinstance(data, WebsocketConnectionData):
     socket = await websockets.connect(data.uri)
     connection = RawWebsocketConnection(socket)
-    await connection.handshake(data.handshake_data)
-    return RawConnectionLink(connection, data.cost)
-  raise ValueError("Invalid connection data/url!")
+  else: raise ValueError("Invalid connection data/url!")
+  await connection.init_client(data.handshake_data)
+  return RawConnectionLink(connection, data.cost)
 
 def create_server(url: str | None = None) -> ServerBase:
   data = extract_connection_data_from_url(url)
