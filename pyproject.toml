@@ -4,7 +4,7 @@ requires = ["setuptools", "wheel", "pybind11"]
 
 [project]
 name = "streamtasks"
-version = "0.1.12"
+version = "0.1.13"
 authors = [
   {name = "leopf"},
 ]
