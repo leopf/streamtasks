@@ -108,6 +108,7 @@ class RawConnection(ABC):
       accepted = client_data.get("version", None) == _get_version_specifier() and client_auth == server_auth
       server_data = { **extra_data, "accepted": accepted, "version": _get_version_specifier() }
       await self.send(msgpack.packb(server_data))
+      if not accepted: raise ConnectionError("Server rejected connection")
     except BaseException as e:
       self.close()
       raise e
