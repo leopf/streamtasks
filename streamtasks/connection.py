@@ -294,7 +294,7 @@ def get_node_socket_path(node_name: str | None):
   return os.path.join(tempfile.gettempdir(), f"{__name__.split('.')[0]}-{node_name}.sock")
 
 def extract_connection_data_from_url(url: str | None):
-  if url is None: return UnixConnectionData(get_node_socket_path(None), DEFAULT_COSTS.NODE, {})
+  if url is None: return UnixConnectionData(path=get_node_socket_path(None), cost=DEFAULT_COSTS.NODE, handshake_data={})
 
   handshake_data = {}
   cost: int | None = None
