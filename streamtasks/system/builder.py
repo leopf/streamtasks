@@ -75,6 +75,9 @@ class SystemBuilder:
       try: await task
       except asyncio.CancelledError: pass
 
+  def cancel_all(self):
+    for task in self.tasks: task.cancel()
+
   async def _start_worker(self, worker: Worker):
     await self.switch.add_link(await worker.create_link())
     self._add_task(worker.run())
