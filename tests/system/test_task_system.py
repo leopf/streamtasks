@@ -3,6 +3,7 @@ import unittest
 import httpx
 from streamtasks.asgi import ASGIProxyApp
 from streamtasks.client.discovery import register_topic_space, wait_for_topic_signal
+from streamtasks.client.fetch import FetchError
 from streamtasks.net import ConnectionClosedError, Switch
 from streamtasks.net.serialization import RawData
 from streamtasks.services.protocols import AddressNames, WorkerTopics
@@ -63,7 +64,8 @@ class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
 
     self.tasks.append(asyncio.create_task(self.task_manager.run()))
     self.tasks.append(asyncio.create_task(self.task_manager_web.run()))
-    self.tasks.append(asyncio.create_task(self.demo_task_host.run()))
+    self.demo_task_host_task = asyncio.create_task(self.demo_task_host.run())
+    self.tasks.append(self.demo_task_host_task)
     await self.client.request_address()
     self.web_client = httpx.AsyncClient(transport=httpx.ASGITransport(app=ASGIProxyApp(self.client, AddressNames.TASK_MANAGER_WEB)), base_url="http://testserver")
     await self.demo_task_host.ready.wait()
@@ -88,19 +90,19 @@ class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
 
   @async_timeout(1)
   async def test_registration(self):
-    reg = await self.demo_task_host.register(AddressNames.TASK_MANAGER)
+    await self.demo_task_host.register()
     task_hosts = await self.tm_client.list_task_hosts()
     self.assertEqual(len(task_hosts), 1)
     for k, v in self.demo_task_host.metadata.items(): self.assertEqual(task_hosts[0].metadata[k], v)
-    await self.demo_task_host.unregister(AddressNames.TASK_MANAGER, reg.id)
+    await self.demo_task_host.unregister()
     await asyncio.sleep(0.001) # HACK: we dont want sleeps
     task_hosts = await self.tm_client.list_task_hosts()
     self.assertEqual(len(task_hosts), 0)
 
   @async_timeout(1)
   async def test_start_cancel(self):
-    reg = await self.demo_task_host.register(AddressNames.TASK_MANAGER)
-    task = await self.tm_client.schedule_start_task(reg.id, None)
+    await self.demo_task_host.register()
+    task = await self.tm_client.schedule_start_task(self.demo_task_host.id, None)
     self.assertIs(task.status, TaskStatus.running)
     self.assertIsNone(task.error)
     self.assertEqual(len(self.demo_task_host.tasks), 1)
@@ -115,8 +117,8 @@ class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
   async def test_topic_spaces(self):
     ts_id, ts_map = await register_topic_space(self.client, {1337})
     self.assertNotEqual(ts_map[1337], 1337)
-    reg = await self.demo_task_host.register(AddressNames.TASK_MANAGER)
-    task = await self.tm_client.schedule_start_task(reg.id, None, ts_id)
+    await self.demo_task_host.register()
+    task = await self.tm_client.schedule_start_task(self.demo_task_host.id, None, ts_id)
 
     recv_topic = self.client.in_topic(ts_map[1337])
     async with recv_topic, recv_topic.RegisterContext():
@@ -130,8 +132,8 @@ class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
 
   @async_timeout(1)
   async def test_start_shutdown(self):
-    reg = await self.demo_task_host.register(AddressNames.TASK_MANAGER)
-    task = await self.tm_client.schedule_start_task(reg.id, None)
+    await self.demo_task_host.register()
+    task = await self.tm_client.schedule_start_task(self.demo_task_host.id, None)
     self.assertIs(task.status, TaskStatus.running)
     self.assertIsNone(task.error)
     self.assertEqual(len(self.demo_task_host.tasks), 1)
@@ -144,15 +146,26 @@ class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
       self.assertIsNone(updated_task.error)
       self.assertEqual(updated_task.id, task.id)
 
+  @async_timeout(1)
+  async def test_register_unregister(self):
+    await self.demo_task_host.register()
+    await self.tm_client.get_task_host(self.demo_task_host.id)
+    self.assertFalse(self.demo_task_host_task.done())
+    with self.assertRaises(asyncio.CancelledError):
+      self.demo_task_host_task.cancel()
+      await self.demo_task_host_task
+    with self.assertRaises(FetchError):
+      await self.tm_client.get_task_host(self.demo_task_host.id)
+
   async def test_web_api(self):
-    reg = await self.demo_task_host.register(AddressNames.TASK_MANAGER)
-    task = await self.tm_client.schedule_start_task(reg.id, None)
+    await self.demo_task_host.register()
+    task = await self.tm_client.schedule_start_task(self.demo_task_host.id, None)
 
     registered_task_hosts = TaskHostRegistrationList.validate_json((await self.web_client.get("/api/task-hosts")).text)
     self.assertEqual(len(registered_task_hosts), 1)
-    self.assertEqual(registered_task_hosts[0].id, reg.id)
+    self.assertEqual(registered_task_hosts[0].id, self.demo_task_host.id)
 
-    self.assertEqual((await self.web_client.get(f"/task-host/{reg.id}/task-host-name.txt")).text, "DemoTaskHost")
+    self.assertEqual((await self.web_client.get(f"/task-host/{self.demo_task_host.id}/task-host-name.txt")).text, "DemoTaskHost")
     self.assertEqual((await self.web_client.get(f"/task/{task.id}/task-name.txt")).text, "DemoTask")
 
     stopped_task = await self.tm_client.cancel_task_wait(task.id)

@@ -15,7 +15,7 @@ from streamtasks.client.discovery import get_topic_space, register_address_name,
 from streamtasks.client.fetch import FetchError, FetchErrorStatusCode, FetchRequest, FetchServer, new_fetch_body_bad_request, new_fetch_body_general_error, new_fetch_body_not_found
 from streamtasks.client.signal import SignalServer, send_signal
 from streamtasks.client.topic import OutTopic
-from streamtasks.net import DAddress, EndpointOrAddress, Link, TopicRemappingLink, create_queue_connection
+from streamtasks.net import EndpointOrAddress, Link, TopicRemappingLink, create_queue_connection
 from streamtasks.net.serialization import RawData
 from streamtasks.net.messages import Message, TopicDataMessage
 from streamtasks.net.utils import endpoint_to_str
@@ -157,6 +157,7 @@ class TaskHost(Worker):
     self.register_endpoits = list(register_endpoits)
     self.id = task_host_id_from_name(self.__class__.__name__)
     self._base_metadata = { "nodename": NODE_NAME() }
+    self._registered_at_endpoints: list[EndpointOrAddress] = []
 
   @property
   def metadata(self) -> MetadataDict: return {}
@@ -170,17 +171,16 @@ class TaskHost(Worker):
     await self.switch.add_link(a)
     return b
 
-  async def register(self, endpoint: EndpointOrAddress) -> TaskHostRegistration:
+  async def register(self, endpoint: EndpointOrAddress = AddressNames.TASK_MANAGER):
     if not hasattr(self, "client"): raise ValueError("Client not created yet!")
     if self.client.address is None: raise ValueError("Client had no address!")
-    registration = TaskHostRegistration(id=self.id, address=self.client.address, metadata={ **self._base_metadata, **self.metadata })
-    await self.client.fetch(endpoint, TASK_CONSTANTS.FD_REGISTER_TASK_HOST, registration.model_dump())
-    # TODO store info for unregister
-    return registration
+    reg = TaskHostRegistration(id=self.id, address=self.client.address, metadata={ **self._base_metadata, **self.metadata })
+    await self.client.fetch(endpoint, TASK_CONSTANTS.FD_REGISTER_TASK_HOST, reg.model_dump())
+    self._registered_at_endpoints.append(endpoint)
 
-  async def unregister(self, address: DAddress, registration_id: str):
-    # TODO: kills tasks under this reg
-    await send_signal(self.client, address, TASK_CONSTANTS.SD_UNREGISTER_TASK_HOST, ModelWithStrId(id=registration_id).model_dump())
+  async def unregister(self, endpoint: EndpointOrAddress = AddressNames.TASK_MANAGER):
+    self._registered_at_endpoints = [ ep for ep in self._registered_at_endpoints if ep!= endpoint ]
+    await send_signal(self.client, endpoint, TASK_CONSTANTS.SD_UNREGISTER_TASK_HOST, ModelWithStrId(id=self.id).model_dump())
 
   async def run(self):
     try:
@@ -209,8 +209,9 @@ class TaskHost(Worker):
         logging.debug("Failed to register task host!", e, traceback.format_exc())
       raise e
     finally:
+      shutdown_tasks: list[asyncio.Task] = list(self.tasks) + [ asyncio.create_task(self.unregister(ep)) for ep in self._registered_at_endpoints ]
       for task in self.tasks.values(): task.cancel()
-      if len(self.tasks) > 0: await asyncio.wait(self.tasks.values(), timeout=1) # NOTE: make configurable
+      if len(shutdown_tasks) > 0: await asyncio.wait(shutdown_tasks, timeout=1) # NOTE: make configurable
       await self.shutdown()
       self.ready.clear()
 
