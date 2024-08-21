@@ -139,7 +139,7 @@ class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
     self.assertEqual(len(self.demo_task_host.tasks), 1)
     self.assertIn(task.id, self.demo_task_host.tasks)
 
-    async with self.tm_client.task_message_receiver([ task.id ]) as receiver:
+    async with self.tm_client.task_receiver([ task.id ]) as receiver:
       self.demo_task_host.stop_event.set()
       updated_task = await receiver.get()
       self.assertIs(updated_task.status, TaskStatus.ended)

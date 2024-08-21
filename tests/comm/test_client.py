@@ -155,7 +155,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     server = BroadcastingServer(self.a)
     self.tasks.append(asyncio.create_task(server.run()))
 
-    receiver = BroadcastReceiver(self.b, [ "test/1" ], self.a.address)
+    receiver = BroadcastReceiver[tuple[str, int]](self.b, [ "test/1" ], self.a.address)
 
     await server.broadcast("test/1", RawData("Hello1"))
     await server.broadcast("test/2", RawData("Hello2"))

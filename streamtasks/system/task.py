@@ -17,7 +17,6 @@ from streamtasks.client.signal import SignalServer, send_signal
 from streamtasks.client.topic import OutTopic
 from streamtasks.net import EndpointOrAddress, Link, TopicRemappingLink, create_queue_connection
 from streamtasks.net.serialization import RawData
-from streamtasks.net.messages import Message, TopicDataMessage
 from streamtasks.net.utils import endpoint_to_str
 from streamtasks.services.protocols import AddressNames, WorkerPorts, WorkerTopics
 from streamtasks.env import NODE_NAME
@@ -406,35 +405,17 @@ class TaskManager(Worker):
 
     await server.run()
 
-class TaskBroadcastReceiver(BroadcastReceiver):
-  def __init__(self, client: Client, namespaces: Iterable[str], endpoint: str | int | tuple[str | int, int]):
-    super().__init__(client, namespaces, endpoint)
-    self._recv_queue: asyncio.Queue[TaskInstance]
-  async def get(self) -> TaskInstance: return await super().get()
-  def on_message(self, message: Message):
-    if isinstance(message, TopicDataMessage) and message.topic in self._topics_ns_map:
-      try: self._recv_queue.put_nowait(TaskInstance.model_validate(message.data.data))
-      except ValidationError: pass
+class TaskBroadcastReceiver(BroadcastReceiver[TaskInstance]):
+  def transform_data(self, _: str, data: RawData) -> TaskInstance:
+    return TaskInstance.model_validate(data.data)
 
-class TaskHostRegisteredReceiver(BroadcastReceiver):
-  def __init__(self, client: Client, endpoint: EndpointOrAddress):
-    super().__init__(client, [TASK_CONSTANTS.BC_TASK_HOST_REGISTERED], endpoint)
-    self._recv_queue: asyncio.Queue[TaskHostRegistration]
-  async def get(self) -> TaskHostRegistration: return await super().get()
-  def on_message(self, message: Message):
-    if isinstance(message, TopicDataMessage) and message.topic in self._topics_ns_map:
-      try: self._recv_queue.put_nowait(TaskHostRegistration.model_validate(message.data.data))
-      except ValidationError: pass
+class TaskHostRegisteredReceiver(BroadcastReceiver[TaskHostRegistration]):
+  def transform_data(self, _: str, data: RawData) -> TaskInstance:
+    return TaskHostRegistration.model_validate(data.data)
 
-class TaskHostUnregisteredReceiver(BroadcastReceiver):
-  def __init__(self, client: Client, endpoint: EndpointOrAddress):
-    super().__init__(client, [TASK_CONSTANTS.BC_TASK_HOST_UNREGISTERED], endpoint)
-    self._recv_queue: asyncio.Queue[ModelWithId]
-  async def get(self) -> ModelWithId: return await super().get()
-  def on_message(self, message: Message):
-    if isinstance(message, TopicDataMessage) and message.topic in self._topics_ns_map:
-      try: self._recv_queue.put_nowait(ModelWithId.model_validate(message.data.data))
-      except ValidationError: pass
+class TaskHostUnregisteredReceiver(BroadcastReceiver[ModelWithId]):
+  def transform_data(self, _: str, data: RawData) -> ModelWithId:
+    return ModelWithId.model_validate(data.data)
 
 class TaskManagerClient:
   def __init__(self, client: Client, address_name: str = AddressNames.TASK_MANAGER) -> None:
@@ -463,7 +444,7 @@ class TaskManagerClient:
   async def cancel_task(self, task_id: UUID4):
     await self.client.fetch(self.address_name, TASK_CONSTANTS.FD_TM_TASK_CANCEL, TMTaskRequestBase(id=task_id).model_dump())
   async def cancel_task_wait(self, task_id: UUID4):
-    async with self.task_message_receiver([ task_id ]) as receiver:
+    async with self.task_receiver([ task_id ]) as receiver:
       try:
         await self.cancel_task(task_id)
       except FetchError as e:
@@ -473,4 +454,6 @@ class TaskManagerClient:
         task_instance = await receiver.get()
         if not task_instance.status.is_active: return task_instance
 
-  def task_message_receiver(self, task_ids: Iterable[UUID4]): return TaskBroadcastReceiver(self.client, [ get_namespace_by_task_id(task_id) for task_id in task_ids ], self.address_name)
+  def task_receiver(self, task_ids: Iterable[UUID4]): return TaskBroadcastReceiver(self.client, [ get_namespace_by_task_id(task_id) for task_id in task_ids ], self.address_name)
+  def task_host_registered_receiver(self): return TaskHostRegisteredReceiver(self.client, [TASK_CONSTANTS.BC_TASK_HOST_REGISTERED], self.address_name)
+  def task_host_unregistered_receiver(self): return TaskHostUnregisteredReceiver(self.client, [TASK_CONSTANTS.BC_TASK_HOST_UNREGISTERED], self.address_name)

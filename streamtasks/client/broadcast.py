@@ -1,3 +1,4 @@
+import asyncio
 from typing import Iterable, TypeVar
 from pydantic import TypeAdapter
 from streamtasks.client import Client
@@ -37,9 +38,10 @@ class BroadcastingServer:
       self.namespaces = {}
 
 T = TypeVar("T")
-class BroadcastReceiver(Receiver[tuple[str, T]]):
+class BroadcastReceiver(Receiver[T]):
   def __init__(self, client: 'Client', namespaces: Iterable[str], endpoint: EndpointOrAddress):
     super().__init__(client)
+    self._recv_queue: asyncio.Queue[T]
     self._namespaces = set(namespaces)
     self._endpoint = endpoint_or_address_to_endpoint(endpoint, WorkerPorts.BROADCAST)
     self._topics_ns_map: dict[int, str] = {}
@@ -53,4 +55,5 @@ class BroadcastReceiver(Receiver[tuple[str, T]]):
 
   def on_message(self, message: Message):
     if isinstance(message, TopicDataMessage) and message.topic in self._topics_ns_map:
-      self._recv_queue.put_nowait((self._topics_ns_map[message.topic], message.data))
+      self._recv_queue.put_nowait(self.transform_data(self._topics_ns_map[message.topic], message.data))
+  def transform_data(self, namespace: str, data: RawData) -> T: return (namespace, data)

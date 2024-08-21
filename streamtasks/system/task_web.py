@@ -412,6 +412,7 @@ class TaskWebBackend(Worker):
           await ctx.send_message(UpdateTaskInstanceMessage(id=task_id, task_instance=task_instance).model_dump_json())
       finally:
         receive_disconnect_task.cancel()
+        await update_generator.aclose()
         await ctx.close()
 
     @router.websocket_route("/topic/{topic_id}")
@@ -463,7 +464,7 @@ class TaskWebBackend(Worker):
   async def receive_deployment_task_instance_updates(self, deployment: RunningDeployment):
     task_instance_ids = [ ti.id for ti in deployment.task_instances.values() ]
     task_instance_id_map = { ti.id: task_id for task_id, ti in deployment.task_instances.items() }
-    async with self.tm_client.task_message_receiver(task_instance_ids) as receiver:
+    async with self.tm_client.task_receiver(task_instance_ids) as receiver:
       while True:
         task_instance = await receiver.get()
         if (task_id := task_instance_id_map.get(task_instance.id, None)) is not None:

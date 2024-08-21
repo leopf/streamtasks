@@ -15,6 +15,10 @@ class Receiver(ABC, Generic[T]):
     self._client: 'Client' = client
     self._receiving_count: int = 0
 
+  @abstractmethod
+  def on_message(self, message: Message):
+    pass
+
   async def start_recv(self):
     self._receiving_count += 1
     if self._receiving_count > 1: return
@@ -29,24 +33,18 @@ class Receiver(ABC, Generic[T]):
     await asyncio.sleep(0)
     await self._on_stop_recv()
 
-  async def __aenter__(self):
-    await self.start_recv()
-    return self
-  async def __aexit__(self, *_): await self.stop_recv()
-
-  @abstractmethod
-  def on_message(self, message: Message):
-    pass
-
   def empty(self): return self._recv_queue.empty()
+  async def get(self): return await self._recv_queue.get()
+  async def recv(self):
+    async with self: return await self.get()
 
   async def _on_start_recv(self): pass
   async def _on_stop_recv(self): pass
 
-  async def get(self): return await self._recv_queue.get()
-  async def recv(self):
-    async with self:
-      return await self._recv_queue.get()
+  async def __aenter__(self):
+    await self.start_recv()
+    return self
+  async def __aexit__(self, *_): await self.stop_recv()
 
 class TopicsReceiver(Receiver[tuple[int, RawData | TopicControlData]]):
   def __init__(self, client: 'Client', topics: Iterable[int], subscribe: bool = True):
