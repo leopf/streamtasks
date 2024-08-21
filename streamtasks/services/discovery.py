@@ -1,13 +1,11 @@
 from typing import Any
-from streamtasks.client.signal import SignalRequestReceiver
-# NOTE: move this in here?
+from streamtasks.client.signal import SignalServer
 from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, GenerateTopicsRequestBody, GenerateTopicsResponseBody, RegisterAddressRequestBody, RegisterTopicSpaceRequestMessage, ResolveAddressRequestBody, ResolveAddressResonseBody, TopicSpaceRequestMessage, TopicSpaceResponseMessage, TopicSpaceTranslationRequestMessage, TopicSpaceTranslationResponseMessage, WorkerAddresses, WorkerRequestDescriptors, WorkerTopics
 from streamtasks.worker import Worker
 from streamtasks.client import Client
 from streamtasks.client.fetch import FetchRequest, FetchServer, new_fetch_body_bad_request, new_fetch_body_not_found
 from streamtasks.net.serialization import RawData
 from streamtasks.net.messages import TopicControlData
-import pydantic
 import logging
 import asyncio
 
@@ -120,19 +118,19 @@ class DiscoveryWorker(Worker):
     await server.run()
 
   async def _run_address_generator(self, client: Client):
-    async with SignalRequestReceiver(client, WorkerRequestDescriptors.REQUEST_ADDRESSES) as receiver:
-      while True:
-        try:
-          message_data: Any = await receiver.get()
-          request = GenerateAddressesRequestMessage.model_validate(message_data)
-          logging.info(f"generating {request.count} addresses")
-          addresses = self.generate_addresses(request.count)
-          await client.send_stream_data(WorkerTopics.ADDRESSES_CREATED, RawData(GenerateAddressesResponseMessage(
-            request_id=request.request_id,
-            addresses=addresses
-          ).model_dump()))
-        except pydantic.ValidationError: pass
-        except Exception as e: logging.error(e)
+    signal_server = SignalServer(client)
+
+    @signal_server.route(WorkerRequestDescriptors.REQUEST_ADDRESSES)
+    async def _(message_data: Any):
+      request = GenerateAddressesRequestMessage.model_validate(message_data)
+      logging.info(f"generating {request.count} addresses")
+      addresses = self.generate_addresses(request.count)
+      await client.send_stream_data(WorkerTopics.ADDRESSES_CREATED, RawData(GenerateAddressesResponseMessage(
+        request_id=request.request_id,
+        addresses=addresses
+      ).model_dump()))
+
+    await signal_server.run()
 
   def generate_topic_ids(self, count: int) -> set[int]:
     res = set(self._topics_counter + i for i in range(count))

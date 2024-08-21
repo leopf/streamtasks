@@ -1,4 +1,3 @@
-from typing import Any
 import unittest
 import asyncio
 from streamtasks.client import Client
@@ -6,7 +5,7 @@ from streamtasks.client.broadcast import BroadcastReceiver, BroadcastingServer
 from streamtasks.client.discovery import wait_for_topic_signal
 from streamtasks.client.fetch import FetchRequest, FetchRequestReceiver
 from streamtasks.client.receiver import AddressReceiver, TopicsReceiver
-from streamtasks.client.signal import SignalRequestReceiver, SignalServer, send_signal
+from streamtasks.client.signal import SignalServer, send_signal
 from streamtasks.net.serialization import RawData
 from streamtasks.net import ConnectionClosedError, Switch, create_queue_connection
 from streamtasks.services.discovery import DiscoveryWorker
@@ -116,14 +115,6 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
     await b_fetch_task
     self.assertEqual(b_result, "Hello 2")
-
-  @async_timeout(1)
-  async def test_signal(self):
-    await self.a.set_address(1)
-    async with SignalRequestReceiver(self.a, "test") as a_recv:
-      self.tasks.append(asyncio.create_task(send_signal(self.b, self.a.address, "test", "Hello 1")))
-      data: Any = await a_recv.get()
-      self.assertEqual(data, "Hello 1")
 
   @async_timeout(1000)
   async def test_signal_server(self):
