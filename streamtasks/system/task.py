@@ -141,11 +141,16 @@ class TASK_CONSTANTS:
   SD_TM_TASK_REPORT = "report_task_status"
   SD_UNREGISTER_TASK_HOST = "unregister_task_host"
 
+  # broadaster descriptors
+  BC_TASK_HOST_REGISTERED = "/task-host/registered"
+  BC_TASK_HOST_UNREGISTERED = "/task-host/unregistered"
+
 class MetadataFields:
   ASGISERVER = "asgiserver"
 
 class TaskNotFoundError(BaseException): pass
 
+def get_namespace_by_task_id(task_id: UUID4): return f"/task/{task_id}"
 def task_host_id_from_name(name: str): return get_node_name_id("TaskHost" + name)
 
 class TaskHost(Worker):
@@ -260,8 +265,6 @@ class TaskHost(Worker):
 
     await fetch_server.run()
 
-def get_namespace_by_task_id(task_id: UUID4): return f"/task/{task_id}"
-
 class TaskManager(Worker):
   def __init__(self, address_name: str = AddressNames.TASK_MANAGER):
     super().__init__()
@@ -305,6 +308,7 @@ class TaskManager(Worker):
       data = ModelWithStrId.model_validate(message_data)
       self.task_hosts.pop(data.id, None)
       self.tasks = { tid: task for tid, task in self.tasks.items() if task.host_id != data.id }
+      await self.bc_server.broadcast(TASK_CONSTANTS.BC_TASK_HOST_UNREGISTERED, RawData(data.model_dump()))
 
     await server.run()
 
@@ -316,6 +320,7 @@ class TaskManager(Worker):
       try:
         reg = TaskHostRegistration.model_validate(req.body)
         self.task_hosts[reg.id] = reg
+        await self.bc_server.broadcast(TASK_CONSTANTS.BC_TASK_HOST_REGISTERED, RawData(reg.model_dump()))
         await req.respond(None)
       except KeyError as e: await req.respond_error(new_fetch_body_not_found(str(e)))
       except ValidationError as e: await req.respond_error(new_fetch_body_bad_request(str(e)))
@@ -409,6 +414,26 @@ class TaskBroadcastReceiver(BroadcastReceiver):
   def on_message(self, message: Message):
     if isinstance(message, TopicDataMessage) and message.topic in self._topics_ns_map:
       try: self._recv_queue.put_nowait(TaskInstance.model_validate(message.data.data))
+      except ValidationError: pass
+
+class TaskHostRegisteredReceiver(BroadcastReceiver):
+  def __init__(self, client: Client, endpoint: EndpointOrAddress):
+    super().__init__(client, [TASK_CONSTANTS.BC_TASK_HOST_REGISTERED], endpoint)
+    self._recv_queue: asyncio.Queue[TaskHostRegistration]
+  async def get(self) -> TaskHostRegistration: return await super().get()
+  def on_message(self, message: Message):
+    if isinstance(message, TopicDataMessage) and message.topic in self._topics_ns_map:
+      try: self._recv_queue.put_nowait(TaskHostRegistration.model_validate(message.data.data))
+      except ValidationError: pass
+
+class TaskHostUnregisteredReceiver(BroadcastReceiver):
+  def __init__(self, client: Client, endpoint: EndpointOrAddress):
+    super().__init__(client, [TASK_CONSTANTS.BC_TASK_HOST_UNREGISTERED], endpoint)
+    self._recv_queue: asyncio.Queue[ModelWithId]
+  async def get(self) -> ModelWithId: return await super().get()
+  def on_message(self, message: Message):
+    if isinstance(message, TopicDataMessage) and message.topic in self._topics_ns_map:
+      try: self._recv_queue.put_nowait(ModelWithId.model_validate(message.data.data))
       except ValidationError: pass
 
 class TaskManagerClient:

@@ -1,7 +1,7 @@
 from typing import Iterable, Optional, Any, Union
 import asyncio
 from streamtasks.client.discovery import request_addresses
-from streamtasks.client.receiver import Receiver, TopicsReceiver as TopicsReceiver
+from streamtasks.client.receiver import Receiver
 from streamtasks.client.topic import InTopic, InTopicSynchronizer, OutTopic, InTopicsContext, OutTopicsContext, SynchronizedInTopic
 from streamtasks.utils import IdGenerator, IdTracker, AwaitableIdTracker
 from streamtasks.net.serialization import RawData

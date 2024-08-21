@@ -3,12 +3,11 @@ import os
 import tempfile
 import unittest
 from streamtasks.client import Client
-from streamtasks.client.receiver import AddressReceiver
 from streamtasks.connection import connect, create_server
 from streamtasks.net import ConnectionClosedError, Switch
 from streamtasks.net.serialization import RawData
 from streamtasks.message.types import TextMessage
-from tests.shared import async_timeout
+from tests.shared import AddressReceiver, async_timeout
 
 
 class TestConnection(unittest.IsolatedAsyncioTestCase):

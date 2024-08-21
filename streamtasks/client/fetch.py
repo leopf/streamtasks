@@ -5,7 +5,7 @@ from streamtasks.net.messages import AddressedMessage, Message
 from streamtasks.net.serialization import RawData
 import asyncio
 from pydantic import BaseModel, ValidationError
-from typing import TYPE_CHECKING, Any, Optional, Callable, Awaitable
+from typing import TYPE_CHECKING, Any, Callable, Awaitable
 import logging
 
 from streamtasks.services.protocols import WorkerPorts
@@ -113,21 +113,3 @@ class FetchServer(Receiver[tuple[str, FetchRequest]]):
           except BaseException as e:
             if not fr.response_sent: await fr.respond_error(new_fetch_body_general_error(str(e)))
             logging.debug(e, descriptor)
-
-class FetchRequestReceiver(Receiver[FetchRequest]):
-  def __init__(self, client: 'Client', descriptor: str, address: Optional[int] = None, port: int = WorkerPorts.FETCH):
-    super().__init__(client)
-    self._descriptor = descriptor
-    self._address = address
-    self._port = port
-
-  def on_message(self, message: Message):
-    if not isinstance(message, AddressedMessage): return
-    a_message: AddressedMessage = message
-    if (self._address is not None and a_message.address != self._address) or \
-      a_message.port != self._port or not isinstance(a_message.data, RawData): return
-    try:
-      fr_message = FetchRequestMessage.model_validate(a_message.data.data)
-      if fr_message.descriptor == self._descriptor:
-        self._recv_queue.put_nowait(FetchRequest(self._client, (fr_message.return_address, fr_message.return_port), fr_message.body))
-    except ValidationError: pass

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from streamtasks.net.serialization import RawData
-from streamtasks.net.messages import AddressedMessage, Message, TopicControlData, TopicControlMessage, TopicDataMessage, TopicMessage
+from streamtasks.net.messages import Message, TopicControlData, TopicControlMessage, TopicDataMessage, TopicMessage
 from typing import Generic, Iterable, TYPE_CHECKING, TypeVar
 import asyncio
 
@@ -47,19 +47,6 @@ class Receiver(ABC, Generic[T]):
   async def recv(self):
     async with self:
       return await self._recv_queue.get()
-
-class AddressReceiver(Receiver[tuple[int, RawData]]):
-  def __init__(self, client: 'Client', address: int, port: int):
-    super().__init__(client)
-    self._address = address
-    self._port = port
-
-  def on_message(self, message: Message):
-    if not isinstance(message, AddressedMessage): return
-    a_message: AddressedMessage = message
-    if a_message.address == self._address and a_message.port == self._port:
-      self._recv_queue.put_nowait((a_message.address, a_message.data))
-
 
 class TopicsReceiver(Receiver[tuple[int, RawData | TopicControlData]]):
   def __init__(self, client: 'Client', topics: Iterable[int], subscribe: bool = True):

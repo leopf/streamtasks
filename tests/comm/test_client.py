@@ -3,14 +3,14 @@ import asyncio
 from streamtasks.client import Client
 from streamtasks.client.broadcast import BroadcastReceiver, BroadcastingServer
 from streamtasks.client.discovery import wait_for_topic_signal
-from streamtasks.client.fetch import FetchRequest, FetchRequestReceiver
-from streamtasks.client.receiver import AddressReceiver, TopicsReceiver
+from streamtasks.client.fetch import FetchRequest, FetchServer
+from streamtasks.client.receiver import TopicsReceiver
 from streamtasks.client.signal import SignalServer, send_signal
 from streamtasks.net.serialization import RawData
 from streamtasks.net import ConnectionClosedError, Switch, create_queue_connection
 from streamtasks.services.discovery import DiscoveryWorker
 from streamtasks.services.protocols import WorkerPorts, WorkerTopics
-from tests.shared import async_timeout
+from tests.shared import AddressReceiver, async_timeout
 
 
 class TestClient(unittest.IsolatedAsyncioTestCase):
@@ -100,20 +100,17 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     await self.a.set_address(1)
     await self.b.set_address(2)
 
-    b_result = None
+    server = FetchServer(self.a)
 
-    async def b_fetch():
-      nonlocal b_result
-      b_result = await self.b.fetch(1, "test", "Hello 1")
-
-    async with FetchRequestReceiver(self.a, "test") as a_recv:
-      b_fetch_task = asyncio.create_task(b_fetch())
-      req: FetchRequest = await a_recv.get()
+    @server.route("test")
+    async def _(req: FetchRequest):
       self.assertEqual(req.body, "Hello 1")
       self.assertEqual(req._return_endpoint, (2, WorkerPorts.DYNAMIC_START))
       await req.respond("Hello 2")
 
-    await b_fetch_task
+    self.tasks.append(asyncio.create_task(server.run()))
+
+    b_result = await self.b.fetch(1, "test", "Hello 1")
     self.assertEqual(b_result, "Hello 2")
 
   @async_timeout(1000)

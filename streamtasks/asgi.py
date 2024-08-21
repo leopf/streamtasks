@@ -1,6 +1,6 @@
 from streamtasks.asgiserver import HTTPContext, http_context_handler
 from streamtasks.client.receiver import Receiver
-from streamtasks.client.fetch import FetchError, FetchErrorStatusCode, FetchRequestReceiver, FetchRequest, new_fetch_body_bad_request, new_fetch_body_general_error
+from streamtasks.client.fetch import FetchError, FetchErrorStatusCode, FetchRequest, FetchServer
 from streamtasks.utils import AsyncTaskManager
 from streamtasks.net import Endpoint, EndpointOrAddress, endpoint_or_address_to_endpoint
 from streamtasks.net.messages import AddressedMessage, Message
@@ -104,14 +104,13 @@ class MessagePackValueTransformer(ValueTransformer):
 
 
 class ASGIEventReceiver(Receiver[ASGIEventMessage]):
-  def __init__(self, client: 'Client', own_address: int, own_port: int):
+  def __init__(self, client: 'Client', recv_port: int):
     super().__init__(client)
-    self._own_address = own_address
-    self._own_port = own_port
+    self._recv_port = recv_port
 
   def on_message(self, message: Message):
     if not isinstance(message, AddressedMessage): return
-    if message.address != self._own_address or message.port != self._own_port: return
+    if message.port != self._recv_port: return
     if not isinstance(message.data, RawData): return
     try: self._recv_queue.put_nowait(ASGIEventMessage.model_validate(message.data.data))
     except ValidationError: pass
@@ -129,38 +128,35 @@ class ASGIEventSender:
 
 
 class ASGIAppRunner:
-  def __init__(self, client: 'Client', app: ASGIApp, address: Optional[int] = None, port: int = WorkerPorts.ASGI):
+  def __init__(self, client: 'Client', app: ASGIApp, port: int = WorkerPorts.ASGI):
+    if client.address is None: raise Exception("The client must have at least one address to host an ASGI application")
     self._client = client
     self._app = app
-    if client.address is None: raise Exception("The client must have at least one address to host an ASGI application")
-    self._address = address if address is not None else client.address
     self._port = port
-    self._init_receiver = FetchRequestReceiver(client, ASGI_CONSTANTS.INIT_DESCRIPTOR, self._address, self._port)
     self._connection_tasks = AsyncTaskManager()
 
   async def run(self):
     try:
-      async with self._init_receiver:
-        while True:
-          raw_request: FetchRequest = await self._init_receiver.get()
-          try:
-            init_request = ASGIInitRequest.model_validate(raw_request.body)
+      server = FetchServer(self._client, self._port)
 
-            config = ASGIConnectionConfig(
-              scope=JSONValueTransformer.deannotate_value(init_request.scope),
-              port=self._client.get_free_port(),
-              remote_endpoint=(init_request.address, init_request.port))
+      @server.route(ASGI_CONSTANTS.INIT_DESCRIPTOR)
+      async def _(raw_request: FetchRequest):
+        init_request = ASGIInitRequest.model_validate(raw_request.body)
+        config = ASGIConnectionConfig(
+          scope=JSONValueTransformer.deannotate_value(init_request.scope),
+          port=self._client.get_free_port(),
+          remote_endpoint=(init_request.address, init_request.port))
 
-            self._start_connection(config)
-            await raw_request.respond(ASGIInitResponse(port=config.port).model_dump())
-          except asyncio.CancelledError: raise
-          except ValidationError as e: await raw_request.respond_error(new_fetch_body_bad_request(str(e)))
-          except BaseException as e: await raw_request.respond_error(new_fetch_body_general_error(str(e)))
+        self._start_connection(config)
+        await raw_request.respond(ASGIInitResponse(port=config.port).model_dump())
+
+      await server.run()
+
     finally:
       self._connection_tasks.cancel_all()
 
   def _start_connection(self, config: ASGIConnectionConfig):
-    receiver = ASGIEventReceiver(self._client, self._address, config.port)
+    receiver = ASGIEventReceiver(self._client, config.port)
     stop_signal = asyncio.Event()
     sender = ASGIEventSender(self._client, config.remote_endpoint)
 
@@ -191,22 +187,20 @@ class ASGIAppRunner:
 
     self._connection_tasks.create(run())
 
-
 class ASGIProxyApp:
-  def __init__(self, client: 'Client', remote_endpoint: EndpointOrAddress, address: Optional[int] = None):
+  def __init__(self, client: 'Client', remote_endpoint: EndpointOrAddress):
+    if client.address is None: raise Exception("The client must have at least one address to host an ASGI application")
     self._client = client
     self._remote_endpoint = endpoint_or_address_to_endpoint(remote_endpoint, WorkerPorts.ASGI)
-    if client.address is None: raise Exception("The client must have at least one address to host an ASGI application")
-    self._address = address if address is not None else client.address
   async def __call__(self, scope, receive: Callable[[], Awaitable[dict]], send: Callable[[dict], Awaitable[None]]):
     ser_scope = JSONValueTransformer.annotate_value(scope)
 
     port = self._client.get_free_port()
-    receiver = ASGIEventReceiver(self._client, self._address, port)
+    receiver = ASGIEventReceiver(self._client, port)
     await receiver.start_recv() # NOTE: must be enabled before sending init message, otherwise events will be lost
 
     init_respose_raw = await self._client.fetch(self._remote_endpoint, ASGI_CONSTANTS.INIT_DESCRIPTOR, ASGIInitRequest(
-      address=self._address,
+      address=self._client.address,
       port=port,
       scope=ser_scope).model_dump())
     init_respose = ASGIInitResponse.model_validate(init_respose_raw)
