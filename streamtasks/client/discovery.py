@@ -21,13 +21,10 @@ class TopicSignalReceiver(Receiver):
   async def _on_stop_recv(self): await self._client.unregister_in_topics([self._topic])
 
   async def wait(self):
-    async with self:
-      await self._signal_event.wait()
+    async with self: await self._signal_event.wait()
 
   def on_message(self, message: Message):
-    if not isinstance(message, TopicMessage): return
-    if message.topic != self._topic: return
-    self._signal_event.set()
+    if isinstance(message, TopicMessage) and message.topic == self._topic: self._signal_event.set()
 
 class AddressNameAssignedReceiver(Receiver[AddressNameAssignmentMessage]):
   async def _on_start_recv(self): await self._client.register_in_topics([WorkerTopics.ADDRESS_NAME_ASSIGNED])
