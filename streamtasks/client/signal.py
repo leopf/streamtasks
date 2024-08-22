@@ -6,7 +6,7 @@ from streamtasks.client.receiver import Receiver
 from streamtasks.net import EndpointOrAddress, endpoint_or_address_to_endpoint
 from streamtasks.net.serialization import RawData
 from streamtasks.net.messages import AddressedMessage, Message
-from streamtasks.services.protocols import NetworkPorts
+from streamtasks.services.constants import NetworkPorts
 
 if TYPE_CHECKING:
   from streamtasks.client import Client

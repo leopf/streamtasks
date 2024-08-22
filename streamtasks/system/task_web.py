@@ -22,7 +22,7 @@ from streamtasks.net import EndpointOrAddress
 from streamtasks.net.serialization import RawData
 from streamtasks.net.utils import str_to_endpoint
 from streamtasks.pydanticdb import PydanticDB
-from streamtasks.services.protocols import AddressNames
+from streamtasks.services.constants import NetworkAddressNames
 from streamtasks.system.task import TASK_CONSTANTS, MetadataDict, MetadataFields, ModelWithId, TaskHostRegistration, TaskHostRegistrationList, TaskInstance, TaskManagerClient, TaskNotFoundError
 from streamtasks.utils import get_node_name_id, make_json_serializable, wait_with_dependencies
 from streamtasks.worker import Worker
@@ -106,7 +106,7 @@ FullTaskList = TypeAdapter(list[FullTask])
 DeploymentDashboardList = TypeAdapter(list[DeploymentDashboard])
 
 class TaskWebPathHandler(Worker):
-  def __init__(self, path: str, frontend: PathRegistrationFrontend | None = None, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER_WEB]):
+  def __init__(self, path: str, frontend: PathRegistrationFrontend | None = None, register_endpoits: list[EndpointOrAddress] = [NetworkAddressNames.TASK_MANAGER_WEB]):
     super().__init__()
     self.register_endpoits = list(register_endpoits)
     self.path = path
@@ -199,8 +199,8 @@ class TaskWebBackendStore:
     return task
 
 class TaskWebBackend(Worker):
-  def __init__(self, address_name: str = AddressNames.TASK_MANAGER_WEB,
-               task_manager_address_name: str = AddressNames.TASK_MANAGER):
+  def __init__(self, address_name: str = NetworkAddressNames.TASK_MANAGER_WEB,
+               task_manager_address_name: str = NetworkAddressNames.TASK_MANAGER):
     super().__init__()
     self.task_manager_address_name = task_manager_address_name
     self.address_name = address_name

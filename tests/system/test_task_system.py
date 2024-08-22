@@ -6,7 +6,7 @@ from streamtasks.client.discovery import register_topic_space, wait_for_topic_si
 from streamtasks.client.fetch import FetchError
 from streamtasks.net import ConnectionClosedError, Switch
 from streamtasks.net.serialization import RawData
-from streamtasks.services.protocols import AddressNames, NetworkTopics
+from streamtasks.services.constants import NetworkAddressNames, NetworkTopics
 from streamtasks.system.task import Task, TaskHost, TaskHostRegistrationList, TaskManager, TaskManagerClient, TaskStatus
 from streamtasks.system.task_web import TaskWebBackend
 from streamtasks.client import Client
@@ -67,7 +67,7 @@ class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
     self.demo_task_host_task = asyncio.create_task(self.demo_task_host.run())
     self.tasks.append(self.demo_task_host_task)
     await self.client.request_address()
-    self.web_client = httpx.AsyncClient(transport=httpx.ASGITransport(app=ASGIProxyApp(self.client, AddressNames.TASK_MANAGER_WEB)), base_url="http://testserver")
+    self.web_client = httpx.AsyncClient(transport=httpx.ASGITransport(app=ASGIProxyApp(self.client, NetworkAddressNames.TASK_MANAGER_WEB)), base_url="http://testserver")
     await self.demo_task_host.ready.wait()
 
   async def asyncTearDown(self):

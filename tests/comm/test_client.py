@@ -9,7 +9,7 @@ from streamtasks.client.signal import SignalServer, send_signal
 from streamtasks.net.serialization import RawData
 from streamtasks.net import ConnectionClosedError, Switch, create_queue_connection
 from streamtasks.services.discovery import DiscoveryWorker
-from streamtasks.services.protocols import NetworkPorts, NetworkTopics
+from streamtasks.services.constants import NetworkPorts, NetworkTopics
 from tests.shared import AddressReceiver, async_timeout
 
 

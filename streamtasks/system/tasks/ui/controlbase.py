@@ -7,7 +7,7 @@ from streamtasks.asgi import ASGIAppRunner, asgi_default_http_error_handler
 from streamtasks.asgiserver import ASGIRouter, ASGIServer, HTTPContext, WebsocketContext, http_context_handler, websocket_context_handler
 from streamtasks.client import Client
 from streamtasks.net.utils import endpoint_to_str
-from streamtasks.services.protocols import NetworkPorts
+from streamtasks.services.constants import NetworkPorts
 from streamtasks.system.task import MetadataFields, Task
 from streamtasks.utils import AsyncTrigger, wait_with_dependencies
 

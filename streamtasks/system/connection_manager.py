@@ -13,7 +13,7 @@ from streamtasks.asgiserver import ASGIRouter, ASGIServer, HTTPContext, Websocke
 from streamtasks.connection import AutoReconnector, ServerBase, connect, create_server
 from streamtasks.env import NODE_NAME, get_data_sub_dir
 from streamtasks.net import EndpointOrAddress
-from streamtasks.services.protocols import AddressNames
+from streamtasks.services.constants import NetworkAddressNames
 from streamtasks.system.task_web import PathRegistrationFrontend, TaskWebPathHandler
 import dbm
 import urllib.parse
@@ -94,7 +94,7 @@ class UrlCreateModel(BaseModel):
   url: str
 
 class ConnectionManager(TaskWebPathHandler):
-  def __init__(self, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER_WEB]):
+  def __init__(self, register_endpoits: list[EndpointOrAddress] = [NetworkAddressNames.TASK_MANAGER_WEB]):
     super().__init__(f"/connections/{get_url_node_name()}/", PathRegistrationFrontend(path="std:connectionmanager", label=f"Connections ({NODE_NAME()})"), register_endpoits)
     self.db = dbm.open(os.path.join(get_data_sub_dir("user-data"), "connections.db"), flag="c")
     self._connection_url_data: list[ConnectionUrlData] = []

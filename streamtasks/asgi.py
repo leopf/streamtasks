@@ -11,7 +11,7 @@ from dataclasses import dataclass
 import asyncio
 import logging
 from typing import TYPE_CHECKING, Any, Awaitable, Optional, Callable, ClassVar
-from streamtasks.services.protocols import NetworkPorts
+from streamtasks.services.constants import NetworkPorts
 from streamtasks.worker import Worker
 
 if TYPE_CHECKING:

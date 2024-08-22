@@ -1,15 +1,92 @@
 from contextlib import asynccontextmanager
 import secrets
 from typing import TYPE_CHECKING, Optional
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError, field_validator
 from streamtasks.client.receiver import Receiver
 from streamtasks.client.signal import send_signal
 from streamtasks.net.serialization import RawData
 from streamtasks.net.messages import Message, TopicDataMessage, TopicMessage
-from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, RegisterAddressRequestBody, RegisterTopicSpaceRequestMessage, TopicSpaceRequestMessage, TopicSpaceResponseMessage, TopicSpaceTranslationRequestMessage, TopicSpaceTranslationResponseMessage, NetworkAddresses, WorkerRequestDescriptors, NetworkTopics
+from streamtasks.net.utils import validate_address_name
+from streamtasks.services.constants import NetworkAddresses, NetworkTopics
 import asyncio
+
 if TYPE_CHECKING:
   from streamtasks.client import Client
+
+
+class DISCOVERY_CONSTANTS:
+  REQUEST_TOPICS = "request_topics"
+
+  REQUEST_ADDRESSES = "request_addresses"
+
+  RESOLVE_ADDRESS = "resolve_address_name"
+  REGISTER_ADDRESS = "register_address_name"
+
+  REGISTER_TOPIC_SPACE = "register_topic_space"
+  GET_TOPIC_SPACE = "get_topic_space"
+  GET_TOPIC_SPACE_TRANSLATION = "get_topic_space_translation"
+  DELETE_TOPIC_SPACE = "delete_topic_space"
+
+
+class TopicSpaceRequestMessage(BaseModel):
+  id: int
+
+class TopicSpaceTranslationRequestMessage(BaseModel):
+  topic_space_id: int
+  topic_id: int
+
+class RegisterTopicSpaceRequestMessage(BaseModel):
+  topic_ids: list[int]
+
+class TopicSpaceTranslationResponseMessage(BaseModel):
+  topic_id: int
+
+class TopicSpaceResponseMessage(BaseModel):
+  id: int
+  topic_id_map: list[tuple[int, int]]
+
+class GenerateAddressesRequestMessageBase(BaseModel):
+  count: int
+
+class GenerateAddressesRequestMessage(GenerateAddressesRequestMessageBase):
+  request_id: int
+
+class GenerateAddressesResponseMessageBase(BaseModel):
+  addresses: list[int]
+
+class GenerateAddressesResponseMessage(GenerateAddressesResponseMessageBase):
+  request_id: int
+
+class GenerateTopicsRequestBody(BaseModel):
+  count: int
+
+
+class GenerateTopicsResponseBody(BaseModel):
+  topics: list[int]
+
+
+class ResolveAddressRequestBody(BaseModel):
+  address_name: str
+
+
+class ResolveAddressResonseBody(BaseModel):
+  address: Optional[int] = None
+
+
+class RegisterAddressRequestBody(BaseModel):
+  address_name: str
+  address: Optional[int] = None
+
+  @field_validator("address_name")
+  @classmethod
+  def validate_address_name(cls, value: str):
+    validate_address_name(value)
+    return value
+
+
+class AddressNameAssignmentMessage(BaseModel):
+  address_name: str
+  address: Optional[int] = None
 
 class TopicSignalReceiver(Receiver):
   def __init__(self, client: 'Client', topic: int):
@@ -62,33 +139,33 @@ async def request_addresses(client: 'Client', count: int) -> set[int]:
       await send_signal(
         client,
         NetworkAddresses.ID_DISCOVERY,
-        WorkerRequestDescriptors.REQUEST_ADDRESSES,
+        DISCOVERY_CONSTANTS.REQUEST_ADDRESSES,
         GenerateAddressesRequestMessage(request_id=request_id, count=count).model_dump()
       )
       data: GenerateAddressesResponseMessage = await receiver.get()
   else:
-    res = await client.fetch(NetworkAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REQUEST_ADDRESSES, GenerateAddressesRequestMessageBase(count=count).model_dump())
+    res = await client.fetch(NetworkAddresses.ID_DISCOVERY, DISCOVERY_CONSTANTS.REQUEST_ADDRESSES, GenerateAddressesRequestMessageBase(count=count).model_dump())
     data = GenerateAddressesResponseMessageBase.model_validate(res)
   addresses = set(data.addresses)
   if len(addresses) != count: raise Exception("The response returned an invalid number of addresses")
   return addresses
 
-async def delete_topic_space(client: 'Client', id: int): await client.fetch(NetworkAddresses.ID_DISCOVERY, WorkerRequestDescriptors.DELETE_TOPIC_SPACE, TopicSpaceRequestMessage(id=id).model_dump())
+async def delete_topic_space(client: 'Client', id: int): await client.fetch(NetworkAddresses.ID_DISCOVERY, DISCOVERY_CONSTANTS.DELETE_TOPIC_SPACE, TopicSpaceRequestMessage(id=id).model_dump())
 async def register_topic_space(client: 'Client', topic_ids: set[int]) -> tuple[int, dict[int, int]]:
-  result = await client.fetch(NetworkAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REGISTER_TOPIC_SPACE, RegisterTopicSpaceRequestMessage(topic_ids=topic_ids).model_dump())
+  result = await client.fetch(NetworkAddresses.ID_DISCOVERY, DISCOVERY_CONSTANTS.REGISTER_TOPIC_SPACE, RegisterTopicSpaceRequestMessage(topic_ids=topic_ids).model_dump())
   data = TopicSpaceResponseMessage.model_validate(result)
   return (data.id, { k: v for k, v in data.topic_id_map })
 async def get_topic_space(client: 'Client', id: int):
-  result = await client.fetch(NetworkAddresses.ID_DISCOVERY, WorkerRequestDescriptors.GET_TOPIC_SPACE, TopicSpaceRequestMessage(id=id).model_dump())
+  result = await client.fetch(NetworkAddresses.ID_DISCOVERY, DISCOVERY_CONSTANTS.GET_TOPIC_SPACE, TopicSpaceRequestMessage(id=id).model_dump())
   data = TopicSpaceResponseMessage.model_validate(result)
   return { k: v for k, v in data.topic_id_map }
 async def get_topic_space_translation(client: 'Client', topic_space_id: int, topic_id: int):
   message = TopicSpaceTranslationRequestMessage(topic_space_id=topic_space_id, topic_id=topic_id)
-  result = await client.fetch(NetworkAddresses.ID_DISCOVERY, WorkerRequestDescriptors.GET_TOPIC_SPACE_TRANSLATION, message.model_dump())
+  result = await client.fetch(NetworkAddresses.ID_DISCOVERY, DISCOVERY_CONSTANTS.GET_TOPIC_SPACE_TRANSLATION, message.model_dump())
   return TopicSpaceTranslationResponseMessage.model_validate(result).topic_id
 
 async def _register_address_name(client: 'Client', name: str, address: Optional[int]):
-  await client.fetch(NetworkAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REGISTER_ADDRESS, RegisterAddressRequestBody(address_name=name, address=address).model_dump())
+  await client.fetch(NetworkAddresses.ID_DISCOVERY, DISCOVERY_CONSTANTS.REGISTER_ADDRESS, RegisterAddressRequestBody(address_name=name, address=address).model_dump())
   client.set_address_name(name, address)
 
 async def register_address_name(client: 'Client', name: str, address: int | None = None):

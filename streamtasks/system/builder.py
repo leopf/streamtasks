@@ -6,7 +6,7 @@ from streamtasks.client.discovery import wait_for_topic_signal
 from streamtasks.connection import AutoReconnector, connect, create_server
 from streamtasks.net import Switch
 from streamtasks.services.discovery import DiscoveryWorker
-from streamtasks.services.protocols import AddressNames, NetworkTopics
+from streamtasks.services.constants import NetworkAddressNames, NetworkTopics
 from streamtasks.system.connection_manager import ConnectionManager
 from streamtasks.system.helpers import get_all_task_hosts
 from streamtasks.system.named_topic_manager import NamedTopicManager
@@ -60,13 +60,13 @@ class SystemBuilder:
 
   async def start_user_endpoint(self, port: int):
     await self._wait_discovery()
-    worker = HTTPServerOverASGI(("localhost", port), AddressNames.TASK_MANAGER_WEB)
+    worker = HTTPServerOverASGI(("localhost", port), NetworkAddressNames.TASK_MANAGER_WEB)
     self.http_servers.append(worker)
     await self._start_worker(worker)
 
   async def start_task_hosts(self):
     for TaskHostCls in get_all_task_hosts():
-      await self._start_worker(TaskHostCls(register_endpoits=[AddressNames.TASK_MANAGER]))
+      await self._start_worker(TaskHostCls(register_endpoits=[NetworkAddressNames.TASK_MANAGER]))
 
   async def wait_done(self):
     await asyncio.wait(self.tasks, return_when="FIRST_COMPLETED")

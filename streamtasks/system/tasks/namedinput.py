@@ -1,7 +1,7 @@
 from typing import Any
 from pydantic import BaseModel, field_validator
 from streamtasks.net.messages import TopicControlData
-from streamtasks.services.protocols import AddressNames
+from streamtasks.services.constants import NetworkAddressNames
 from streamtasks.system.named_topic_manager import NamedTopicRequestModel, NamedTopicResolvedResponseModel
 from streamtasks.system.task import Task, TaskHost
 from streamtasks.client import Client
@@ -25,7 +25,7 @@ class NamedInputTask(Task):
   async def run(self):
     self.client.start()
     await self.client.request_address()
-    response = await self.client.fetch(AddressNames.NAMED_TOPIC_MANAGER, "resolve_named_topic", NamedTopicRequestModel(name=self.config.name))
+    response = await self.client.fetch(NetworkAddressNames.NAMED_TOPIC_MANAGER, "resolve_named_topic", NamedTopicRequestModel(name=self.config.name))
     in_topic = self.client.in_topic(NamedTopicResolvedResponseModel.model_validate(response).topic)
 
     async with self.out_topic, self.out_topic.RegisterContext(), in_topic, in_topic.RegisterContext():

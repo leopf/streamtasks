@@ -3,12 +3,13 @@ import asyncio
 from streamtasks.client.discovery import request_addresses
 from streamtasks.client.receiver import Receiver
 from streamtasks.client.topic import InTopic, InTopicSynchronizer, OutTopic, InTopicsContext, OutTopicsContext, SynchronizedInTopic
+from streamtasks.client.discovery import DISCOVERY_CONSTANTS, GenerateTopicsRequestBody, GenerateTopicsResponseBody, ResolveAddressRequestBody, ResolveAddressResonseBody
 from streamtasks.utils import IdGenerator, IdTracker, AwaitableIdTracker
 from streamtasks.net.serialization import RawData
 from streamtasks.net import Endpoint, EndpointOrAddress, Link, endpoint_or_address_to_endpoint
 from streamtasks.net.helpers import ids_to_priced_ids
 from streamtasks.net.messages import AddressedMessage, AddressesChangedMessage, InTopicsChangedMessage, OutTopicsChangedMessage, TopicControlData, TopicDataMessage, TopicMessage
-from streamtasks.services.protocols import GenerateTopicsRequestBody, GenerateTopicsResponseBody, ResolveAddressRequestBody, ResolveAddressResonseBody, NetworkAddresses, WorkerRequestDescriptors, NetworkPorts
+from streamtasks.services.constants import NetworkAddresses, NetworkPorts
 from streamtasks.client.fetch import FetchError, FetchReponseReceiver, FetchRequestMessage, FetchResponseMessage
 
 
@@ -53,7 +54,7 @@ class Client:
   async def send_stream_data(self, topic: int, data: RawData): await self._link.send(TopicDataMessage(topic, data))
   async def resolve_address_name(self, name: str) -> Optional[int]:
     if name in self._address_resolver_cache: return self._address_resolver_cache[name]
-    raw_res = await self.fetch(NetworkAddresses.ID_DISCOVERY, WorkerRequestDescriptors.RESOLVE_ADDRESS, ResolveAddressRequestBody(address_name=name).model_dump())
+    raw_res = await self.fetch(NetworkAddresses.ID_DISCOVERY, DISCOVERY_CONSTANTS.RESOLVE_ADDRESS, ResolveAddressRequestBody(address_name=name).model_dump())
     res: ResolveAddressResonseBody = ResolveAddressResonseBody.model_validate(raw_res)
     if res.address is not None: self._address_resolver_cache[name] = res.address
     return res.address
@@ -66,7 +67,7 @@ class Client:
     return new_address
 
   async def request_topic_ids(self, count: int, apply: bool = False) -> list[int]:
-    raw_res = await self.fetch(NetworkAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REQUEST_TOPICS, GenerateTopicsRequestBody(count=count).model_dump())
+    raw_res = await self.fetch(NetworkAddresses.ID_DISCOVERY, DISCOVERY_CONSTANTS.REQUEST_TOPICS, GenerateTopicsRequestBody(count=count).model_dump())
     res = GenerateTopicsResponseBody.model_validate(raw_res)
     if len(res.topics) != count: raise Exception("The fetch request returned an invalid number of topics")
     if apply: await self.register_out_topics(res.topics)

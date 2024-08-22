@@ -7,7 +7,7 @@ from streamtasks.client.receiver import Receiver
 from streamtasks.net import EndpointOrAddress, endpoint_or_address_to_endpoint
 from streamtasks.net.serialization import RawData
 from streamtasks.net.messages import Message, TopicDataMessage
-from streamtasks.services.protocols import NetworkPorts
+from streamtasks.services.constants import NetworkPorts
 
 class BroadcastingServer:
   def __init__(self, client: 'Client', port: int = NetworkPorts.BROADCAST) -> None:

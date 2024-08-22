@@ -18,7 +18,7 @@ from streamtasks.client.topic import OutTopic
 from streamtasks.net import EndpointOrAddress, Link, TopicRemappingLink, create_queue_connection
 from streamtasks.net.serialization import RawData
 from streamtasks.net.utils import endpoint_to_str
-from streamtasks.services.protocols import AddressNames, NetworkPorts, NetworkTopics
+from streamtasks.services.constants import NetworkAddressNames, NetworkPorts, NetworkTopics
 from streamtasks.env import NODE_NAME
 from streamtasks.utils import get_node_name_id
 from streamtasks.worker import Worker
@@ -175,14 +175,14 @@ class TaskHost(Worker):
     await self.switch.add_link(a)
     return b
 
-  async def register(self, endpoint: EndpointOrAddress = AddressNames.TASK_MANAGER):
+  async def register(self, endpoint: EndpointOrAddress = NetworkAddressNames.TASK_MANAGER):
     if not hasattr(self, "client"): raise ValueError("Client not created yet!")
     if self.client.address is None: raise ValueError("Client had no address!")
     reg = TaskHostRegistration(id=self.id, address=self.client.address, metadata={ **self._base_metadata, **self.metadata })
     await self.client.fetch(endpoint, TASK_CONSTANTS.FD_REGISTER_TASK_HOST, reg.model_dump())
     self._registered_at_endpoints.append(endpoint)
 
-  async def unregister(self, endpoint: EndpointOrAddress = AddressNames.TASK_MANAGER):
+  async def unregister(self, endpoint: EndpointOrAddress = NetworkAddressNames.TASK_MANAGER):
     self._registered_at_endpoints = [ ep for ep in self._registered_at_endpoints if ep!= endpoint ]
     await send_signal(self.client, endpoint, TASK_CONSTANTS.SD_UNREGISTER_TASK_HOST, ModelWithStrId(id=self.id).model_dump())
 
@@ -265,7 +265,7 @@ class TaskHost(Worker):
     await fetch_server.run()
 
 class TaskManager(Worker):
-  def __init__(self, address_name: str = AddressNames.TASK_MANAGER):
+  def __init__(self, address_name: str = NetworkAddressNames.TASK_MANAGER):
     super().__init__()
     self.task_hosts: dict[str, TaskHostRegistration] = {}
     self.tasks: dict[UUID4, TaskInstance] = {}
@@ -418,7 +418,7 @@ class TaskHostUnregisteredReceiver(BroadcastReceiver[ModelWithId]):
     return ModelWithId.model_validate(data.data)
 
 class TaskManagerClient:
-  def __init__(self, client: Client, address_name: str = AddressNames.TASK_MANAGER) -> None:
+  def __init__(self, client: Client, address_name: str = NetworkAddressNames.TASK_MANAGER) -> None:
     self.address_name = address_name
     self.client = client
 

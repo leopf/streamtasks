@@ -10,7 +10,7 @@ from streamtasks.client.fetch import FetchRequest, FetchServer, new_fetch_body_n
 from streamtasks.env import get_data_sub_dir
 from streamtasks.net import EndpointOrAddress
 from streamtasks.pydanticdb import PydanticDB
-from streamtasks.services.protocols import AddressNames
+from streamtasks.services.constants import NetworkAddressNames
 from streamtasks.system.task_web import TaskWebPathHandler
 
 class SecretModel(BaseModel):
@@ -23,12 +23,12 @@ class SecretRequestModel(BaseModel):
 SecretModelListModel = TypeAdapter(list[SecretModel])
 
 class SecretManager(TaskWebPathHandler):
-  def __init__(self, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER_WEB]):
+  def __init__(self, register_endpoits: list[EndpointOrAddress] = [NetworkAddressNames.TASK_MANAGER_WEB]):
     super().__init__("/secrets/", register_endpoits=register_endpoits)
     self.db = PydanticDB(SecretModel, os.path.join(get_data_sub_dir("user-data"), "secrets.json"))
 
   async def run_inner(self):
-    await register_address_name(self.client, AddressNames.NAMED_TOPIC_MANAGER)
+    await register_address_name(self.client, NetworkAddressNames.NAMED_TOPIC_MANAGER)
     await asyncio.gather(self.run_web_server(), self.run_fetch_server())
 
   async def run_fetch_server(self):
@@ -90,7 +90,7 @@ class SecretManager(TaskWebPathHandler):
     await ASGIAppRunner(self.client, app).run()
 
 class SecretManagerClient:
-  def __init__(self, client: Client, address_name: str = AddressNames.SECRET_MANAGER) -> None:
+  def __init__(self, client: Client, address_name: str = NetworkAddressNames.SECRET_MANAGER) -> None:
     self.address_name = address_name
     self.client = client
 

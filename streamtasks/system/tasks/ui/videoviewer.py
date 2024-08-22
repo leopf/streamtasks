@@ -10,7 +10,7 @@ from streamtasks.media.container import OutputContainer
 from streamtasks.media.video import VideoCodecInfo
 from streamtasks.net.serialization import RawData
 from streamtasks.net.utils import endpoint_to_str
-from streamtasks.services.protocols import NetworkPorts
+from streamtasks.services.constants import NetworkPorts
 from streamtasks.system.configurators import IOTypes, static_configurator
 from streamtasks.system.tasks.media.utils import MediaEditorFields
 from streamtasks.system.tasks.ui.controlbase import UIControlBaseTaskConfig

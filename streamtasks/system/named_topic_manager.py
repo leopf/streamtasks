@@ -9,7 +9,7 @@ from streamtasks.client.fetch import FetchRequest, FetchServer, new_fetch_body_n
 from streamtasks.env import get_data_sub_dir
 from streamtasks.net import EndpointOrAddress
 from streamtasks.pydanticdb import PydanticDB
-from streamtasks.services.protocols import AddressNames
+from streamtasks.services.constants import NetworkAddressNames
 from streamtasks.system.task import MetadataDict
 from streamtasks.system.task_web import PathRegistrationFrontend, TaskWebPathHandler
 
@@ -26,13 +26,13 @@ class NamedTopicResolvedResponseModel(BaseModel):
 NamedTopicListModel = TypeAdapter(list[NamedTopicModel])
 
 class NamedTopicManager(TaskWebPathHandler):
-  def __init__(self, register_endpoits: list[EndpointOrAddress] = [AddressNames.TASK_MANAGER_WEB]):
+  def __init__(self, register_endpoits: list[EndpointOrAddress] = [NetworkAddressNames.TASK_MANAGER_WEB]):
     super().__init__("/named-topics/", PathRegistrationFrontend(path="std:namedtopicmanager", label="Named Topic Manager"), register_endpoits)
     self.db = PydanticDB(NamedTopicModel, os.path.join(get_data_sub_dir("user-data"), "named-topics.json"))
     self.topic_map: dict[str, int] = {}
 
   async def run_inner(self):
-    await register_address_name(self.client, AddressNames.NAMED_TOPIC_MANAGER)
+    await register_address_name(self.client, NetworkAddressNames.NAMED_TOPIC_MANAGER)
     await asyncio.gather(self.run_web_server(), self.run_fetch_server())
 
   async def run_fetch_server(self):
