@@ -6,7 +6,7 @@ from streamtasks.client.receiver import Receiver
 from streamtasks.client.signal import send_signal
 from streamtasks.net.serialization import RawData
 from streamtasks.net.messages import Message, TopicDataMessage, TopicMessage
-from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, RegisterAddressRequestBody, RegisterTopicSpaceRequestMessage, TopicSpaceRequestMessage, TopicSpaceResponseMessage, TopicSpaceTranslationRequestMessage, TopicSpaceTranslationResponseMessage, WorkerAddresses, WorkerRequestDescriptors, WorkerTopics
+from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, RegisterAddressRequestBody, RegisterTopicSpaceRequestMessage, TopicSpaceRequestMessage, TopicSpaceResponseMessage, TopicSpaceTranslationRequestMessage, TopicSpaceTranslationResponseMessage, NetworkAddresses, WorkerRequestDescriptors, NetworkTopics
 import asyncio
 if TYPE_CHECKING:
   from streamtasks.client import Client
@@ -27,11 +27,11 @@ class TopicSignalReceiver(Receiver):
     if isinstance(message, TopicMessage) and message.topic == self._topic: self._signal_event.set()
 
 class AddressNameAssignedReceiver(Receiver[AddressNameAssignmentMessage]):
-  async def _on_start_recv(self): await self._client.register_in_topics([WorkerTopics.ADDRESS_NAME_ASSIGNED])
-  async def _on_stop_recv(self): await self._client.unregister_in_topics([WorkerTopics.ADDRESS_NAME_ASSIGNED])
+  async def _on_start_recv(self): await self._client.register_in_topics([NetworkTopics.ADDRESS_NAME_ASSIGNED])
+  async def _on_stop_recv(self): await self._client.unregister_in_topics([NetworkTopics.ADDRESS_NAME_ASSIGNED])
   def on_message(self, message: Message):
     if not isinstance(message, TopicDataMessage): return
-    if message.topic != WorkerTopics.ADDRESS_NAME_ASSIGNED: return
+    if message.topic != NetworkTopics.ADDRESS_NAME_ASSIGNED: return
     if not isinstance(message.data, RawData): return
     try: self._recv_queue.put_nowait(AddressNameAssignmentMessage.model_validate(message.data.data))
     except ValidationError: pass
@@ -41,11 +41,11 @@ class ResolveAddressesReceiver(Receiver[GenerateAddressesResponseMessage]):
     super().__init__(client)
     self._request_id = request_id
 
-  async def _on_start_recv(self): await self._client.register_in_topics([WorkerTopics.ADDRESSES_CREATED])
-  async def _on_stop_recv(self): await self._client.unregister_in_topics([WorkerTopics.ADDRESSES_CREATED])
+  async def _on_start_recv(self): await self._client.register_in_topics([NetworkTopics.ADDRESSES_CREATED])
+  async def _on_stop_recv(self): await self._client.unregister_in_topics([NetworkTopics.ADDRESSES_CREATED])
 
   def on_message(self, message: Message):
-    if isinstance(message, TopicDataMessage) and message.topic == WorkerTopics.ADDRESSES_CREATED:
+    if isinstance(message, TopicDataMessage) and message.topic == NetworkTopics.ADDRESSES_CREATED:
       sd_message: TopicDataMessage = message
       if isinstance(sd_message.data, RawData):
         try:
@@ -61,34 +61,34 @@ async def request_addresses(client: 'Client', count: int) -> set[int]:
     async with ResolveAddressesReceiver(client, request_id) as receiver:
       await send_signal(
         client,
-        WorkerAddresses.ID_DISCOVERY,
+        NetworkAddresses.ID_DISCOVERY,
         WorkerRequestDescriptors.REQUEST_ADDRESSES,
         GenerateAddressesRequestMessage(request_id=request_id, count=count).model_dump()
       )
       data: GenerateAddressesResponseMessage = await receiver.get()
   else:
-    res = await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REQUEST_ADDRESSES, GenerateAddressesRequestMessageBase(count=count).model_dump())
+    res = await client.fetch(NetworkAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REQUEST_ADDRESSES, GenerateAddressesRequestMessageBase(count=count).model_dump())
     data = GenerateAddressesResponseMessageBase.model_validate(res)
   addresses = set(data.addresses)
   if len(addresses) != count: raise Exception("The response returned an invalid number of addresses")
   return addresses
 
-async def delete_topic_space(client: 'Client', id: int): await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.DELETE_TOPIC_SPACE, TopicSpaceRequestMessage(id=id).model_dump())
+async def delete_topic_space(client: 'Client', id: int): await client.fetch(NetworkAddresses.ID_DISCOVERY, WorkerRequestDescriptors.DELETE_TOPIC_SPACE, TopicSpaceRequestMessage(id=id).model_dump())
 async def register_topic_space(client: 'Client', topic_ids: set[int]) -> tuple[int, dict[int, int]]:
-  result = await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REGISTER_TOPIC_SPACE, RegisterTopicSpaceRequestMessage(topic_ids=topic_ids).model_dump())
+  result = await client.fetch(NetworkAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REGISTER_TOPIC_SPACE, RegisterTopicSpaceRequestMessage(topic_ids=topic_ids).model_dump())
   data = TopicSpaceResponseMessage.model_validate(result)
   return (data.id, { k: v for k, v in data.topic_id_map })
 async def get_topic_space(client: 'Client', id: int):
-  result = await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.GET_TOPIC_SPACE, TopicSpaceRequestMessage(id=id).model_dump())
+  result = await client.fetch(NetworkAddresses.ID_DISCOVERY, WorkerRequestDescriptors.GET_TOPIC_SPACE, TopicSpaceRequestMessage(id=id).model_dump())
   data = TopicSpaceResponseMessage.model_validate(result)
   return { k: v for k, v in data.topic_id_map }
 async def get_topic_space_translation(client: 'Client', topic_space_id: int, topic_id: int):
   message = TopicSpaceTranslationRequestMessage(topic_space_id=topic_space_id, topic_id=topic_id)
-  result = await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.GET_TOPIC_SPACE_TRANSLATION, message.model_dump())
+  result = await client.fetch(NetworkAddresses.ID_DISCOVERY, WorkerRequestDescriptors.GET_TOPIC_SPACE_TRANSLATION, message.model_dump())
   return TopicSpaceTranslationResponseMessage.model_validate(result).topic_id
 
 async def _register_address_name(client: 'Client', name: str, address: Optional[int]):
-  await client.fetch(WorkerAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REGISTER_ADDRESS, RegisterAddressRequestBody(address_name=name, address=address).model_dump())
+  await client.fetch(NetworkAddresses.ID_DISCOVERY, WorkerRequestDescriptors.REGISTER_ADDRESS, RegisterAddressRequestBody(address_name=name, address=address).model_dump())
   client.set_address_name(name, address)
 
 async def register_address_name(client: 'Client', name: str, address: int | None = None):

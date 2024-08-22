@@ -2,7 +2,7 @@ import unittest
 from streamtasks.client.discovery import delete_topic_space, get_topic_space, get_topic_space_translation, register_address_name, register_topic_space, request_addresses, wait_for_address_name, wait_for_topic_signal
 from streamtasks.client.fetch import FetchError
 from streamtasks.net import ConnectionClosedError, Switch, create_queue_connection
-from streamtasks.services.protocols import WorkerAddresses, WorkerTopics
+from streamtasks.services.protocols import NetworkAddresses, NetworkTopics
 from streamtasks.client import Client
 from streamtasks.services.discovery import DiscoveryWorker
 import asyncio
@@ -39,12 +39,12 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
   @async_timeout(1)
   async def test_address_discovery(self):
     client = await self.create_client()
-    await wait_for_topic_signal(client, WorkerTopics.DISCOVERY_SIGNAL)
+    await wait_for_topic_signal(client, NetworkTopics.DISCOVERY_SIGNAL)
 
     own_address = await client.request_address()
-    self.assertEqual(WorkerAddresses.COUNTER_INIT, own_address)
+    self.assertEqual(NetworkAddresses.COUNTER_INIT, own_address)
 
-    expected_addresses = list(range(WorkerAddresses.COUNTER_INIT + 1, WorkerAddresses.COUNTER_INIT + 6))
+    expected_addresses = list(range(NetworkAddresses.COUNTER_INIT + 1, NetworkAddresses.COUNTER_INIT + 6))
     addresses = await request_addresses(client, 5)
     addresses = list(addresses)
 
@@ -55,14 +55,14 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
   async def test_topic_spaces(self):
     client = await self.create_client()
     await client.request_address()
-    await wait_for_topic_signal(client, WorkerTopics.DISCOVERY_SIGNAL)
+    await wait_for_topic_signal(client, NetworkTopics.DISCOVERY_SIGNAL)
 
     topic_ids = { 1, 2, 3 }
     topic_space_id, topic_id_map = await register_topic_space(client, topic_ids)
 
     for topic_id in topic_ids:
       self.assertIn(topic_id, topic_id_map)
-      self.assertGreaterEqual(topic_id_map[topic_id], WorkerTopics.COUNTER_INIT)
+      self.assertGreaterEqual(topic_id_map[topic_id], NetworkTopics.COUNTER_INIT)
 
     self.assertDictEqual(topic_id_map, await get_topic_space(client, topic_space_id))
     self.assertEqual(topic_id_map[2], await get_topic_space_translation(client, topic_space_id, 2))
@@ -74,7 +74,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
   @async_timeout(1)
   async def test_wait_for_name(self): # NOTE: this test is broken, waiter before is not waiting for the fetch to finish
     client1 = await self.create_client()
-    await wait_for_topic_signal(client1, WorkerTopics.DISCOVERY_SIGNAL)
+    await wait_for_topic_signal(client1, NetworkTopics.DISCOVERY_SIGNAL)
 
     await client1.request_address()
     client2 = await self.create_client()
@@ -95,7 +95,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
   @async_timeout(1)
   async def test_address_name_resolver(self):
     client1 = await self.create_client()
-    await wait_for_topic_signal(client1, WorkerTopics.DISCOVERY_SIGNAL)
+    await wait_for_topic_signal(client1, NetworkTopics.DISCOVERY_SIGNAL)
     await client1.request_address()
 
     self.assertEqual(len(list(client1._in_topics.items())), 0)
@@ -111,7 +111,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
   async def test_topic_discovery(self):
     client = await self.create_client()
 
-    await wait_for_topic_signal(client, WorkerTopics.DISCOVERY_SIGNAL)
+    await wait_for_topic_signal(client, NetworkTopics.DISCOVERY_SIGNAL)
 
     await client.request_address() # make sure we have an address
     topics = await client.request_topic_ids(5, apply=True)
@@ -119,7 +119,7 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
 
     self.assertEqual(5, len(topics))
 
-    expected_topics = list(range(WorkerTopics.COUNTER_INIT, WorkerTopics.COUNTER_INIT + 5))
+    expected_topics = list(range(NetworkTopics.COUNTER_INIT, NetworkTopics.COUNTER_INIT + 5))
     self.assertEqual(expected_topics, topics)
     self.assertEqual(set(expected_topics), client._out_topics.items())
 

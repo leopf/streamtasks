@@ -1,6 +1,6 @@
 from typing import Any
 from streamtasks.client.signal import SignalServer
-from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, GenerateTopicsRequestBody, GenerateTopicsResponseBody, RegisterAddressRequestBody, RegisterTopicSpaceRequestMessage, ResolveAddressRequestBody, ResolveAddressResonseBody, TopicSpaceRequestMessage, TopicSpaceResponseMessage, TopicSpaceTranslationRequestMessage, TopicSpaceTranslationResponseMessage, WorkerAddresses, WorkerRequestDescriptors, WorkerTopics
+from streamtasks.services.protocols import AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, GenerateTopicsRequestBody, GenerateTopicsResponseBody, RegisterAddressRequestBody, RegisterTopicSpaceRequestMessage, ResolveAddressRequestBody, ResolveAddressResonseBody, TopicSpaceRequestMessage, TopicSpaceResponseMessage, TopicSpaceTranslationRequestMessage, TopicSpaceTranslationResponseMessage, NetworkAddresses, WorkerRequestDescriptors, NetworkTopics
 from streamtasks.worker import Worker
 from streamtasks.client import Client
 from streamtasks.client.fetch import FetchRequest, FetchServer, new_fetch_body_bad_request, new_fetch_body_not_found
@@ -13,8 +13,8 @@ import asyncio
 class DiscoveryWorker(Worker):
   def __init__(self):
     super().__init__()
-    self._address_counter = WorkerAddresses.COUNTER_INIT
-    self._topics_counter = WorkerTopics.COUNTER_INIT
+    self._address_counter = NetworkAddresses.COUNTER_INIT
+    self._topics_counter = NetworkTopics.COUNTER_INIT
     self._topic_space_id_counter = 0
     self._address_map: dict[str, int] = {}
     self._topic_spaces: dict[int, dict[int, int]] = {}
@@ -22,25 +22,25 @@ class DiscoveryWorker(Worker):
   async def run(self):
     client = await self.create_client()
     client.start()
-    await client.set_address(WorkerAddresses.ID_DISCOVERY)
+    await client.set_address(NetworkAddresses.ID_DISCOVERY)
 
     try:
-      async with client.out_topics_context([WorkerTopics.ADDRESSES_CREATED, WorkerTopics.DISCOVERY_SIGNAL, WorkerTopics.ADDRESS_NAME_ASSIGNED]):
+      async with client.out_topics_context([NetworkTopics.ADDRESSES_CREATED, NetworkTopics.DISCOVERY_SIGNAL, NetworkTopics.ADDRESS_NAME_ASSIGNED]):
         await asyncio.gather(
           self._run_address_generator(client),
           self._run_fetch_server(client),
           self._run_lighthouse(client),
         )
     finally:
-      self._address_counter = WorkerAddresses.COUNTER_INIT
-      self._topics_counter = WorkerTopics.COUNTER_INIT
+      self._address_counter = NetworkAddresses.COUNTER_INIT
+      self._topics_counter = NetworkTopics.COUNTER_INIT
       self._address_map = {}
       await self.shutdown()
 
   async def _run_lighthouse(self, client: Client):
-    await client.send_stream_control(WorkerTopics.DISCOVERY_SIGNAL, TopicControlData(False)) # NOTE: not sure if i want this...
+    await client.send_stream_control(NetworkTopics.DISCOVERY_SIGNAL, TopicControlData(False)) # NOTE: not sure if i want this...
     while True:
-      await client.send_stream_data(WorkerTopics.DISCOVERY_SIGNAL, RawData("running"))
+      await client.send_stream_data(NetworkTopics.DISCOVERY_SIGNAL, RawData("running"))
       await asyncio.sleep(1)
 
   async def _run_fetch_server(self, client: Client):
@@ -53,7 +53,7 @@ class DiscoveryWorker(Worker):
       if request.address is None: self._address_map.pop(request.address_name, None)
       else: self._address_map[request.address_name] = request.address
 
-      await client.send_stream_data(WorkerTopics.ADDRESS_NAME_ASSIGNED, RawData(AddressNameAssignmentMessage(
+      await client.send_stream_data(NetworkTopics.ADDRESS_NAME_ASSIGNED, RawData(AddressNameAssignmentMessage(
         address_name=request.address_name,
         address=self._address_map.get(request.address_name, None)
       ).model_dump()))
@@ -125,7 +125,7 @@ class DiscoveryWorker(Worker):
       request = GenerateAddressesRequestMessage.model_validate(message_data)
       logging.info(f"generating {request.count} addresses")
       addresses = self.generate_addresses(request.count)
-      await client.send_stream_data(WorkerTopics.ADDRESSES_CREATED, RawData(GenerateAddressesResponseMessage(
+      await client.send_stream_data(NetworkTopics.ADDRESSES_CREATED, RawData(GenerateAddressesResponseMessage(
         request_id=request.request_id,
         addresses=addresses
       ).model_dump()))

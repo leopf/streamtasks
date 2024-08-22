@@ -4,12 +4,12 @@ from pydantic import BaseModel, field_validator
 from streamtasks.net.utils import validate_address_name
 
 
-class WorkerAddresses:
+class NetworkAddresses:
   ID_DISCOVERY = 0
   COUNTER_INIT = 10000
 
 
-class WorkerPorts:
+class NetworkPorts:
   DISCOVERY_REQUEST_ADDRESS = 0
   DYNAMIC_START = 10000
   FETCH = 100
@@ -18,7 +18,7 @@ class WorkerPorts:
   SIGNAL = 103
 
 
-class WorkerTopics:
+class NetworkTopics:
   DISCOVERY_SIGNAL = 0
   ADDRESSES_CREATED = 1
   ADDRESS_NAME_ASSIGNED = 2

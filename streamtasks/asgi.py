@@ -11,7 +11,7 @@ from dataclasses import dataclass
 import asyncio
 import logging
 from typing import TYPE_CHECKING, Any, Awaitable, Optional, Callable, ClassVar
-from streamtasks.services.protocols import WorkerPorts
+from streamtasks.services.protocols import NetworkPorts
 from streamtasks.worker import Worker
 
 if TYPE_CHECKING:
@@ -128,7 +128,7 @@ class ASGIEventSender:
 
 
 class ASGIAppRunner:
-  def __init__(self, client: 'Client', app: ASGIApp, port: int = WorkerPorts.ASGI):
+  def __init__(self, client: 'Client', app: ASGIApp, port: int = NetworkPorts.ASGI):
     if client.address is None: raise Exception("The client must have at least one address to host an ASGI application")
     self._client = client
     self._app = app
@@ -191,7 +191,7 @@ class ASGIProxyApp:
   def __init__(self, client: 'Client', remote_endpoint: EndpointOrAddress):
     if client.address is None: raise Exception("The client must have at least one address to host an ASGI application")
     self._client = client
-    self._remote_endpoint = endpoint_or_address_to_endpoint(remote_endpoint, WorkerPorts.ASGI)
+    self._remote_endpoint = endpoint_or_address_to_endpoint(remote_endpoint, NetworkPorts.ASGI)
   async def __call__(self, scope, receive: Callable[[], Awaitable[dict]], send: Callable[[dict], Awaitable[None]]):
     ser_scope = JSONValueTransformer.annotate_value(scope)
 
@@ -235,7 +235,7 @@ class HTTPServerOverASGI(Worker):
     super().__init__()
     import uvicorn
     self.server: uvicorn.Server | None = None
-    self.asgi_endpoint = endpoint_or_address_to_endpoint(asgi_endpoint, WorkerPorts.ASGI)
+    self.asgi_endpoint = endpoint_or_address_to_endpoint(asgi_endpoint, NetworkPorts.ASGI)
     self.http_endpoint = http_endpoint
     self.http_config = http_config
   async def run(self):

@@ -6,7 +6,7 @@ from streamtasks.client.discovery import wait_for_topic_signal
 from streamtasks.connection import AutoReconnector, connect, create_server
 from streamtasks.net import Switch
 from streamtasks.services.discovery import DiscoveryWorker
-from streamtasks.services.protocols import AddressNames, WorkerTopics
+from streamtasks.services.protocols import AddressNames, NetworkTopics
 from streamtasks.system.connection_manager import ConnectionManager
 from streamtasks.system.helpers import get_all_task_hosts
 from streamtasks.system.named_topic_manager import NamedTopicManager
@@ -87,5 +87,5 @@ class SystemBuilder:
     if not self.disovery_ready:
       client = Client(await self.switch.add_local_connection())
       client.start()
-      await asyncio.wait_for(wait_for_topic_signal(client, WorkerTopics.DISCOVERY_SIGNAL), 2)
+      await asyncio.wait_for(wait_for_topic_signal(client, NetworkTopics.DISCOVERY_SIGNAL), 2)
       self.disovery_ready = True

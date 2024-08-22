@@ -7,7 +7,7 @@ from streamtasks.asgi import ASGIAppRunner, asgi_default_http_error_handler
 from streamtasks.asgiserver import ASGIRouter, ASGIServer, HTTPContext, WebsocketContext, http_context_handler, websocket_context_handler
 from streamtasks.client import Client
 from streamtasks.net.utils import endpoint_to_str
-from streamtasks.services.protocols import WorkerPorts
+from streamtasks.services.protocols import NetworkPorts
 from streamtasks.system.task import MetadataFields, Task
 from streamtasks.utils import AsyncTrigger, wait_with_dependencies
 
@@ -42,7 +42,7 @@ class UIBaseTask(Task, Generic[C, V]):
     self.client.start()
     await self.client.request_address()
     return {
-      MetadataFields.ASGISERVER: endpoint_to_str((self.client.address, WorkerPorts.ASGI)),
+      MetadataFields.ASGISERVER: endpoint_to_str((self.client.address, NetworkPorts.ASGI)),
       "cfg:frontendpath": "index.html",
       **(await super().setup())
     }

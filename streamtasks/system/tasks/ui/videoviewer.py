@@ -10,7 +10,7 @@ from streamtasks.media.container import OutputContainer
 from streamtasks.media.video import VideoCodecInfo
 from streamtasks.net.serialization import RawData
 from streamtasks.net.utils import endpoint_to_str
-from streamtasks.services.protocols import WorkerPorts
+from streamtasks.services.protocols import NetworkPorts
 from streamtasks.system.configurators import IOTypes, static_configurator
 from streamtasks.system.tasks.media.utils import MediaEditorFields
 from streamtasks.system.tasks.ui.controlbase import UIControlBaseTaskConfig
@@ -38,7 +38,7 @@ class VideoViewerTask(Task):
     self.client.start()
     await self.client.request_address()
     return {
-      MetadataFields.ASGISERVER: endpoint_to_str((self.client.address, WorkerPorts.ASGI)),
+      MetadataFields.ASGISERVER: endpoint_to_str((self.client.address, NetworkPorts.ASGI)),
       "cfg:frontendpath": "index.html",
       **(await super().setup())
     }

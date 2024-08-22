@@ -18,7 +18,7 @@ from streamtasks.client.topic import OutTopic
 from streamtasks.net import EndpointOrAddress, Link, TopicRemappingLink, create_queue_connection
 from streamtasks.net.serialization import RawData
 from streamtasks.net.utils import endpoint_to_str
-from streamtasks.services.protocols import AddressNames, WorkerPorts, WorkerTopics
+from streamtasks.services.protocols import AddressNames, NetworkPorts, NetworkTopics
 from streamtasks.env import NODE_NAME
 from streamtasks.utils import get_node_name_id
 from streamtasks.worker import Worker
@@ -190,7 +190,7 @@ class TaskHost(Worker):
     try:
       self.client = await self.create_client()
       self.client.start()
-      await wait_for_topic_signal(self.client, WorkerTopics.DISCOVERY_SIGNAL)
+      await wait_for_topic_signal(self.client, NetworkTopics.DISCOVERY_SIGNAL)
       await self.client.request_address()
       futs: list[asyncio.Future] = []
 
@@ -200,7 +200,7 @@ class TaskHost(Worker):
         app = ASGIServer()
         app.add_handler(asgi_default_http_error_handler)
         app.add_handler(asgi_router)
-        self._base_metadata[MetadataFields.ASGISERVER] = endpoint_to_str((self.client.address, WorkerPorts.ASGI))
+        self._base_metadata[MetadataFields.ASGISERVER] = endpoint_to_str((self.client.address, NetworkPorts.ASGI))
         futs.append(ASGIAppRunner(self.client, app).run())
 
       self.ready.set()

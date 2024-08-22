@@ -9,7 +9,7 @@ from streamtasks.client.signal import SignalServer, send_signal
 from streamtasks.net.serialization import RawData
 from streamtasks.net import ConnectionClosedError, Switch, create_queue_connection
 from streamtasks.services.discovery import DiscoveryWorker
-from streamtasks.services.protocols import WorkerPorts, WorkerTopics
+from streamtasks.services.protocols import NetworkPorts, NetworkTopics
 from tests.shared import AddressReceiver, async_timeout
 
 
@@ -105,7 +105,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     @server.route("test")
     async def _(req: FetchRequest):
       self.assertEqual(req.body, "Hello 1")
-      self.assertEqual(req._return_endpoint, (2, WorkerPorts.DYNAMIC_START))
+      self.assertEqual(req._return_endpoint, (2, NetworkPorts.DYNAMIC_START))
       await req.respond("Hello 2")
 
     self.tasks.append(asyncio.create_task(server.run()))
@@ -149,7 +149,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
     await self.a.set_address(100)
     await self.b.set_address(101)
 
-    await wait_for_topic_signal(self.a, WorkerTopics.DISCOVERY_SIGNAL)
+    await wait_for_topic_signal(self.a, NetworkTopics.DISCOVERY_SIGNAL)
     await self.a.request_topic_ids(1)
 
     server = BroadcastingServer(self.a)

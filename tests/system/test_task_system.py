@@ -6,7 +6,7 @@ from streamtasks.client.discovery import register_topic_space, wait_for_topic_si
 from streamtasks.client.fetch import FetchError
 from streamtasks.net import ConnectionClosedError, Switch
 from streamtasks.net.serialization import RawData
-from streamtasks.services.protocols import AddressNames, WorkerTopics
+from streamtasks.services.protocols import AddressNames, NetworkTopics
 from streamtasks.system.task import Task, TaskHost, TaskHostRegistrationList, TaskManager, TaskManagerClient, TaskStatus
 from streamtasks.system.task_web import TaskWebBackend
 from streamtasks.client import Client
@@ -60,7 +60,7 @@ class TestTaskSystem(unittest.IsolatedAsyncioTestCase):
 
 
     self.tasks.append(asyncio.create_task(self.discovery_worker.run()))
-    await wait_for_topic_signal(self.client, WorkerTopics.DISCOVERY_SIGNAL)
+    await wait_for_topic_signal(self.client, NetworkTopics.DISCOVERY_SIGNAL)
 
     self.tasks.append(asyncio.create_task(self.task_manager.run()))
     self.tasks.append(asyncio.create_task(self.task_manager_web.run()))

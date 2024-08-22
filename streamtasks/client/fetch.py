@@ -8,7 +8,7 @@ from pydantic import BaseModel, ValidationError
 from typing import TYPE_CHECKING, Any, Callable, Awaitable
 import logging
 
-from streamtasks.services.protocols import WorkerPorts
+from streamtasks.services.protocols import NetworkPorts
 if TYPE_CHECKING:
   from streamtasks.client import Client
 
@@ -76,7 +76,7 @@ class FetchReponseReceiver(Receiver[FetchResponseMessage]):
     except ValidationError: pass
 
 class FetchServer(Receiver[tuple[str, FetchRequest]]):
-  def __init__(self, client: 'Client', port: int = WorkerPorts.FETCH):
+  def __init__(self, client: 'Client', port: int = NetworkPorts.FETCH):
     super().__init__(client)
     self._descriptor_mapping: dict[str, Callable[[FetchRequest], Awaitable[Any]]] = {}
     self._port = port

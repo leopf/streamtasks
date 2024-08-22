@@ -7,10 +7,10 @@ from streamtasks.client.receiver import Receiver
 from streamtasks.net import EndpointOrAddress, endpoint_or_address_to_endpoint
 from streamtasks.net.serialization import RawData
 from streamtasks.net.messages import Message, TopicDataMessage
-from streamtasks.services.protocols import WorkerPorts
+from streamtasks.services.protocols import NetworkPorts
 
 class BroadcastingServer:
-  def __init__(self, client: 'Client', port: int = WorkerPorts.BROADCAST) -> None:
+  def __init__(self, client: 'Client', port: int = NetworkPorts.BROADCAST) -> None:
     self.port = port
     self.client = client
     self.namespaces: dict[str, int] = {}
@@ -43,7 +43,7 @@ class BroadcastReceiver(Receiver[T]):
     super().__init__(client)
     self._recv_queue: asyncio.Queue[T]
     self._namespaces = set(namespaces)
-    self._endpoint = endpoint_or_address_to_endpoint(endpoint, WorkerPorts.BROADCAST)
+    self._endpoint = endpoint_or_address_to_endpoint(endpoint, NetworkPorts.BROADCAST)
     self._topics_ns_map: dict[int, str] = {}
 
   async def _on_start_recv(self):

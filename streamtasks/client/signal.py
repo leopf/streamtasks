@@ -6,7 +6,7 @@ from streamtasks.client.receiver import Receiver
 from streamtasks.net import EndpointOrAddress, endpoint_or_address_to_endpoint
 from streamtasks.net.serialization import RawData
 from streamtasks.net.messages import AddressedMessage, Message
-from streamtasks.services.protocols import WorkerPorts
+from streamtasks.services.protocols import NetworkPorts
 
 if TYPE_CHECKING:
   from streamtasks.client import Client
@@ -17,7 +17,7 @@ class SignalMessage(BaseModel):
 
 
 class SignalServer(Receiver[tuple[str, Any]]):
-  def __init__(self, client: 'Client', port: int = WorkerPorts.SIGNAL):
+  def __init__(self, client: 'Client', port: int = NetworkPorts.SIGNAL):
     super().__init__(client)
     self._descriptor_mapping: dict[str, Callable[[Any], Awaitable[Any]]] = {}
     self._port = port
@@ -52,4 +52,4 @@ class SignalServer(Receiver[tuple[str, Any]]):
           except BaseException as e: logging.debug(e, descriptor)
 
 async def send_signal(client: 'Client', endpoint: EndpointOrAddress, descriptor: str, body: Any):
-  await client.send_to(endpoint_or_address_to_endpoint(endpoint, WorkerPorts.SIGNAL), RawData(SignalMessage(descriptor=descriptor, body=body).model_dump()))
+  await client.send_to(endpoint_or_address_to_endpoint(endpoint, NetworkPorts.SIGNAL), RawData(SignalMessage(descriptor=descriptor, body=body).model_dump()))
