@@ -13,7 +13,6 @@ class NetworkPorts:
 class NetworkTopics:
   DISCOVERY_SIGNAL = 0
   ADDRESSES_CREATED = 1
-  ADDRESS_NAME_ASSIGNED = 2
   COUNTER_INIT = 100000
 
 class NetworkAddressNames:

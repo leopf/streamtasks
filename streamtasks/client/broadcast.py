@@ -1,13 +1,15 @@
 import asyncio
-from typing import Iterable, TypeVar
+from typing import TYPE_CHECKING, Iterable, TypeVar
 from pydantic import TypeAdapter
-from streamtasks.client import Client
 from streamtasks.client.fetch import FetchRequest, FetchServer
 from streamtasks.client.receiver import Receiver
 from streamtasks.net import EndpointOrAddress, endpoint_or_address_to_endpoint
 from streamtasks.net.serialization import RawData
 from streamtasks.net.messages import Message, TopicDataMessage
 from streamtasks.services.constants import NetworkPorts
+
+if TYPE_CHECKING:
+  from streamtasks.client import Client
 
 class BroadcastingServer:
   def __init__(self, client: 'Client', port: int = NetworkPorts.BROADCAST) -> None:

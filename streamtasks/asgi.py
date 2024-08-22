@@ -26,7 +26,7 @@ class ASGIConnectionConfig:
 
 
 class AsgiConstants:
-  INIT_DESCRIPTOR = "init"
+  FD_DESCRIPTOR = "init"
 
 
 class ASGIInitRequest(BaseModel):
@@ -139,7 +139,7 @@ class ASGIAppRunner:
     try:
       server = FetchServer(self._client, self._port)
 
-      @server.route(AsgiConstants.INIT_DESCRIPTOR)
+      @server.route(AsgiConstants.FD_DESCRIPTOR)
       async def _(raw_request: FetchRequest):
         init_request = ASGIInitRequest.model_validate(raw_request.body)
         config = ASGIConnectionConfig(
@@ -199,7 +199,7 @@ class ASGIProxyApp:
     receiver = ASGIEventReceiver(self._client, port)
     await receiver.start_recv() # NOTE: must be enabled before sending init message, otherwise events will be lost
 
-    init_respose_raw = await self._client.fetch(self._remote_endpoint, AsgiConstants.INIT_DESCRIPTOR, ASGIInitRequest(
+    init_respose_raw = await self._client.fetch(self._remote_endpoint, AsgiConstants.FD_DESCRIPTOR, ASGIInitRequest(
       address=self._client.address,
       port=port,
       scope=ser_scope).model_dump())
