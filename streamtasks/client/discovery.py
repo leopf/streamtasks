@@ -14,7 +14,7 @@ if TYPE_CHECKING:
   from streamtasks.client import Client
 
 
-class DISCOVERY_CONSTANTS:
+class DsicoveryConstants:
   REQUEST_TOPICS = "request_topics"
 
   REQUEST_ADDRESSES = "request_addresses"
@@ -139,33 +139,33 @@ async def request_addresses(client: 'Client', count: int) -> set[int]:
       await send_signal(
         client,
         NetworkAddresses.ID_DISCOVERY,
-        DISCOVERY_CONSTANTS.REQUEST_ADDRESSES,
+        DsicoveryConstants.REQUEST_ADDRESSES,
         GenerateAddressesRequestMessage(request_id=request_id, count=count).model_dump()
       )
       data: GenerateAddressesResponseMessage = await receiver.get()
   else:
-    res = await client.fetch(NetworkAddresses.ID_DISCOVERY, DISCOVERY_CONSTANTS.REQUEST_ADDRESSES, GenerateAddressesRequestMessageBase(count=count).model_dump())
+    res = await client.fetch(NetworkAddresses.ID_DISCOVERY, DsicoveryConstants.REQUEST_ADDRESSES, GenerateAddressesRequestMessageBase(count=count).model_dump())
     data = GenerateAddressesResponseMessageBase.model_validate(res)
   addresses = set(data.addresses)
   if len(addresses) != count: raise Exception("The response returned an invalid number of addresses")
   return addresses
 
-async def delete_topic_space(client: 'Client', id: int): await client.fetch(NetworkAddresses.ID_DISCOVERY, DISCOVERY_CONSTANTS.DELETE_TOPIC_SPACE, TopicSpaceRequestMessage(id=id).model_dump())
+async def delete_topic_space(client: 'Client', id: int): await client.fetch(NetworkAddresses.ID_DISCOVERY, DsicoveryConstants.DELETE_TOPIC_SPACE, TopicSpaceRequestMessage(id=id).model_dump())
 async def register_topic_space(client: 'Client', topic_ids: set[int]) -> tuple[int, dict[int, int]]:
-  result = await client.fetch(NetworkAddresses.ID_DISCOVERY, DISCOVERY_CONSTANTS.REGISTER_TOPIC_SPACE, RegisterTopicSpaceRequestMessage(topic_ids=topic_ids).model_dump())
+  result = await client.fetch(NetworkAddresses.ID_DISCOVERY, DsicoveryConstants.REGISTER_TOPIC_SPACE, RegisterTopicSpaceRequestMessage(topic_ids=topic_ids).model_dump())
   data = TopicSpaceResponseMessage.model_validate(result)
   return (data.id, { k: v for k, v in data.topic_id_map })
 async def get_topic_space(client: 'Client', id: int):
-  result = await client.fetch(NetworkAddresses.ID_DISCOVERY, DISCOVERY_CONSTANTS.GET_TOPIC_SPACE, TopicSpaceRequestMessage(id=id).model_dump())
+  result = await client.fetch(NetworkAddresses.ID_DISCOVERY, DsicoveryConstants.GET_TOPIC_SPACE, TopicSpaceRequestMessage(id=id).model_dump())
   data = TopicSpaceResponseMessage.model_validate(result)
   return { k: v for k, v in data.topic_id_map }
 async def get_topic_space_translation(client: 'Client', topic_space_id: int, topic_id: int):
   message = TopicSpaceTranslationRequestMessage(topic_space_id=topic_space_id, topic_id=topic_id)
-  result = await client.fetch(NetworkAddresses.ID_DISCOVERY, DISCOVERY_CONSTANTS.GET_TOPIC_SPACE_TRANSLATION, message.model_dump())
+  result = await client.fetch(NetworkAddresses.ID_DISCOVERY, DsicoveryConstants.GET_TOPIC_SPACE_TRANSLATION, message.model_dump())
   return TopicSpaceTranslationResponseMessage.model_validate(result).topic_id
 
 async def _register_address_name(client: 'Client', name: str, address: Optional[int]):
-  await client.fetch(NetworkAddresses.ID_DISCOVERY, DISCOVERY_CONSTANTS.REGISTER_ADDRESS, RegisterAddressRequestBody(address_name=name, address=address).model_dump())
+  await client.fetch(NetworkAddresses.ID_DISCOVERY, DsicoveryConstants.REGISTER_ADDRESS, RegisterAddressRequestBody(address_name=name, address=address).model_dump())
   client.set_address_name(name, address)
 
 async def register_address_name(client: 'Client', name: str, address: int | None = None):

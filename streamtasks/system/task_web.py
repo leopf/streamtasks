@@ -23,7 +23,7 @@ from streamtasks.net.serialization import RawData
 from streamtasks.net.utils import str_to_endpoint
 from streamtasks.pydanticdb import PydanticDB
 from streamtasks.services.constants import NetworkAddressNames
-from streamtasks.system.task import TASK_CONSTANTS, MetadataDict, MetadataFields, ModelWithId, TaskHostRegistration, TaskHostRegistrationList, TaskInstance, TaskManagerClient, TaskNotFoundError
+from streamtasks.system.task import TaskConstants, MetadataDict, MetadataFields, ModelWithId, TaskHostRegistration, TaskHostRegistrationList, TaskInstance, TaskManagerClient, TaskNotFoundError
 from streamtasks.utils import get_node_name_id, make_json_serializable, wait_with_dependencies
 from streamtasks.worker import Worker
 import importlib.resources
@@ -122,7 +122,7 @@ class TaskWebPathHandler(Worker):
       for reg_ep in self.register_endpoits:
         address = reg_ep[0] if isinstance(reg_ep, tuple) else reg_ep
         if isinstance(address, str): await wait_for_address_name(self.client, address)
-        await self.client.fetch(reg_ep, TASK_CONSTANTS.FD_TMW_REGISTER_PATH, PathRegistration(id=self.id, endpoint=self.client.address, frontend=self.frontend, path=self.path).model_dump())
+        await self.client.fetch(reg_ep, TaskConstants.FD_TMW_REGISTER_PATH, PathRegistration(id=self.id, endpoint=self.client.address, frontend=self.frontend, path=self.path).model_dump())
       await self.run_inner()
     finally: await self.shutdown()
 
@@ -226,7 +226,7 @@ class TaskWebBackend(Worker):
   async def run_fetch_api(self):
     server = FetchServer(self.client)
 
-    @server.route(TASK_CONSTANTS.FD_TMW_REGISTER_PATH)
+    @server.route(TaskConstants.FD_TMW_REGISTER_PATH)
     async def _(req: FetchRequest):
       body = PathRegistration.model_validate(req.body)
       self.path_registrations.append(body)
@@ -237,7 +237,7 @@ class TaskWebBackend(Worker):
   async def run_signal_api(self):
     server = SignalServer(self.client)
 
-    @server.route(TASK_CONSTANTS.SD_TMW_UNREGISTER_PATH)
+    @server.route(TaskConstants.SD_TMW_UNREGISTER_PATH)
     async def _(message_data: Any):
       data = ModelWithId.model_validate(message_data)
       self.path_registrations = [ reg for reg in self.path_registrations if reg.id != data.id]

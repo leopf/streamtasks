@@ -6,7 +6,7 @@ from streamtasks.client import Client
 from streamtasks.client.fetch import FetchRequest, FetchServer, new_fetch_body_bad_request, new_fetch_body_not_found
 from streamtasks.net.serialization import RawData
 from streamtasks.net.messages import TopicControlData
-from streamtasks.client.discovery import DISCOVERY_CONSTANTS, AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, GenerateTopicsRequestBody, GenerateTopicsResponseBody, RegisterAddressRequestBody, RegisterTopicSpaceRequestMessage, ResolveAddressRequestBody, ResolveAddressResonseBody, TopicSpaceRequestMessage, TopicSpaceResponseMessage, TopicSpaceTranslationRequestMessage, TopicSpaceTranslationResponseMessage
+from streamtasks.client.discovery import DsicoveryConstants, AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, GenerateTopicsRequestBody, GenerateTopicsResponseBody, RegisterAddressRequestBody, RegisterTopicSpaceRequestMessage, ResolveAddressRequestBody, ResolveAddressResonseBody, TopicSpaceRequestMessage, TopicSpaceResponseMessage, TopicSpaceTranslationRequestMessage, TopicSpaceTranslationResponseMessage
 import logging
 import asyncio
 
@@ -46,7 +46,7 @@ class DiscoveryWorker(Worker):
   async def _run_fetch_server(self, client: Client):
     server = FetchServer(client)
 
-    @server.route(DISCOVERY_CONSTANTS.REGISTER_ADDRESS)
+    @server.route(DsicoveryConstants.REGISTER_ADDRESS)
     async def _(req: FetchRequest):
       request: RegisterAddressRequestBody = RegisterAddressRequestBody.model_validate(req.body)
       logging.info(f"registering address name {request.address_name} for address {request.address}")
@@ -58,27 +58,27 @@ class DiscoveryWorker(Worker):
         address=self._address_map.get(request.address_name, None)
       ).model_dump()))
 
-    @server.route(DISCOVERY_CONSTANTS.RESOLVE_ADDRESS)
+    @server.route(DsicoveryConstants.RESOLVE_ADDRESS)
     async def _(req: FetchRequest):
       request: ResolveAddressRequestBody = ResolveAddressRequestBody.model_validate(req.body)
       logging.info(f"resolving the address for {request.address_name}")
       await req.respond(ResolveAddressResonseBody(address=self._address_map.get(request.address_name, None)).model_dump())
 
-    @server.route(DISCOVERY_CONSTANTS.REQUEST_TOPICS)
+    @server.route(DsicoveryConstants.REQUEST_TOPICS)
     async def _(req: FetchRequest):
       request = GenerateTopicsRequestBody.model_validate(req.body)
       logging.info(f"generating {request.count} topics")
       topics = self.generate_topic_ids(request.count)
       await req.respond(GenerateTopicsResponseBody(topics=topics).model_dump())
 
-    @server.route(DISCOVERY_CONSTANTS.REQUEST_ADDRESSES)
+    @server.route(DsicoveryConstants.REQUEST_ADDRESSES)
     async def _(req: FetchRequest):
       message = GenerateAddressesRequestMessageBase.model_validate(req.body)
       logging.info(f"generating {message.count} addresses")
       addresses = self.generate_addresses(message.count)
       await req.respond(GenerateAddressesResponseMessageBase(addresses=addresses).model_dump())
 
-    @server.route(DISCOVERY_CONSTANTS.REGISTER_TOPIC_SPACE)
+    @server.route(DsicoveryConstants.REGISTER_TOPIC_SPACE)
     async def _(req: FetchRequest):
       message = RegisterTopicSpaceRequestMessage.model_validate(req.body)
       logging.info(f"generating topic space for {len(message.topic_ids)} topic ids")
@@ -88,7 +88,7 @@ class DiscoveryWorker(Worker):
       self._topic_spaces[self._topic_space_id_counter] = topic_id_map
       await req.respond(TopicSpaceResponseMessage(id=self._topic_space_id_counter, topic_id_map=list(topic_id_map.items())).model_dump())
 
-    @server.route(DISCOVERY_CONSTANTS.GET_TOPIC_SPACE_TRANSLATION)
+    @server.route(DsicoveryConstants.GET_TOPIC_SPACE_TRANSLATION)
     async def _(req: FetchRequest):
       try:
         message = TopicSpaceTranslationRequestMessage.model_validate(req.body)
@@ -97,7 +97,7 @@ class DiscoveryWorker(Worker):
       except KeyError as e:
         await req.respond_error(new_fetch_body_not_found(str(e)))
 
-    @server.route(DISCOVERY_CONSTANTS.GET_TOPIC_SPACE)
+    @server.route(DsicoveryConstants.GET_TOPIC_SPACE)
     async def _(req: FetchRequest):
       try:
         message = TopicSpaceRequestMessage.model_validate(req.body)
@@ -106,7 +106,7 @@ class DiscoveryWorker(Worker):
       except KeyError as e:
         await req.respond_error(new_fetch_body_not_found(str(e)))
 
-    @server.route(DISCOVERY_CONSTANTS.DELETE_TOPIC_SPACE)
+    @server.route(DsicoveryConstants.DELETE_TOPIC_SPACE)
     async def _(req: FetchRequest):
       try:
         request = TopicSpaceRequestMessage.model_validate(req.body)
@@ -120,7 +120,7 @@ class DiscoveryWorker(Worker):
   async def _run_address_generator(self, client: Client):
     signal_server = SignalServer(client)
 
-    @signal_server.route(DISCOVERY_CONSTANTS.REQUEST_ADDRESSES)
+    @signal_server.route(DsicoveryConstants.REQUEST_ADDRESSES)
     async def _(message_data: Any):
       request = GenerateAddressesRequestMessage.model_validate(message_data)
       logging.info(f"generating {request.count} addresses")
