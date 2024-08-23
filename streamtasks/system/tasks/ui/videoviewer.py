@@ -3,7 +3,7 @@ import importlib.resources
 from io import BytesIO
 import os
 from typing import Any
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from streamtasks.asgi import ASGIAppRunner, asgi_default_http_error_handler
 from streamtasks.asgiserver import ASGIRouter, ASGIServer, HTTPContext, WebsocketContext, http_context_handler, websocket_context_handler
 from streamtasks.media.container import OutputContainer
@@ -13,13 +13,12 @@ from streamtasks.net.utils import endpoint_to_str
 from streamtasks.services.constants import NetworkPorts
 from streamtasks.system.configurators import IOTypes, static_configurator
 from streamtasks.system.tasks.media.utils import MediaEditorFields
-from streamtasks.system.tasks.ui.controlbase import UIControlBaseTaskConfig
 from streamtasks.media.packet import MediaMessage
 from streamtasks.system.task import MetadataFields, Task, TaskHost
 from streamtasks.client import Client
 from streamtasks.utils import wait_with_dependencies
 
-class VideoViewerConfigBase(UIControlBaseTaskConfig):
+class VideoViewerConfigBase(BaseModel):
   width: IOTypes.Width = 1280
   height: IOTypes.Height = 720
   rate: IOTypes.FrameRate = 30
