@@ -185,7 +185,6 @@ class TaskHost(Worker):
   async def unregister(self, endpoint: EndpointOrAddress = NetworkAddressNames.TASK_MANAGER):
     self._registered_at_endpoints = [ ep for ep in self._registered_at_endpoints if ep!= endpoint ]
     await send_signal(self.client, endpoint, TaskConstants.SD_UNREGISTER_TASK_HOST, ModelWithStrId(id=self.id).model_dump())
-    await asyncio.sleep(0)
 
   async def run(self):
     try:

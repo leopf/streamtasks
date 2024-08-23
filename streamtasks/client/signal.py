@@ -53,3 +53,4 @@ class SignalServer(Receiver[tuple[str, Any]]):
 
 async def send_signal(client: 'Client', endpoint: EndpointOrAddress, descriptor: str, body: Any):
   await client.send_to(endpoint_or_address_to_endpoint(endpoint, NetworkPorts.SIGNAL), RawData(SignalMessage(descriptor=descriptor, body=body).model_dump()))
+  await asyncio.sleep(0) # make sure signal gets processes
