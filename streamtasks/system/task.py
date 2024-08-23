@@ -11,7 +11,7 @@ from streamtasks.asgiserver import ASGIRouter, ASGIServer
 from streamtasks.client import Client
 import asyncio
 from streamtasks.client.broadcast import BroadcastReceiver, BroadcastingServer
-from streamtasks.client.discovery import get_topic_space, register_address_name, wait_for_topic_signal
+from streamtasks.client.discovery import address_name_context, get_topic_space, wait_for_topic_signal
 from streamtasks.client.fetch import FetchError, FetchErrorStatusCode, FetchRequest, FetchServer, new_fetch_body_bad_request, new_fetch_body_general_error, new_fetch_body_not_found
 from streamtasks.client.signal import SignalServer, send_signal
 from streamtasks.client.topic import OutTopic
@@ -278,13 +278,13 @@ class TaskManager(Worker):
       self.client = await self.create_client()
       self.client.start()
       await self.client.request_address()
-      await register_address_name(self.client, self.address_name)
       self.bc_server = BroadcastingServer(self.client)
-      await asyncio.gather(
-        self.run_fetch_api(),
-        self.run_signal_api(),
-        self.bc_server.run()
-      )
+      async with address_name_context(self.client, self.address_name):
+        await asyncio.gather(
+          self.run_fetch_api(),
+          self.run_signal_api(),
+          self.bc_server.run()
+        )
     finally:
       await self.shutdown()
 

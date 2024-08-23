@@ -1,5 +1,5 @@
 import unittest
-from streamtasks.client.discovery import delete_topic_space, get_topic_space, get_topic_space_translation, register_address_name, register_topic_space, request_addresses, wait_for_address_name, wait_for_topic_signal
+from streamtasks.client.discovery import address_name_context, delete_topic_space, get_topic_space, get_topic_space_translation, register_topic_space, request_addresses, wait_for_address_name, wait_for_topic_signal
 from streamtasks.client.fetch import FetchError
 from streamtasks.net import ConnectionClosedError, Switch, create_queue_connection
 from streamtasks.services.constants import NetworkAddresses, NetworkTopics
@@ -87,9 +87,9 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
 
     waiter_task = asyncio.create_task(waiter_before())
 
-    await register_address_name(client1, "c1", client1.address)
-    await asyncio.sleep(0.001)
-    self.assertEqual(await wait_for_address_name(client2, "c1"), client1.address)
+    async with address_name_context(client1, "c1"):
+      await asyncio.sleep(0.001)
+      self.assertEqual(await wait_for_address_name(client2, "c1"), client1.address)
     await waiter_task
 
   @async_timeout(1)
@@ -103,9 +103,11 @@ class TestWorkers(unittest.IsolatedAsyncioTestCase):
     client2 = await self.create_client()
     await client2.request_address()
 
-    await register_address_name(client1, "c1", client1.address)
-    await asyncio.sleep(0.001)
-    self.assertEqual(await client2.resolve_address_name("c1"), client1.address)
+    async with address_name_context(client1, "c1"):
+      await asyncio.sleep(0.001)
+      self.assertEqual(await client2.resolve_address_name("c1"), client1.address)
+    client2.set_address_name("c1", None) # clear cache
+    self.assertEqual(await client2.resolve_address_name("c1"), None)
 
   @async_timeout(1)
   async def test_topic_discovery(self):

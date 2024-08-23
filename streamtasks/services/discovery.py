@@ -7,7 +7,7 @@ from streamtasks.client import Client
 from streamtasks.client.fetch import FetchRequest, FetchServer, new_fetch_body_bad_request, new_fetch_body_not_found
 from streamtasks.net.serialization import RawData
 from streamtasks.net.messages import TopicControlData
-from streamtasks.client.discovery import DiscoveryConstants, AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, GenerateTopicsRequestBody, GenerateTopicsResponseBody, RegisterAddressRequestBody, RegisterTopicSpaceRequestMessage, ResolveAddressRequestBody, ResolveAddressResonseBody, TopicSpaceRequestMessage, TopicSpaceResponseMessage, TopicSpaceTranslationRequestMessage, TopicSpaceTranslationResponseMessage
+from streamtasks.client.discovery import DiscoveryConstants, AddressNameAssignmentMessage, GenerateAddressesRequestMessage, GenerateAddressesRequestMessageBase, GenerateAddressesResponseMessage, GenerateAddressesResponseMessageBase, GenerateTopicsRequestBody, GenerateTopicsResponseBody, RegisterAddressNameRequestBody, RegisterTopicSpaceRequestMessage, ResolveAddressRequestBody, ResolveAddressResonseBody, TopicSpaceRequestMessage, TopicSpaceResponseMessage, TopicSpaceTranslationRequestMessage, TopicSpaceTranslationResponseMessage, UnregisterAddressNameMessage
 import logging
 import asyncio
 
@@ -30,7 +30,7 @@ class DiscoveryWorker(Worker):
     try:
       async with client.out_topics_context([NetworkTopics.ADDRESSES_CREATED, NetworkTopics.DISCOVERY_SIGNAL]):
         await asyncio.gather(
-          self._run_address_generator(client),
+          self._run_signal_server(client),
           self._run_fetch_server(client),
           self._run_lighthouse(client),
           self._bc_server.run(),
@@ -50,12 +50,11 @@ class DiscoveryWorker(Worker):
   async def _run_fetch_server(self, client: Client):
     server = FetchServer(client)
 
-    @server.route(DiscoveryConstants.FD_REGISTER_ADDRESS)
+    @server.route(DiscoveryConstants.FD_REGISTER_ADDRESS_NAME)
     async def _(req: FetchRequest):
-      request: RegisterAddressRequestBody = RegisterAddressRequestBody.model_validate(req.body)
+      request: RegisterAddressNameRequestBody = RegisterAddressNameRequestBody.model_validate(req.body)
       logging.info(f"registering address name {request.address_name} for address {request.address}")
-      if request.address is None: self._address_map.pop(request.address_name, None)
-      else: self._address_map[request.address_name] = request.address
+      self._address_map[request.address_name] = request.address
       await self._bc_server.broadcast(DiscoveryConstants.BC_ADDRESS_NAME_REGISTERED, RawData(AddressNameAssignmentMessage(
         address_name=request.address_name,
         address=self._address_map.get(request.address_name, None)
@@ -120,7 +119,7 @@ class DiscoveryWorker(Worker):
 
     await server.run()
 
-  async def _run_address_generator(self, client: Client):
+  async def _run_signal_server(self, client: Client):
     signal_server = SignalServer(client)
 
     @signal_server.route(DiscoveryConstants.FD_SD_REQUEST_ADDRESSES)
@@ -132,6 +131,12 @@ class DiscoveryWorker(Worker):
         request_id=request.request_id,
         addresses=addresses
       ).model_dump()))
+
+    @signal_server.route(DiscoveryConstants.SD_UNREGISTER_ADDRESS_NAME)
+    async def _(message_data: Any):
+      request = UnregisterAddressNameMessage.model_validate(message_data)
+      logging.info(f"unregistering address name {request.address_name}")
+      self._address_map.pop(request.address_name, None)
 
     await signal_server.run()
 

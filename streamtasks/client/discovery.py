@@ -18,13 +18,14 @@ if TYPE_CHECKING:
 class DiscoveryConstants:
   FD_REQUEST_TOPICS = "request_topics"
   FD_RESOLVE_ADDRESS = "resolve_address_name"
-  FD_REGISTER_ADDRESS = "register_address_name"
+  FD_REGISTER_ADDRESS_NAME = "register_address_name"
   FD_REGISTER_TOPIC_SPACE = "register_topic_space"
   FD_GET_TOPIC_SPACE = "get_topic_space"
   FD_GET_TOPIC_SPACE_TRANSLATION = "get_topic_space_translation"
   FD_DELETE_TOPIC_SPACE = "delete_topic_space"
 
   FD_SD_REQUEST_ADDRESSES = "request_addresses"
+  SD_UNREGISTER_ADDRESS_NAME = "unregister_address_name"
 
   BC_ADDRESS_NAME_REGISTERED = "address-name/registered"
 
@@ -73,10 +74,8 @@ class ResolveAddressRequestBody(BaseModel):
 class ResolveAddressResonseBody(BaseModel):
   address: Optional[int] = None
 
-
-class RegisterAddressRequestBody(BaseModel):
+class UnregisterAddressNameMessage(BaseModel):
   address_name: str
-  address: Optional[int] = None
 
   @field_validator("address_name")
   @classmethod
@@ -84,6 +83,8 @@ class RegisterAddressRequestBody(BaseModel):
     validate_address_name(value)
     return value
 
+class RegisterAddressNameRequestBody(UnregisterAddressNameMessage):
+  address: int
 
 class AddressNameAssignmentMessage(BaseModel):
   address_name: str
@@ -158,23 +159,17 @@ async def get_topic_space_translation(client: 'Client', topic_space_id: int, top
   result = await client.fetch(NetworkAddresses.ID_DISCOVERY, DiscoveryConstants.FD_GET_TOPIC_SPACE_TRANSLATION, message.model_dump())
   return TopicSpaceTranslationResponseMessage.model_validate(result).topic_id
 
-async def _register_address_name(client: 'Client', name: str, address: Optional[int]):
-  await client.fetch(NetworkAddresses.ID_DISCOVERY, DiscoveryConstants.FD_REGISTER_ADDRESS, RegisterAddressRequestBody(address_name=name, address=address).model_dump())
-  client.set_address_name(name, address)
-
-async def register_address_name(client: 'Client', name: str, address: int | None = None):
-  if address is None and client.address is None: raise ValueError("Missing address! You must either provide and address or the client must have one assigned!")
-  return await _register_address_name(client, name, address or client.address)
-
-async def unregister_address_name(client: 'Client', name: str): return await _register_address_name(client, name, None)
-
 @asynccontextmanager
-async def address_name_context(client: 'Client', name: str, address: int):
+async def address_name_context(client: 'Client', name: str, address: int | None = None):
+  address = address or client.address
+  if address is None: raise ValueError("Missing address!")
   try:
-    await register_address_name(client, name, address)
-    yield None
+    await client.fetch(NetworkAddresses.ID_DISCOVERY, DiscoveryConstants.FD_REGISTER_ADDRESS_NAME, RegisterAddressNameRequestBody(address_name=name, address=address).model_dump())
+    client.set_address_name(name, address)
+    yield
   finally:
-    await unregister_address_name(client, name)
+    await send_signal(client, NetworkAddresses.ID_DISCOVERY, DiscoveryConstants.SD_UNREGISTER_ADDRESS_NAME, UnregisterAddressNameMessage(address_name=name).model_dump())
+    client.set_address_name(name, address)
 
 async def wait_for_topic_signal(client: 'Client', topic: int): return await TopicSignalReceiver(client, topic).wait()
 

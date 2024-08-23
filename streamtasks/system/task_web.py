@@ -14,7 +14,7 @@ from streamtasks.asgi import ASGIAppRunner, ASGIProxyApp, asgi_default_http_erro
 from streamtasks.asgiserver import ASGIHandler, ASGIRouter, ASGIServer, HTTPContext, TransportContext, WebsocketContext, decode_data_uri, http_context_handler, path_rewrite_handler, static_content_handler, static_files_handler, transport_context_handler, websocket_context_handler
 from streamtasks.client import Client
 from streamtasks.client.broadcast import BroadcastReceiver
-from streamtasks.client.discovery import delete_topic_space, get_topic_space_translation, register_address_name, register_topic_space, wait_for_address_name
+from streamtasks.client.discovery import address_name_context, delete_topic_space, get_topic_space_translation, register_topic_space, wait_for_address_name
 from streamtasks.client.fetch import FetchRequest, FetchServer
 from streamtasks.client.receiver import TopicsReceiver
 from streamtasks.client.signal import SignalServer
@@ -218,9 +218,9 @@ class TaskWebBackend(Worker):
       self.client = await self.create_client()
       self.client.start()
       await self.client.request_address()
-      await register_address_name(self.client, self.address_name)
       self.tm_client = TaskManagerClient(self.client, self.task_manager_address_name)
-      await asyncio.gather(self.run_asgi_server(), self.run_fetch_api(), self.run_signal_api())
+      async with address_name_context(self.client, self.address_name):
+        await asyncio.gather(self.run_asgi_server(), self.run_fetch_api(), self.run_signal_api())
     finally:
       await self.shutdown()
 
