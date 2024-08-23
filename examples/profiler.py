@@ -27,6 +27,7 @@ while True:
   except: time.sleep(1)
 
 time.sleep(args.duration)
-os.kill(server.pid, signal.SIGINT)
+if server.pid is not None:
+  os.kill(server.pid, signal.SIGINT)
 server.join()
 print("written to: ", args.outfile)

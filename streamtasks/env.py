@@ -10,7 +10,10 @@ def DEBUG_SER(): return int(os.getenv("DEBUG_SER", "0"))
 def DATA_DIR():
   data_dir = os.getenv("DATA_DIR", None)
   if data_dir is None:
-    if sys.platform == 'win32': base_dir = pathlib.Path(os.getenv('APPDATA'))
+    if sys.platform == 'win32':
+      appdata = os.getenv('APPDATA')
+      if appdata is None: raise ValueError("APPDATA environment variable is not set")
+      base_dir = pathlib.Path(appdata)
     elif sys.platform == 'darwin': base_dir = pathlib.Path.home() / 'Library' / 'Application Support'
     else: base_dir = pathlib.Path.home() / '.local' / 'share'
     data_dir_path = base_dir / __name__.split('.')[0]
