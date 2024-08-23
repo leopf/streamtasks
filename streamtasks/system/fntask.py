@@ -16,6 +16,7 @@ from streamtasks.message.types import NumberMessage, TextMessage, TimestampChuck
 from streamtasks.services.constants import NetworkAddressNames
 from streamtasks.system.configurators import EditorFields, key_to_label, static_configurator
 from streamtasks.system.task import MetadataDict, Task, TaskHost, task_host_id_from_name
+from streamtasks.utils import AsyncTaskManager
 
 IOAnnotations = tuple[()] | tuple[MetadataDict] | tuple[MetadataDict, dict[str, str] | list[str]]
 _IO_ANNOTATION_ADAPTER = TypeAdapter(IOAnnotations)
@@ -371,18 +372,16 @@ class FnTaskContext:
       await switch.add_link(to)
       await task_host.run()
     else:
+      tasks = AsyncTaskManager(default_frozen=True)
       logging.info("connecting" + ("!" if to is None else " to " + to))
       reconnector = AutoReconnector(functools.partial(connect, url=to))
-      reconnector_task = asyncio.create_task(reconnector.run())
+      tasks.create(reconnector.run(), priority=1)
       await reconnector.wait_connected()
       logging.info("connected" + ("!" if to is None else " to " + to))
 
       await switch.add_link(await reconnector.create_link())
-
-      await asyncio.gather(
-        reconnector_task,
-        task_host.run()
-      )
+      tasks.create(task_host.run())
+      await tasks.wait(return_when="FIRST_COMPLETED")
 
   def run_sync(self, to: Link | str | None = None, register_endpoits: list[EndpointOrAddress] = [NetworkAddressNames.TASK_MANAGER]):
     asyncio.run(self.run(to, register_endpoits=register_endpoits))

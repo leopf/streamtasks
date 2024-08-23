@@ -15,7 +15,7 @@ export class RootStore {
     public pathRegistration = new PathRegistrationStore();
 
     public async init() {
-        await this.taskManager.loadTaskHosts()
+        await this.taskManager.init()
         await this.deployment.loadAll();
         await this.pathRegistration.loadAll();
     }

@@ -154,6 +154,6 @@ class streamtasksui(toga.App):
     self.add_background_task(self.run_streamtasks_main)
 
   def _stop_system(self, *args):
-    if self.system is not None: self.system.cancel_all()
+    if self.system is not None: asyncio.create_task(self.system.stop())
 
 def main(): return streamtasksui()

@@ -35,7 +35,7 @@ class TestUtils(unittest.IsolatedAsyncioTestCase):
     async def routine(): await asyncio.Future()
     t1 = m.create(routine())
     t2 = m.create(routine())
-    m.cancel_all()
+    await m.cancel_all()
     await asyncio.wait([ t1, t2 ], timeout=1)
     self.assertTrue(t1.cancelled())
     self.assertTrue(t2.cancelled())

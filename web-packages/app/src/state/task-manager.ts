@@ -1,5 +1,6 @@
 import { TaskHost, TaskConfigurator, TaskHostModel, FullTask, getErrorConfigurator, ManagedTask, TaskConfiguratorContext } from "@streamtasks/core";
 import { action, makeObservable, observable } from "mobx";
+import _ from "underscore";
 import { z } from "zod";
 
 function getNotFoundTaskHost(id: string): TaskHost {
@@ -16,7 +17,6 @@ function getNotFoundTaskHost(id: string): TaskHost {
 export class TaskManager {
     public taskHosts: Map<string, TaskHost> = observable.map();
     private configurators: Map<string, TaskConfigurator> = new Map();
-    private idCounter: number = 1;
 
     constructor() {
         makeObservable(this, {
@@ -24,8 +24,14 @@ export class TaskManager {
         })
     }
 
+    public async init() {
+        this.loadTaskHosts();
+        this.subscribeToEvents();
+    }
+
     public async loadTaskHosts() {
         const result = await fetch("./api/task-hosts").then(res => res.json())
+        this.taskHosts.clear();
         z.array(TaskHostModel).parse(result).forEach(th => this.taskHosts.set(th.id, th));
     }
 
@@ -59,6 +65,13 @@ export class TaskManager {
         const context = this.createContext(taskHost);
         const inst = await configurator.create(context);
         return new ManagedTask(inst, configurator, context);
+    }
+
+    private async subscribeToEvents() {
+        const reload = _.debounce(() => this.loadTaskHosts(), 1000);
+
+        const websocket = new WebSocket(new URL("/task-host/updates", location.href))
+        websocket.addEventListener("message", reload);
     }
 
     private async getTaskHost(id: string) {

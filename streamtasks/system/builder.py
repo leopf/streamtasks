@@ -13,12 +13,19 @@ from streamtasks.system.named_topic_manager import NamedTopicManager
 from streamtasks.system.secret_manager import SecretManager
 from streamtasks.system.task import TaskManager
 from streamtasks.system.task_web import TaskWebBackend
+from streamtasks.utils import AsyncTaskManager
 from streamtasks.worker import Worker
+
+class TaskPriorities:
+  Low = 0 # Everything that must be shut down first, like task hosts
+  System = 1 # Local infrastructure, only one node depends on it
+  Infra = 2 # Global infrastructure, everyone depends on it.
+  Network = 3 # req. to communicate with the rest of the system, shut down last to get all signals through
 
 class SystemBuilder:
   def __init__(self):
     self.switch = Switch()
-    self.tasks: list[asyncio.Future] = []
+    self.tasks = AsyncTaskManager(default_frozen=True)
     self.http_servers: list[HTTPServerOverASGI] = []
     self.disovery_ready = False
 
@@ -34,55 +41,48 @@ class SystemBuilder:
     await self.start_secret_manager()
     await self.start_task_system()
 
-  async def start_discovery(self): await self._start_worker(DiscoveryWorker())
-  async def start_connector(self, url: str | None = None):
-    await self._start_worker(AutoReconnector(functools.partial(connect, url=url)))
-
-  async def start_server(self, url: str | None = None): await self._start_worker(create_server(url))
+  async def start_discovery(self): await self._start_worker(DiscoveryWorker(), TaskPriorities.Infra)
+  async def start_connector(self, url: str | None = None): await self._start_worker(AutoReconnector(functools.partial(connect, url=url)), TaskPriorities.Network)
+  async def start_server(self, url: str | None = None): await self._start_worker(create_server(url), TaskPriorities.Network)
   async def start_node_server(self): await self.start_server()
 
   async def start_task_system(self):
     await self._wait_discovery()
-    await self._start_worker(TaskManager())
-    await self._start_worker(TaskWebBackend())
+    await self._start_worker(TaskManager(), TaskPriorities.Infra)
+    await self._start_worker(TaskWebBackend(), TaskPriorities.Infra)
 
   async def start_named_topic_manager(self):
     await self._wait_discovery()
-    await self._start_worker(NamedTopicManager())
+    await self._start_worker(NamedTopicManager(), TaskPriorities.Infra)
 
   async def start_secret_manager(self):
     await self._wait_discovery()
-    await self._start_worker(SecretManager())
+    await self._start_worker(SecretManager(), TaskPriorities.Infra)
 
   async def start_connection_manager(self):
     await self._wait_discovery()
-    await self._start_worker(ConnectionManager())
+    await self._start_worker(ConnectionManager(), TaskPriorities.System)
 
   async def start_user_endpoint(self, port: int):
     await self._wait_discovery()
     worker = HTTPServerOverASGI(("localhost", port), NetworkAddressNames.TASK_MANAGER_WEB)
     self.http_servers.append(worker)
-    await self._start_worker(worker)
+    await self._start_worker(worker, TaskPriorities.System)
 
   async def start_task_hosts(self):
     for TaskHostCls in get_all_task_hosts():
-      await self._start_worker(TaskHostCls(register_endpoits=[NetworkAddressNames.TASK_MANAGER]))
+      await self._start_worker(TaskHostCls(register_endpoits=[NetworkAddressNames.TASK_MANAGER]), TaskPriorities.Low)
 
   async def wait_done(self):
-    await asyncio.wait(self.tasks, return_when="FIRST_COMPLETED")
-    for task in self.tasks:
-      if not task.done(): task.cancel("Other task completed!")
-      try: await task
-      except asyncio.CancelledError: pass
+    await self.tasks.wait(return_when="FIRST_COMPLETED")
+    await self.tasks.cancel_all("Other task completed!")
 
-  def cancel_all(self):
-    for task in self.tasks: task.cancel()
+  async def stop(self): await self.tasks.cancel_all("Stopped")
 
-  async def _start_worker(self, worker: Worker):
+  async def _start_worker(self, worker: Worker, priority: int = 0):
     await self.switch.add_link(await worker.create_link())
-    self._add_task(worker.run())
+    self.tasks.create(worker.run(), priority)
 
-  def _add_task(self, ft: asyncio.Future): self.tasks.append(asyncio.create_task(ft))
   async def _wait_discovery(self):
     if not self.disovery_ready:
       client = Client(await self.switch.add_local_connection())

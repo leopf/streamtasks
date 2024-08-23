@@ -153,7 +153,7 @@ class ASGIAppRunner:
       await server.run()
 
     finally:
-      self._connection_tasks.cancel_all()
+      await self._connection_tasks.cancel_all()
 
   def _start_connection(self, config: ASGIConnectionConfig):
     receiver = ASGIEventReceiver(self._client, config.port)

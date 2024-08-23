@@ -12,15 +12,31 @@ import time
 from streamtasks.env import NODE_NAME
 
 class AsyncTaskManager:
-  def __init__(self) -> None: self._tasks: set[asyncio.Task] = set()
-  def create(self, corroutine: CoroutineType):
+  def __init__(self, default_frozen: bool = False) -> None:
+    self._frozen = default_frozen
+    self._default_frozen = default_frozen
+    self._tasks: list[tuple[int, asyncio.Task]] = []
+  def create(self, corroutine: CoroutineType, priority: int = 0):
     task = asyncio.create_task(corroutine)
-    self._tasks.add(task)
-    task.add_done_callback(self._tasks.discard)
+    self._tasks.append((priority, task))
+    task.add_done_callback(self._on_task_done)
     return task
-  def cancel_all(self):
-    for task in self._tasks: task.cancel()
-
+  async def cancel_all(self, msg: Any | None = None, timeout: float = 1):
+    self._frozen = True
+    while len(self._tasks) > 0:
+      lowest_prio = min((p for p, _ in self._tasks))
+      next_tasks = set((task for p, task in self._tasks if p == lowest_prio))
+      for task in next_tasks: task.cancel(msg)
+      try: await asyncio.wait(next_tasks, timeout=timeout)
+      except: pass
+      self._tasks = [ (priority, task) for priority, task in self._tasks if not task.done() ]
+    self._frozen = self._default_frozen
+  async def wait(self, timeout: float | None = None, return_when: str = "ALL_COMPLETED"):
+    try: await asyncio.shield(asyncio.wait([task for _, task in self._tasks ], timeout=timeout, return_when=return_when))
+    except asyncio.CancelledError: await self.cancel_all()
+  def _on_task_done(self, t: asyncio.Task):
+    if not self._frozen:
+      self._tasks = [ (priority, task) for priority, task in self._tasks if task != t ]
 
 class IdTracker:
   def __init__(self): self._map: dict[int, int] = {}

@@ -13,6 +13,7 @@ from pydantic import UUID4, BaseModel, Field, TypeAdapter, field_serializer, fie
 from streamtasks.asgi import ASGIAppRunner, ASGIProxyApp, asgi_default_http_error_handler
 from streamtasks.asgiserver import ASGIHandler, ASGIRouter, ASGIServer, HTTPContext, TransportContext, WebsocketContext, decode_data_uri, http_context_handler, path_rewrite_handler, static_content_handler, static_files_handler, transport_context_handler, websocket_context_handler
 from streamtasks.client import Client
+from streamtasks.client.broadcast import BroadcastReceiver
 from streamtasks.client.discovery import delete_topic_space, get_topic_space_translation, register_address_name, register_topic_space, wait_for_address_name
 from streamtasks.client.fetch import FetchRequest, FetchServer
 from streamtasks.client.receiver import TopicsReceiver
@@ -23,7 +24,7 @@ from streamtasks.net.serialization import RawData
 from streamtasks.net.utils import str_to_endpoint
 from streamtasks.pydanticdb import PydanticDB
 from streamtasks.services.constants import NetworkAddressNames
-from streamtasks.system.task import TaskConstants, MetadataDict, MetadataFields, ModelWithId, TaskHostRegistration, TaskHostRegistrationList, TaskInstance, TaskManagerClient, TaskNotFoundError
+from streamtasks.system.task import ModelWithStrId, TaskConstants, MetadataDict, MetadataFields, ModelWithId, TaskHostRegistration, TaskHostRegistrationList, TaskInstance, TaskManagerClient, TaskNotFoundError
 from streamtasks.utils import get_node_name_id, make_json_serializable, wait_with_dependencies
 from streamtasks.worker import Worker
 import importlib.resources
@@ -398,6 +399,22 @@ class TaskWebBackend(Worker):
     @http_context_handler
     async def _(ctx: HTTPContext):
       await ctx.respond_json([ { "id": reg.id, "path": reg.path, "frontend": None if reg.frontend is None else { "label": reg.frontend.label, "path": reg.frontend.path } } for reg in self.path_registrations ])
+
+    @router.websocket_route("/task-host/updates")
+    @websocket_context_handler
+    async def _(ctx: WebsocketContext):
+      try:
+        await ctx.accept()
+        await ctx.send_message("HELLO!")
+        receive_disconnect_task = asyncio.create_task(ctx.receive_disconnect())
+        async with BroadcastReceiver[tuple[str, RawData]](self.client, [TaskConstants.BC_TASK_HOST_REGISTERED, TaskConstants.BC_TASK_HOST_UNREGISTERED], self.task_manager_address_name) as receiver:
+          while ctx.connected:
+            ns, data = await wait_with_dependencies(receiver.get(), [receive_disconnect_task])
+            pdata = ModelWithStrId.model_validate(data.data, strict=False)
+            await ctx.send_message(json.dumps({ "event": ns[len("/task-host/"):], "id": pdata.id }))
+      finally:
+        receive_disconnect_task.cancel()
+        await ctx.close()
 
     @router.websocket_route("/deployment/{deployment_id}/task-instances")
     @websocket_context_handler
