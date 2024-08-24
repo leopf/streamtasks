@@ -120,7 +120,7 @@ export const NodeEditor = observer(() => {
                             const containerOffset = containerRef.current!.getBoundingClientRect();
                             task.frontend_config.position = nodeRenderer.getLocalPosition({ x: e.clientX - containerOffset.x - taskHostData.ox * nodeRenderer.zoom, y: e.clientY - containerOffset.y - taskHostData.oy * nodeRenderer.zoom });
                             await deployment.addTask(task);
-                        } catch {}
+                        } catch { }
                     }}
                     sx={{
                         userSelect: "none",
@@ -141,21 +141,24 @@ export const NodeEditor = observer(() => {
                 onClose={() => setConnectFailureInfo(undefined)}
                 message={`Failed to connect! Mismatch on the fields ${connectFailureMismatchedFields.map(k => `"${ioFieldNameToLabel(k)}"`).join(", ")}.${connectFailureInfo?.errorText ? ` Error: ${connectFailureInfo.errorText}` : ""}`}
                 action={(<Button size="small" onClick={() => setConnectFailureInfo(undefined)}>close</Button>)}
-                />
+            />
             <Dialog open={isDeleting && !deployment.running} onClose={() => setDeleting(false)}>
-                <DialogTitle>delete task</DialogTitle>
-                <DialogContent>
-                    <DialogContentText>Do you wish to delete this task?</DialogContentText>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setDeleting(false)} autoFocus>no</Button>
-                    <Button onClick={async () => {
-                        if (state.selectedTask) {
-                            await deployment.deleteTask(state.selectedTask);
-                        }
-                        setDeleting(false);
-                    }}>yes</Button>
-                </DialogActions>
+                <form onSubmit={async e => {
+                    e.preventDefault();
+                    if (state.selectedTask) {
+                        await deployment.deleteTask(state.selectedTask);
+                    }
+                    setDeleting(false);
+                }}>
+                    <DialogTitle>delete task</DialogTitle>
+                    <DialogContent>
+                        <DialogContentText>Do you wish to delete this task?</DialogContentText>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => setDeleting(false)} autoFocus>no</Button>
+                        <Button type="submit">yes</Button>
+                    </DialogActions>
+                </form>
             </Dialog>
         </>
     );

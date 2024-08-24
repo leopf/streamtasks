@@ -41,7 +41,10 @@ function NamedTopicEditorDialog(props: { namedTopic?: NamedTopic, onClose: (t?: 
     return (
         <Dialog fullWidth open={!!props.namedTopic} onClose={() => props.onClose()}>
             {!!props.namedTopic && (
-                <>
+                <form onSubmit={async e => {
+                    e.preventDefault();
+                    props.onClose({ ...(props.namedTopic ?? { metadata: {} }), name: name });
+                }}>
                     <DialogTitle>Named Topic: {name}</DialogTitle>
                     <DialogContent>
                         <TextField
@@ -55,9 +58,9 @@ function NamedTopicEditorDialog(props: { namedTopic?: NamedTopic, onClose: (t?: 
                         />
                     </DialogContent>
                     <DialogActions>
-                        <Button onClick={() => props.onClose({ ...(props.namedTopic ?? { metadata: {} }), name: name })}>Save</Button>
+                        <Button type="submit">Save</Button>
                     </DialogActions>
-                </>
+                </form>
             )}
         </Dialog>
     )

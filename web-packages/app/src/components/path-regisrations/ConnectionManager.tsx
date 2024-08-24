@@ -21,21 +21,26 @@ type ConnectionData = UrlData & {
 function UrlEditorDialog(props: { title: string, isOpen: boolean, label: string, value: string, onUpdate: (v: string) => void, onClose: (create: boolean) => void }) {
     return (
         <Dialog fullWidth open={props.isOpen} onClose={() => props.onClose(false)}>
-            <DialogTitle>{props.title}</DialogTitle>
-            <DialogContent>
-                <TextField
-                    value={props.value}
-                    onInput={(e) => props.onUpdate((e.target as HTMLInputElement).value)}
-                    autoFocus
-                    required
-                    label={props.label}
-                    fullWidth
-                    variant="filled"
-                />
-            </DialogContent>
-            <DialogActions>
-                <Button onClick={() => props.onClose(true)}>Save</Button>
-            </DialogActions>
+            <form onSubmit={async e => {
+                e.preventDefault();
+                props.onClose(true);
+            }}>
+                <DialogTitle>{props.title}</DialogTitle>
+                <DialogContent>
+                    <TextField
+                        value={props.value}
+                        onInput={(e) => props.onUpdate((e.target as HTMLInputElement).value)}
+                        autoFocus
+                        required
+                        label={props.label}
+                        fullWidth
+                        variant="filled"
+                    />
+                </DialogContent>
+                <DialogActions>
+                    <Button type="submit">Save</Button>
+                </DialogActions>
+            </form>
         </Dialog>
     )
 }

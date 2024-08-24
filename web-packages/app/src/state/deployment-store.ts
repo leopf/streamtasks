@@ -97,7 +97,9 @@ export class DeploymentStore {
         if (res.ok) {
             const newDeployment = FullDeploymentModel.parse(await res.json());
             this._deployments.set(newDeployment.id, newDeployment);
+            return newDeployment;
         }
+        throw new Error("Failed to update deployment!");
     }
     public async create(deployment: PartialDeployment) {
         const res = await fetch("./api/deployment", {
@@ -110,6 +112,8 @@ export class DeploymentStore {
         if (res.ok) {
             const newDeployment = FullDeploymentModel.parse(await res.json());
             this._deployments.set(newDeployment.id, newDeployment);
+            return newDeployment;
         }
+        throw new Error("Failed to create deployment!");
     }
 }

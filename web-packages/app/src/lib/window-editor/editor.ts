@@ -5,7 +5,7 @@ import { ManagedTask } from "@streamtasks/core";
 import { DeploymentManager } from "../../state/deployment-manager";
 import { DashboardWindow } from "../../types/dashboard";
 
-const resizeElementSize = 3;
+const resizeElementSize = 5;
 const borderSize = 2;
 const windowHeaderHeight = 20;
 const headerFontSize = windowHeaderHeight - 8;
