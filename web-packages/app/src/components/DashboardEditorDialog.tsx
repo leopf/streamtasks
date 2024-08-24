@@ -22,7 +22,7 @@ export const DashboardEditorDialog = observer(() => {
     }), []);
 
     return (
-        <Dialog fullWidth open={state.isOpen} onClose={() => rootStore.uiControl.closeDeploymentEditor()}>
+        <Dialog fullWidth open={state.isOpen} onClose={() => rootStore.uiControl.closeDashboardEditor()}>
             <form onSubmit={async e => {
                 e.preventDefault();
                 if (!state.editingDashboard) return;

@@ -1,16 +1,16 @@
-import { Box, CircularProgress, Divider, Fab, IconButton, List, ListItemButton, ListItemIcon, ListItemText, Stack, Typography } from "@mui/material";
+import { Box, CircularProgress, Fab, IconButton, List, ListItemButton, ListItemIcon, ListItemText, Stack, Typography } from "@mui/material";
 import { observer, useLocalObservable } from "mobx-react-lite";
 import { useParams } from "react-router-dom";
 import { useEffect, useRef } from "react";
 import { useRootStore } from "../state/root-store";
-import { PageLayout } from "../Layout";
-import { ChevronLeft, ChevronRight, Edit as EditIcon, Terminal as TerminalIcon } from "@mui/icons-material";
+import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, Edit as EditIcon, Terminal as TerminalIcon } from "@mui/icons-material";
 import { reaction } from "mobx";
 import { DeploymentManager } from "../state/deployment-manager";
 import { WindowEditorRenderer } from "../lib/window-editor/editor";
 import cloneDeep from "clone-deep";
 import _ from "underscore";
 import { Dashboard } from "../types/dashboard";
+import { PageLayoutHeader } from "../Layout";
 
 const DashboardEditor = observer((props: { dashboard: Dashboard, deployment: DeploymentManager }) => {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -74,7 +74,7 @@ const DashboardEditor = observer((props: { dashboard: Dashboard, deployment: Dep
             )}
             <Box flex={4} position="relative">
                 <Fab sx={{ position: "absolute", top: "1rem", left: "1rem" }} size="small" color="primary" onClick={() => state.menuOpen = !state.menuOpen}>
-                    {state.menuOpen ? (<ChevronLeft />) : (<ChevronRight />)}
+                    {state.menuOpen ? (<ChevronLeftIcon />) : (<ChevronRightIcon />)}
                 </Fab>
                 <Box ref={containerRef} position="absolute" top={0} left={0} width="100%" height="100%" onDragOver={e => e.preventDefault()} onDrop={async e => {
                     try {
@@ -160,25 +160,25 @@ export const DashboardPage = observer(() => {
         }
         else {
             return (
-                <PageLayout>
-                    <Stack alignItems={"center"} justifyContent="center" height="100%" width="100%"><CircularProgress /></Stack>
-                </PageLayout>
+                <Stack alignItems={"center"} justifyContent="center" height="100%" width="100%"><CircularProgress /></Stack>
             );
         }
     }
 
     return (
-        <PageLayout headerContent={(
-            <>
-                <Typography marginRight={1}>{state.dashboard.label}</Typography>
-                <IconButton color="inherit" size="small" onClick={() => rootStore.uiControl.editDashboard(state.dashboard!)}><EditIcon fontSize="inherit" /></IconButton>
-            </>
-        )}>
+
+        <>
+            <PageLayoutHeader>
+                <>
+                    <Typography marginRight={1}>{state.dashboard.label}</Typography>
+                    <IconButton color="inherit" size="small" onClick={() => rootStore.uiControl.editDashboard(state.dashboard!)}><EditIcon fontSize="inherit" /></IconButton>
+                </>
+            </PageLayoutHeader>
             <Box position="relative" width="100%" height="100%">
                 <Box position="absolute" width="100%" height="100%">
                     <DashboardEditor dashboard={state.dashboard} deployment={state.deployment} />
                 </Box>
             </Box>
-        </PageLayout>
+        </>
     )
 });

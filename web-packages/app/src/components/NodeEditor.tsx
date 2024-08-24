@@ -143,22 +143,19 @@ export const NodeEditor = observer(() => {
                 action={(<Button size="small" onClick={() => setConnectFailureInfo(undefined)}>close</Button>)}
             />
             <Dialog open={isDeleting && !deployment.running} onClose={() => setDeleting(false)}>
-                <form onSubmit={async e => {
-                    e.preventDefault();
-                    if (state.selectedTask) {
-                        await deployment.deleteTask(state.selectedTask);
-                    }
-                    setDeleting(false);
-                }}>
-                    <DialogTitle>delete task</DialogTitle>
-                    <DialogContent>
-                        <DialogContentText>Do you wish to delete this task?</DialogContentText>
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => setDeleting(false)} autoFocus>no</Button>
-                        <Button type="submit">yes</Button>
-                    </DialogActions>
-                </form>
+                <DialogTitle>delete task</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>Do you wish to delete this task?</DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setDeleting(false)} autoFocus>no</Button>
+                    <Button onClick={async () => {
+                        if (state.selectedTask) {
+                            await deployment.deleteTask(state.selectedTask);
+                        }
+                        setDeleting(false);
+                    }}>yes</Button>
+                </DialogActions>
             </Dialog>
         </>
     );
