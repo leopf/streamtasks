@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Color Picker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 100px);
+            grid-gap: 15px;
+        }
+        .color-block {
+            width: 100px;
+            height: 100px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+            transition: transform 0.2s ease;
+        }
+        .color-block:hover {
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="color-grid">
+        <div class="color-block" style="background-color: #6528F7;" onclick="copyColor('#6528F7')">#6528F7</div>
+        <div class="color-block" style="background-color: #A076F9;" onclick="copyColor('#A076F9')">#A076F9</div>
+        <div class="color-block" style="background-color: #FFE300;" onclick="copyColor('#FFE300')">#FFE300</div>
+        <div class="color-block" style="background-color: #FF7800;" onclick="copyColor('#FF7800')">#FF7800</div>
+        <div class="color-block" style="background-color: #0CCA98;" onclick="copyColor('#0CCA98')">#0CCA98</div>
+        <div class="color-block" style="background-color: #00FFCC;" onclick="copyColor('#00FFCC')">#00FFCC</div>
+        <div class="color-block" style="background-color: #F9A828;" onclick="copyColor('#F9A828')">#F9A828</div>
+        <div class="color-block" style="background-color: #EEB76B;" onclick="copyColor('#EEB76B')">#EEB76B</div>
+        <div class="color-block" style="background-color: #ADE498;" onclick="copyColor('#ADE498')">#ADE498</div>
+        <div class="color-block" style="background-color: #EDE682;" onclick="copyColor('#EDE682')">#EDE682</div>
+        <div class="color-block" style="background-color: #91CA62;" onclick="copyColor('#91CA62')">#91CA62</div>
+        <div class="color-block" style="background-color: #F1EBBB;" onclick="copyColor('#F1EBBB')">#F1EBBB</div>
+        <div class="color-block" style="background-color: #F8B500;" onclick="copyColor('#F8B500')">#F8B500</div>
+        <div class="color-block" style="background-color: #AA14F0;" onclick="copyColor('#AA14F0')">#AA14F0</div>
+        <div class="color-block" style="background-color: #BC8CF2;" onclick="copyColor('#BC8CF2')">#BC8CF2</div>
+        <div class="color-block" style="background-color: #6D67E4;" onclick="copyColor('#6D67E4')">#6D67E4</div>
+        <div class="color-block" style="background-color: #FFC5A1;" onclick="copyColor('#FFC5A1')">#FFC5A1</div>
+        <div class="color-block" style="background-color: #EF3F61;" onclick="copyColor('#EF3F61')">#EF3F61</div>
+        <div class="color-block" style="background-color: #DF8931;" onclick="copyColor('#DF8931')">#DF8931</div>
+        <div class="color-block" style="background-color: #85EF47;" onclick="copyColor('#85EF47')">#85EF47</div>
+        <div class="color-block" style="background-color: #F9FD50;" onclick="copyColor('#F9FD50')">#F9FD50</div>
+    </div>
+
+    <script>
+        function copyColor(color) {
+            navigator.clipboard.writeText(color);
+        }
+    </script>
+    
+</body>
+</html>
