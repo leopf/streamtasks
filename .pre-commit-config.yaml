@@ -7,7 +7,7 @@ repos:
         language: system
         always_run: false
         pass_filenames: false
-        files: \.(py([xi]?)|cpp|c)$
+        files: ^(streamtasks|tests)/.*\.(py([xi]?)|cpp|c)$
       - id: ruff
         name: ruff
         entry: ruff check
