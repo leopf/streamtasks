@@ -14,7 +14,7 @@ README_PARTS = [
 """
 # streamtasks
 
-![](docs/screenshot.png)
+[![](docs/screenshot.png)](https://www.youtube.com/watch?v=cMmoPQrjQ0M)
 
 Read the [Documentation](https://leopf.github.io/streamtasks).
 """
@@ -27,7 +27,7 @@ nav_order: 0
 ---
 # streamtasks
 
-![](./screenshot.png)
+[![](./screenshot.png)](https://www.youtube.com/watch?v=cMmoPQrjQ0M)
 """
 ]
 
