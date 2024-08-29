@@ -88,7 +88,7 @@ The flag `-C` indicates that the core components should be started as well.
 
 Use `streamtasks --help` for more options.
 
-### Connecting two instances
+### Connecting two instances ([demo](https://www.youtube.com/watch?v=It-ewb7QCeg))
 When connecting two instances you need to have one main instance running the core components (using `-C`).
 
 To create a connection endpoint (server), you can use the Connection Manager in the UI or you can specify a url to host a server on as a command line flag.
