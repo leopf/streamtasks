@@ -7,6 +7,7 @@ def NODE_NAME(): return os.getenv('NODE_NAME', platform.node())
 def DEBUG_MEDIA(): return int(os.getenv("DEBUG_MEDIA", "0"))
 def DEBUG_MIXER(): return int(os.getenv("DEBUG_MIXER", "0"))
 def DEBUG_SER(): return int(os.getenv("DEBUG_SER", "0"))
+def WEB_PORT(): return int(os.getenv("WEB_PORT", "9006"))
 def DATA_DIR():
   data_dir = os.getenv("DATA_DIR", None)
   if data_dir is None:

@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 import asyncio
 import logging
 from pathlib import Path
+from streamtasks.env import WEB_PORT
 from streamtasks.system.builder import SystemBuilder
 
 async def main(args: list[str] | None = None):
@@ -9,7 +10,7 @@ async def main(args: list[str] | None = None):
   parser.add_argument("--core", "-C", action="store_true", help="Flag indicating whether to run the core components (only allowed to be run once per system, by default).")
   parser.add_argument("--connect", action="append", help="Urls to connect to.")
   parser.add_argument("--serve", action="append", help="Urls to serve on.")
-  parser.add_argument("--web-port", "-P", type=int, default=9006, help="Port to serve the web dashboard on.")
+  parser.add_argument("--web-port", "-P", type=int, default=WEB_PORT(), help="Port to serve the web dashboard on.")
 
   parser.add_argument("--log-level", "-L", help="Log level.", default="DEBUG")
   parser.add_argument("--log-file", help="Log file.", default=None, type=lambda a: None if a is None else Path(a))

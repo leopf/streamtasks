@@ -6,10 +6,11 @@ import multiprocessing
 import time
 from uuid import UUID
 import requests
+from streamtasks.env import WEB_PORT
 
 parser = argparse.ArgumentParser(description="Profiling options")
 parser.add_argument("-D", "--deployment-id", type=UUID, required=True)
-parser.add_argument("-P", "--web-port", default=9006, type=int)
+parser.add_argument("-P", "--web-port", default=WEB_PORT(), type=int)
 parser.add_argument("-d", "--duration", default=60, type=int)
 parser.add_argument("-o", "--outfile", default=".data/server.prof", type=str)
 args, remaining_args = parser.parse_known_args()
