@@ -6,6 +6,9 @@
 Read the [Documentation](https://leopf.github.io/streamtasks).
 
 ## Demos
+- [Overview](https://www.youtube.com/watch?v=cMmoPQrjQ0M)
+- [Interactive voice chat with ASR](https://www.youtube.com/watch?v=EOyZCSgYGR4)
+- [standalone ASR](https://www.youtube.com/watch?v=jk6EWxuPv1s)
 - [llama.cpp chatbot](https://www.youtube.com/watch?v=SK1uyyu2noU)
 - [playing sound effects](https://www.youtube.com/watch?v=S6cEn3XuzyM)
 - [llama.cpp + tts](https://www.youtube.com/watch?v=j6mSyNTFCM4)
