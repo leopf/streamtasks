@@ -1,7 +1,7 @@
 
 # streamtasks
 
-[![](docs/screenshot.png)](https://www.youtube.com/watch?v=cMmoPQrjQ0M)
+[![](docs/screenshot.png)](https://www.youtube.com/watch?v=EOyZCSgYGR4)
 
 Read the [Documentation](https://leopf.github.io/streamtasks).
 

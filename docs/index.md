@@ -4,7 +4,7 @@ nav_order: 0
 ---
 # streamtasks
 
-[![](./screenshot.png)](https://www.youtube.com/watch?v=cMmoPQrjQ0M)
+[![](./screenshot.png)](https://www.youtube.com/watch?v=EOyZCSgYGR4)
 
 ## Demos
 - [llama.cpp chatbot](https://www.youtube.com/watch?v=SK1uyyu2noU)
