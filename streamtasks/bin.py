@@ -5,7 +5,7 @@ from pathlib import Path
 from streamtasks.env import WEB_PORT
 from streamtasks.system.builder import SystemBuilder
 
-async def main(args: list[str] | None = None):
+async def apply_args(builder: SystemBuilder, args: list[str] | None = None):
   parser = ArgumentParser("streamtasks")
   parser.add_argument("--core", "-C", action="store_true", help="Flag indicating whether to run the core components (only allowed to be run once per system, by default).")
   parser.add_argument("--connect", action="append", help="Urls to connect to.")
@@ -16,10 +16,8 @@ async def main(args: list[str] | None = None):
   parser.add_argument("--log-file", help="Log file.", default=None, type=lambda a: None if a is None else Path(a))
 
   args = parser.parse_args(args)
-
   logging.basicConfig(level=logging._nameToLevel[args.log_level.upper()], filename=args.log_file)
 
-  builder = SystemBuilder()
   if args.core: await builder.start_core()
   if args.connect:
     for url in args.connect: await builder.start_connector(url)
@@ -27,6 +25,10 @@ async def main(args: list[str] | None = None):
     for url in args.serve: await builder.start_server(url)
 
   await builder.start_system(args.web_port)
+
+async def main(args: list[str] | None = None):
+  builder = SystemBuilder()
+  await apply_args(builder, args)
   await builder.wait_done()
 
 def main_cli(args: list[str] | None = None): asyncio.run(main(args))

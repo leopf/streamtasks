@@ -129,7 +129,7 @@ class _FnTask(Task):
 
     param_values = self.param_values
     result: tuple = await self.root_config.execute(timestamp=timestamp, params=param_values, state=self.state, config=self.pconfig.fn_config)
-    if len(result) != len(self.outputs): raise ValueError(f"Expected {len(self.outputs)} results, got {len(result)}!")
+    if len(result) != len(self.outputs): raise ValueError(f"Expected a tuple of length {len(self.outputs)}, got length {len(result)}!")
 
     for value, output in zip(result, self.outputs):
       try:

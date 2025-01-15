@@ -41,37 +41,37 @@ class SystemBuilder:
     await self.start_secret_manager()
     await self.start_task_system()
 
-  async def start_discovery(self): await self._start_worker(DiscoveryWorker(), TaskPriorities.Infra)
-  async def start_connector(self, url: str | None = None): await self._start_worker(AutoReconnector(functools.partial(connect, url=url)), TaskPriorities.Network)
-  async def start_server(self, url: str | None = None): await self._start_worker(create_server(url), TaskPriorities.Network)
+  async def start_discovery(self): await self.start_worker(DiscoveryWorker(), TaskPriorities.Infra)
+  async def start_connector(self, url: str | None = None): await self.start_worker(AutoReconnector(functools.partial(connect, url=url)), TaskPriorities.Network)
+  async def start_server(self, url: str | None = None): await self.start_worker(create_server(url), TaskPriorities.Network)
   async def start_node_server(self): await self.start_server()
 
   async def start_task_system(self):
     await self._wait_discovery()
-    await self._start_worker(TaskManager(), TaskPriorities.Infra)
-    await self._start_worker(TaskWebBackend(), TaskPriorities.Infra)
+    await self.start_worker(TaskManager(), TaskPriorities.Infra)
+    await self.start_worker(TaskWebBackend(), TaskPriorities.Infra)
 
   async def start_named_topic_manager(self):
     await self._wait_discovery()
-    await self._start_worker(NamedTopicManager(), TaskPriorities.Infra)
+    await self.start_worker(NamedTopicManager(), TaskPriorities.Infra)
 
   async def start_secret_manager(self):
     await self._wait_discovery()
-    await self._start_worker(SecretManager(), TaskPriorities.Infra)
+    await self.start_worker(SecretManager(), TaskPriorities.Infra)
 
   async def start_connection_manager(self):
     await self._wait_discovery()
-    await self._start_worker(ConnectionManager(), TaskPriorities.System)
+    await self.start_worker(ConnectionManager(), TaskPriorities.System)
 
   async def start_user_endpoint(self, port: int):
     await self._wait_discovery()
     worker = HTTPServerOverASGI(("localhost", port), NetworkAddressNames.TASK_MANAGER_WEB)
     self.http_servers.append(worker)
-    await self._start_worker(worker, TaskPriorities.System)
+    await self.start_worker(worker, TaskPriorities.System)
 
   async def start_task_hosts(self):
     for TaskHostCls in get_all_task_hosts():
-      await self._start_worker(TaskHostCls(register_endpoits=[NetworkAddressNames.TASK_MANAGER]), TaskPriorities.Low)
+      await self.start_worker(TaskHostCls(register_endpoits=[NetworkAddressNames.TASK_MANAGER]), TaskPriorities.Low)
 
   async def wait_done(self):
     await self.tasks.wait(return_when="FIRST_COMPLETED")
@@ -79,7 +79,7 @@ class SystemBuilder:
 
   async def stop(self): await self.tasks.cancel_all("Stopped")
 
-  async def _start_worker(self, worker: Worker, priority: int = 0):
+  async def start_worker(self, worker: Worker, priority: int = 0):
     await self.switch.add_link(await worker.create_link())
     self.tasks.create(worker.run(), priority)
 
