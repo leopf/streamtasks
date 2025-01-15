@@ -71,11 +71,11 @@ class UIBaseTask(Task, Generic[C, V]):
 
     @router.get("/value")
     @http_context_handler
-    async def _(ctx: HTTPContext): await ctx.respond_json(self._value.model_dump())
+    async def _(ctx: HTTPContext): await ctx.respond_json_string(self._value.model_dump_json())
 
     @router.get("/config")
     @http_context_handler
-    async def _(ctx: HTTPContext): await ctx.respond_json(self.config.model_dump())
+    async def _(ctx: HTTPContext): await ctx.respond_json_string(self.config.model_dump_json())
 
     @router.post("/value")
     @http_context_handler
